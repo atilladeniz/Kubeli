@@ -249,7 +249,7 @@ pub async fn list_pods(
                 pod_ip: status.pod_ip,
                 host_ip: status.host_ip,
                 containers,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 restart_count: total_restarts,
                 ready_containers: format!("{}/{}", ready_count, total_count),
@@ -304,7 +304,7 @@ pub async fn list_deployments(
                 ready_replicas: status.ready_replicas.unwrap_or(0),
                 available_replicas: status.available_replicas.unwrap_or(0),
                 updated_replicas: status.updated_replicas.unwrap_or(0),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 selector: btree_to_hashmap(spec.selector.match_labels),
             }
@@ -385,7 +385,7 @@ pub async fn list_services(
                 cluster_ip: spec.cluster_ip,
                 external_ip,
                 ports,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 selector: btree_to_hashmap(spec.selector),
             }
@@ -438,7 +438,7 @@ pub async fn list_configmaps(
                 namespace: metadata.namespace.unwrap_or_default(),
                 uid: metadata.uid.unwrap_or_default(),
                 data_keys,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -491,7 +491,7 @@ pub async fn list_secrets(
                 uid: metadata.uid.unwrap_or_default(),
                 secret_type: secret.type_.unwrap_or_else(|| "Opaque".to_string()),
                 data_keys,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -585,7 +585,7 @@ pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, Str
                 cpu_capacity: capacity.get("cpu").map(|q| q.0.clone()),
                 memory_capacity: capacity.get("memory").map(|q| q.0.clone()),
                 pod_capacity: capacity.get("pods").map(|q| q.0.clone()),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels,
                 internal_ip,
                 external_ip,
@@ -674,7 +674,7 @@ pub async fn get_pod(
         pod_ip: status.pod_ip,
         host_ip: status.host_ip,
         containers,
-        created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+        created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
         labels: btree_to_hashmap(metadata.labels),
         restart_count: total_restarts,
         ready_containers: format!("{}/{}", ready_count, total_count),
@@ -747,7 +747,7 @@ pub async fn get_resource_yaml(
                 created_at: resource
                     .metadata
                     .creation_timestamp
-                    .map(|t| t.0.to_rfc3339()),
+                    .map(|t| t.0.to_string()),
             })
         }
         "deployment" | "deployments" => {
@@ -773,7 +773,7 @@ pub async fn get_resource_yaml(
                 created_at: resource
                     .metadata
                     .creation_timestamp
-                    .map(|t| t.0.to_rfc3339()),
+                    .map(|t| t.0.to_string()),
             })
         }
         "service" | "services" => {
@@ -799,7 +799,7 @@ pub async fn get_resource_yaml(
                 created_at: resource
                     .metadata
                     .creation_timestamp
-                    .map(|t| t.0.to_rfc3339()),
+                    .map(|t| t.0.to_string()),
             })
         }
         "configmap" | "configmaps" => {
@@ -825,7 +825,7 @@ pub async fn get_resource_yaml(
                 created_at: resource
                     .metadata
                     .creation_timestamp
-                    .map(|t| t.0.to_rfc3339()),
+                    .map(|t| t.0.to_string()),
             })
         }
         "secret" | "secrets" => {
@@ -851,7 +851,7 @@ pub async fn get_resource_yaml(
                 created_at: resource
                     .metadata
                     .creation_timestamp
-                    .map(|t| t.0.to_rfc3339()),
+                    .map(|t| t.0.to_string()),
             })
         }
         "node" | "nodes" => {
@@ -876,7 +876,7 @@ pub async fn get_resource_yaml(
                 created_at: resource
                     .metadata
                     .creation_timestamp
-                    .map(|t| t.0.to_rfc3339()),
+                    .map(|t| t.0.to_string()),
             })
         }
         _ => Err(format!("Unsupported resource type: {}", resource_type)),
@@ -1057,7 +1057,7 @@ pub async fn list_namespaces(state: State<'_, AppState>) -> Result<Vec<Namespace
                 name: ns.name_any(),
                 uid: ns.metadata.uid.unwrap_or_default(),
                 status,
-                created_at: ns.metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: ns.metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(ns.metadata.labels),
                 annotations: btree_to_hashmap(ns.metadata.annotations),
             }
@@ -1175,11 +1175,11 @@ pub async fn list_events(
                     uid: involved.uid,
                 },
                 count: event.count.unwrap_or(1),
-                first_timestamp: event.first_timestamp.map(|t| t.0.to_rfc3339()),
-                last_timestamp: event.last_timestamp.map(|t| t.0.to_rfc3339()),
+                first_timestamp: event.first_timestamp.map(|t| t.0.to_string()),
+                last_timestamp: event.last_timestamp.map(|t| t.0.to_string()),
                 source_component: event.source.as_ref().and_then(|s| s.component.clone()),
                 source_host: event.source.and_then(|s| s.host),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
             }
         })
         .collect();
@@ -1243,10 +1243,10 @@ pub async fn list_leases(
                 uid: metadata.uid.unwrap_or_default(),
                 holder_identity: spec.holder_identity,
                 lease_duration_seconds: spec.lease_duration_seconds,
-                acquire_time: spec.acquire_time.map(|t| t.0.to_rfc3339()),
-                renew_time: spec.renew_time.map(|t| t.0.to_rfc3339()),
+                acquire_time: spec.acquire_time.map(|t| t.0.to_string()),
+                renew_time: spec.renew_time.map(|t| t.0.to_string()),
                 lease_transitions: spec.lease_transitions,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -1323,7 +1323,7 @@ pub async fn list_replicasets(
                 available_replicas: status.available_replicas.unwrap_or(0),
                 owner_name,
                 owner_kind,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 selector: btree_to_hashmap(spec.selector.match_labels),
             }
@@ -1403,7 +1403,7 @@ pub async fn list_daemonsets(
                 number_available: status.number_available.unwrap_or(0),
                 number_misscheduled: status.number_misscheduled,
                 updated_number_scheduled: status.updated_number_scheduled.unwrap_or(0),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 node_selector,
             }
@@ -1473,7 +1473,7 @@ pub async fn list_statefulsets(
                 current_replicas: status.current_replicas.unwrap_or(0),
                 updated_replicas: status.updated_replicas.unwrap_or(0),
                 service_name: spec.service_name,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -1537,11 +1537,11 @@ pub async fn list_jobs(
             let spec = job.spec.unwrap_or_default();
             let status = job.status.unwrap_or_default();
 
-            let start_time = status.start_time.as_ref().map(|t| t.0.to_rfc3339());
-            let completion_time = status.completion_time.as_ref().map(|t| t.0.to_rfc3339());
+            let start_time = status.start_time.as_ref().map(|t| t.0.to_string());
+            let completion_time = status.completion_time.as_ref().map(|t| t.0.to_string());
 
             let duration_seconds = match (&status.start_time, &status.completion_time) {
-                (Some(start), Some(end)) => Some((end.0 - start.0).num_seconds()),
+                (Some(start), Some(end)) => Some(end.0.as_second() - start.0.as_second()),
                 _ => None,
             };
 
@@ -1567,7 +1567,7 @@ pub async fn list_jobs(
                 start_time,
                 completion_time,
                 duration_seconds,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 status: job_status.to_string(),
             }
@@ -1635,9 +1635,9 @@ pub async fn list_cronjobs(
                 schedule: spec.schedule,
                 suspend: spec.suspend.unwrap_or(false),
                 active_jobs: status.active.map(|a| a.len() as i32).unwrap_or(0),
-                last_schedule_time: status.last_schedule_time.map(|t| t.0.to_rfc3339()),
-                last_successful_time: status.last_successful_time.map(|t| t.0.to_rfc3339()),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                last_schedule_time: status.last_schedule_time.map(|t| t.0.to_string()),
+                last_successful_time: status.last_successful_time.map(|t| t.0.to_string()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -1824,7 +1824,7 @@ pub async fn list_ingresses(
                 default_backend,
                 load_balancer_ip: first_lb.and_then(|lb| lb.ip.clone()),
                 load_balancer_hostname: first_lb.and_then(|lb| lb.hostname.clone()),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 annotations: btree_to_hashmap(metadata.annotations),
             }
@@ -1952,7 +1952,7 @@ pub async fn list_endpoint_slices(
                 endpoints,
                 ports,
                 service_name,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2073,11 +2073,12 @@ pub async fn list_network_policies(
             let metadata = np.metadata;
             let spec = np.spec.unwrap_or_default();
 
-            let pod_selector = spec
+            let pod_selector: HashMap<String, String> = spec
                 .pod_selector
-                .match_labels
-                .map(|m| m.into_iter().collect())
-                .unwrap_or_default();
+                .and_then(|s| s.match_labels)
+                .unwrap_or_default()
+                .into_iter()
+                .collect();
 
             let ingress_rules = spec
                 .ingress
@@ -2127,7 +2128,7 @@ pub async fn list_network_policies(
                 policy_types: spec.policy_types.unwrap_or_default(),
                 ingress_rules,
                 egress_rules,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2198,7 +2199,7 @@ pub async fn list_ingress_classes(
                 parameters_name: spec.parameters.as_ref().map(|p| p.name.clone()),
                 parameters_namespace: spec.parameters.as_ref().and_then(|p| p.namespace.clone()),
                 parameters_scope: spec.parameters.as_ref().and_then(|p| p.scope.clone()),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 annotations,
             }
@@ -2359,7 +2360,7 @@ pub async fn list_hpas(
                 metrics,
                 current_metrics,
                 conditions,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2454,7 +2455,7 @@ pub async fn list_limit_ranges(
                 namespace: metadata.namespace.unwrap_or_default(),
                 uid: metadata.uid.unwrap_or_default(),
                 limits,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2519,7 +2520,7 @@ pub async fn list_resource_quotas(
                 hard: quantity_map_to_string_map(spec.hard),
                 used: quantity_map_to_string_map(status.used),
                 scopes: spec.scopes.unwrap_or_default(),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2618,7 +2619,7 @@ pub async fn list_pdbs(
                 expected_pods: status.expected_pods,
                 selector,
                 conditions,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2690,7 +2691,7 @@ pub async fn list_persistent_volumes(state: State<'_, AppState>) -> Result<Vec<P
                 claim_namespace,
                 storage_class_name: spec.storage_class_name,
                 volume_mode: spec.volume_mode,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2771,7 +2772,7 @@ pub async fn list_persistent_volume_claims(
                 capacity,
                 requested_storage,
                 volume_mode: spec.volume_mode,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2839,7 +2840,7 @@ pub async fn list_storage_classes(
                     .map(|p| p.into_iter().collect())
                     .unwrap_or_default(),
                 is_default,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2899,7 +2900,7 @@ pub async fn list_csi_drivers(state: State<'_, AppState>) -> Result<Vec<CSIDrive
                 volume_lifecycle_modes: spec.volume_lifecycle_modes.unwrap_or_default(),
                 fs_group_policy: spec.fs_group_policy,
                 token_requests,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -2962,7 +2963,7 @@ pub async fn list_csi_nodes(state: State<'_, AppState>) -> Result<Vec<CSINodeInf
                 name: metadata.name.unwrap_or_default(),
                 uid: metadata.uid.unwrap_or_default(),
                 drivers,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3038,7 +3039,7 @@ pub async fn list_volume_attachments(
                 attachment_metadata,
                 detach_error,
                 attach_error,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3111,7 +3112,7 @@ pub async fn list_service_accounts(
                 secrets,
                 image_pull_secrets,
                 automount_service_account_token: sa.automount_service_account_token,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3189,7 +3190,7 @@ pub async fn list_roles(
                 uid: metadata.uid.unwrap_or_default(),
                 rules,
                 rules_count,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3270,7 +3271,7 @@ pub async fn list_role_bindings(
                 role_name: role_ref.name,
                 subjects,
                 subjects_count,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3349,7 +3350,7 @@ pub async fn list_cluster_roles(
                 rules,
                 rules_count,
                 aggregation_rule,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3412,7 +3413,7 @@ pub async fn list_cluster_role_bindings(
                 role_name: role_ref.name,
                 subjects,
                 subjects_count,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3507,7 +3508,7 @@ pub async fn list_crds(state: State<'_, AppState>) -> Result<Vec<CRDInfo>, Strin
                 versions,
                 stored_versions,
                 conditions_ready,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3558,7 +3559,7 @@ pub async fn list_priority_classes(
                     .preemption_policy
                     .unwrap_or_else(|| "PreemptLowerPriority".to_string()),
                 description: pc.description,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3625,7 +3626,7 @@ pub async fn list_runtime_classes(
                 scheduling_node_selector,
                 scheduling_tolerations_count,
                 overhead_pod_fixed,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3731,7 +3732,7 @@ pub async fn list_mutating_webhooks(
                 uid: metadata.uid.unwrap_or_default(),
                 webhooks,
                 webhooks_count,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
@@ -3827,7 +3828,7 @@ pub async fn list_validating_webhooks(
                 uid: metadata.uid.unwrap_or_default(),
                 webhooks,
                 webhooks_count,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_rfc3339()),
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
             }
         })
