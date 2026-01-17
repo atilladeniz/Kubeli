@@ -28,7 +28,7 @@ kube = { version = "1.1", features = ["client", "config", "derive", "ws", "runti
 k8s-openapi = { version = "0.25", features = ["v1_32"] }
 
 # JSONPath for CRD custom columns
-jsonpath-rust = "0.7"
+jsonpath-rust = "1.0"
 dirs = "6.0"
 
 # Async Runtime
