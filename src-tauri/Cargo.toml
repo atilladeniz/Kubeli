@@ -46,7 +46,7 @@ tower-http = "0.6"
 
 # WebSocket (for logs/exec streaming)
 tokio-tungstenite = "0.26"
-tungstenite = "0.26"
+tungstenite = "0.28"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
