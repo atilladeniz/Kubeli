@@ -63,7 +63,7 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
-rand = "0.8"
+rand = "0.9"
 tauri-plugin-process = "2.3"
 flate2 = "1.1"
 url = "2.5"
