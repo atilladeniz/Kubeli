@@ -25,7 +25,7 @@ tauri-plugin-opener = "2.5"
 
 # Kubernetes Client
 kube = { version = "1.1", features = ["client", "config", "derive", "ws", "runtime"] }
-k8s-openapi = { version = "0.25", features = ["v1_32"] }
+k8s-openapi = { version = "0.27", features = ["v1_32"] }
 
 # JSONPath for CRD custom columns
 jsonpath-rust = "1.0"
