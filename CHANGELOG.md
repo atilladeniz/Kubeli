@@ -4,10 +4,17 @@ All notable changes to Kubeli will be documented in this file.
 
 ## [0.2.29] - 2026-01-17
 
-- Merged 10 Dependabot dependency updates (actions, rusqlite, rand, toml, reqwest, etc.)
-- Fixed reqwest 0.13 feature compatibility (`rustls-tls` renamed to `rustls`)
-- Fixed k8s-openapi version compatibility with kube 1.1
-- Updated rand 0.9 API calls for deprecated functions
+- Fixed dependency compatibility issues after Dependabot updates
+- Updated reqwest from 0.12 to 0.13
+- Updated toml from 0.8 to 0.9
+- Updated k8s-openapi from 0.25 to 0.27
+- Updated rusqlite from 0.32 to 0.38
+- Updated tungstenite from 0.26 to 0.28
+- Updated rand from 0.8 to 0.9
+- Updated jsonpath-rust from 0.7 to 1.0
+- Updated GitHub Actions (checkout v6, setup-node v6, github-script v8)
+- Added CODE_OF_CONDUCT, SECURITY policy, and README badges
+- Added automatic GitHub release to build-deploy workflow
 
 ## [0.2.28] - 2026-01-17
 
