@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public
+.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy
 
 # Default target
 .DEFAULT_GOAL := help
@@ -186,7 +186,26 @@ deploy: ## Deploy update files to FTP server
 	echo "$(GREEN)✓ Files uploaded to $$DEPLOY_API_URL$(RESET)"; \
 	echo "$(GREEN)✓ Update URL: https://$$DEPLOY_API_URL/latest.json$(RESET)"
 
-build-deploy: build deploy deploy-web astro-public ## Build and deploy in one step (update files + DMG + landing page)
+build-deploy: build deploy deploy-web astro-public github-release ## Build, deploy, and create GitHub release
+
+github-release: ## Create GitHub release with DMG
+	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
+	DMG_FILE="src-tauri/target/release/bundle/dmg/Kubeli_$${VERSION}_aarch64.dmg"; \
+	if [ ! -f "$$DMG_FILE" ]; then \
+		echo "$(YELLOW)Error: DMG not found at $$DMG_FILE$(RESET)"; \
+		exit 1; \
+	fi; \
+	echo "$(CYAN)Creating GitHub release v$$VERSION...$(RESET)"; \
+	if gh release view "v$$VERSION" --repo atilladeniz/Kubeli > /dev/null 2>&1; then \
+		echo "$(YELLOW)Release v$$VERSION already exists, skipping...$(RESET)"; \
+	else \
+		gh release create "v$$VERSION" \
+			--repo atilladeniz/Kubeli \
+			--title "Kubeli v$$VERSION" \
+			--notes "See [CHANGELOG.md](https://github.com/atilladeniz/Kubeli/blob/main/CHANGELOG.md) for details." \
+			"$$DMG_FILE"; \
+		echo "$(GREEN)✓ GitHub release v$$VERSION created$(RESET)"; \
+	fi
 
 ## Code Quality
 
