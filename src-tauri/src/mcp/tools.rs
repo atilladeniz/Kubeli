@@ -81,19 +81,22 @@ impl KubeliMcpServer {
             .ok_or_else(|| "Not connected to a Kubernetes cluster".to_string())
     }
 
-    fn format_age(created: Option<chrono::DateTime<chrono::Utc>>) -> String {
+    fn format_age(created: Option<k8s_openapi::jiff::Timestamp>) -> String {
         match created {
             Some(time) => {
-                let now = chrono::Utc::now();
-                let duration = now.signed_duration_since(time);
-                if duration.num_days() > 0 {
-                    format!("{}d", duration.num_days())
-                } else if duration.num_hours() > 0 {
-                    format!("{}h", duration.num_hours())
-                } else if duration.num_minutes() > 0 {
-                    format!("{}m", duration.num_minutes())
+                let now = k8s_openapi::jiff::Timestamp::now();
+                let duration_secs = now.as_second() - time.as_second();
+                let days = duration_secs / 86400;
+                let hours = duration_secs / 3600;
+                let minutes = duration_secs / 60;
+                if days > 0 {
+                    format!("{}d", days)
+                } else if hours > 0 {
+                    format!("{}h", hours)
+                } else if minutes > 0 {
+                    format!("{}m", minutes)
                 } else {
-                    format!("{}s", duration.num_seconds())
+                    format!("{}s", duration_secs)
                 }
             }
             None => "Unknown".to_string(),
@@ -551,7 +554,7 @@ impl KubeliMcpServer {
                 reason: e.reason.clone(),
                 message: e.message.clone(),
                 count: e.count,
-                last_seen: e.last_timestamp.as_ref().map(|t| t.0.to_rfc3339()),
+                last_seen: e.last_timestamp.as_ref().map(|t| t.0.to_string()),
             })
             .collect();
 
