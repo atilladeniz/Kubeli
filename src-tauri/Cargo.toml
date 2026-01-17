@@ -78,7 +78,7 @@ rmcp = { version = "0.13", features = ["server", "transport-io", "macros"] }
 clap = { version = "4.5", features = ["derive"] }
 
 # TOML for Codex config
-toml = "0.8"
+toml = "0.9"
 
 [features]
 default = ["custom-protocol"]
