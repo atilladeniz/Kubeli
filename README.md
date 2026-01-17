@@ -10,13 +10,18 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 
 - **Multi-Cluster Support** - Connect to multiple clusters, auto-detect provider type (Minikube, EKS, GKE, AKS)
 - **Real-Time Updates** - WebSocket-based pod watching with efficient Kubernetes watch API
-- **Resource Browser** - View and manage Pods, Deployments, Services, ConfigMaps, Secrets, and Nodes
-- **Pod Logs** - Stream logs in real-time with filtering, search, and download
+- **Resource Browser** - View and manage Pods, Deployments, Services, ConfigMaps, Secrets, Nodes, and more
+- **Pod Logs** - Stream logs in real-time with filtering, search, and export
 - **Terminal Access** - Interactive shell access to running containers via XTerm.js
 - **Port Forwarding** - Forward ports from pods/services to localhost with status tracking
 - **Metrics Dashboard** - CPU and memory usage visualization (requires metrics-server)
 - **YAML Editor** - Full Monaco editor integration for viewing and editing resources
-- **Dark/Light Mode** - Theme support for comfortable viewing
+- **AI Assistant** - Integrated AI support with Claude Code CLI and OpenAI Codex CLI
+- **MCP Server** - Model Context Protocol server for IDE integration (VS Code, Cursor, Claude Code)
+- **Helm Releases** - View and manage Helm deployments
+- **Proxy Support** - HTTP/HTTPS/SOCKS5 proxy configuration for corporate environments
+- **Internationalization** - English and German language support
+- **Dark/Light Mode** - Theme support with vibrancy effects
 
 ## Tech Stack
 
@@ -109,6 +114,10 @@ kubeli/
 │       └── k8s/            # KubeClientManager, config parsing
 └── Makefile                # Development shortcuts
 ```
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes.
 
 ## License
 
