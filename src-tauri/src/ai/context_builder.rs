@@ -254,10 +254,8 @@ impl ContextBuilder {
                                             && condition.status == "False"
                                             && issues.len() < 5
                                         {
-                                            let reason = condition
-                                                .reason
-                                                .as_deref()
-                                                .unwrap_or("Unknown");
+                                            let reason =
+                                                condition.reason.as_deref().unwrap_or("Unknown");
                                             issues.push(format!(
                                                 "Pod {}/{} pending: {}",
                                                 ns, name, reason
