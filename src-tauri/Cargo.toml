@@ -38,7 +38,7 @@ futures = "0.3"
 futures-util = "0.3"
 
 # HTTP & Networking
-reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { version = "0.13", default-features = false, features = ["json", "rustls-tls"] }
 hyper = "1.8"
 hyper-util = "0.1"
 tower = "0.5"
