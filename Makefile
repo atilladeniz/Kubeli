@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy
+.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog
 
 # Default target
 .DEFAULT_GOAL := help
@@ -186,7 +186,14 @@ deploy: ## Deploy update files to FTP server
 	echo "$(GREEN)✓ Files uploaded to $$DEPLOY_API_URL$(RESET)"; \
 	echo "$(GREEN)✓ Update URL: https://$$DEPLOY_API_URL/latest.json$(RESET)"
 
-build-deploy: build deploy deploy-web astro-public github-release ## Build, deploy, and create GitHub release
+build-deploy: build deploy deploy-web generate-changelog astro-public github-release ## Build, deploy, and create GitHub release
+
+generate-changelog: ## Generate changelog using Claude Code CLI
+	@echo "$(CYAN)Generating changelog with Claude Code CLI...$(RESET)"
+	@node scripts/generate-changelog.js
+	@if [ -f .release-notes.md ]; then \
+		echo "$(GREEN)✓ Changelog files updated$(RESET)"; \
+	fi
 
 github-release: ## Create GitHub release with DMG
 	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
@@ -197,15 +204,24 @@ github-release: ## Create GitHub release with DMG
 	fi; \
 	echo "$(CYAN)Creating GitHub release v$$VERSION...$(RESET)"; \
 	if gh release view "v$$VERSION" --repo atilladeniz/Kubeli > /dev/null 2>&1; then \
-		echo "$(YELLOW)Release v$$VERSION already exists, skipping...$(RESET)"; \
+		echo "$(YELLOW)Release v$$VERSION already exists, updating notes...$(RESET)"; \
+		if [ -f .release-notes.md ]; then \
+			gh release edit "v$$VERSION" --repo atilladeniz/Kubeli --notes-file .release-notes.md; \
+			echo "$(GREEN)✓ Release notes updated$(RESET)"; \
+		fi; \
 	else \
+		NOTES="See [CHANGELOG.md](https://github.com/atilladeniz/Kubeli/blob/main/CHANGELOG.md) for details."; \
+		if [ -f .release-notes.md ]; then \
+			NOTES=$$(cat .release-notes.md); \
+		fi; \
 		gh release create "v$$VERSION" \
 			--repo atilladeniz/Kubeli \
 			--title "Kubeli v$$VERSION" \
-			--notes "See [CHANGELOG.md](https://github.com/atilladeniz/Kubeli/blob/main/CHANGELOG.md) for details." \
+			--notes "$$NOTES" \
 			"$$DMG_FILE"; \
 		echo "$(GREEN)✓ GitHub release v$$VERSION created$(RESET)"; \
-	fi
+	fi; \
+	rm -f .release-notes.md
 
 ## Code Quality
 
