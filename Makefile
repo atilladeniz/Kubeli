@@ -119,6 +119,10 @@ astro: ## Start Astro dev server for landing page
 
 astro-build: ## Build Astro landing page
 	@echo "$(CYAN)Building Astro landing page...$(RESET)"
+	@if [ ! -d "web/node_modules" ]; then \
+		echo "$(YELLOW)Installing web dependencies...$(RESET)"; \
+		cd web && bun install; \
+	fi
 	cd web && bun run build
 	@echo "$(GREEN)✓ Astro build complete (web/dist/)$(RESET)"
 
