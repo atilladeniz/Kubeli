@@ -199,7 +199,9 @@ pub async fn ai_verify_codex_authentication(
 
 /// Get Codex authentication status from cache
 #[tauri::command]
-pub fn ai_get_codex_auth_status(ai_state: State<'_, AIConfigState>) -> Result<AIAuthStatus, String> {
+pub fn ai_get_codex_auth_status(
+    ai_state: State<'_, AIConfigState>,
+) -> Result<AIAuthStatus, String> {
     let cli_info = ai_state.get_cached_codex_cli_info();
     let has_api_key = ai_state.get_api_key().is_some();
 
@@ -245,7 +247,12 @@ pub async fn ai_start_session(
     provider: Option<AiCliProvider>,
 ) -> Result<String, String> {
     agent_manager
-        .start_session(app, cluster_context, initial_context, provider.unwrap_or_default())
+        .start_session(
+            app,
+            cluster_context,
+            initial_context,
+            provider.unwrap_or_default(),
+        )
         .await
 }
 

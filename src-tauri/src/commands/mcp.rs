@@ -2,7 +2,9 @@
 //!
 //! Tauri commands for managing MCP server configuration in IDEs.
 
-use crate::mcp::ide_config::{detect_installed_ides, install_mcp_config, uninstall_mcp_config, IdeStatus, IdeType};
+use crate::mcp::ide_config::{
+    detect_installed_ides, install_mcp_config, uninstall_mcp_config, IdeStatus, IdeType,
+};
 use serde::{Deserialize, Serialize};
 
 /// IDE information for the frontend

@@ -448,12 +448,22 @@ impl AgentManager {
                             if let Some(stdout) = stdout {
                                 match provider {
                                     AiCliProvider::Claude => {
-                                        Self::process_claude_output(&app, &event_name, stdout, stderr)
-                                            .await;
+                                        Self::process_claude_output(
+                                            &app,
+                                            &event_name,
+                                            stdout,
+                                            stderr,
+                                        )
+                                        .await;
                                     }
                                     AiCliProvider::Codex => {
-                                        Self::process_codex_output(&app, &event_name, stdout, stderr)
-                                            .await;
+                                        Self::process_codex_output(
+                                            &app,
+                                            &event_name,
+                                            stdout,
+                                            stderr,
+                                        )
+                                        .await;
                                     }
                                 }
                             }
@@ -461,10 +471,18 @@ impl AgentManager {
                             // Wait for process to finish
                             match child.wait().await {
                                 Ok(status) => {
-                                    tracing::debug!("{} process exited with: {}", provider_name, status);
+                                    tracing::debug!(
+                                        "{} process exited with: {}",
+                                        provider_name,
+                                        status
+                                    );
                                 }
                                 Err(e) => {
-                                    tracing::error!("Failed to wait for {} process: {}", provider_name, e);
+                                    tracing::error!(
+                                        "Failed to wait for {} process: {}",
+                                        provider_name,
+                                        e
+                                    );
                                 }
                             }
                         }
@@ -605,7 +623,8 @@ impl AgentManager {
                         "item.completed" => {
                             // Check for agent_message with text
                             if let Some(item) = json.get("item") {
-                                let item_type = item.get("type").and_then(|v| v.as_str()).unwrap_or("");
+                                let item_type =
+                                    item.get("type").and_then(|v| v.as_str()).unwrap_or("");
                                 if item_type == "agent_message" {
                                     if let Some(text) = item.get("text").and_then(|v| v.as_str()) {
                                         let _ = app.emit(
@@ -618,7 +637,8 @@ impl AgentManager {
                                     }
                                 } else if item_type == "tool_call" {
                                     // Tool execution
-                                    let tool_name = item.get("name").and_then(|v| v.as_str()).unwrap_or("tool");
+                                    let tool_name =
+                                        item.get("name").and_then(|v| v.as_str()).unwrap_or("tool");
                                     let _ = app.emit(
                                         event_name,
                                         AIEvent::ToolExecution {
@@ -629,7 +649,8 @@ impl AgentManager {
                                     );
                                 } else if item_type == "tool_output" {
                                     // Tool result
-                                    let output = item.get("output").and_then(|v| v.as_str()).unwrap_or("");
+                                    let output =
+                                        item.get("output").and_then(|v| v.as_str()).unwrap_or("");
                                     let _ = app.emit(
                                         event_name,
                                         AIEvent::ToolExecution {
@@ -647,7 +668,10 @@ impl AgentManager {
                         }
                         "error" => {
                             // Error event
-                            let message = json.get("message").and_then(|v| v.as_str()).unwrap_or("Unknown error");
+                            let message = json
+                                .get("message")
+                                .and_then(|v| v.as_str())
+                                .unwrap_or("Unknown error");
                             let _ = app.emit(
                                 event_name,
                                 AIEvent::Error {
