@@ -162,10 +162,10 @@ impl Default for PortForwardManager {
 
 /// Find an available random port in the high range (30000-60000)
 async fn find_available_port() -> Result<u16, String> {
-    // Generate random ports upfront to avoid Send issues with thread_rng
+    // Generate random ports upfront to avoid Send issues with rng
     let random_ports: Vec<u16> = {
-        let mut rng = rand::thread_rng();
-        (0..100).map(|_| rng.gen_range(30000..60000)).collect()
+        let mut rng = rand::rng();
+        (0..100).map(|_| rng.random_range(30000..60000)).collect()
     };
 
     // Try random ports first
