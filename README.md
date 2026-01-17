@@ -2,6 +2,14 @@
   <img src=".assets/preview.png" alt="Kubeli - The K8S viewer you deserve" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/atilladeniz/Kubeli/actions/workflows/ci.yml"><img src="https://github.com/atilladeniz/Kubeli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/atilladeniz/Kubeli/releases/latest"><img src="https://img.shields.io/github/v/release/atilladeniz/Kubeli" alt="Release"></a>
+  <a href="https://github.com/atilladeniz/Kubeli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/atilladeniz/Kubeli" alt="License"></a>
+  <img src="https://img.shields.io/badge/platform-macOS-blue" alt="Platform">
+  <a href="https://github.com/atilladeniz/Kubeli/releases"><img src="https://img.shields.io/github/downloads/atilladeniz/Kubeli/total" alt="Downloads"></a>
+</p>
+
 # Kubeli
 
 A modern, beautiful Kubernetes management desktop application with real-time monitoring, terminal access, and a polished user experience.
