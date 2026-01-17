@@ -10,7 +10,6 @@ mod network;
 use ai::agent_manager::AgentManager;
 use ai::commands::AIConfigState;
 use ai::session_store::create_session_store;
-use chrono::{Datelike, Utc};
 use clap::Parser;
 use commands::logs::LogStreamManager;
 use commands::portforward::PortForwardManager;
@@ -124,6 +123,7 @@ fn main() {
             // Build macOS app menu
             #[cfg(target_os = "macos")]
             {
+                use chrono::{Datelike, Utc};
                 let about_metadata = AboutMetadataBuilder::new()
                     .name(Some("Kubeli"))
                     .version(Some("0.1.0"))
