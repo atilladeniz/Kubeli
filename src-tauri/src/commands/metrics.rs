@@ -119,10 +119,7 @@ async fn check_metrics_available(client: &Client) -> bool {
     };
 
     let api: Api<DynamicObject> = Api::all_with(client.clone(), &ar);
-    match api.list(&ListParams::default().limit(1)).await {
-        Ok(_) => true,
-        Err(_) => false,
-    }
+    api.list(&ListParams::default().limit(1)).await.is_ok()
 }
 
 /// Parse CPU quantity string to nanocores

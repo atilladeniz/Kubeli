@@ -1050,7 +1050,7 @@ pub async fn list_namespaces(state: State<'_, AppState>) -> Result<Vec<Namespace
                 .status
                 .as_ref()
                 .and_then(|s| s.phase.as_ref())
-                .map(|p| p.clone())
+                .cloned()
                 .unwrap_or_else(|| "Unknown".to_string());
 
             NamespaceInfo {

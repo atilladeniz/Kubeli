@@ -25,9 +25,5 @@ pub fn set_proxy_config(
 /// Get the current proxy configuration from environment
 #[tauri::command]
 pub fn get_proxy_config() -> ProxyConfig {
-    if let Some(config) = crate::network::proxy::detect_system_proxy() {
-        config
-    } else {
-        ProxyConfig::default()
-    }
+    crate::network::proxy::detect_system_proxy().unwrap_or_default()
 }

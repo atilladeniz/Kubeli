@@ -354,6 +354,7 @@ pub async fn portforward_start(
 }
 
 /// Run the port forward session
+#[allow(clippy::too_many_arguments)]
 async fn run_port_forward(
     client: kube::Client,
     app: AppHandle,
