@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.29] - 2026-01-17
+
+- Merged 10 Dependabot dependency updates (actions, rusqlite, rand, toml, reqwest, etc.)
+- Fixed reqwest 0.13 feature compatibility (`rustls-tls` renamed to `rustls`)
+- Fixed k8s-openapi version compatibility with kube 1.1
+- Updated rand 0.9 API calls for deprecated functions
+
 ## [0.2.28] - 2026-01-17
 
 - Added **Pre-commit hooks** with Husky and lint-staged for automatic code formatting
