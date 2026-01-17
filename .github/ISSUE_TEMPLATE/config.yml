@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/atilladeniz/Kubeli/discussions
+    about: Ask questions and discuss ideas
+  - name: Documentation
+    url: https://kubeli.atilla.app
+    about: Check out the documentation
