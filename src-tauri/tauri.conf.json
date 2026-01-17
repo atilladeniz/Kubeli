@@ -42,7 +42,7 @@
     "icon": ["icons/icon.icns", "icons/icon.png", "icons/icon.ico"],
     "shortDescription": "Modern Kubernetes Management",
     "longDescription": "Kubeli - Your Kubernetes Companion.\n\nThank you for using Kubeli! This app was built to give you a productivity boost in your daily work when it comes to orchestrating with Kubernetes.\n\nAs a developer who works with Kubernetes daily, I optimized the UX so you can keep everything in sight and act quickly.\n\nHappy orchestrating!",
-    "copyright": "© 2025 Kubeli",
+    "copyright": "© 2026 Kubeli",
     "category": "DeveloperTool",
     "macOS": {
       "bundleName": "Kubeli",
