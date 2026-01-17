@@ -37,7 +37,12 @@ impl IdeType {
                 }
                 #[cfg(target_os = "linux")]
                 {
-                    Some(home.join(".config").join("Code").join("User").join("settings.json"))
+                    Some(
+                        home.join(".config")
+                            .join("Code")
+                            .join("User")
+                            .join("settings.json"),
+                    )
                 }
                 #[cfg(target_os = "windows")]
                 {
@@ -263,13 +268,16 @@ fn install_claude_code_config(_path: &PathBuf, kubeli_path: &str) -> Result<(), 
     // Add kubeli as a user-scope MCP server using the CLI
     let output = std::process::Command::new("claude")
         .args([
-            "mcp", "add",
+            "mcp",
+            "add",
             "kubeli",
-            "--scope", "user",
-            "--transport", "stdio",
+            "--scope",
+            "user",
+            "--transport",
+            "stdio",
             "--",
             kubeli_path,
-            "--mcp"
+            "--mcp",
         ])
         .output()
         .map_err(|e| format!("Failed to run claude CLI: {}. Is Claude Code installed?", e))?;
@@ -304,8 +312,7 @@ fn uninstall_claude_code_config(_path: &PathBuf) -> Result<(), String> {
 
 fn install_codex_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String> {
     let mut content = if path.exists() {
-        std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read config: {}", e))?
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?
     } else {
         String::new()
     };
@@ -335,8 +342,8 @@ tool_timeout_sec = 120
 }
 
 fn uninstall_codex_config(path: &PathBuf) -> Result<(), String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read config: {}", e))?;
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
 
     // Parse TOML and remove kubeli section
     let mut doc: toml::Value = content
@@ -349,8 +356,8 @@ fn uninstall_codex_config(path: &PathBuf) -> Result<(), String> {
         }
     }
 
-    let content = toml::to_string_pretty(&doc)
-        .map_err(|e| format!("Failed to serialize TOML: {}", e))?;
+    let content =
+        toml::to_string_pretty(&doc).map_err(|e| format!("Failed to serialize TOML: {}", e))?;
 
     std::fs::write(path, content).map_err(|e| format!("Failed to write config: {}", e))?;
 
@@ -361,8 +368,8 @@ fn uninstall_codex_config(path: &PathBuf) -> Result<(), String> {
 
 fn install_vscode_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String> {
     let mut config: serde_json::Value = if path.exists() {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read config: {}", e))?;
+        let content =
+            std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
         serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({}))
     } else {
         serde_json::json!({})
@@ -388,11 +395,11 @@ fn install_vscode_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String
 }
 
 fn uninstall_vscode_config(path: &PathBuf) -> Result<(), String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read config: {}", e))?;
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
 
-    let mut config: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse config: {}", e))?;
+    let mut config: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))?;
 
     if let Some(servers) = config.get_mut("mcp.servers") {
         if let Some(obj) = servers.as_object_mut() {
@@ -412,8 +419,8 @@ fn uninstall_vscode_config(path: &PathBuf) -> Result<(), String> {
 
 fn install_cursor_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String> {
     let mut config: serde_json::Value = if path.exists() {
-        let content = std::fs::read_to_string(path)
-            .map_err(|e| format!("Failed to read config: {}", e))?;
+        let content =
+            std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
         serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({}))
     } else {
         serde_json::json!({})
@@ -439,11 +446,11 @@ fn install_cursor_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String
 }
 
 fn uninstall_cursor_config(path: &PathBuf) -> Result<(), String> {
-    let content = std::fs::read_to_string(path)
-        .map_err(|e| format!("Failed to read config: {}", e))?;
+    let content =
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
 
-    let mut config: serde_json::Value = serde_json::from_str(&content)
-        .map_err(|e| format!("Failed to parse config: {}", e))?;
+    let mut config: serde_json::Value =
+        serde_json::from_str(&content).map_err(|e| format!("Failed to parse config: {}", e))?;
 
     if let Some(servers) = config.get_mut("mcpServers") {
         if let Some(obj) = servers.as_object_mut() {
@@ -466,7 +473,12 @@ mod tests {
     #[test]
     fn test_ide_config_paths() {
         // Just ensure no panics
-        for ide in [IdeType::ClaudeCode, IdeType::Codex, IdeType::VSCode, IdeType::Cursor] {
+        for ide in [
+            IdeType::ClaudeCode,
+            IdeType::Codex,
+            IdeType::VSCode,
+            IdeType::Cursor,
+        ] {
             let _ = ide.config_path();
             let _ = ide.is_installed();
             let _ = ide.display_name();
