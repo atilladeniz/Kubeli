@@ -354,6 +354,7 @@ impl AgentManager {
     }
 
     /// Handle messages by spawning CLI processes per message
+    #[allow(clippy::too_many_arguments)]
     async fn message_handler_loop(
         app: AppHandle,
         event_name: String,

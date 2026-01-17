@@ -189,7 +189,7 @@ impl ContextBuilder {
                         Some("Minikube".to_string())
                     } else if labels
                         .get("node.kubernetes.io/instance-type")
-                        .map_or(false, |v| v.contains("kind"))
+                        .is_some_and(|v| v.contains("kind"))
                     {
                         Some("Kind".to_string())
                     } else if labels.get("k3s.io/hostname").is_some() {
@@ -252,17 +252,16 @@ impl ContextBuilder {
                                     for condition in conditions {
                                         if condition.type_ == "PodScheduled"
                                             && condition.status == "False"
+                                            && issues.len() < 5
                                         {
-                                            if issues.len() < 5 {
-                                                let reason = condition
-                                                    .reason
-                                                    .as_deref()
-                                                    .unwrap_or("Unknown");
-                                                issues.push(format!(
-                                                    "Pod {}/{} pending: {}",
-                                                    ns, name, reason
-                                                ));
-                                            }
+                                            let reason = condition
+                                                .reason
+                                                .as_deref()
+                                                .unwrap_or("Unknown");
+                                            issues.push(format!(
+                                                "Pod {}/{} pending: {}",
+                                                ns, name, reason
+                                            ));
                                         }
                                     }
                                 }
