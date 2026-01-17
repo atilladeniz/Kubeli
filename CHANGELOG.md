@@ -2,7 +2,17 @@
 
 All notable changes to Kubeli will be documented in this file.
 
-## [0.2.25] - 2025-01-17
+## [0.2.28] - 2026-01-17
+
+- Added **Pre-commit hooks** with Husky and lint-staged for automatic code formatting
+- ESLint auto-fix for TypeScript/JavaScript files on commit
+- Cargo fmt for Rust files on commit
+- Updated all npm dependencies to latest versions
+- Improved CI/CD workflow with proper Linux dependencies
+- Fixed all Clippy warnings in Rust codebase
+- Fixed environment variable loading for values with spaces
+
+## [0.2.25] - 2026-01-17
 
 - Added **MCP Server** (Model Context Protocol) for IDE integration
 - One-click installation for Claude Code, Codex, VS Code, and Cursor
