@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.32] - 2026-01-17
+
+- Fixed chrono imports in main.rs for macOS app menu functionality
+
 ## [0.2.31] - 2026-01-17
 
 - Updated `kube` Rust dependency from 1.1 to 3.0
