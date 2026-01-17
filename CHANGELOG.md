@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.30] - 2026-01-17
+
+- Added automatic changelog generation with Claude Code CLI
+- Fixed copyright year to 2026 in settings and configuration files
+
 ## [0.2.29] - 2026-01-17
 
 - Fixed dependency compatibility issues after Dependabot updates
