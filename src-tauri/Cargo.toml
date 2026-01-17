@@ -1,0 +1,99 @@
+[package]
+name = "kubeli"
+version = "0.2.25"
+description = "Kubeli - Modern Kubernetes Management Desktop Application"
+authors = ["Kubeli Team"]
+edition = "2021"
+license = "MIT"
+
+[build-dependencies]
+tauri-build = { version = "2.5", features = [] }
+
+[dependencies]
+# Tauri Core
+tauri = { version = "2.9", features = ["macos-private-api"] }
+tauri-plugin-shell = "2.3"
+tauri-plugin-fs = "2.4"
+tauri-plugin-dialog = "2.5"
+tauri-plugin-store = "2.4"
+tauri-plugin-updater = "2.9"
+tauri-plugin-window-state = "2.4"
+tauri-plugin-deep-link = "2.4"
+tauri-plugin-log = "2.8"
+tauri-plugin-os = "2.3"
+tauri-plugin-opener = "2.5"
+
+# Kubernetes Client
+kube = { version = "1.1", features = ["client", "config", "derive", "ws", "runtime"] }
+k8s-openapi = { version = "0.25", features = ["v1_32"] }
+
+# JSONPath for CRD custom columns
+jsonpath-rust = "0.7"
+dirs = "6.0"
+
+# Async Runtime
+tokio = { version = "1.49", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io", "compat"] }
+futures = "0.3"
+futures-util = "0.3"
+
+# HTTP & Networking
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+hyper = "1.8"
+hyper-util = "0.1"
+tower = "0.5"
+tower-http = "0.6"
+
+# WebSocket (for logs/exec streaming)
+tokio-tungstenite = "0.26"
+tungstenite = "0.26"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_yaml = "0.9"
+
+# Cryptography & Security
+rustls = { version = "0.23", features = ["ring"] }
+
+# Utilities
+anyhow = "1.0"
+thiserror = "2.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+tauri-plugin-process = "2.3"
+flate2 = "1.1"
+url = "2.5"
+uuid = { version = "1.19", features = ["v4"] }
+regex = "1.12"
+
+# SQLite for AI session persistence
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# MCP (Model Context Protocol) Server
+rmcp = { version = "0.13", features = ["server", "transport-io", "macros"] }
+clap = { version = "4.5", features = ["derive"] }
+
+# TOML for Codex config
+toml = "0.8"
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.dev]
+incremental = true
+codegen-units = 256
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+opt-level = 1
+debug = 0
+
+[profile.release]
+lto = true
+opt-level = "s"
+strip = true

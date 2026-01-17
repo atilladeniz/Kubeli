@@ -1,0 +1,24 @@
+{
+  "files.exclude": {
+    "**/node_modules": true,
+    "**/out": true,
+    "**/.next": true,
+    "**/tsconfig.tsbuildinfo": true,
+    "**/next-env.d.ts": true,
+    "**/Cargo.lock": true,
+    "**/target-ra": true
+  },
+  "search.exclude": {
+    "**/node_modules": true,
+    "**/out": true,
+    "**/.next": true,
+    "**/tsconfig.tsbuildinfo": true,
+    "**/next-env.d.ts": true,
+    "**/Cargo.lock": true,
+    "**/target-ra": true
+  },
+  "rust-analyzer.cargo.targetDir": "target-ra",
+  "rust-analyzer.check.extraArgs": ["--target-dir", "target-ra"],
+  "rust-analyzer.checkOnSave": false,
+  "i18n-ally.localesPaths": ["src/i18n", "src/i18n/messages"]
+}

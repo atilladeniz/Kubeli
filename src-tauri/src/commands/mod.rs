@@ -1,0 +1,12 @@
+pub mod clusters;
+pub mod debug;
+pub mod graph;
+pub mod helm;
+pub mod logs;
+pub mod mcp;
+pub mod metrics;
+pub mod network;
+pub mod portforward;
+pub mod resources;
+pub mod shell;
+pub mod watch;

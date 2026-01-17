@@ -1,0 +1,151 @@
+---
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: demo-config
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+data:
+  APP_ENV: development
+  LOG_LEVEL: debug
+  API_URL: http://api.kubeli-demo.svc.cluster.local
+---
+# Secret
+apiVersion: v1
+kind: Secret
+metadata:
+  name: demo-secret
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+type: Opaque
+data:
+  DB_PASSWORD: ZGVtby1wYXNzd29yZA==
+  API_KEY: ZGVtby1hcGkta2V5LTEyMzQ1
+---
+# Service Account
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: demo-service-account
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+---
+# Deployment - Web Frontend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-web
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: web
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: demo-app
+      component: web
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        component: web
+    spec:
+      serviceAccountName: demo-service-account
+      containers:
+        - name: nginx
+          image: nginx:alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          envFrom:
+            - configMapRef:
+                name: demo-config
+---
+# Deployment - API Backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-api
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: demo-app
+      component: api
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        component: api
+    spec:
+      serviceAccountName: demo-service-account
+      containers:
+        - name: api
+          image: nginx:alpine
+          ports:
+            - containerPort: 8080
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: demo-secret
+                  key: DB_PASSWORD
+---
+# Services
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-web-svc
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: web
+spec:
+  type: ClusterIP
+  selector:
+    app: demo-app
+    component: web
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-api-svc
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: api
+spec:
+  type: ClusterIP
+  selector:
+    app: demo-app
+    component: api
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP

@@ -1,0 +1,33 @@
+---
+import BaseLayout from "./BaseLayout.astro";
+
+interface Props {
+  title?: string;
+}
+
+const { title = "Changelog" } = Astro.props;
+---
+
+<BaseLayout title={title} activeNav="changelog">
+  <div class="mx-auto max-w-3xl px-4 sm:px-8 py-8 sm:py-12">
+    <div class="mb-10">
+      <h1 class="text-3xl font-bold mb-3">Changelog</h1>
+      <p class="text-neutral-500 leading-relaxed">
+        Here are the latest updates and enhancements we've implemented for Kubeli.
+        Our commitment to continuous improvement means that we frequently introduce
+        modifications, making it essential for you to revisit this space periodically
+        to stay abreast of the latest developments.
+      </p>
+    </div>
+
+    <article class="prose prose-neutral max-w-none
+      prose-h2:text-xl prose-h2:font-bold prose-h2:mt-10 prose-h2:mb-3 first:prose-h2:mt-0
+      prose-ul:my-2 prose-ul:list-disc
+      prose-li:text-neutral-600 prose-li:my-0.5 prose-li:marker:text-neutral-300
+      prose-p:text-neutral-500 prose-p:my-1
+      prose-strong:text-neutral-700 prose-strong:font-semibold
+    ">
+      <slot />
+    </article>
+  </div>
+</BaseLayout>

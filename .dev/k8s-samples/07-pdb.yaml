@@ -1,0 +1,32 @@
+---
+# PodDisruptionBudget for Web - ensure at least 2 pods are always available
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: demo-web-pdb
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: web
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: demo-app
+      component: web
+---
+# PodDisruptionBudget for API - allow max 1 unavailable
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: demo-api-pdb
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: api
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: demo-app
+      component: api

@@ -1,0 +1,38 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import pkg from "../../../package.json";
+
+const version = pkg.version;
+const dmgUrl = `/Kubeli_${version}_aarch64.dmg`;
+---
+
+<BaseLayout title="Kubernetes Management" activeNav="home">
+  <div class="mx-auto flex max-w-6xl flex-1 flex-col items-center justify-center px-4 sm:px-8 py-8 sm:py-12">
+    <section class="mx-auto flex flex-col items-center">
+      <img src="/kubeli.svg" class="w-32 mb-6" alt="Kubeli Logo" />
+
+      <div class="flex flex-col space-y-4 text-center">
+        <h1 class="mx-auto max-w-sm text-2xl font-semibold md:text-4xl">
+          Kubernetes Management Made Simple
+        </h1>
+        <p class="text-neutral-500 max-w-xs mx-auto text-sm">
+          A modern, native desktop app for managing your Kubernetes clusters
+        </p>
+      </div>
+
+      <div class="mx-auto mt-8 flex flex-col items-center space-y-2 text-center">
+        <a
+          href={dmgUrl}
+          class="cursor-pointer flex items-center gap-2 rounded-full bg-black px-8 py-2 text-xl text-white hover:bg-neutral-800 transition-colors"
+        >
+        <img src="/apple-dark.svg" class="size-5" alt="Apple Logo" />
+          Download
+        </a>
+        <p class="text-xs text-neutral-500">
+          v{version} for macOS<br />
+          <span class="text-neutral-400">For Apple Silicon Chips</span>
+        </p>
+      </div>
+    </section>
+  </div>
+</BaseLayout>
