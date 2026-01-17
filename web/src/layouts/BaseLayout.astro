@@ -8,6 +8,7 @@ interface Props {
 }
 
 const { title, description = "Kubeli - Modern Kubernetes Management for macOS", activeNav = "" } = Astro.props;
+const currentYear = new Date().getFullYear();
 ---
 
 <html lang="en">
@@ -156,7 +157,7 @@ const { title, description = "Kubeli - Modern Kubernetes Management for macOS", 
 
     <footer class="border-t border-neutral-100 py-4">
       <div class="mx-auto max-w-6xl px-4 sm:px-8 flex justify-between items-center text-xs text-neutral-500">
-        <span>&copy; 2025 Kubeli</span>
+        <span>&copy; {currentYear} Kubeli</span>
         <a href="https://github.com/atilladeniz/kubeli" class="hover:text-neutral-900 hover:underline underline-offset-4 transition-colors">
           GitHub
         </a>

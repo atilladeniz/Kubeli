@@ -1211,7 +1211,7 @@ export function SettingsPanel() {
                   <p className="pt-1">
                     {t("about.tagline")}
                   </p>
-                  <p>© 2025 Kubeli</p>
+                  <p>© {new Date().getFullYear()} Kubeli</p>
                 </div>
               </div>
             </TabsContent>

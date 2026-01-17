@@ -10,6 +10,7 @@ mod network;
 use ai::agent_manager::AgentManager;
 use ai::commands::AIConfigState;
 use ai::session_store::create_session_store;
+use chrono::{Datelike, Utc};
 use clap::Parser;
 use commands::logs::LogStreamManager;
 use commands::portforward::PortForwardManager;
@@ -126,7 +127,7 @@ fn main() {
                 let about_metadata = AboutMetadataBuilder::new()
                     .name(Some("Kubeli"))
                     .version(Some("0.1.0"))
-                    .copyright(Some("© 2025 Kubeli"))
+                    .copyright(Some(&format!("© {} Kubeli", Utc::now().year())))
                     .comments(Some("Modern Kubernetes Management Desktop Application.\n\nThank you for using Kubeli!"))
                     .build();
 
