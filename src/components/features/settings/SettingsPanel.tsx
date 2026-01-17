@@ -15,7 +15,6 @@ import {
   XCircle,
   AlertCircle,
   Plug,
-  Terminal,
   MessageSquare,
   Copy,
   Check,
