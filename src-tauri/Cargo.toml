@@ -71,7 +71,7 @@ uuid = { version = "1.19", features = ["v4"] }
 regex = "1.12"
 
 # SQLite for AI session persistence
-rusqlite = { version = "0.32", features = ["bundled"] }
+rusqlite = { version = "0.38", features = ["bundled"] }
 
 # MCP (Model Context Protocol) Server
 rmcp = { version = "0.13", features = ["server", "transport-io", "macros"] }
