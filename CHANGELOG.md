@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.31] - 2026-01-17
+
+- Updated `kube` Rust dependency from 1.1 to 3.0
+
 ## [0.2.30] - 2026-01-17
 
 - Added automatic changelog generation with Claude Code CLI
