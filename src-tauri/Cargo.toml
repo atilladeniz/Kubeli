@@ -45,7 +45,7 @@ tower = "0.5"
 tower-http = "0.6"
 
 # WebSocket (for logs/exec streaming)
-tokio-tungstenite = "0.26"
+tokio-tungstenite = "0.28"
 tungstenite = "0.26"
 
 # Serialization
