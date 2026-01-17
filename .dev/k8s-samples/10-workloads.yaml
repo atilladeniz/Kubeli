@@ -1,0 +1,146 @@
+---
+# DaemonSet - Log collector on each node
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: demo-log-collector
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: logging
+spec:
+  selector:
+    matchLabels:
+      app: demo-app
+      component: log-collector
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        component: log-collector
+    spec:
+      containers:
+        - name: log-collector
+          image: busybox:latest
+          command: ["sh", "-c", "while true; do echo 'Collecting logs...'; sleep 60; done"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+# StatefulSet - Demo database
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: demo-db
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: database
+spec:
+  serviceName: demo-db
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+      component: database
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        component: database
+    spec:
+      containers:
+        - name: db
+          image: busybox:latest
+          command: ["sh", "-c", "while true; do echo 'DB running...'; sleep 300; done"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 256Mi
+---
+# Service for StatefulSet
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-db
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: database
+spec:
+  clusterIP: None
+  selector:
+    app: demo-app
+    component: database
+  ports:
+    - port: 5432
+      targetPort: 5432
+---
+# Job - One-time migration
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: demo-migration
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: migration
+spec:
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        component: migration
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: migration
+          image: busybox:latest
+          command: ["sh", "-c", "echo 'Running migration...' && sleep 5 && echo 'Migration complete!'"]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+# CronJob - Scheduled cleanup
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: demo-cleanup
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: cleanup
+spec:
+  schedule: "*/30 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: demo-app
+            component: cleanup-job
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: cleanup
+              image: busybox:latest
+              command: ["sh", "-c", "echo 'Cleanup started at $(date)' && sleep 3 && echo 'Cleanup done!'"]
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi

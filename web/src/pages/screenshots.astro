@@ -1,0 +1,76 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const screenshots = [
+  {
+    src: "/screens/01-cluster-connect.webp",
+    title: "Cluster Connection",
+    description: "Connect to your Kubernetes clusters with a clean, minimalist interface. Select from multiple contexts including local Minikube and remote clusters."
+  },
+  {
+    src: "/screens/02-cluster-overview.webp",
+    title: "Cluster Overview",
+    description: "Get a comprehensive dashboard showing Nodes, Pods, Deployments, and Services. Visual metrics display CPU and memory usage, pod status, and top resource consumers."
+  },
+  {
+    src: "/screens/03-resource-diagram.webp",
+    title: "Resource Diagram",
+    description: "Visualize your cluster topology with interactive diagrams. See namespaces, deployments, and pods in a clear hierarchical view with health status indicators."
+  },
+  {
+    src: "/screens/04-log-viewer.webp",
+    title: "Log Viewer",
+    description: "Full-featured log viewer with search, timestamps, and live streaming. Errors are highlighted in red for quick identification and troubleshooting."
+  },
+  {
+    src: "/screens/05-ai-log-analysis.webp",
+    title: "AI Log Analysis",
+    description: "Split-screen view with logs on one side and AI-powered analysis on the other. Claude automatically identifies errors, explains root causes, and suggests fixes."
+  },
+  {
+    src: "/screens/06-port-forwards.webp",
+    title: "Port Forwards",
+    description: "Manage port forwarding with an intuitive interface. Map local ports to cluster services and open them directly in your browser."
+  },
+  {
+    src: "/screens/07-settings-ai.webp",
+    title: "AI Integration",
+    description: "Choose between Claude Code CLI or OpenAI Codex CLI for AI-powered cluster insights. Analyze pods, troubleshoot issues, and understand cluster health with natural language."
+  },
+  {
+    src: "/screens/08-settings-themes.webp",
+    title: "Themes & Settings",
+    description: "Customize your experience with multiple themes including Light, Dark, Classic, and System modes. Toggle animations and configure other preferences."
+  }
+];
+---
+
+<BaseLayout title="Screenshots" description="Kubeli Screenshots - See Kubeli in action" activeNav="screenshots">
+  <div class="mx-auto max-w-6xl px-4 sm:px-8 py-8 sm:py-12">
+    <div class="mb-8 sm:mb-12 text-center">
+      <h1 class="text-3xl font-semibold mb-3">Screenshots</h1>
+      <p class="text-neutral-500 max-w-lg mx-auto">
+        Explore Kubeli's features through these screenshots. From cluster management to AI-powered log analysis.
+      </p>
+    </div>
+
+    <div class="space-y-12 sm:space-y-20">
+      {screenshots.map((shot, index) => (
+        <article class={`flex flex-col md:flex-row gap-6 sm:gap-8 items-center ${index % 2 === 1 ? 'md:flex-row-reverse' : ''}`}>
+          <div class="md:w-1/3 space-y-2 sm:space-y-3 text-center md:text-left">
+            <h2 class="font-semibold text-xl sm:text-2xl">{shot.title}</h2>
+            <p class="text-neutral-500 leading-relaxed">{shot.description}</p>
+          </div>
+          <div class="md:w-2/3 overflow-hidden">
+            <img
+              src={shot.src}
+              alt={shot.title}
+              class="w-full h-auto"
+              loading="lazy"
+            />
+          </div>
+        </article>
+      ))}
+    </div>
+  </div>
+</BaseLayout>

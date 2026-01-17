@@ -1,0 +1,8 @@
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeli-demo
+  labels:
+    app: kubeli-demo
+    environment: development

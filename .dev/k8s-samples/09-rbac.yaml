@@ -1,0 +1,66 @@
+---
+# Role for pod management
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: demo-pod-manager
+  namespace: kubeli-demo
+  labels:
+    app: kubeli-demo
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods/exec"]
+    verbs: ["create"]
+---
+# Role for deployment management
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: demo-deployment-manager
+  namespace: kubeli-demo
+  labels:
+    app: kubeli-demo
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments", "replicasets"]
+    verbs: ["get", "list", "watch", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+---
+# RoleBinding for service account
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: demo-pod-manager-binding
+  namespace: kubeli-demo
+  labels:
+    app: kubeli-demo
+subjects:
+  - kind: ServiceAccount
+    name: demo-service-account
+    namespace: kubeli-demo
+roleRef:
+  kind: Role
+  name: demo-pod-manager
+  apiGroup: rbac.authorization.k8s.io
+---
+# RoleBinding for deployment manager
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: demo-deployment-binding
+  namespace: kubeli-demo
+  labels:
+    app: kubeli-demo
+subjects:
+  - kind: ServiceAccount
+    name: demo-service-account
+    namespace: kubeli-demo
+roleRef:
+  kind: Role
+  name: demo-deployment-manager
+  apiGroup: rbac.authorization.k8s.io

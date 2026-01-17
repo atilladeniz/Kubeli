@@ -1,0 +1,11 @@
+{
+  "recommendations": [
+    "astro-build.astro-vscode",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "bradlc.vscode-tailwindcss",
+    "rust-lang.rust-analyzer",
+    "tauri-apps.tauri-vscode"
+  ],
+  "unwantedRecommendations": []
+}

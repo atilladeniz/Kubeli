@@ -1,0 +1,49 @@
+---
+# Persistent Volume
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: demo-pv-1
+  labels:
+    type: local
+    app: kubeli-demo
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: /data/demo-pv-1
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: demo-pv-2
+  labels:
+    type: local
+    app: kubeli-demo
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 2Gi
+  accessModes:
+    - ReadWriteMany
+  hostPath:
+    path: /data/demo-pv-2
+---
+# Persistent Volume Claim
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: demo-pvc
+  namespace: kubeli-demo
+  labels:
+    app: kubeli-demo
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 500Mi

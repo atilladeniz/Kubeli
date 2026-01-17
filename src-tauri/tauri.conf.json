@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Kubeli",
+  "version": "0.2.25",
+  "identifier": "com.kubeli",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:3000",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../out"
+  },
+  "app": {
+    "macOSPrivateApi": true,
+    "windows": [
+      {
+        "title": "Kubeli",
+        "width": 1400,
+        "height": 900,
+        "minWidth": 1024,
+        "minHeight": 768,
+        "resizable": true,
+        "fullscreen": false,
+        "center": true,
+        "titleBarStyle": "Overlay",
+        "hiddenTitle": true,
+        "transparent": true,
+        "windowEffects": {
+          "effects": ["hudWindow"],
+          "state": "active",
+          "radius": 16
+        }
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self' ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "createUpdaterArtifacts": true,
+    "icon": ["icons/icon.icns", "icons/icon.png", "icons/icon.ico"],
+    "shortDescription": "Modern Kubernetes Management",
+    "longDescription": "Kubeli - Your Kubernetes Companion.\n\nThank you for using Kubeli! This app was built to give you a productivity boost in your daily work when it comes to orchestrating with Kubernetes.\n\nAs a developer who works with Kubernetes daily, I optimized the UX so you can keep everything in sight and act quickly.\n\nHappy orchestrating!",
+    "copyright": "© 2025 Kubeli",
+    "category": "DeveloperTool",
+    "macOS": {
+      "bundleName": "Kubeli",
+      "minimumSystemVersion": "10.15"
+    },
+    "iOS": {
+      "developmentTeam": ""
+    }
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDBENDk5RjExOUIwMTdCMzkKUldRNWV3R2JFWjlKRGN5d0dWY0VudVhrbDF1STdEVDA3cXFWZm4yMXV3M1BneFk2U0J4MENyMHYK",
+      "endpoints": ["https://api.atilla.app/kubeli/updates/latest.json"],
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}
