@@ -37,7 +37,7 @@ build: ## Build production Tauri app
 		echo ""; \
 	fi; \
 	if [ -f .env ]; then \
-		export $$(grep -v "^#" .env | grep -v "^$$" | xargs); \
+		set -a; source .env; set +a; \
 	fi; \
 	if [ -z "$$TAURI_SIGNING_PRIVATE_KEY" ] && [ -f ~/.tauri/kubeli.key ]; then \
 		export TAURI_SIGNING_PRIVATE_KEY="$$(cat ~/.tauri/kubeli.key)"; \
@@ -125,7 +125,7 @@ astro-build: ## Build Astro landing page
 astro-public: astro-build ## Build and deploy landing page to FTP
 	@echo "$(CYAN)Deploying Astro landing page to FTP...$(RESET)"
 	@if [ -f .env ]; then \
-		export $$(grep -v "^#" .env | grep -v "^$$" | xargs); \
+		set -a; source .env; set +a; \
 	fi; \
 	if [ ! -d "web/dist" ]; then \
 		echo "$(YELLOW)Error: web/dist not found. Run 'make astro-build' first.$(RESET)"; \
@@ -141,7 +141,7 @@ astro-public: astro-build ## Build and deploy landing page to FTP
 deploy-web: ## Deploy DMG to landing page for direct download
 	@echo "$(CYAN)Deploying DMG to landing page...$(RESET)"
 	@if [ -f .env ]; then \
-		export $$(grep -v "^#" .env | grep -v "^$$" | xargs); \
+		set -a; source .env; set +a; \
 	fi; \
 	DMG_DIR="src-tauri/target/release/bundle/dmg"; \
 	DMG_FILE=$$(ls $$DMG_DIR/*.dmg 2>/dev/null | head -1); \
@@ -162,7 +162,7 @@ deploy-web: ## Deploy DMG to landing page for direct download
 deploy: ## Deploy update files to FTP server
 	@echo "$(CYAN)Deploying update files to FTP...$(RESET)"
 	@if [ -f .env ]; then \
-		export $$(grep -v "^#" .env | grep -v "^$$" | xargs); \
+		set -a; source .env; set +a; \
 	fi; \
 	VERSION=$$(node -e "console.log(require('./package.json').version)"); \
 	BUNDLE_DIR="src-tauri/target/release/bundle/macos"; \
