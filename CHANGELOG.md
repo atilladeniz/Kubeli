@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.33] - 2026-01-18
+
+- Added batch log stream updates for improved performance
+- Fixed pod watch lifecycle stability
+- Updated CI to disable macOS build job
+- Added TaskMaster data for project management
+
 ## [0.2.32] - 2026-01-17
 
 - Fixed chrono imports in main.rs for macOS app menu functionality
