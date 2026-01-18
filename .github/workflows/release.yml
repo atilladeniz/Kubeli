@@ -10,6 +10,7 @@ env:
 
 jobs:
   create-release:
+    if: false # Temporarily disabled until release automation is set up.
     name: Create Release
     runs-on: ubuntu-latest
     outputs:
@@ -38,6 +39,7 @@ jobs:
             return data.id
 
   build-tauri:
+    if: false # Temporarily disabled until release automation is set up.
     name: Build (${{ matrix.target }})
     needs: create-release
     runs-on: ${{ matrix.os }}
@@ -94,6 +96,7 @@ jobs:
           args: --target ${{ matrix.target }}
 
   publish-release:
+    if: false # Temporarily disabled until release automation is set up.
     name: Publish Release
     needs: [create-release, build-tauri]
     runs-on: ubuntu-latest
