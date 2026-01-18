@@ -38,6 +38,7 @@ export function useLogs(
   options: UseLogsOptions = {}
 ): UseLogsReturn {
   const { maxLines = 10000 } = options;
+  const flushIntervalMs = 150;
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -48,6 +49,9 @@ export function useLogs(
 
   const streamIdRef = useRef<string | null>(null);
   const unlistenRef = useRef<UnlistenFn | null>(null);
+  const logsRef = useRef<LogEntry[]>([]);
+  const pendingLogsRef = useRef<LogEntry[]>([]);
+  const flushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Fetch containers when namespace/pod changes
   useEffect(() => {
@@ -69,9 +73,44 @@ export function useLogs(
     fetchContainers();
   }, [namespace, podName, selectedContainer]);
 
+  const flushPendingLogs = useCallback(() => {
+    if (flushTimeoutRef.current) {
+      clearTimeout(flushTimeoutRef.current);
+      flushTimeoutRef.current = null;
+    }
+    if (pendingLogsRef.current.length === 0) return;
+
+    const pending = pendingLogsRef.current;
+    pendingLogsRef.current = [];
+
+    const nextLogs = logsRef.current;
+    nextLogs.push(...pending);
+    if (nextLogs.length > maxLines) {
+      nextLogs.splice(0, nextLogs.length - maxLines);
+    }
+    logsRef.current = nextLogs;
+    setLogs([...nextLogs]);
+  }, [maxLines]);
+
+  const scheduleFlush = useCallback(() => {
+    if (flushTimeoutRef.current) return;
+    flushTimeoutRef.current = setTimeout(() => {
+      flushPendingLogs();
+    }, flushIntervalMs);
+  }, [flushIntervalMs, flushPendingLogs]);
+
+  const enqueueLog = useCallback(
+    (entry: LogEntry) => {
+      pendingLogsRef.current.push(entry);
+      scheduleFlush();
+    },
+    [scheduleFlush]
+  );
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      flushPendingLogs();
       if (streamIdRef.current) {
         stopLogStream(streamIdRef.current).catch(console.error);
       }
@@ -79,7 +118,7 @@ export function useLogs(
         unlistenRef.current();
       }
     };
-  }, []);
+  }, [flushPendingLogs]);
 
   const fetchLogs = useCallback(
     async (fetchOptions: Omit<LogOptions, "namespace" | "pod_name"> = {}) => {
@@ -99,7 +138,14 @@ export function useLogs(
         };
 
         const fetchedLogs = await getPodLogs(logOptions);
-        setLogs(fetchedLogs.slice(-maxLines));
+        if (flushTimeoutRef.current) {
+          clearTimeout(flushTimeoutRef.current);
+          flushTimeoutRef.current = null;
+        }
+        pendingLogsRef.current = [];
+        const nextLogs = fetchedLogs.slice(-maxLines);
+        logsRef.current = nextLogs;
+        setLogs([...nextLogs]);
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : "Failed to fetch logs";
         setError(errorMsg);
@@ -116,6 +162,7 @@ export function useLogs(
 
       // Stop any existing stream
       if (streamIdRef.current) {
+        flushPendingLogs();
         await stopLogStream(streamIdRef.current).catch(console.error);
         if (unlistenRef.current) {
           unlistenRef.current();
@@ -136,16 +183,10 @@ export function useLogs(
 
           switch (logEvent.type) {
             case "Line":
-              setLogs((prev) => {
-                const newLogs = [...prev, logEvent.data];
-                // Keep only maxLines
-                if (newLogs.length > maxLines) {
-                  return newLogs.slice(-maxLines);
-                }
-                return newLogs;
-              });
+              enqueueLog(logEvent.data);
               break;
             case "Error":
+              flushPendingLogs();
               setError(logEvent.data);
               setIsStreaming(false);
               break;
@@ -153,6 +194,7 @@ export function useLogs(
               setIsStreaming(true);
               break;
             case "Stopped":
+              flushPendingLogs();
               setIsStreaming(false);
               streamIdRef.current = null;
               break;
@@ -177,7 +219,7 @@ export function useLogs(
         streamIdRef.current = null;
       }
     },
-    [namespace, podName, selectedContainer, isStreaming, maxLines]
+    [namespace, podName, selectedContainer, isStreaming, enqueueLog, flushPendingLogs]
   );
 
   const stopStream = useCallback(async () => {
@@ -188,6 +230,7 @@ export function useLogs(
     } catch (e) {
       console.error("Failed to stop stream:", e);
     } finally {
+      flushPendingLogs();
       if (unlistenRef.current) {
         unlistenRef.current();
         unlistenRef.current = null;
@@ -195,9 +238,15 @@ export function useLogs(
       streamIdRef.current = null;
       setIsStreaming(false);
     }
-  }, []);
+  }, [flushPendingLogs]);
 
   const clearLogs = useCallback(() => {
+    if (flushTimeoutRef.current) {
+      clearTimeout(flushTimeoutRef.current);
+      flushTimeoutRef.current = null;
+    }
+    pendingLogsRef.current = [];
+    logsRef.current = [];
     setLogs([]);
     setError(null);
   }, []);
