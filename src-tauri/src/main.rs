@@ -105,7 +105,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .manage(AppState::new())
-        .manage(WatchManager::new())
+        .manage(Arc::new(WatchManager::new()))
         .manage(Arc::new(LogStreamManager::new()))
         .manage(Arc::new(ShellSessionManager::new()))
         .manage(Arc::new(PortForwardManager::new()))
