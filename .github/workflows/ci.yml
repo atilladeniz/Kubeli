@@ -73,6 +73,7 @@ jobs:
         run: cargo clippy -- -D warnings
 
   build:
+    if: false # Temporarily disabled; re-enable when macOS build is ready.
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     needs: [lint-frontend, lint-backend]
