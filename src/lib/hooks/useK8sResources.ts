@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useClusterStore } from "../stores/cluster-store";
 import {
   listPods,
@@ -1667,6 +1667,7 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
   // Initialize isWatching to true if autoWatch is enabled to prevent flicker
   const [isWatching, setIsWatching] = useState(options.autoWatch ?? false);
   const [watchId, setWatchId] = useState<string | null>(null);
+  const watchRetryUntilRef = useRef<number | null>(null);
 
   const { isConnected, currentNamespace } = useClusterStore();
   const namespace = options.namespace ?? currentNamespace;
@@ -1691,10 +1692,12 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
 
     const id = `${_resourceType}-${Date.now()}`;
     setWatchId(id);
+    setError(null);
 
     try {
       await watchPods(id, namespace || undefined);
       setIsWatching(true);
+      watchRetryUntilRef.current = null;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start watch");
     }
@@ -1706,6 +1709,7 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
       await stopWatch(watchId);
       setIsWatching(false);
       setWatchId(null);
+      watchRetryUntilRef.current = null;
     } catch (e) {
       console.error("Failed to stop watch:", e);
     }
@@ -1748,6 +1752,20 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
             case "Restarted": {
               return watchEvent.data as T[];
             }
+            case "Error": {
+              const message =
+                typeof watchEvent.data === "string"
+                  ? watchEvent.data
+                  : "Watch error";
+              setError(message);
+              setIsWatching(false);
+              setWatchId(null);
+              watchRetryUntilRef.current = Date.now() + 5000;
+              if (watchId) {
+                stopWatch(watchId).catch(() => {});
+              }
+              return prev;
+            }
             default:
               return prev;
           }
@@ -1781,11 +1799,17 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
     if (!options.autoWatch || !isConnected || isWatching || isLoading) return;
 
     // Small delay to ensure initial data is loaded first
+    const retryUntil = watchRetryUntilRef.current;
+    const delay =
+      retryUntil && retryUntil > Date.now()
+        ? retryUntil - Date.now()
+        : 500;
+
     const timer = setTimeout(() => {
       if (_resourceType === "pods") {
         startWatch();
       }
-    }, 500);
+    }, delay);
 
     return () => clearTimeout(timer);
   }, [options.autoWatch, isConnected, isWatching, isLoading, _resourceType, startWatch]);

@@ -149,14 +149,15 @@ fn pod_to_info(pod: Pod) -> PodInfo {
 pub async fn watch_pods(
     app: AppHandle,
     state: State<'_, AppState>,
-    watch_manager: State<'_, WatchManager>,
+    watch_manager: State<'_, Arc<WatchManager>>,
     namespace: Option<String>,
     watch_id: String,
 ) -> Result<(), String> {
     let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let manager = Arc::clone(watch_manager.inner());
 
     let stop_flag = Arc::new(AtomicBool::new(false));
-    watch_manager
+    manager
         .add_session(watch_id.clone(), stop_flag.clone())
         .await;
 
@@ -210,6 +211,7 @@ pub async fn watch_pods(
             }
         }
 
+        manager.remove_session(&watch_id_clone).await;
         tracing::info!("Watch {} ended", watch_id_clone);
     });
 
@@ -220,7 +222,7 @@ pub async fn watch_pods(
 /// Stop watching resources
 #[command]
 pub async fn stop_watch(
-    watch_manager: State<'_, WatchManager>,
+    watch_manager: State<'_, Arc<WatchManager>>,
     watch_id: String,
 ) -> Result<(), String> {
     if watch_manager.stop_session(&watch_id).await {
