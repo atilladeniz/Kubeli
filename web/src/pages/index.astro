@@ -3,7 +3,7 @@ import BaseLayout from "../layouts/BaseLayout.astro";
 import pkg from "../../../package.json";
 
 const version = pkg.version;
-const dmgUrl = `/Kubeli_${version}_aarch64.dmg`;
+const dmgUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_aarch64.dmg`;
 ---
 
 <BaseLayout title="Kubernetes Management" activeNav="home">
