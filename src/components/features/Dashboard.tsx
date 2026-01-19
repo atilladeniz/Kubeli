@@ -1386,6 +1386,10 @@ function PodsView() {
       isWatching={isWatching}
       onStartWatch={startWatch}
       onStopWatch={stopWatchFn}
+      onRowClick={(pod) => {
+        setSelectedPod(null);
+        openResourceDetail("pod", pod.name, pod.namespace);
+      }}
       getRowKey={(pod) => pod.uid}
       getRowClassName={getRowClassName}
       getRowNamespace={(pod) => pod.namespace}
