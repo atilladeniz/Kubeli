@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.34] - 2026-01-19
+
+- Added pod row click handler in Dashboard component
+- Fixed DMG download URL to point to GitHub releases
+- Updated build-deploy target in Makefile
+
 ## [0.2.33] - 2026-01-18
 
 - Added batch log stream updates for improved performance
