@@ -186,7 +186,7 @@ deploy: ## Deploy update files to FTP server
 	echo "$(GREEN)✓ Files uploaded to $$DEPLOY_API_URL$(RESET)"; \
 	echo "$(GREEN)✓ Update URL: https://$$DEPLOY_API_URL/latest.json$(RESET)"
 
-build-deploy: build deploy deploy-web generate-changelog astro-public github-release ## Build, deploy, and create GitHub release
+build-deploy: build deploy generate-changelog astro-public github-release ## Build, deploy, and create GitHub release
 
 generate-changelog: ## Generate changelog using Claude Code CLI
 	@echo "$(CYAN)Generating changelog with Claude Code CLI...$(RESET)"
