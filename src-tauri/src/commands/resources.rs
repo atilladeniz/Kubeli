@@ -879,6 +879,32 @@ pub async fn get_resource_yaml(
                     .map(|t| t.0.to_string()),
             })
         }
+        "networkpolicy" | "networkpolicies" => {
+            let ns = namespace.ok_or("Namespace required for network policies")?;
+            let api: Api<NetworkPolicy> = Api::namespaced(client, &ns);
+            let resource = api
+                .get(&name)
+                .await
+                .map_err(|e| format!("Failed to get network policy: {}", e))?;
+
+            let yaml = serde_yaml::to_string(&resource)
+                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+
+            Ok(ResourceYaml {
+                yaml,
+                api_version: "networking.k8s.io/v1".to_string(),
+                kind: "NetworkPolicy".to_string(),
+                name: resource.name_any(),
+                namespace: resource.namespace(),
+                uid: resource.metadata.uid.unwrap_or_default(),
+                labels: btree_to_hashmap(resource.metadata.labels),
+                annotations: btree_to_hashmap(resource.metadata.annotations),
+                created_at: resource
+                    .metadata
+                    .creation_timestamp
+                    .map(|t| t.0.to_string()),
+            })
+        }
         _ => Err(format!("Unsupported resource type: {}", resource_type)),
     }
 }
