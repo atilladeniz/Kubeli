@@ -211,6 +211,7 @@ export interface PodInfo {
   host_ip: string | null;
   containers: ContainerInfo[];
   created_at: string | null;
+  deletion_timestamp: string | null;
   labels: Record<string, string>;
   restart_count: number;
   ready_containers: string;

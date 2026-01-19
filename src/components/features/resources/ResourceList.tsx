@@ -726,7 +726,11 @@ export const podColumns: Column<PodInfo>[] = [
     key: "phase",
     label: "STATUS",
     sortable: true,
-    render: (pod) => <PodPhaseBadge phase={pod.phase} />,
+    render: (pod) => (
+      <PodPhaseBadge
+        phase={pod.deletion_timestamp ? "Terminating" : pod.phase}
+      />
+    ),
   },
   {
     key: "restart_count",
@@ -781,7 +785,11 @@ export function getPodColumns(t: TranslateFunc): Column<PodInfo>[] {
       key: "phase",
       label: t("columns.status"),
       sortable: true,
-      render: (pod) => <PodPhaseBadge phase={pod.phase} />,
+      render: (pod) => (
+        <PodPhaseBadge
+          phase={pod.deletion_timestamp ? "Terminating" : pod.phase}
+        />
+      ),
     },
     {
       key: "restart_count",
@@ -3145,6 +3153,7 @@ function PodPhaseBadge({ phase }: { phase: string }) {
     Pending: "bg-yellow-500/10 text-yellow-500",
     Succeeded: "bg-blue-500/10 text-blue-500",
     Failed: "bg-destructive/10 text-destructive",
+    Terminating: "bg-muted text-muted-foreground",
     Unknown: "bg-muted text-muted-foreground",
   };
 

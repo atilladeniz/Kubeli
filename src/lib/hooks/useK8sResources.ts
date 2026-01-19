@@ -1664,8 +1664,7 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
   const [data, setData] = useState<T[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Initialize isWatching to true if autoWatch is enabled to prevent flicker
-  const [isWatching, setIsWatching] = useState(options.autoWatch ?? false);
+  const [isWatching, setIsWatching] = useState(false);
   const [watchId, setWatchId] = useState<string | null>(null);
   const watchRetryUntilRef = useRef<number | null>(null);
 
@@ -1688,7 +1687,7 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
   }, [isConnected, namespace, fetchFn]);
 
   const startWatch = useCallback(async () => {
-    if (!isConnected || isWatching || _resourceType !== "pods") return;
+    if (!isConnected || watchId || _resourceType !== "pods") return;
 
     const id = `${_resourceType}-${Date.now()}`;
     setWatchId(id);
@@ -1700,8 +1699,11 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
       watchRetryUntilRef.current = null;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to start watch");
+      setIsWatching(false);
+      setWatchId(null);
+      watchRetryUntilRef.current = Date.now() + 5000;
     }
-  }, [isConnected, isWatching, namespace, _resourceType]);
+  }, [isConnected, watchId, namespace, _resourceType]);
 
   const stopWatchFn = useCallback(async () => {
     if (!watchId) return;
@@ -1729,19 +1731,23 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
           switch (watchEvent.type) {
             case "Added": {
               const newItem = watchEvent.data as T;
-              const exists = prev.some((item) =>
-                "uid" in item && "uid" in newItem && item.uid === newItem.uid
+              const index = prev.findIndex(
+                (item) => "uid" in item && "uid" in newItem && item.uid === newItem.uid
               );
-              if (exists) return prev;
-              return [...prev, newItem];
+              if (index === -1) return [...prev, newItem];
+              const next = [...prev];
+              next[index] = newItem;
+              return next;
             }
             case "Modified": {
               const modifiedItem = watchEvent.data as T;
-              return prev.map((item) =>
-                "uid" in item && "uid" in modifiedItem && item.uid === modifiedItem.uid
-                  ? modifiedItem
-                  : item
+              const index = prev.findIndex(
+                (item) => "uid" in item && "uid" in modifiedItem && item.uid === modifiedItem.uid
               );
+              if (index === -1) return [...prev, modifiedItem];
+              const next = [...prev];
+              next[index] = modifiedItem;
+              return next;
             }
             case "Deleted": {
               const deletedItem = watchEvent.data as T;
@@ -1796,7 +1802,7 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
 
   // Auto-start watch if enabled (more efficient than polling)
   useEffect(() => {
-    if (!options.autoWatch || !isConnected || isWatching || isLoading) return;
+    if (!options.autoWatch || !isConnected || isWatching || watchId || isLoading) return;
 
     // Small delay to ensure initial data is loaded first
     const retryUntil = watchRetryUntilRef.current;
