@@ -199,18 +199,6 @@ export function ResourceDetail({
               </Button>
             </>
           )}
-          {onDelete && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowDeleteDialog(true)}
-              className="text-destructive hover:text-destructive"
-            >
-              <Trash2 className="size-4" />
-              {t("common.delete")}
-            </Button>
-          )}
-          <Separator orientation="vertical" className="h-6" />
           <Button variant="ghost" size="icon" onClick={onClose}>
             <X className="size-4" />
           </Button>
@@ -259,6 +247,12 @@ export function ResourceDetail({
               <TabsTrigger value="events" className="gap-2">
                 <AlertCircle className="size-4" />
                 {t("resourceDetail.events")}
+              </TabsTrigger>
+            )}
+            {onDelete && (
+              <TabsTrigger value="danger" className="gap-2 text-destructive data-[state=active]:text-destructive">
+                <Trash2 className="size-4" />
+                {t("resourceDetail.dangerZone")}
               </TabsTrigger>
             )}
           </TabsList>
@@ -571,13 +565,37 @@ export function ResourceDetail({
             </ScrollArea>
           </TabsContent>
         )}
+
+        {/* Danger Zone Tab */}
+        {onDelete && (
+          <TabsContent value="danger" className="flex-1 overflow-hidden m-0">
+            <div className="p-4">
+              <div className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+                <div>
+                  <p className="text-sm font-medium">{t("resourceDetail.deleteResource", { type: resourceType.charAt(0).toUpperCase() + resourceType.slice(1), name: resource.name })}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t("resourceDetail.deleteWarning")}
+                  </p>
+                </div>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => setShowDeleteDialog(true)}
+                >
+                  <Trash2 className="size-4 mr-2" />
+                  {t("common.delete")}
+                </Button>
+              </div>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
 
       {/* Delete Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("common.delete")} {resourceType}?</AlertDialogTitle>
+            <AlertDialogTitle>{t("messages.confirmDeleteTitle", { type: resourceType.charAt(0).toUpperCase() + resourceType.slice(1) })}</AlertDialogTitle>
             <AlertDialogDescription>
               {t("messages.confirmDelete", { name: resource.name })}
               {resource.namespace && (
