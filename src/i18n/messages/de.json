@@ -579,7 +579,8 @@
     "loadFailed": "Laden fehlgeschlagen"
   },
   "messages": {
-    "confirmDelete": "Sind Sie sicher, dass Sie {name} löschen möchten?",
+    "confirmDelete": "Möchten Sie \"{name}\" wirklich löschen?",
+    "confirmDeleteTitle": "{type} löschen?",
     "deleteSuccess": "{name} wurde erfolgreich gelöscht",
     "deleteError": "Fehler beim Löschen von {name}",
     "saveSuccess": "Änderungen wurden erfolgreich gespeichert",
@@ -674,7 +675,10 @@
     "downloadYaml": "YAML herunterladen",
     "editYaml": "YAML bearbeiten",
     "applyChanges": "Änderungen anwenden",
-    "discardChanges": "Änderungen verwerfen"
+    "discardChanges": "Änderungen verwerfen",
+    "dangerZone": "Gefahrenzone",
+    "deleteResource": "{type} \"{name}\" löschen",
+    "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden."
   },
   "shortcuts": {
     "title": "Tastenkürzel",

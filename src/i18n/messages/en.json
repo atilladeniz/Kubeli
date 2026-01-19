@@ -579,7 +579,8 @@
     "loadFailed": "Failed to load data"
   },
   "messages": {
-    "confirmDelete": "Are you sure you want to delete {name}?",
+    "confirmDelete": "Are you sure you want to delete \"{name}\"?",
+    "confirmDeleteTitle": "Delete {type}?",
     "deleteSuccess": "{name} deleted successfully",
     "deleteError": "Failed to delete {name}",
     "saveSuccess": "Changes saved successfully",
@@ -674,7 +675,10 @@
     "downloadYaml": "Download YAML",
     "editYaml": "Edit YAML",
     "applyChanges": "Apply Changes",
-    "discardChanges": "Discard Changes"
+    "discardChanges": "Discard Changes",
+    "dangerZone": "Danger Zone",
+    "deleteResource": "Delete {type} \"{name}\"",
+    "deleteWarning": "This action cannot be undone."
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",
