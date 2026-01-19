@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.36] - 2026-01-19
+
+- Added pod management enhancements in Dashboard and ResourceList components
+- Added Nextra documentation website setup
+- Added SBOM generation for npm and Rust dependencies
+- Updated preview image in assets
+
 ## [0.2.35] - 2026-01-19
 
 - Enhanced resource deletion functionality in ResourceDetail component
