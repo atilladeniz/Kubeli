@@ -1383,11 +1383,115 @@
         ],
         "status": "pending",
         "subtasks": []
+      },
+      {
+        "id": 39,
+        "title": "Initialize Nextra documentation project",
+        "description": "Set up a new Nextra project in the docs/ directory with Next.js theme configuration and TypeScript support",
+        "details": "1. Create docs/ directory at project root\n2. Initialize Nextra using latest version (nextra@^4.x with next@^15/16 compatibility)\n3. Install dependencies: nextra, nextra-theme-docs, next, react, react-dom\n4. Configure package.json with scripts for dev/build\n5. Set up TypeScript with tsconfig.json\n6. Create theme.config.tsx with Kubeli branding:\n   - Logo: use project logo from .assets/\n   - Colors: match Tailwind theme\n   - Project links: GitHub repo\n   - Footer: MIT license, author info\n7. Configure next.config.mjs for static export (output: 'export')\n8. Add .gitignore for .next/, out/, node_modules/\n9. Test dev server runs successfully",
+        "testStrategy": "Run 'npm run dev' in docs/ directory and verify Nextra dev server starts on port 3000. Check that theme.config.tsx displays Kubeli branding. Verify static export builds successfully with 'npm run build'.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 40,
+        "title": "Add Makefile targets for documentation workflow",
+        "description": "Extend the project Makefile with targets for documentation development, build, and deployment",
+        "details": "Add the following targets to Makefile:\n1. docs-dev: Start Nextra dev server (cd docs && npm run dev)\n2. docs-build: Build static documentation (cd docs && npm run build)\n3. docs-install: Install docs dependencies (cd docs && npm install)\n4. docs-clean: Clean build artifacts (rm -rf docs/.next docs/out)\n\nAdd documentation section header: ## Documentation\nEnsure targets follow existing Makefile patterns with color output (CYAN, GREEN, YELLOW)\nUpdate .PHONY declaration to include new targets\nAdd help text for each target using ## comments",
+        "testStrategy": "Run 'make docs-dev' and verify Nextra starts. Run 'make docs-build' and verify out/ directory is created with static files. Run 'make help' and confirm new documentation targets appear in the help menu.",
+        "priority": "high",
+        "dependencies": [
+          39
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 41,
+        "title": "Create landing page and getting started guide",
+        "description": "Write the documentation homepage (index.mdx), installation guide, and first cluster connection tutorial",
+        "details": "Create MDX files in docs/pages/:\n\n1. index.mdx (Landing page):\n   - Hero section with Kubeli description\n   - Feature highlights (multi-cluster, real-time updates, terminal, etc.)\n   - Quick links to installation and tutorials\n   - Screenshot from .assets/preview.png\n\n2. getting-started/installation.mdx:\n   - Download instructions (GitHub releases)\n   - System requirements (Node 18+, Rust 1.70+)\n   - Build from source steps (matching README.md)\n   - Platform-specific instructions (macOS)\n\n3. getting-started/first-cluster.mdx:\n   - Prerequisites (kubectl, kubeconfig)\n   - Connecting to first cluster\n   - Kubeconfig auto-detection\n   - Testing with minikube (reference Makefile commands)\n\n4. getting-started/quick-tour.mdx:\n   - Overview of main features\n   - Navigation guide\n   - Resource browser walkthrough\n   - Link to feature-specific docs\n\nUse Nextra callouts for tips/warnings",
+        "testStrategy": "Navigate to each page in the dev server. Verify all internal links work. Check that code blocks render correctly with syntax highlighting. Ensure images load properly. Validate MDX syntax with no build errors.",
+        "priority": "medium",
+        "dependencies": [
+          39
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 42,
+        "title": "Document core feature set",
+        "description": "Create comprehensive documentation for cluster management, resource viewing, visualization diagram, and multi-cluster support",
+        "details": "Create MDX files in docs/pages/features/:\n\n1. clusters.mdx:\n   - Adding/removing clusters\n   - Kubeconfig management\n   - Provider auto-detection (Minikube, EKS, GKE, AKS)\n   - Context switching\n   - Connection troubleshooting\n\n2. resources.mdx:\n   - Resource types supported (Pods, Deployments, Services, etc.)\n   - Viewing resource details\n   - YAML editing with Monaco\n   - Deleting resources\n   - Real-time updates\n\n3. visualization.mdx:\n   - Resource diagram overview\n   - React Flow architecture (reference CLAUDE.md diagram section)\n   - LOD (Level of Detail) system\n   - Navigation and zoom controls\n   - Viewport behavior\n\n4. multi-cluster.mdx:\n   - Managing multiple clusters\n   - Switching between contexts\n   - Cluster comparison\n   - Resource aggregation views\n\nInclude screenshots and code examples",
+        "testStrategy": "Review each page for technical accuracy against src/components/features/ implementation. Verify links to related features work. Test code examples are syntactically correct. Ensure screenshots match current UI.",
+        "priority": "medium",
+        "dependencies": [
+          39
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 43,
+        "title": "Create advanced features documentation",
+        "description": "Document terminal access, pod logs, port forwarding, metrics dashboard, and YAML editor capabilities",
+        "details": "Create MDX files in docs/pages/features/:\n\n1. terminal.mdx:\n   - Interactive shell access (XTerm.js)\n   - Container selection\n   - Terminal shortcuts\n   - Copy/paste handling\n\n2. logs.mdx:\n   - Real-time log streaming\n   - Filtering and search\n   - Export functionality\n   - Multi-container logs\n\n3. port-forwarding.mdx:\n   - Setting up port forwards\n   - Status tracking\n   - Troubleshooting\n   - Use cases\n\n4. metrics.mdx:\n   - CPU/memory usage (Recharts)\n   - Requires metrics-server\n   - Dashboard customization\n   - Performance monitoring\n\nReference implementation in src/lib/hooks/ and src/components/features/",
+        "testStrategy": "Cross-reference documentation with actual implementation in src/lib/tauri/commands.ts. Verify all described features exist in the codebase. Test command examples against the application. Ensure technical details match Rust backend in src-tauri/src/commands/",
+        "priority": "medium",
+        "dependencies": [
+          42
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 44,
+        "title": "Write tutorials and troubleshooting guide",
+        "description": "Create step-by-step tutorials for deploying applications, managing resources, and troubleshooting common issues",
+        "details": "Create MDX files in docs/pages/tutorials/:\n\n1. index.mdx:\n   - Tutorial overview\n   - Prerequisites\n   - Skill levels (beginner/intermediate/advanced)\n\n2. deploy-app.mdx:\n   - Deploy sample application\n   - Use minikube-setup-samples resources (.dev/k8s-samples/)\n   - Create deployment via YAML\n   - Expose service\n   - Monitor deployment status\n   - Scale deployment\n\n3. troubleshooting.mdx:\n   - Common connection issues\n   - Kubeconfig problems\n   - Permission errors\n   - Proxy configuration\n   - Platform-specific issues (macOS)\n   - Debug mode instructions\n\n4. advanced/helm.mdx:\n   - Viewing Helm releases\n   - Managing Helm deployments\n   - Helm values editing\n\nInclude step-by-step commands and expected outputs",
+        "testStrategy": "Follow each tutorial step-by-step in a clean environment. Verify all commands work as documented. Test troubleshooting steps resolve actual issues. Validate tutorial outcomes match described results.",
+        "priority": "medium",
+        "dependencies": [
+          41,
+          42
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 45,
+        "title": "Create API and development reference",
+        "description": "Document Tauri commands, Zustand stores, React hooks, and development setup for contributors",
+        "details": "Create MDX files in docs/pages/:\n\n1. api/commands.mdx:\n   - Document Tauri commands from src/lib/tauri/commands.ts\n   - Rust backend architecture (src-tauri/src/commands/)\n   - KubeClientManager usage\n   - Error handling patterns\n\n2. api/stores.mdx:\n   - Zustand store architecture\n   - cluster-store.ts\n   - diagram-store.ts\n   - State management patterns\n\n3. development/setup.mdx:\n   - Prerequisites (Node.js, Rust, pnpm)\n   - Clone and install (reference Makefile)\n   - Development workflow\n   - Hot reload behavior\n\n4. development/contributing.mdx:\n   - Link to CONTRIBUTING.md\n   - Code style (ESLint, Prettier)\n   - Git commit guidelines (no emojis, clean messages)\n   - PR process\n\nGenerate API docs from JSDoc/TSDoc comments where available",
+        "testStrategy": "Verify API documentation matches actual function signatures in src/lib/. Check that development setup instructions work on a fresh clone. Validate that all referenced files exist. Test code examples compile without errors.",
+        "priority": "low",
+        "dependencies": [
+          39
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 46,
+        "title": "Set up GitHub Actions deployment pipeline",
+        "description": "Create CI/CD workflow for automated documentation deployment to GitHub Pages or Vercel",
+        "details": "1. Create .github/workflows/docs.yml:\n   - Trigger: push to main, docs/** changes\n   - Jobs: build and deploy\n   - Use Node.js 18+ (match project)\n   - Install deps: cd docs && npm ci\n   - Build: npm run build\n   - Deploy to GitHub Pages using actions/deploy-pages@v4\n\n2. Configure GitHub Pages:\n   - Enable in repo settings\n   - Source: gh-pages branch or GitHub Actions\n   - Custom domain (optional): docs.kubeli.app\n\n3. Alternative Vercel deployment:\n   - Create vercel.json in docs/\n   - Configure build command and output directory\n   - Set up Vercel project\n\n4. Update main README.md:\n   - Add documentation link badge\n   - Link to docs site in Features section\n\n5. Add docs link to main project (src/components/layout/Sidebar.tsx or Help menu)\n\nUse existing .github/workflows/ci.yml as reference for Node.js setup",
+        "testStrategy": "Create a test branch, push docs changes, and verify workflow runs successfully. Check GitHub Pages/Vercel deployment completes. Visit deployed URL and confirm site is accessible. Test that changes to docs/ trigger rebuilds. Verify README.md link points to correct URL.",
+        "priority": "high",
+        "dependencies": [
+          40,
+          41
+        ],
+        "status": "pending",
+        "subtasks": []
       }
     ],
     "metadata": {
       "created": "2026-01-19T19:59:58.045Z",
-      "updated": "2026-01-19T19:59:58.045Z",
+      "updated": "2026-01-19T20:22:35.494Z",
       "description": "Tasks for master context"
     }
   }
