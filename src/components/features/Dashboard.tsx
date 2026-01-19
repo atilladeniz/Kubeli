@@ -1137,10 +1137,12 @@ function PodsView() {
           }
         }
         toast.success(`Deleted ${pods.length} pod(s)`);
-        refresh();
+        if (!isWatching) {
+          refresh();
+        }
       },
     },
-  ], [refresh]);
+  ], [refresh, isWatching]);
 
   const handleOpenShell = (pod: PodInfo) => {
     addTab(pod.namespace, pod.name);
@@ -1189,6 +1191,9 @@ function PodsView() {
 
   // Get row class for highlighting forwarded pods
   const getRowClassName = (pod: PodInfo): string => {
+    if (pod.deletion_timestamp) {
+      return "bg-muted/40 text-muted-foreground";
+    }
     const forward = getForwardForPod(pod);
     if (forward) {
       return "bg-purple-500/10 hover:bg-purple-500/15";
@@ -1203,6 +1208,7 @@ function PodsView() {
       key: "actions",
       label: t("columns.actions") || "ACTIONS",
       render: (pod: PodInfo) => {
+        const isTerminating = !!pod.deletion_timestamp;
         const service = findServiceForPod(pod);
         const forward = getForwardForPod(pod);
         const isForwarded = !!forward;
@@ -1213,6 +1219,7 @@ function PodsView() {
             <Button
               variant="ghost"
               size="sm"
+              disabled={isTerminating}
               onClick={(e) => {
                 e.stopPropagation();
                 closeResourceDetail();
@@ -1227,6 +1234,7 @@ function PodsView() {
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={isTerminating}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleOpenShell(pod);
@@ -1241,6 +1249,7 @@ function PodsView() {
               <Button
                 variant="ghost"
                 size="sm"
+                disabled={isTerminating}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (isForwarded) {
@@ -1267,6 +1276,7 @@ function PodsView() {
   ];
 
   const getPodContextMenu = (pod: PodInfo): ContextMenuItemDef[] => {
+    const isTerminating = !!pod.deletion_timestamp;
     const service = findServiceForPod(pod);
     const forward = getForwardForPod(pod);
     const isForwarded = !!forward;
@@ -1289,12 +1299,13 @@ function PodsView() {
           closeResourceDetail();
           setSelectedPod(pod);
         },
+        disabled: isTerminating,
       },
       {
         label: "Open Shell",
         icon: <TerminalIcon className="size-4" />,
         onClick: () => handleOpenShell(pod),
-        disabled: pod.phase !== "Running",
+        disabled: isTerminating || pod.phase !== "Running",
       },
       ...(canForward
         ? [
@@ -1304,6 +1315,7 @@ function PodsView() {
               icon: <ArrowRightLeft className="size-4" />,
               onClick: () =>
                 isForwarded ? handleDisconnect(pod) : handlePortForward(pod),
+              disabled: isTerminating,
             },
           ]
         : []),
@@ -1344,8 +1356,14 @@ function PodsView() {
       {
         label: "Delete Pod",
         icon: <Trash2 className="size-4" />,
-        onClick: () => handleDeleteFromContext("pod", pod.name, pod.namespace, refresh),
+        onClick: () =>
+          handleDeleteFromContext("pod", pod.name, pod.namespace, () => {
+            if (!isWatching) {
+              refresh();
+            }
+          }),
         variant: "destructive",
+        disabled: isTerminating,
       },
     ];
   };

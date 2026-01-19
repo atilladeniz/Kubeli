@@ -138,6 +138,7 @@ fn pod_to_info(pod: Pod) -> PodInfo {
         host_ip: status.host_ip,
         containers,
         created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
+        deletion_timestamp: metadata.deletion_timestamp.map(|t| t.0.to_string()),
         labels: btree_to_hashmap(metadata.labels),
         restart_count: total_restarts,
         ready_containers: format!("{}/{}", ready_count, total_count),
