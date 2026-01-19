@@ -1317,16 +1317,78 @@
         "subtasks": [],
         "complexity": 4,
         "updatedAt": "2026-01-18T10:50:38.168Z"
+      },
+      {
+        "id": 34,
+        "title": "Install and configure CycloneDX tools for npm and Rust",
+        "description": "Set up @cyclonedx/cyclonedx-npm for JavaScript dependencies and cargo-cyclonedx for Rust dependencies",
+        "details": "1. Install @cyclonedx/cyclonedx-npm as a devDependency:\n   npm install --save-dev @cyclonedx/cyclonedx-npm\n\n2. Install cargo-cyclonedx for Rust SBOM generation:\n   cargo install cargo-cyclonedx\n\n3. Add npm script to package.json:\n   \"sbom:npm\": \"cyclonedx-npm --output-file sbom-npm.json\"\n\n4. Verify CycloneDX npm tool generates valid output:\n   npm run sbom:npm\n\n5. Verify cargo-cyclonedx generates valid output:\n   cd src-tauri && cargo cyclonedx --format json --output-cdx ../sbom-rust.json\n\nImplementation notes:\n- Use latest stable versions of both tools\n- CycloneDX format version should be 1.4 or higher for compliance\n- Output files should be generated at project root level\n- Both tools support CycloneDX JSON format natively",
+        "testStrategy": "1. Run npm run sbom:npm and verify sbom-npm.json is created\n2. Validate JSON format with: cat sbom-npm.json | jq .\n3. Verify CycloneDX schema compliance by checking for required fields: bomFormat, specVersion, version, components\n4. Run cargo cyclonedx command and verify sbom-rust.json is created\n5. Validate Rust SBOM contains expected Cargo dependencies from Cargo.toml\n6. Check that both files are valid JSON and parseable",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 35,
+        "title": "Add Makefile targets for SBOM generation",
+        "description": "Create make targets for easy SBOM generation: sbom-npm, sbom-rust, and sbom (combined)",
+        "details": "Add the following targets to Makefile after the \"## Utilities\" section:\n\n```makefile\n## Security & Compliance\n\nsbom-npm: ## Generate npm dependencies SBOM (CycloneDX)\n\t@echo \"$(CYAN)Generating npm SBOM...$(RESET)\"\n\tnpm run sbom:npm\n\t@echo \"$(GREEN)✓ SBOM generated: sbom-npm.json$(RESET)\"\n\nsbom-rust: ## Generate Rust dependencies SBOM (CycloneDX)\n\t@echo \"$(CYAN)Generating Rust SBOM...$(RESET)\"\n\t@cd src-tauri && cargo cyclonedx --format json --output-cdx ../sbom-rust.json\n\t@echo \"$(GREEN)✓ SBOM generated: sbom-rust.json$(RESET)\"\n\nsbom: sbom-npm sbom-rust ## Generate complete SBOM for all dependencies\n\t@echo \"$(GREEN)✓ All SBOM files generated$(RESET)\"\n\t@echo \"  - sbom-npm.json (JavaScript/npm dependencies)\"\n\t@echo \"  - sbom-rust.json (Rust/Cargo dependencies)\"\n```\n\nImplementation notes:\n- Place targets in logical section for security/compliance\n- Follow existing Makefile style with colored output\n- sbom target should depend on both sbom-npm and sbom-rust\n- Add descriptive help text for each target",
+        "testStrategy": "1. Run make sbom-npm and verify:\n   - Colored output appears\n   - sbom-npm.json is created at project root\n   - Success message is displayed\n2. Run make sbom-rust and verify:\n   - Command executes from correct directory (src-tauri)\n   - sbom-rust.json is created at project root\n   - Success message is displayed\n3. Run make sbom and verify:\n   - Both files are generated\n   - Summary output lists both files\n4. Run make help and verify SBOM targets appear in help output",
+        "priority": "high",
+        "dependencies": [
+          34
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 36,
+        "title": "Update .gitignore to exclude SBOM files from version control",
+        "description": "Add SBOM output files to .gitignore as they are generated artifacts",
+        "details": "Add the following entries to .gitignore file:\n\n```gitignore\n# SBOM artifacts (generated)\nsbom-npm.json\nsbom-rust.json\n```\n\nImplementation notes:\n- Add entries in a dedicated section with descriptive comment\n- These files should be generated on-demand and in CI/CD, not committed\n- SBOM files will be attached to GitHub releases as artifacts instead\n- Place this section near other build artifacts (like .next/, out/, etc.)",
+        "testStrategy": "1. Add entries to .gitignore\n2. Generate SBOM files with make sbom\n3. Run git status and verify sbom-*.json files are not listed as untracked\n4. Verify existing .gitignore patterns still work correctly\n5. Commit .gitignore changes and verify SBOM files remain ignored",
+        "priority": "medium",
+        "dependencies": [
+          34
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 37,
+        "title": "Implement GitHub Actions workflow for SBOM generation on releases",
+        "description": "Modify release.yml workflow to automatically generate and attach SBOM files to GitHub releases",
+        "details": "Update .github/workflows/release.yml to add SBOM generation step:\n\n1. Add a new job or step in the build-tauri job after frontend build:\n\n```yaml\n- name: Install CycloneDX npm\n  run: npm install --save-dev @cyclonedx/cyclonedx-npm\n\n- name: Install cargo-cyclonedx\n  run: cargo install cargo-cyclonedx\n\n- name: Generate SBOM files\n  run: |\n    npm run sbom:npm\n    cd src-tauri && cargo cyclonedx --format json --output-cdx ../sbom-rust.json\n\n- name: Upload SBOM artifacts to release\n  if: startsWith(github.ref, 'refs/tags/v')\n  uses: actions/upload-release-asset@v1\n  env:\n    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n  with:\n    upload_url: ${{ needs.create-release.outputs.upload_url }}\n    asset_path: ./sbom-npm.json\n    asset_name: sbom-npm.json\n    asset_content_type: application/json\n\n- name: Upload Rust SBOM to release\n  if: startsWith(github.ref, 'refs/tags/v')\n  uses: actions/upload-release-asset@v1\n  env:\n    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n  with:\n    upload_url: ${{ needs.create-release.outputs.upload_url }}\n    asset_path: ./sbom-rust.json\n    asset_name: sbom-rust.json\n    asset_content_type: application/json\n```\n\nAlternatively, use the simpler tauri-action integration:\n\n```yaml\n- name: Build Tauri App\n  uses: tauri-apps/tauri-action@v0\n  env:\n    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n  with:\n    releaseId: ${{ needs.create-release.outputs.release_id }}\n    args: --target ${{ matrix.target }}\n    # Add SBOM files as additional assets\n    includeRelease: true\n    releaseBody: 'See [CHANGELOG.md] for details.'\n    # Generate SBOMs before build\n    prerelease: |\n      npm run sbom:npm\n      cd src-tauri && cargo cyclonedx --format json --output-cdx ../sbom-rust.json\n```\n\nImplementation notes:\n- Install cargo-cyclonedx in CI environment\n- Generate both SBOM files before creating release assets\n- Attach SBOM files as release artifacts alongside DMG/binary\n- Ensure SBOM generation doesn't fail the build (use continue-on-error if needed)\n- Consider caching cargo-cyclonedx installation",
+        "testStrategy": "1. Create a test tag and push to trigger workflow\n2. Monitor GitHub Actions workflow execution\n3. Verify SBOM generation steps complete successfully\n4. Check that both sbom-npm.json and sbom-rust.json are created\n5. Verify SBOM files are uploaded as release assets\n6. Download SBOM artifacts from release and validate JSON format\n7. Confirm CycloneDX schema compliance of generated files\n8. Test on both matrix targets (aarch64 and x86_64) if applicable",
+        "priority": "high",
+        "dependencies": [
+          34,
+          35
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 38,
+        "title": "Document SBOM generation in README.md",
+        "description": "Add documentation section explaining SBOM generation, usage, and compliance benefits",
+        "details": "Add a new section to README.md after the \"Development\" section:\n\n```markdown\n## Security & Compliance\n\n### SBOM (Software Bill of Materials)\n\nKubeli generates Software Bill of Materials (SBOM) documentation in CycloneDX format for supply chain security and compliance audits.\n\n#### Generate SBOM\n\n```bash\n# Generate npm dependencies SBOM\nmake sbom-npm\n\n# Generate Rust dependencies SBOM\nmake sbom-rust\n\n# Generate both SBOMs\nmake sbom\n```\n\n#### SBOM Files\n\n| File | Description | Format |\n|------|-------------|--------|\n| `sbom-npm.json` | JavaScript/npm dependencies | CycloneDX 1.4+ |\n| `sbom-rust.json` | Rust/Cargo dependencies | CycloneDX 1.4+ |\n\n#### Release Artifacts\n\nSBOM files are automatically generated and attached to each [GitHub Release](https://github.com/atilladeniz/Kubeli/releases) for:\n- Security vulnerability tracking\n- Compliance requirements (NTIA, Executive Order 14028)\n- Supply chain transparency\n- License compliance audits\n\n#### Tools Used\n\n- [@cyclonedx/cyclonedx-npm](https://github.com/CycloneDX/cyclonedx-node-npm) - npm SBOM generator\n- [cargo-cyclonedx](https://github.com/CycloneDX/cyclonedx-rust-cargo) - Cargo SBOM generator\n```\n\nImplementation notes:\n- Place section after Development section, before existing content\n- Include table for clarity on file purposes\n- Link to actual tools used for transparency\n- Mention compliance standards (NTIA minimum elements, EO 14028)\n- Add to table of contents if README has one",
+        "testStrategy": "1. Add section to README.md\n2. Verify markdown renders correctly on GitHub\n3. Test all command examples work as documented\n4. Verify links to GitHub releases and tools are valid\n5. Check that documentation matches actual implementation\n6. Ensure formatting is consistent with existing README style\n7. Have team member review for clarity and completeness",
+        "priority": "medium",
+        "dependencies": [
+          34,
+          35,
+          37
+        ],
+        "status": "pending",
+        "subtasks": []
       }
     ],
     "metadata": {
-      "version": "1.0.0",
-      "lastModified": "2026-01-18T12:34:58.000Z",
-      "taskCount": 32,
-      "completedCount": 28,
-      "tags": [
-        "master"
-      ]
+      "created": "2026-01-19T19:59:58.045Z",
+      "updated": "2026-01-19T19:59:58.045Z",
+      "description": "Tasks for master context"
     }
   }
 }
