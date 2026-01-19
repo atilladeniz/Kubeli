@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.35] - 2026-01-19
+
+- Enhanced resource deletion functionality in ResourceDetail component
+
 ## [0.2.34] - 2026-01-19
 
 - Added pod row click handler in Dashboard component
