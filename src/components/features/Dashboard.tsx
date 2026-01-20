@@ -165,6 +165,7 @@ interface ResourceDetailContextType {
   setSelectedResource: (resource: { data: ResourceData; type: string } | null) => void;
   openResourceDetail: (resourceType: string, name: string, namespace?: string, labels?: Record<string, string>) => void;
   handleDeleteFromContext: (resourceType: string, name: string, namespace?: string, onSuccess?: () => void) => void;
+  handleUninstallFromContext: (name: string, namespace: string, onSuccess?: () => void) => void;
   handleScaleFromContext: (name: string, namespace: string, currentReplicas: number, onSuccess?: () => void) => void;
   closeResourceDetail: () => void;
 }
@@ -196,6 +197,7 @@ function DashboardContent() {
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; resourceType: string; name: string; namespace?: string; onConfirm: () => void } | null>(null);
+  const [uninstallDialog, setUninstallDialog] = useState<{ open: boolean; name: string; namespace: string; onSuccess?: () => void } | null>(null);
   const [scaleDialog, setScaleDialog] = useState<{ open: boolean; name: string; namespace: string; currentReplicas: number; onSuccess?: () => void } | null>(null);
   const [newReplicas, setNewReplicas] = useState<number>(1);
   const [scaleToZeroWarning, setScaleToZeroWarning] = useState(false);
@@ -312,6 +314,15 @@ function DashboardContent() {
     });
   };
 
+  const handleUninstallFromContext = (name: string, namespace: string, onSuccess?: () => void) => {
+    setUninstallDialog({
+      open: true,
+      name,
+      namespace,
+      onSuccess,
+    });
+  };
+
   const handleScaleFromContext = (name: string, namespace: string, currentReplicas: number, onSuccess?: () => void) => {
     setNewReplicas(currentReplicas);
     setScaleDialog({ open: true, name, namespace, currentReplicas, onSuccess });
@@ -345,7 +356,7 @@ function DashboardContent() {
   };
 
   return (
-    <ResourceDetailContext.Provider value={{ selectedResource, setSelectedResource, openResourceDetail, handleDeleteFromContext, handleScaleFromContext, closeResourceDetail }}>
+    <ResourceDetailContext.Provider value={{ selectedResource, setSelectedResource, openResourceDetail, handleDeleteFromContext, handleUninstallFromContext, handleScaleFromContext, closeResourceDetail }}>
       <div className="flex h-screen bg-background text-foreground overscroll-none">
         <Sidebar activeResource={activeResource} onResourceSelect={setActiveResource} />
         <div className="flex flex-1 overflow-hidden overscroll-none">
@@ -436,6 +447,39 @@ function DashboardContent() {
                 className="bg-destructive text-white hover:bg-destructive/90"
               >
                 {t("common.delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Uninstall Helm Release Dialog */}
+        <AlertDialog open={uninstallDialog?.open} onOpenChange={(open) => !open && setUninstallDialog(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Uninstall Helm Release?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("messages.confirmDelete", { name: uninstallDialog?.name || "" })}
+                {uninstallDialog?.namespace && <> ({t("cluster.namespace")}: <strong>{uninstallDialog.namespace}</strong>)</>}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  if (uninstallDialog) {
+                    try {
+                      await uninstallHelmRelease(uninstallDialog.name, uninstallDialog.namespace);
+                      toast.success("Release uninstalled", { description: uninstallDialog.name });
+                      uninstallDialog.onSuccess?.();
+                    } catch (e) {
+                      toast.error("Failed to uninstall", { description: String(e) });
+                    }
+                    setUninstallDialog(null);
+                  }
+                }}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Uninstall
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -3713,7 +3757,7 @@ function HelmReleasesView() {
     autoRefresh: true,
     refreshInterval: 30000,
   });
-  const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
+  const { openResourceDetail, handleDeleteFromContext, handleUninstallFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("last_deployed");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -3812,17 +3856,7 @@ function HelmReleasesView() {
       items.push({
         label: "Uninstall",
         icon: <Trash2 className="size-4" />,
-        onClick: async () => {
-          if (confirm(`Uninstall Helm release "${release.name}"?`)) {
-            try {
-              await uninstallHelmRelease(release.name, release.namespace);
-              toast.success("Release uninstalled", { description: release.name });
-              refresh();
-            } catch (e) {
-              toast.error("Failed to uninstall", { description: String(e) });
-            }
-          }
-        },
+        onClick: () => handleUninstallFromContext(release.name, release.namespace, refresh),
         variant: "destructive",
       });
     }
