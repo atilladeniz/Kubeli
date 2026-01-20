@@ -151,7 +151,6 @@ jobs:
             --config .semgrep.yaml \
             --sarif \
             --output semgrep.sarif \
-            --exclude-minified-files \
             --metrics off
         continue-on-error: true
 
