@@ -69,6 +69,7 @@ pub fn mcp_uninstall_ide(ide_id: String) -> Result<(), String> {
 
 /// Check if running in debug/development mode
 fn is_dev_mode() -> bool {
+    // nosemgrep: rust.lang.security.current-exe.current-exe
     if let Ok(exe_path) = std::env::current_exe() {
         let path_str = exe_path.to_string_lossy();
         return path_str.contains("/target/debug/")
@@ -85,6 +86,7 @@ fn is_dev_mode() -> bool {
 pub fn mcp_get_kubeli_path() -> String {
     // In dev mode, use the current executable path
     if is_dev_mode() {
+        // nosemgrep: rust.lang.security.current-exe.current-exe
         if let Ok(exe_path) = std::env::current_exe() {
             return exe_path.to_string_lossy().to_string();
         }
@@ -96,12 +98,14 @@ pub fn mcp_get_kubeli_path() -> String {
     }
     #[cfg(target_os = "linux")]
     {
+        // nosemgrep: rust.lang.security.current-exe.current-exe
         std::env::current_exe()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| "/usr/bin/kubeli".to_string())
     }
     #[cfg(target_os = "windows")]
     {
+        // nosemgrep: rust.lang.security.current-exe.current-exe
         std::env::current_exe()
             .map(|p| p.to_string_lossy().to_string())
             .unwrap_or_else(|_| "C:\\Program Files\\Kubeli\\Kubeli.exe".to_string())

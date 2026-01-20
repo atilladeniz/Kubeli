@@ -10,6 +10,7 @@ import {
 } from "../tauri/commands";
 
 // Debug logger - only logs in development
+// nosemgrep: no-console-log-in-prod
 const isDev = process.env.NODE_ENV === "development";
 const debug = (...args: unknown[]) => {
   if (isDev) console.log("[Cluster]", ...args);

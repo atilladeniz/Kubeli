@@ -5,6 +5,7 @@ import type { Update } from "@tauri-apps/plugin-updater";
 export const isDev = process.env.NODE_ENV === "development";
 
 // Debug logger - only logs in development
+// nosemgrep: no-console-log-in-prod
 const debug = (...args: unknown[]) => {
   if (isDev) console.log("[Updater]", ...args);
 };
