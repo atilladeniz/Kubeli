@@ -27,7 +27,7 @@ status:
       status: "True"
       reason: ReconciliationSucceeded
       message: "Release reconciliation succeeded"
-      lastTransitionTime: "2024-01-20T10:00:00Z"
+      lastTransitionTime: "2026-01-20T10:00:00Z"
   lastAppliedRevision: "6.5.0"
   lastAttemptedRevision: "6.5.0"
 ---
@@ -57,7 +57,7 @@ status:
       status: "True"
       reason: ReconciliationSucceeded
       message: "Release reconciliation succeeded"
-      lastTransitionTime: "2024-01-20T09:30:00Z"
+      lastTransitionTime: "2026-01-20T09:30:00Z"
   lastAppliedRevision: "18.6.1"
   lastAttemptedRevision: "18.6.1"
 ---
@@ -89,7 +89,7 @@ status:
       status: "False"
       reason: ReconciliationFailed
       message: "Helm upgrade failed: timed out waiting for resources"
-      lastTransitionTime: "2024-01-20T11:00:00Z"
+      lastTransitionTime: "2026-01-20T11:00:00Z"
   lastAttemptedRevision: "55.5.0"
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -116,6 +116,6 @@ status:
       status: "True"
       reason: ReconciliationSucceeded
       message: "Release reconciliation succeeded"
-      lastTransitionTime: "2024-01-20T08:00:00Z"
+      lastTransitionTime: "2026-01-20T08:00:00Z"
   lastAppliedRevision: "1.13.3"
   lastAttemptedRevision: "1.13.3"
