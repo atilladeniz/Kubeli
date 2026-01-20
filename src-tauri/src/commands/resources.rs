@@ -1081,6 +1081,31 @@ pub async fn delete_resource(
                 .await
                 .map_err(|e| format!("Failed to delete secret: {}", e))?;
         }
+        "kustomization" | "kustomizations" => {
+            let ns = namespace.ok_or("Namespace required for kustomizations")?;
+            let gvk = kube::api::GroupVersionKind::gvk(
+                "kustomize.toolkit.fluxcd.io",
+                "v1",
+                "Kustomization",
+            );
+            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
+            let api: Api<kube::api::DynamicObject> =
+                Api::namespaced_with(client, &ns, &api_resource);
+            api.delete(&name, &dp)
+                .await
+                .map_err(|e| format!("Failed to delete kustomization: {}", e))?;
+        }
+        "helmrelease" | "helmreleases" => {
+            let ns = namespace.ok_or("Namespace required for helm releases")?;
+            let gvk =
+                kube::api::GroupVersionKind::gvk("helm.toolkit.fluxcd.io", "v2", "HelmRelease");
+            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
+            let api: Api<kube::api::DynamicObject> =
+                Api::namespaced_with(client, &ns, &api_resource);
+            api.delete(&name, &dp)
+                .await
+                .map_err(|e| format!("Failed to delete helm release: {}", e))?;
+        }
         _ => return Err(format!("Unsupported resource type: {}", resource_type)),
     }
 

@@ -3713,7 +3713,7 @@ function HelmReleasesView() {
     autoRefresh: true,
     refreshInterval: 30000,
   });
-  const { openResourceDetail } = useResourceDetail();
+  const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("last_deployed");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -3793,6 +3793,17 @@ function HelmReleasesView() {
       }
     );
 
+    // Delete only for Flux-managed releases
+    if (release.managed_by === "flux") {
+      items.push({ separator: true, label: "", onClick: () => {} });
+      items.push({
+        label: "Delete",
+        icon: <Trash2 className="size-4" />,
+        onClick: () => handleDeleteFromContext("helmrelease", release.name, release.namespace, refresh),
+        variant: "destructive",
+      });
+    }
+
     return items;
   };
 
@@ -3804,7 +3815,9 @@ function HelmReleasesView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRowClick={(r) => r.managed_by === "flux" ? openResourceDetail("helmrelease", r.name, r.namespace) : undefined}
       getRowKey={(r) => `${r.namespace}/${r.name}`}
+      getRowNamespace={(r) => r.namespace}
       emptyMessage={t("empty.helmreleases")}
       contextMenuItems={getHelmContextMenu}
       sortKey={sortKey}
@@ -3820,7 +3833,7 @@ function FluxKustomizationsView() {
     autoRefresh: true,
     refreshInterval: 30000,
   });
-  const { openResourceDetail } = useResourceDetail();
+  const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
@@ -3896,6 +3909,13 @@ function FluxKustomizationsView() {
         toast.success("Copied to clipboard", { description: k.source_ref });
       },
     },
+    { separator: true, label: "", onClick: () => {} },
+    {
+      label: "Delete",
+      icon: <Trash2 className="size-4" />,
+      onClick: () => handleDeleteFromContext("kustomization", k.name, k.namespace, refresh),
+      variant: "destructive",
+    },
   ];
 
   return (
@@ -3906,7 +3926,9 @@ function FluxKustomizationsView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRowClick={(k) => openResourceDetail("kustomization", k.name, k.namespace)}
       getRowKey={(k) => `${k.namespace}/${k.name}`}
+      getRowNamespace={(k) => k.namespace}
       emptyMessage="No Flux Kustomizations found"
       contextMenuItems={getKustomizationContextMenu}
       sortKey={sortKey}
