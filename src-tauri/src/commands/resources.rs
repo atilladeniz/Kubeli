@@ -957,10 +957,10 @@ pub async fn apply_resource_yaml(
 
     // Apply using server-side apply
     let patch_params = PatchParams::apply("kubeli").force();
-    let patch = Patch::Apply(
-        serde_json::from_str::<DynamicObject>(&serde_json::to_string(&value).unwrap())
-            .map_err(|e| e.to_string())?,
-    );
+    let json_str = serde_json::to_string(&value)
+        .map_err(|e| format!("Failed to serialize resource: {}", e))?;
+    let patch =
+        Patch::Apply(serde_json::from_str::<DynamicObject>(&json_str).map_err(|e| e.to_string())?);
 
     api.patch(name, &patch_params, &patch)
         .await

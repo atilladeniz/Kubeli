@@ -115,17 +115,17 @@ struct DangerousPatterns {
 impl DangerousPatterns {
     fn new() -> Self {
         Self {
-            delete_pattern: Regex::new(r"(?i)\bkubectl\s+delete\b").unwrap(),
-            apply_pattern: Regex::new(r"(?i)\bkubectl\s+(apply|create)\b").unwrap(),
-            modify_pattern: Regex::new(r"(?i)\bkubectl\s+(patch|edit|replace|set)\b").unwrap(),
-            scale_pattern: Regex::new(r"(?i)\bkubectl\s+scale\b").unwrap(),
-            node_pattern: Regex::new(r"(?i)\bkubectl\s+(drain|cordon|uncordon|taint)\b").unwrap(),
-            exec_pattern: Regex::new(r"(?i)\bkubectl\s+exec\b").unwrap(),
-            shell_destructive: Regex::new(r"(?i)\brm\s+(-rf?|--force|-r\s+-f)\b").unwrap(),
+            delete_pattern: Regex::new(r"(?i)\bkubectl\s+delete\b").expect("valid regex"),
+            apply_pattern: Regex::new(r"(?i)\bkubectl\s+(apply|create)\b").expect("valid regex"),
+            modify_pattern: Regex::new(r"(?i)\bkubectl\s+(patch|edit|replace|set)\b").expect("valid regex"),
+            scale_pattern: Regex::new(r"(?i)\bkubectl\s+scale\b").expect("valid regex"),
+            node_pattern: Regex::new(r"(?i)\bkubectl\s+(drain|cordon|uncordon|taint)\b").expect("valid regex"),
+            exec_pattern: Regex::new(r"(?i)\bkubectl\s+exec\b").expect("valid regex"),
+            shell_destructive: Regex::new(r"(?i)\brm\s+(-rf?|--force|-r\s+-f)\b").expect("valid regex"),
             cluster_scoped: Regex::new(
                 r"(?i)\b(clusterrole|clusterrolebinding|node|namespace|persistentvolume|storageclass)\b",
             )
-            .unwrap(),
+            .expect("valid regex"),
         }
     }
 
@@ -249,10 +249,12 @@ impl PermissionChecker {
     #[allow(dead_code)]
     fn extract_namespace(&self, command: &str) -> Option<String> {
         // Match -n or --namespace followed by the namespace name
-        let ns_pattern = Regex::new(r"(?:-n|--namespace)[=\s]+([a-zA-Z0-9_-]+)").unwrap();
+        let ns_pattern =
+            Regex::new(r"(?:-n|--namespace)[=\s]+([a-zA-Z0-9_-]+)").expect("valid regex");
         ns_pattern
             .captures(command)
-            .map(|c| c.get(1).unwrap().as_str().to_string())
+            .and_then(|c| c.get(1))
+            .map(|m| m.as_str().to_string())
     }
 
     /// Check if a tool execution is allowed (for future tool-level integration)

@@ -1475,7 +1475,7 @@ function DeploymentsView() {
     {
       label: "Restart",
       icon: <RefreshCw className="size-4" />,
-      onClick: () => console.log("Restart:", dep.name),
+      onClick: () => toast.info("Coming soon", { description: `Restart ${dep.name}` }),
     },
     { separator: true, label: "", onClick: () => {} },
     {
@@ -1961,13 +1961,13 @@ function NodesView() {
     {
       label: "Cordon",
       icon: <AlertCircle className="size-4" />,
-      onClick: () => console.log("Cordon:", node.name),
+      onClick: () => toast.info("Coming soon", { description: `Cordon ${node.name}` }),
       disabled: node.status !== "Ready",
     },
     {
       label: "Drain",
       icon: <Trash2 className="size-4" />,
-      onClick: () => console.log("Drain:", node.name),
+      onClick: () => toast.info("Coming soon", { description: `Drain ${node.name}` }),
       variant: "destructive",
     },
   ];

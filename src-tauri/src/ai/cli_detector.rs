@@ -167,16 +167,14 @@ impl CliDetector {
         // Try to find claude in PATH
         let cli_path = Self::find_claude_cli_path().await;
 
-        if cli_path.is_none() {
+        let Some(path) = cli_path.clone() else {
             return ClaudeCliInfo {
                 status: CliStatus::NotInstalled,
                 version: None,
                 cli_path: None,
                 error_message: Some("Claude CLI not found in PATH".to_string()),
             };
-        }
-
-        let path = cli_path.clone().unwrap();
+        };
 
         // Try to get version
         match Self::get_claude_cli_version(&path).await {
@@ -321,16 +319,14 @@ impl CliDetector {
         // Try to find codex in PATH
         let cli_path = Self::find_codex_cli_path().await;
 
-        if cli_path.is_none() {
+        let Some(path) = cli_path.clone() else {
             return CodexCliInfo {
                 status: CliStatus::NotInstalled,
                 version: None,
                 cli_path: None,
                 error_message: Some("Codex CLI not found in PATH".to_string()),
             };
-        }
-
-        let path = cli_path.clone().unwrap();
+        };
 
         // Try to get version
         match Self::get_codex_cli_version(&path).await {
