@@ -24,6 +24,9 @@
 .DS_Store
 *.pem
 
+# SBOM outputs
+sbom-*.json
+
 # debug
 npm-debug.log*
 yarn-debug.log*
