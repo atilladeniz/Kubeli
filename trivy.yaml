@@ -1,0 +1,28 @@
+# Trivy configuration for Kubeli
+# https://trivy.dev/docs/latest/configuration/
+
+severity:
+  - HIGH
+  - CRITICAL
+
+# Vulnerability scanning
+vulnerability:
+  type:
+    - os
+    - library
+
+# Secret scanning
+secret:
+  config: trivy-secret.yaml
+
+# Misconfiguration scanning
+misconfiguration:
+  check:
+    - dockerfile
+    - kubernetes
+
+# Ignore unfixed vulnerabilities
+ignore-unfixed: true
+
+# Exit with error on findings
+exit-code: 1

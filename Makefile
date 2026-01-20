@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate
+.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
 
 # Default target
 .DEFAULT_GOAL := help
@@ -361,6 +361,24 @@ sbom-validate: sbom ## Generate and validate SBOMs with cyclonedx-cli
 	docker run --rm --platform linux/amd64 -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-npm.json --input-version v1_5 --fail-on-errors
 	docker run --rm --platform linux/amd64 -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-rust.json --input-version v1_5 --fail-on-errors
 	@echo "$(GREEN)✓ Both SBOMs validated$(RESET)"
+
+## Security Scanning
+
+security-scan: sbom security-trivy security-semgrep ## Run all security scans
+
+security-trivy: ## Scan SBOMs for vulnerabilities with Trivy (requires Docker)
+	@echo "$(CYAN)Scanning npm SBOM for vulnerabilities...$(RESET)"
+	docker run --rm --platform linux/amd64 -v $(PWD):/data aquasec/trivy:latest sbom /data/sbom-npm.json --severity HIGH,CRITICAL
+	@echo "$(CYAN)Scanning Rust SBOM for vulnerabilities...$(RESET)"
+	docker run --rm --platform linux/amd64 -v $(PWD):/data aquasec/trivy:latest sbom /data/sbom-rust.json --severity HIGH,CRITICAL
+	@echo "$(CYAN)Scanning filesystem for secrets and misconfigs...$(RESET)"
+	docker run --rm --platform linux/amd64 -v $(PWD):/data aquasec/trivy:latest fs /data --scanners secret,misconfig --severity HIGH,CRITICAL
+	@echo "$(GREEN)✓ Trivy scans completed$(RESET)"
+
+security-semgrep: ## Run Semgrep SAST scan (requires Docker)
+	@echo "$(CYAN)Running Semgrep SAST scan...$(RESET)"
+	docker run --rm --platform linux/amd64 -v $(PWD):/src semgrep/semgrep semgrep scan --config auto --config /src/.semgrep.yaml
+	@echo "$(GREEN)✓ Semgrep scan completed$(RESET)"
 
 ## Utilities
 
