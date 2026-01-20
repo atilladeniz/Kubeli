@@ -38,7 +38,7 @@ jobs:
         run: |
           cd src-tauri
           cargo cyclonedx --format json --override-filename sbom-rust
-          cp sbom-rust.json ../sbom-rust.json
+          mv sbom-rust.json ../sbom-rust.json
 
       - name: Upload SBOMs to release
         uses: softprops/action-gh-release@v2
