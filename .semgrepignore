@@ -1,0 +1,36 @@
+# Semgrep Ignore File for Kubeli
+# https://semgrep.dev/docs/ignoring-files-folders-code/
+
+# Build outputs and dependencies
+node_modules/
+target/
+dist/
+.next/
+out/
+
+# Generated code
+*.generated.ts
+*.d.ts
+src-tauri/gen/
+
+# Vendor code
+vendor/
+
+# IDE files
+.vscode/
+.idea/
+
+# Minified files
+*.min.js
+*.min.css
+
+# Lock files (scanned by Trivy instead)
+package-lock.json
+Cargo.lock
+
+# Test fixtures with intentional secrets
+tests/fixtures/
+
+# Documentation
+docs/
+*.md

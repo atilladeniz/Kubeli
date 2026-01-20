@@ -1,0 +1,15 @@
+# Trivy Ignore File for Kubeli
+# https://trivy.dev/docs/latest/configuration/filtering/
+
+# Format: CVE-ID or AVD-ID per line
+# Optional: Add expiration with "exp:YYYY-MM-DD"
+
+# Example (uncomment if needed):
+# CVE-2024-12345 exp:2025-06-01
+
+# Misconfiguration IDs to ignore
+# AVD-DS-0002
+
+# Secret rule IDs for test fixtures
+# aws-account-id
+# generic-api-key
