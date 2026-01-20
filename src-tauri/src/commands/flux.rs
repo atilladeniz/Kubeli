@@ -1,10 +1,11 @@
 use crate::k8s::AppState;
 use kube::{
-    api::{DynamicObject, ListParams},
+    api::{DynamicObject, ListParams, Patch, PatchParams},
     discovery::ApiResource,
     Api,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use tauri::{command, State};
 
 /// Flux Kustomization status
@@ -27,6 +28,7 @@ pub struct FluxKustomizationInfo {
     pub source_ref: String,
     pub interval: String,
     pub status: FluxKustomizationStatus,
+    pub suspended: bool,
     pub message: Option<String>,
     pub last_applied_revision: Option<String>,
     pub created_at: Option<String>,
@@ -92,6 +94,10 @@ fn parse_flux_kustomization(obj: DynamicObject) -> Option<FluxKustomizationInfo>
         .and_then(|v| v.as_str())
         .unwrap_or("10m")
         .to_string();
+    let suspended = spec
+        .get("suspend")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     // Extract sourceRef
     let source_ref = spec
@@ -175,8 +181,209 @@ fn parse_flux_kustomization(obj: DynamicObject) -> Option<FluxKustomizationInfo>
         source_ref,
         interval,
         status: ks_status,
+        suspended,
         message,
         last_applied_revision: last_applied,
         created_at,
     })
+}
+
+/// Trigger reconciliation for a Flux Kustomization
+#[command]
+pub async fn reconcile_flux_kustomization(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+
+    let ar = ApiResource {
+        group: "kustomize.toolkit.fluxcd.io".to_string(),
+        version: "v1".to_string(),
+        api_version: "kustomize.toolkit.fluxcd.io/v1".to_string(),
+        kind: "Kustomization".to_string(),
+        plural: "kustomizations".to_string(),
+    };
+
+    let api: Api<DynamicObject> = Api::namespaced_with(client, &namespace, &ar);
+
+    // Flux reconciliation is triggered by setting the annotation
+    // reconcile.fluxcd.io/requestedAt to current timestamp
+    let now = chrono::Utc::now().to_rfc3339();
+    let patch = json!({
+        "metadata": {
+            "annotations": {
+                "reconcile.fluxcd.io/requestedAt": now
+            }
+        }
+    });
+
+    api.patch(&name, &PatchParams::apply("kubeli"), &Patch::Merge(&patch))
+        .await
+        .map_err(|e| format!("Failed to trigger reconciliation: {}", e))?;
+
+    Ok(())
+}
+
+/// Suspend a Flux Kustomization
+#[command]
+pub async fn suspend_flux_kustomization(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+
+    let ar = ApiResource {
+        group: "kustomize.toolkit.fluxcd.io".to_string(),
+        version: "v1".to_string(),
+        api_version: "kustomize.toolkit.fluxcd.io/v1".to_string(),
+        kind: "Kustomization".to_string(),
+        plural: "kustomizations".to_string(),
+    };
+
+    let api: Api<DynamicObject> = Api::namespaced_with(client, &namespace, &ar);
+
+    let patch = json!({
+        "spec": {
+            "suspend": true
+        }
+    });
+
+    api.patch(&name, &PatchParams::apply("kubeli"), &Patch::Merge(&patch))
+        .await
+        .map_err(|e| format!("Failed to suspend kustomization: {}", e))?;
+
+    Ok(())
+}
+
+/// Resume a Flux Kustomization
+#[command]
+pub async fn resume_flux_kustomization(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+
+    let ar = ApiResource {
+        group: "kustomize.toolkit.fluxcd.io".to_string(),
+        version: "v1".to_string(),
+        api_version: "kustomize.toolkit.fluxcd.io/v1".to_string(),
+        kind: "Kustomization".to_string(),
+        plural: "kustomizations".to_string(),
+    };
+
+    let api: Api<DynamicObject> = Api::namespaced_with(client, &namespace, &ar);
+
+    let patch = json!({
+        "spec": {
+            "suspend": false
+        }
+    });
+
+    api.patch(&name, &PatchParams::apply("kubeli"), &Patch::Merge(&patch))
+        .await
+        .map_err(|e| format!("Failed to resume kustomization: {}", e))?;
+
+    Ok(())
+}
+
+/// Trigger reconciliation for a Flux HelmRelease
+#[command]
+pub async fn reconcile_flux_helmrelease(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+
+    let ar = ApiResource {
+        group: "helm.toolkit.fluxcd.io".to_string(),
+        version: "v2".to_string(),
+        api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
+        kind: "HelmRelease".to_string(),
+        plural: "helmreleases".to_string(),
+    };
+
+    let api: Api<DynamicObject> = Api::namespaced_with(client, &namespace, &ar);
+
+    let now = chrono::Utc::now().to_rfc3339();
+    let patch = json!({
+        "metadata": {
+            "annotations": {
+                "reconcile.fluxcd.io/requestedAt": now
+            }
+        }
+    });
+
+    api.patch(&name, &PatchParams::apply("kubeli"), &Patch::Merge(&patch))
+        .await
+        .map_err(|e| format!("Failed to trigger reconciliation: {}", e))?;
+
+    Ok(())
+}
+
+/// Suspend a Flux HelmRelease
+#[command]
+pub async fn suspend_flux_helmrelease(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+
+    let ar = ApiResource {
+        group: "helm.toolkit.fluxcd.io".to_string(),
+        version: "v2".to_string(),
+        api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
+        kind: "HelmRelease".to_string(),
+        plural: "helmreleases".to_string(),
+    };
+
+    let api: Api<DynamicObject> = Api::namespaced_with(client, &namespace, &ar);
+
+    let patch = json!({
+        "spec": {
+            "suspend": true
+        }
+    });
+
+    api.patch(&name, &PatchParams::apply("kubeli"), &Patch::Merge(&patch))
+        .await
+        .map_err(|e| format!("Failed to suspend helm release: {}", e))?;
+
+    Ok(())
+}
+
+/// Resume a Flux HelmRelease
+#[command]
+pub async fn resume_flux_helmrelease(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+
+    let ar = ApiResource {
+        group: "helm.toolkit.fluxcd.io".to_string(),
+        version: "v2".to_string(),
+        api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
+        kind: "HelmRelease".to_string(),
+        plural: "helmreleases".to_string(),
+    };
+
+    let api: Api<DynamicObject> = Api::namespaced_with(client, &namespace, &ar);
+
+    let patch = json!({
+        "spec": {
+            "suspend": false
+        }
+    });
+
+    api.patch(&name, &PatchParams::apply("kubeli"), &Patch::Merge(&patch))
+        .await
+        .map_err(|e| format!("Failed to resume helm release: {}", e))?;
+
+    Ok(())
 }

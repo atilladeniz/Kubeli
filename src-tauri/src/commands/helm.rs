@@ -69,6 +69,8 @@ pub struct HelmReleaseInfo {
     pub notes: Option<String>,
     /// Source managing this release (helm or flux)
     pub managed_by: HelmManagedBy,
+    /// Whether the release is suspended (Flux only)
+    pub suspended: bool,
 }
 
 /// Helm release history entry
@@ -245,6 +247,7 @@ pub async fn list_helm_releases(
                         description: release_data.info.description.clone().unwrap_or_default(),
                         notes: release_data.info.notes.clone(),
                         managed_by: HelmManagedBy::Helm,
+                        suspended: false, // Native Helm releases can't be suspended
                     };
                     releases.insert((ns, release_name), info);
                 }
@@ -345,6 +348,10 @@ fn parse_flux_helm_release(obj: DynamicObject) -> Option<HelmReleaseInfo> {
         .and_then(|v| v.as_str())
         .unwrap_or("")
         .to_string();
+    let suspended = spec
+        .get("suspend")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
 
     // Extract status
     let status = obj.data.get("status");
@@ -422,6 +429,7 @@ fn parse_flux_helm_release(obj: DynamicObject) -> Option<HelmReleaseInfo> {
         description,
         notes: None,
         managed_by: HelmManagedBy::Flux,
+        suspended,
     })
 }
 

@@ -271,6 +271,12 @@ fn main() {
             commands::helm::get_helm_release_manifest,
             // Flux commands
             commands::flux::list_flux_kustomizations,
+            commands::flux::reconcile_flux_kustomization,
+            commands::flux::suspend_flux_kustomization,
+            commands::flux::resume_flux_kustomization,
+            commands::flux::reconcile_flux_helmrelease,
+            commands::flux::suspend_flux_helmrelease,
+            commands::flux::resume_flux_helmrelease,
             // Network commands
             commands::network::set_proxy_config,
             commands::network::get_proxy_config,

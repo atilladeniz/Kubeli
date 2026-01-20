@@ -908,6 +908,69 @@ pub async fn get_resource_yaml(
                     .map(|t| t.0.to_string()),
             })
         }
+        "kustomization" | "kustomizations" => {
+            let ns = namespace.ok_or("Namespace required for kustomizations")?;
+            let gvk = kube::api::GroupVersionKind::gvk(
+                "kustomize.toolkit.fluxcd.io",
+                "v1",
+                "Kustomization",
+            );
+            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
+            let api: Api<kube::api::DynamicObject> =
+                Api::namespaced_with(client, &ns, &api_resource);
+            let resource = api
+                .get(&name)
+                .await
+                .map_err(|e| format!("Failed to get kustomization: {}", e))?;
+
+            let yaml = serde_yaml::to_string(&resource)
+                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+
+            Ok(ResourceYaml {
+                yaml,
+                api_version: "kustomize.toolkit.fluxcd.io/v1".to_string(),
+                kind: "Kustomization".to_string(),
+                name: resource.name_any(),
+                namespace: resource.namespace(),
+                uid: resource.metadata.uid.unwrap_or_default(),
+                labels: btree_to_hashmap(resource.metadata.labels),
+                annotations: btree_to_hashmap(resource.metadata.annotations),
+                created_at: resource
+                    .metadata
+                    .creation_timestamp
+                    .map(|t| t.0.to_string()),
+            })
+        }
+        "helmrelease" | "helmreleases" => {
+            let ns = namespace.ok_or("Namespace required for helm releases")?;
+            let gvk =
+                kube::api::GroupVersionKind::gvk("helm.toolkit.fluxcd.io", "v2", "HelmRelease");
+            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
+            let api: Api<kube::api::DynamicObject> =
+                Api::namespaced_with(client, &ns, &api_resource);
+            let resource = api
+                .get(&name)
+                .await
+                .map_err(|e| format!("Failed to get helm release: {}", e))?;
+
+            let yaml = serde_yaml::to_string(&resource)
+                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+
+            Ok(ResourceYaml {
+                yaml,
+                api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
+                kind: "HelmRelease".to_string(),
+                name: resource.name_any(),
+                namespace: resource.namespace(),
+                uid: resource.metadata.uid.unwrap_or_default(),
+                labels: btree_to_hashmap(resource.metadata.labels),
+                annotations: btree_to_hashmap(resource.metadata.annotations),
+                created_at: resource
+                    .metadata
+                    .creation_timestamp
+                    .map(|t| t.0.to_string()),
+            })
+        }
         _ => Err(format!("Unsupported resource type: {}", resource_type)),
     }
 }
