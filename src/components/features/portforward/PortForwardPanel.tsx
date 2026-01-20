@@ -35,6 +35,7 @@ export function PortForwardPanel({ onClose }: PortForwardPanelProps) {
     stopAllForwards,
   } = usePortForward({
     onError: (forwardId, message) => {
+      // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
       console.error(`Port forward ${forwardId} error:`, message);
     },
   });

@@ -255,6 +255,7 @@ users:
 
     #[test]
     fn test_parse_kubeconfig() {
+        // nosemgrep: rust-no-unwrap
         let config = KubeConfig::parse(SAMPLE_KUBECONFIG, PathBuf::from("/test")).unwrap();
 
         assert_eq!(config.current_context, Some("minikube".to_string()));
@@ -265,8 +266,10 @@ users:
 
     #[test]
     fn test_get_current_context() {
+        // nosemgrep: rust-no-unwrap
         let config = KubeConfig::parse(SAMPLE_KUBECONFIG, PathBuf::from("/test")).unwrap();
 
+        // nosemgrep: rust-no-unwrap
         let ctx = config.get_current_context().unwrap();
         assert_eq!(ctx.name, "minikube");
         assert_eq!(ctx.cluster, "minikube");
@@ -275,14 +278,17 @@ users:
 
     #[test]
     fn test_auth_types() {
+        // nosemgrep: rust-no-unwrap
         let config = KubeConfig::parse(SAMPLE_KUBECONFIG, PathBuf::from("/test")).unwrap();
 
+        // nosemgrep: rust-no-unwrap
         let minikube_user = config.users.iter().find(|u| u.name == "minikube").unwrap();
         assert!(matches!(
             minikube_user.auth_type,
             AuthType::ClientCertificate
         ));
 
+        // nosemgrep: rust-no-unwrap
         let admin_user = config.users.iter().find(|u| u.name == "admin").unwrap();
         assert!(matches!(admin_user.auth_type, AuthType::Token));
     }
