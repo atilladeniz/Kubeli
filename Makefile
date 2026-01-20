@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog
+.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust
 
 # Default target
 .DEFAULT_GOAL := help
@@ -337,6 +337,16 @@ k8s-services: ## List all services across namespaces
 
 k8s-namespaces: ## List all namespaces
 	kubectl get namespaces
+
+## Security / SBOM
+
+sbom-npm: ## Generate npm SBOM (CycloneDX JSON)
+	npm run sbom:npm
+
+sbom-rust: ## Generate Rust SBOM (CycloneDX JSON)
+	cd src-tauri && cargo cyclonedx --format json --output ../sbom-rust.json
+
+sbom: sbom-npm sbom-rust ## Generate both SBOM files
 
 ## Utilities
 

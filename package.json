@@ -10,6 +10,7 @@
     "lint:fix": "eslint --fix .",
     "format": "cd src-tauri && cargo fmt",
     "typecheck": "tsc --noEmit",
+    "sbom:npm": "cyclonedx-npm --output-file sbom-npm.json --output-format JSON --validate",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",
@@ -84,6 +85,7 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
+    "@cyclonedx/cyclonedx-npm": "^4.1.2",
     "@tailwindcss/postcss": "^4.1.18",
     "@tauri-apps/cli": "^2.9.6",
     "@types/node": "^25.0.9",

@@ -1,0 +1,45 @@
+name: SBOM Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sbom:
+    name: Generate SBOMs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Generate npm SBOM
+        run: npm run sbom:npm
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-cyclonedx
+        run: cargo install cargo-cyclonedx --locked
+
+      - name: Generate Rust SBOM
+        run: cd src-tauri && cargo cyclonedx --format json --output ../sbom-rust.json
+
+      - name: Upload SBOMs to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            sbom-npm.json
+            sbom-rust.json
