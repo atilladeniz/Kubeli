@@ -2,6 +2,15 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.37] - 2026-01-20
+
+- Added Flux CD support for HelmReleases and Kustomizations
+- Added security scanning with Trivy and Semgrep
+- Added SBOM generation for enterprise compliance
+- Fixed security scanning configuration and alerts
+- Updated Trivy (0.68.1) and Semgrep (1.112.0) versions
+- Refactored semgrep suppressions to use config-based rule exclusions
+
 ## [0.2.36] - 2026-01-19
 
 - Added pod management enhancements in Dashboard and ResourceList components
