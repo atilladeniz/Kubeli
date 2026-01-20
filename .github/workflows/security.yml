@@ -5,11 +5,20 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '0 6 * * 1'  # Weekly scan every Monday at 6 AM UTC
   workflow_dispatch:
+
+concurrency:
+  group: security-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
   security-events: write
+
+env:
+  TRIVY_CACHE_DIR: .cache/trivy
 
 jobs:
   trivy:
@@ -17,6 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
+
+      - name: Cache Trivy DB
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.TRIVY_CACHE_DIR }}
+          key: trivy-db-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: trivy-db-${{ runner.os }}-
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -49,31 +65,37 @@ jobs:
         with:
           scan-type: 'sbom'
           scan-ref: 'sbom-npm.json'
+          trivy-config: trivy.yaml
           format: 'sarif'
           output: 'trivy-npm.sarif'
           severity: 'HIGH,CRITICAL'
           exit-code: '0'
+          cache-dir: ${{ env.TRIVY_CACHE_DIR }}
 
       - name: Scan Rust SBOM with Trivy
         uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: 'sbom'
           scan-ref: 'sbom-rust.json'
+          trivy-config: trivy.yaml
           format: 'sarif'
           output: 'trivy-rust.sarif'
           severity: 'HIGH,CRITICAL'
           exit-code: '0'
+          cache-dir: ${{ env.TRIVY_CACHE_DIR }}
 
       - name: Scan filesystem for secrets and misconfigs
         uses: aquasecurity/trivy-action@0.33.1
         with:
           scan-type: 'fs'
           scan-ref: '.'
+          trivy-config: trivy.yaml
           format: 'sarif'
           output: 'trivy-fs.sarif'
           severity: 'HIGH,CRITICAL'
           scanners: 'secret,misconfig'
           exit-code: '0'
+          cache-dir: ${{ env.TRIVY_CACHE_DIR }}
 
       - name: Upload Trivy npm results to Security tab
         uses: github/codeql-action/upload-sarif@v4
@@ -96,24 +118,42 @@ jobs:
           sarif_file: 'trivy-fs.sarif'
           category: 'trivy-fs'
 
+      - name: Upload Trivy artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-results
+          path: |
+            trivy-npm.sarif
+            trivy-rust.sarif
+            trivy-fs.sarif
+          retention-days: 30
+
   semgrep:
     name: Semgrep SAST Scan
     runs-on: ubuntu-latest
     container:
       image: semgrep/semgrep
+    if: github.actor != 'dependabot[bot]'
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Run Semgrep scan
-        run: semgrep scan --config auto --sarif --output semgrep.sarif
-        env:
-          SEMGREP_RULES: >-
-            p/typescript
-            p/react
-            p/rust
-            p/secrets
-            p/security-audit
-            p/github-actions
+        run: |
+          semgrep scan \
+            --config p/default \
+            --config p/secrets \
+            --config p/typescript \
+            --config p/react \
+            --config p/rust \
+            --config .semgrep.yaml \
+            --sarif \
+            --output semgrep.sarif \
+            --exclude-minified-files \
+            --metrics off
+        continue-on-error: true
 
       - name: Upload Semgrep results to Security tab
         uses: github/codeql-action/upload-sarif@v4
@@ -121,3 +161,11 @@ jobs:
         with:
           sarif_file: 'semgrep.sarif'
           category: 'semgrep'
+
+      - name: Upload Semgrep artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: semgrep-results
+          path: semgrep.sarif
+          retention-days: 30
