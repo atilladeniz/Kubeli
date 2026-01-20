@@ -368,16 +368,16 @@ security-scan: sbom security-trivy security-semgrep ## Run all security scans
 
 security-trivy: ## Scan SBOMs for vulnerabilities with Trivy (requires Docker)
 	@echo "$(CYAN)Scanning npm SBOM for vulnerabilities...$(RESET)"
-	docker run --rm --platform linux/amd64 -v $(PWD):/data aquasec/trivy:0.59.1 sbom /data/sbom-npm.json --severity HIGH,CRITICAL
+	docker run --rm --platform linux/amd64 -v $(PWD):/data aquasec/trivy:0.68.1 sbom /data/sbom-npm.json --severity HIGH,CRITICAL
 	@echo "$(CYAN)Scanning Rust SBOM for vulnerabilities...$(RESET)"
-	docker run --rm --platform linux/amd64 -v $(PWD):/data aquasec/trivy:0.59.1 sbom /data/sbom-rust.json --severity HIGH,CRITICAL
+	docker run --rm --platform linux/amd64 -v $(PWD):/data aquasec/trivy:0.68.1 sbom /data/sbom-rust.json --severity HIGH,CRITICAL
 	@echo "$(CYAN)Scanning filesystem for secrets and misconfigs...$(RESET)"
-	docker run --rm --platform linux/amd64 -v $(PWD):/data aquasec/trivy:0.59.1 fs /data --scanners secret,misconfig --severity HIGH,CRITICAL
+	docker run --rm --platform linux/amd64 -v $(PWD):/data aquasec/trivy:0.68.1 fs /data --scanners secret,misconfig --severity HIGH,CRITICAL
 	@echo "$(GREEN)✓ Trivy scans completed$(RESET)"
 
 security-semgrep: ## Run Semgrep SAST scan (requires Docker)
 	@echo "$(CYAN)Running Semgrep SAST scan...$(RESET)"
-	docker run --rm --platform linux/amd64 -v $(PWD):/src semgrep/semgrep:1.102.0 semgrep scan --config p/default --config p/secrets --config p/typescript --config p/react --config p/rust --config /src/.semgrep.yaml --metrics off
+	docker run --rm --platform linux/amd64 -v $(PWD):/src semgrep/semgrep:1.112.0 semgrep scan --config p/default --config p/secrets --config p/typescript --config p/react --config p/rust --config /src/.semgrep.yaml --metrics off
 	@echo "$(GREEN)✓ Semgrep scan completed$(RESET)"
 
 ## Utilities
