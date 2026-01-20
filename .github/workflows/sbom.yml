@@ -14,12 +14,12 @@ jobs:
     name: Generate SBOMs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '22'
           cache: 'npm'
 
       - name: Install npm dependencies
@@ -31,14 +31,10 @@ jobs:
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
-      - name: Cache cargo-cyclonedx
-        uses: actions/cache@v4
-        with:
-          path: ~/.cargo/bin/cargo-cyclonedx
-          key: cargo-cyclonedx-0.5
-
       - name: Install cargo-cyclonedx
-        run: command -v cargo-cyclonedx || cargo install cargo-cyclonedx --locked
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-cyclonedx@0.5.7
 
       - name: Generate Rust SBOM
         run: |
