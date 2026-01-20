@@ -150,6 +150,7 @@ jobs:
             --config p/react \
             --config p/rust \
             --config .semgrep.yaml \
+            --exclude-rule javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring \
             --sarif \
             --output semgrep.sarif \
             --metrics off

@@ -181,7 +181,6 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
       newListeners.set(forwardId, unlisten);
       set({ listeners: newListeners });
     } catch (err) {
-      // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
       console.error(`Failed to setup listener for ${forwardId}:`, err);
     }
   },

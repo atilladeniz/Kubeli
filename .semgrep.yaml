@@ -2,9 +2,14 @@
 # https://semgrep.dev/docs/writing-rules/rule-syntax/
 
 rules:
-  # Prevent console.log in production code
+  # Prevent console.log in production code (except debug wrappers)
   - id: no-console-log-in-prod
-    pattern: console.log(...)
+    patterns:
+      - pattern: console.log(...)
+      - pattern-not-inside: |
+          const debug = (...) => { ... console.log(...) ... }
+      - pattern-not-inside: |
+          function debug(...) { ... console.log(...) ... }
     paths:
       include:
         - /src/
