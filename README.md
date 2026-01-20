@@ -92,23 +92,42 @@ make format
 make check
 ```
 
-## SBOM
+## SBOM (Software Bill of Materials)
 
-Kubeli publishes CycloneDX SBOMs for npm and Rust dependencies. You can generate them locally:
+Kubeli provides [CycloneDX](https://cyclonedx.org/) SBOMs for supply chain security and compliance.
+
+### What's Included
+
+| SBOM File | Contents | Format |
+|-----------|----------|--------|
+| `sbom-npm.json` | Production npm dependencies | CycloneDX 1.5 JSON |
+| `sbom-rust.json` | Production Rust crates | CycloneDX 1.5 JSON |
+
+### Automatic Generation
+
+Every [GitHub Release](https://github.com/atilladeniz/Kubeli/releases) includes validated SBOMs as downloadable assets. The CI pipeline:
+
+1. Generates SBOMs excluding dev/build dependencies
+2. Validates against CycloneDX 1.5 schema
+3. Attaches to release for audit/compliance download
+
+### Local Generation
 
 ```bash
-# Install the Rust SBOM tool once
-cargo install cargo-cyclonedx
-
 # Generate both SBOMs
 make sbom
 
-# Or generate individually
-make sbom-npm
-make sbom-rust
+# Generate and validate (requires Docker)
+make sbom-validate
 ```
 
-Outputs are `sbom-npm.json` and `sbom-rust.json` in the repository root. Releases attach these as assets.
+### Enterprise Use
+
+These SBOMs support:
+- **Vulnerability scanning** (Grype, Trivy, Snyk)
+- **License compliance** audits
+- **Supply chain security** (SLSA, SSDF frameworks)
+- **Regulatory requirements** (FDA, EU CRA, Executive Order 14028)
 
 ## Supported Kubernetes Providers
 
