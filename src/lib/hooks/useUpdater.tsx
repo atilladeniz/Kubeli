@@ -9,6 +9,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { Progress } from "@/components/ui/progress";
 
 // Debug logger - only logs in development
+// nosemgrep: no-console-log-in-prod
 const debug = (...args: unknown[]) => {
   if (isDev) console.log("[Updater]", ...args);
 };
