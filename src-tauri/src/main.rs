@@ -269,6 +269,8 @@ fn main() {
             commands::helm::get_helm_release_history,
             commands::helm::get_helm_release_values,
             commands::helm::get_helm_release_manifest,
+            // Flux commands
+            commands::flux::list_flux_kustomizations,
             // Network commands
             commands::network::set_proxy_config,
             commands::network::get_proxy_config,

@@ -1,5 +1,6 @@
 pub mod clusters;
 pub mod debug;
+pub mod flux;
 pub mod graph;
 pub mod helm;
 pub mod logs;
