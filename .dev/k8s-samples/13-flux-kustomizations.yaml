@@ -1,0 +1,52 @@
+# Sample Flux Kustomization resources for local testing
+# These simulate Flux-managed Kustomizations in the kubeli-demo namespace
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: apps
+  namespace: kubeli-demo
+spec:
+  interval: 10m
+  path: ./apps
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: kubeli-demo
+  timeout: 5m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: infrastructure
+  namespace: kubeli-demo
+spec:
+  interval: 30m
+  path: ./infrastructure
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  timeout: 10m
+  wait: true
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: monitoring
+  namespace: kubeli-demo
+spec:
+  interval: 15m
+  path: ./monitoring
+  prune: true
+  sourceRef:
+    kind: GitRepository
+    name: flux-system
+    namespace: flux-system
+  targetNamespace: monitoring
+  timeout: 5m
+  wait: true

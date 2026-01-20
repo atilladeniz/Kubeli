@@ -572,7 +572,11 @@ export function ResourceDetail({
             <div className="p-4">
               <div className="flex items-center justify-between rounded-lg border border-destructive/30 bg-destructive/5 p-4">
                 <div>
-                  <p className="text-sm font-medium">{t("resourceDetail.deleteResource", { type: resourceType.charAt(0).toUpperCase() + resourceType.slice(1), name: resource.name })}</p>
+                  <p className="text-sm font-medium">
+                    {resourceType === "helm-release"
+                      ? t("resourceDetail.uninstallResource", { name: resource.name })
+                      : t("resourceDetail.deleteResource", { type: resourceType.charAt(0).toUpperCase() + resourceType.slice(1), name: resource.name })}
+                  </p>
                   <p className="text-xs text-muted-foreground mt-1">
                     {t("resourceDetail.deleteWarning")}
                   </p>
@@ -583,7 +587,7 @@ export function ResourceDetail({
                   onClick={() => setShowDeleteDialog(true)}
                 >
                   <Trash2 className="size-4 mr-2" />
-                  {t("common.delete")}
+                  {resourceType === "helm-release" ? "Uninstall" : t("common.delete")}
                 </Button>
               </div>
             </div>
@@ -591,11 +595,15 @@ export function ResourceDetail({
         )}
       </Tabs>
 
-      {/* Delete Confirmation Dialog */}
+      {/* Delete/Uninstall Confirmation Dialog */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("messages.confirmDeleteTitle", { type: resourceType.charAt(0).toUpperCase() + resourceType.slice(1) })}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {resourceType === "helm-release"
+                ? `Uninstall "${resource.name}"?`
+                : t("messages.confirmDeleteTitle", { type: resourceType.charAt(0).toUpperCase() + resourceType.slice(1) })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
               {t("messages.confirmDelete", { name: resource.name })}
               {resource.namespace && (
@@ -612,7 +620,7 @@ export function ResourceDetail({
               onClick={handleDelete}
               className="bg-destructive text-white hover:bg-destructive/90"
             >
-              {t("common.delete")}
+              {resourceType === "helm-release" ? "Uninstall" : t("common.delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

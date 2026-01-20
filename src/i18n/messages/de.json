@@ -678,6 +678,7 @@
     "discardChanges": "Änderungen verwerfen",
     "dangerZone": "Gefahrenzone",
     "deleteResource": "{type} \"{name}\" löschen",
+    "uninstallResource": "Helm Release \"{name}\" deinstallieren",
     "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden."
   },
   "shortcuts": {

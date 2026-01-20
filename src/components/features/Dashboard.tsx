@@ -43,6 +43,7 @@ import {
   mutatingWebhookColumns,
   validatingWebhookColumns,
   helmReleaseColumns,
+  fluxKustomizationColumns,
   translateColumns,
   type SortDirection,
   type FilterOption,
@@ -92,6 +93,7 @@ import {
   useMutatingWebhooks,
   useValidatingWebhooks,
   useHelmReleases,
+  useFluxKustomizations,
 } from "@/lib/hooks/useK8sResources";
 import { useClusterMetrics } from "@/lib/hooks/useMetrics";
 import { useClusterStore } from "@/lib/stores/cluster-store";
@@ -117,8 +119,10 @@ import {
   Star,
   Minus,
   Plus,
+  Pause,
+  Play,
 } from "lucide-react";
-import type { PodInfo, ServiceInfo, NodeInfo, DeploymentInfo, ConfigMapInfo, SecretInfo, EventInfo, LeaseInfo, ReplicaSetInfo, DaemonSetInfo, StatefulSetInfo, JobInfo, CronJobInfo, IngressInfo, EndpointSliceInfo, NetworkPolicyInfo, IngressClassInfo, HPAInfo, LimitRangeInfo, ResourceQuotaInfo, PDBInfo, PVInfo, PVCInfo, StorageClassInfo, CSIDriverInfo, CSINodeInfo, VolumeAttachmentInfo, ServiceAccountInfo, RoleInfo, RoleBindingInfo, ClusterRoleInfo, ClusterRoleBindingInfo, CRDInfo, PriorityClassInfo, RuntimeClassInfo, MutatingWebhookInfo, ValidatingWebhookInfo, HelmReleaseInfo } from "@/lib/types";
+import type { PodInfo, ServiceInfo, NodeInfo, DeploymentInfo, ConfigMapInfo, SecretInfo, EventInfo, LeaseInfo, ReplicaSetInfo, DaemonSetInfo, StatefulSetInfo, JobInfo, CronJobInfo, IngressInfo, EndpointSliceInfo, NetworkPolicyInfo, IngressClassInfo, HPAInfo, LimitRangeInfo, ResourceQuotaInfo, PDBInfo, PVInfo, PVCInfo, StorageClassInfo, CSIDriverInfo, CSINodeInfo, VolumeAttachmentInfo, ServiceAccountInfo, RoleInfo, RoleBindingInfo, ClusterRoleInfo, ClusterRoleBindingInfo, CRDInfo, PriorityClassInfo, RuntimeClassInfo, MutatingWebhookInfo, ValidatingWebhookInfo, HelmReleaseInfo, FluxKustomizationInfo } from "@/lib/types";
 import type { ContextMenuItemDef } from "./resources/ResourceList";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { TerminalTabsProvider, useTerminalTabs, TerminalTabs } from "./terminal";
@@ -151,7 +155,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { getResourceYaml, applyResourceYaml, deleteResource, scaleDeployment } from "@/lib/tauri/commands";
+import { getResourceYaml, applyResourceYaml, deleteResource, scaleDeployment, reconcileFluxKustomization, suspendFluxKustomization, resumeFluxKustomization, reconcileFluxHelmRelease, suspendFluxHelmRelease, resumeFluxHelmRelease, uninstallHelmRelease } from "@/lib/tauri/commands";
 import { useKeyboardShortcuts, NAVIGATION_SHORTCUTS } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpDialog } from "./shortcuts/ShortcutsHelpDialog";
 
@@ -161,6 +165,7 @@ interface ResourceDetailContextType {
   setSelectedResource: (resource: { data: ResourceData; type: string } | null) => void;
   openResourceDetail: (resourceType: string, name: string, namespace?: string, labels?: Record<string, string>) => void;
   handleDeleteFromContext: (resourceType: string, name: string, namespace?: string, onSuccess?: () => void) => void;
+  handleUninstallFromContext: (name: string, namespace: string, onSuccess?: () => void) => void;
   handleScaleFromContext: (name: string, namespace: string, currentReplicas: number, onSuccess?: () => void) => void;
   closeResourceDetail: () => void;
 }
@@ -192,6 +197,7 @@ function DashboardContent() {
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
   const [isLoadingDetail, setIsLoadingDetail] = useState(false);
   const [deleteDialog, setDeleteDialog] = useState<{ open: boolean; resourceType: string; name: string; namespace?: string; onConfirm: () => void } | null>(null);
+  const [uninstallDialog, setUninstallDialog] = useState<{ open: boolean; name: string; namespace: string; onSuccess?: () => void } | null>(null);
   const [scaleDialog, setScaleDialog] = useState<{ open: boolean; name: string; namespace: string; currentReplicas: number; onSuccess?: () => void } | null>(null);
   const [newReplicas, setNewReplicas] = useState<number>(1);
   const [scaleToZeroWarning, setScaleToZeroWarning] = useState(false);
@@ -308,6 +314,15 @@ function DashboardContent() {
     });
   };
 
+  const handleUninstallFromContext = (name: string, namespace: string, onSuccess?: () => void) => {
+    setUninstallDialog({
+      open: true,
+      name,
+      namespace,
+      onSuccess,
+    });
+  };
+
   const handleScaleFromContext = (name: string, namespace: string, currentReplicas: number, onSuccess?: () => void) => {
     setNewReplicas(currentReplicas);
     setScaleDialog({ open: true, name, namespace, currentReplicas, onSuccess });
@@ -341,7 +356,7 @@ function DashboardContent() {
   };
 
   return (
-    <ResourceDetailContext.Provider value={{ selectedResource, setSelectedResource, openResourceDetail, handleDeleteFromContext, handleScaleFromContext, closeResourceDetail }}>
+    <ResourceDetailContext.Provider value={{ selectedResource, setSelectedResource, openResourceDetail, handleDeleteFromContext, handleUninstallFromContext, handleScaleFromContext, closeResourceDetail }}>
       <div className="flex h-screen bg-background text-foreground overscroll-none">
         <Sidebar activeResource={activeResource} onResourceSelect={setActiveResource} />
         <div className="flex flex-1 overflow-hidden overscroll-none">
@@ -432,6 +447,39 @@ function DashboardContent() {
                 className="bg-destructive text-white hover:bg-destructive/90"
               >
                 {t("common.delete")}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* Uninstall Helm Release Dialog */}
+        <AlertDialog open={uninstallDialog?.open} onOpenChange={(open) => !open && setUninstallDialog(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Uninstall Helm Release?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {t("messages.confirmDelete", { name: uninstallDialog?.name || "" })}
+                {uninstallDialog?.namespace && <> ({t("cluster.namespace")}: <strong>{uninstallDialog.namespace}</strong>)</>}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>{t("common.cancel")}</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={async () => {
+                  if (uninstallDialog) {
+                    try {
+                      await uninstallHelmRelease(uninstallDialog.name, uninstallDialog.namespace);
+                      toast.success("Release uninstalled", { description: uninstallDialog.name });
+                      uninstallDialog.onSuccess?.();
+                    } catch (e) {
+                      toast.error("Failed to uninstall", { description: String(e) });
+                    }
+                    setUninstallDialog(null);
+                  }
+                }}
+                className="bg-destructive text-white hover:bg-destructive/90"
+              >
+                Uninstall
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
@@ -618,6 +666,8 @@ function ResourceView({ activeResource }: { activeResource: ResourceType }) {
       return <ValidatingWebhooksView />;
     case "helm-releases":
       return <HelmReleasesView />;
+    case "flux-kustomizations":
+      return <FluxKustomizationsView />;
     default:
       return <ComingSoon resource={activeResource} />;
   }
@@ -3707,28 +3757,112 @@ function HelmReleasesView() {
     autoRefresh: true,
     refreshInterval: 30000,
   });
+  const { openResourceDetail, handleDeleteFromContext, handleUninstallFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("last_deployed");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  const getHelmContextMenu = (release: HelmReleaseInfo): ContextMenuItemDef[] => [
-    {
-      label: "Copy Name",
-      icon: <Copy className="size-4" />,
-      onClick: () => {
-        navigator.clipboard.writeText(release.name);
-        toast.success("Copied to clipboard", { description: release.name });
+  const getHelmContextMenu = (release: HelmReleaseInfo): ContextMenuItemDef[] => {
+    const items: ContextMenuItemDef[] = [];
+
+    // View Details for all releases (different resource type based on managed_by)
+    items.push({
+      label: "View Details",
+      icon: <Eye className="size-4" />,
+      onClick: () => openResourceDetail(
+        release.managed_by === "flux" ? "helmrelease" : "helm-release",
+        release.name,
+        release.namespace
+      ),
+    });
+
+    // Flux-specific actions
+    if (release.managed_by === "flux") {
+      items.push({ separator: true, label: "", onClick: () => {} });
+      items.push({
+        label: "Reconcile",
+        icon: <RefreshCw className="size-4" />,
+        onClick: async () => {
+          try {
+            await reconcileFluxHelmRelease(release.name, release.namespace);
+            toast.success("Reconciliation triggered", { description: release.name });
+            refresh();
+          } catch (e) {
+            toast.error("Failed to trigger reconciliation", { description: String(e) });
+          }
+        },
+      });
+      items.push(
+        release.suspended
+          ? {
+              label: "Resume",
+              icon: <Play className="size-4" />,
+              onClick: async () => {
+                try {
+                  await resumeFluxHelmRelease(release.name, release.namespace);
+                  toast.success("HelmRelease resumed", { description: release.name });
+                  refresh();
+                } catch (e) {
+                  toast.error("Failed to resume", { description: String(e) });
+                }
+              },
+            }
+          : {
+              label: "Suspend",
+              icon: <Pause className="size-4" />,
+              onClick: async () => {
+                try {
+                  await suspendFluxHelmRelease(release.name, release.namespace);
+                  toast.success("HelmRelease suspended", { description: release.name });
+                  refresh();
+                } catch (e) {
+                  toast.error("Failed to suspend", { description: String(e) });
+                }
+              },
+            }
+      );
+    }
+
+    items.push({ separator: true, label: "", onClick: () => {} });
+    items.push(
+      {
+        label: "Copy Name",
+        icon: <Copy className="size-4" />,
+        onClick: () => {
+          navigator.clipboard.writeText(release.name);
+          toast.success("Copied to clipboard", { description: release.name });
+        },
       },
-    },
-    {
-      label: "Copy Chart",
-      icon: <Copy className="size-4" />,
-      onClick: () => {
-        const chartInfo = `${release.chart}-${release.chart_version}`;
-        navigator.clipboard.writeText(chartInfo);
-        toast.success("Copied to clipboard", { description: chartInfo });
-      },
-    },
-  ];
+      {
+        label: "Copy Chart",
+        icon: <Copy className="size-4" />,
+        onClick: () => {
+          const chartInfo = `${release.chart}-${release.chart_version}`;
+          navigator.clipboard.writeText(chartInfo);
+          toast.success("Copied to clipboard", { description: chartInfo });
+        },
+      }
+    );
+
+    // Delete/Uninstall
+    items.push({ separator: true, label: "", onClick: () => {} });
+    if (release.managed_by === "flux") {
+      items.push({
+        label: "Delete",
+        icon: <Trash2 className="size-4" />,
+        onClick: () => handleDeleteFromContext("helmrelease", release.name, release.namespace, refresh),
+        variant: "destructive",
+      });
+    } else {
+      items.push({
+        label: "Uninstall",
+        icon: <Trash2 className="size-4" />,
+        onClick: () => handleUninstallFromContext(release.name, release.namespace, refresh),
+        variant: "destructive",
+      });
+    }
+
+    return items;
+  };
 
   return (
     <ResourceList
@@ -3738,9 +3872,122 @@ function HelmReleasesView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRowClick={(r) => openResourceDetail(r.managed_by === "flux" ? "helmrelease" : "helm-release", r.name, r.namespace)}
       getRowKey={(r) => `${r.namespace}/${r.name}`}
+      getRowNamespace={(r) => r.namespace}
       emptyMessage={t("empty.helmreleases")}
       contextMenuItems={getHelmContextMenu}
+      sortKey={sortKey}
+      sortDirection={sortDirection}
+      onSortChange={(key, dir) => { setSortKey(key); setSortDirection(dir); }}
+    />
+  );
+}
+
+function FluxKustomizationsView() {
+  const t = useTranslations();
+  const { data, isLoading, error, refresh } = useFluxKustomizations({
+    autoRefresh: true,
+    refreshInterval: 30000,
+  });
+  const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
+  const [sortKey, setSortKey] = useState<string | null>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  const getKustomizationContextMenu = (k: FluxKustomizationInfo): ContextMenuItemDef[] => [
+    {
+      label: "View Details",
+      icon: <Eye className="size-4" />,
+      onClick: () => openResourceDetail("kustomization", k.name, k.namespace),
+    },
+    { separator: true, label: "", onClick: () => {} },
+    {
+      label: "Reconcile",
+      icon: <RefreshCw className="size-4" />,
+      onClick: async () => {
+        try {
+          await reconcileFluxKustomization(k.name, k.namespace);
+          toast.success("Reconciliation triggered", { description: k.name });
+          refresh();
+        } catch (e) {
+          toast.error("Failed to trigger reconciliation", { description: String(e) });
+        }
+      },
+    },
+    k.suspended
+      ? {
+          label: "Resume",
+          icon: <Play className="size-4" />,
+          onClick: async () => {
+            try {
+              await resumeFluxKustomization(k.name, k.namespace);
+              toast.success("Kustomization resumed", { description: k.name });
+              refresh();
+            } catch (e) {
+              toast.error("Failed to resume", { description: String(e) });
+            }
+          },
+        }
+      : {
+          label: "Suspend",
+          icon: <Pause className="size-4" />,
+          onClick: async () => {
+            try {
+              await suspendFluxKustomization(k.name, k.namespace);
+              toast.success("Kustomization suspended", { description: k.name });
+              refresh();
+            } catch (e) {
+              toast.error("Failed to suspend", { description: String(e) });
+            }
+          },
+        },
+    { separator: true, label: "", onClick: () => {} },
+    {
+      label: "Copy Name",
+      icon: <Copy className="size-4" />,
+      onClick: () => {
+        navigator.clipboard.writeText(k.name);
+        toast.success("Copied to clipboard", { description: k.name });
+      },
+    },
+    {
+      label: "Copy Path",
+      icon: <Copy className="size-4" />,
+      onClick: () => {
+        navigator.clipboard.writeText(k.path);
+        toast.success("Copied to clipboard", { description: k.path });
+      },
+    },
+    {
+      label: "Copy Source",
+      icon: <Copy className="size-4" />,
+      onClick: () => {
+        navigator.clipboard.writeText(k.source_ref);
+        toast.success("Copied to clipboard", { description: k.source_ref });
+      },
+    },
+    { separator: true, label: "", onClick: () => {} },
+    {
+      label: "Delete",
+      icon: <Trash2 className="size-4" />,
+      onClick: () => handleDeleteFromContext("kustomization", k.name, k.namespace, refresh),
+      variant: "destructive",
+    },
+  ];
+
+  return (
+    <ResourceList
+      title="Kustomizations"
+      data={data}
+      columns={fluxKustomizationColumns}
+      isLoading={isLoading}
+      error={error}
+      onRefresh={refresh}
+      onRowClick={(k) => openResourceDetail("kustomization", k.name, k.namespace)}
+      getRowKey={(k) => `${k.namespace}/${k.name}`}
+      getRowNamespace={(k) => k.namespace}
+      emptyMessage="No Flux Kustomizations found"
+      contextMenuItems={getKustomizationContextMenu}
       sortKey={sortKey}
       sortDirection={sortDirection}
       onSortChange={(key, dir) => { setSortKey(key); setSortDirection(dir); }}
