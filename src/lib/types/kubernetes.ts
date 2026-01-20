@@ -1088,3 +1088,23 @@ export interface HelmReleaseDetail {
   /** Source managing this release (helm or flux) */
   managed_by: HelmManagedBy;
 }
+
+// Flux Kustomization types
+export type FluxKustomizationStatus =
+  | "ready"
+  | "notready"
+  | "reconciling"
+  | "failed"
+  | "unknown";
+
+export interface FluxKustomizationInfo {
+  name: string;
+  namespace: string;
+  path: string;
+  source_ref: string;
+  interval: string;
+  status: FluxKustomizationStatus;
+  message: string | null;
+  last_applied_revision: string | null;
+  created_at: string | null;
+}

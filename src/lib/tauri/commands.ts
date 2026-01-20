@@ -54,6 +54,7 @@ import type {
   HelmReleaseInfo,
   HelmReleaseDetail,
   HelmReleaseHistoryEntry,
+  FluxKustomizationInfo,
 } from "../types";
 
 // Cluster commands
@@ -474,6 +475,13 @@ export async function getHelmReleaseManifest(
   revision?: number
 ): Promise<string> {
   return invoke<string>("get_helm_release_manifest", { name, namespace, revision });
+}
+
+// Flux commands
+export async function listFluxKustomizations(
+  namespace?: string
+): Promise<FluxKustomizationInfo[]> {
+  return invoke<FluxKustomizationInfo[]>("list_flux_kustomizations", { namespace });
 }
 
 // Network/Proxy commands
