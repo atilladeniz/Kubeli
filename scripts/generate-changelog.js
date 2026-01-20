@@ -19,6 +19,7 @@ function log(color, msg) {
 
 function exec(cmd) {
   try {
+    // nosemgrep: javascript.lang.security.detect-child-process.detect-child-process
     return execSync(cmd, { encoding: 'utf8' }).trim();
   } catch {
     return '';

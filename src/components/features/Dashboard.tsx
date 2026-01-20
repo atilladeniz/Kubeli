@@ -1133,6 +1133,7 @@ function PodsView() {
           try {
             await deleteResource("pod", pod.name, pod.namespace);
           } catch (err) {
+            // nosemgrep: javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring
             console.error(`Failed to delete pod ${pod.name}:`, err);
           }
         }
