@@ -358,8 +358,8 @@ sbom: sbom-npm sbom-rust ## Generate both SBOM files
 
 sbom-validate: sbom ## Generate and validate SBOMs with cyclonedx-cli
 	@echo "$(CYAN)Validating SBOMs against CycloneDX 1.5 schema...$(RESET)"
-	docker run --rm -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-npm.json --input-version v1_5 --fail-on-errors
-	docker run --rm -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-rust.json --input-version v1_5 --fail-on-errors
+	docker run --rm --platform linux/amd64 -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-npm.json --input-version v1_5 --fail-on-errors
+	docker run --rm --platform linux/amd64 -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-rust.json --input-version v1_5 --fail-on-errors
 	@echo "$(GREEN)✓ Both SBOMs validated$(RESET)"
 
 ## Utilities
