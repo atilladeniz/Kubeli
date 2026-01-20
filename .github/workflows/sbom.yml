@@ -35,7 +35,10 @@ jobs:
         run: cargo install cargo-cyclonedx --locked
 
       - name: Generate Rust SBOM
-        run: cd src-tauri && cargo cyclonedx --format json --output ../sbom-rust.json
+        run: |
+          cd src-tauri
+          cargo cyclonedx --format json --override-filename sbom-rust
+          cp sbom-rust.json ../sbom-rust.json
 
       - name: Upload SBOMs to release
         uses: softprops/action-gh-release@v2

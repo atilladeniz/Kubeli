@@ -24,5 +24,5 @@
 
 ## 5. Validierung
 
-- [ ] 5.1 Lokale SBOM-Generierung testen
+- [x] 5.1 Lokale SBOM-Generierung testen
 - [ ] 5.2 CycloneDX Format validieren

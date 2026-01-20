@@ -344,7 +344,8 @@ sbom-npm: ## Generate npm SBOM (CycloneDX JSON)
 	npm run sbom:npm
 
 sbom-rust: ## Generate Rust SBOM (CycloneDX JSON)
-	cd src-tauri && cargo cyclonedx --format json --output ../sbom-rust.json
+	cd src-tauri && cargo cyclonedx --format json --override-filename sbom-rust
+	cp src-tauri/sbom-rust.json sbom-rust.json
 
 sbom: sbom-npm sbom-rust ## Generate both SBOM files
 
