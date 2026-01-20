@@ -1,0 +1,47 @@
+# Semgrep configuration for Kubeli
+# https://semgrep.dev/docs/writing-rules/rule-syntax/
+
+rules:
+  # Prevent hardcoded secrets in TypeScript/JavaScript
+  - id: no-hardcoded-secrets
+    patterns:
+      - pattern-either:
+          - pattern: const $KEY = "..."
+          - pattern: let $KEY = "..."
+          - pattern: var $KEY = "..."
+    pattern-regex: (api[_-]?key|secret|password|token|credential)
+    message: "Possible hardcoded secret detected"
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  # Prevent console.log in production code
+  - id: no-console-log-in-prod
+    pattern: console.log(...)
+    paths:
+      include:
+        - src/
+      exclude:
+        - src/**/*.test.*
+        - src/**/*.spec.*
+    message: "Remove console.log before production"
+    languages: [typescript, javascript]
+    severity: WARNING
+
+  # Prevent unsafe innerHTML usage
+  - id: no-dangerouslySetInnerHTML
+    pattern: dangerouslySetInnerHTML={...}
+    message: "Avoid dangerouslySetInnerHTML - XSS risk"
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  # Rust: Prevent unwrap in production code
+  - id: rust-no-unwrap
+    pattern: $X.unwrap()
+    paths:
+      include:
+        - src-tauri/src/
+      exclude:
+        - src-tauri/src/**/*test*
+    message: "Use expect() or proper error handling instead of unwrap()"
+    languages: [rust]
+    severity: WARNING

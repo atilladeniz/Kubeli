@@ -129,6 +129,37 @@ These SBOMs support:
 - **Supply chain security** (SLSA, SSDF frameworks)
 - **Regulatory requirements** (FDA, EU CRA, Executive Order 14028)
 
+## Security Scanning
+
+Kubeli includes automated security scanning in CI and local development.
+
+### Automated Scans (CI)
+
+| Scanner | Purpose | Trigger |
+|---------|---------|---------|
+| **Trivy** | SBOM vulnerability scanning | PRs, pushes to main |
+| **Trivy** | Secret & misconfiguration detection | PRs, pushes to main |
+| **Semgrep** | Static code analysis (SAST) | PRs, pushes to main |
+
+Results appear in the GitHub Security tab (requires GitHub Advanced Security for private repos).
+
+### Local Scanning
+
+```bash
+# Run all security scans (requires Docker)
+make security-scan
+
+# Individual scans
+make security-trivy    # Vulnerability + secret scanning
+make security-semgrep  # Static code analysis
+```
+
+### Configuration
+
+- `trivy.yaml` - Severity thresholds and scan settings
+- `trivy-secret.yaml` - Secret detection rules
+- `.semgrep.yaml` - Custom SAST rules for TypeScript and Rust
+
 ## Supported Kubernetes Providers
 
 | Provider | Detection | Icon |

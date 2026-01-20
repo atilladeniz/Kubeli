@@ -1,0 +1,120 @@
+name: Security Scanning
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+jobs:
+  trivy:
+    name: Trivy Vulnerability Scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate npm SBOM
+        run: npx @cyclonedx/cyclonedx-npm --spec-version 1.5 --omit dev --output-format JSON --output-file sbom-npm.json
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-cyclonedx
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-cyclonedx@0.5.7
+
+      - name: Generate Rust SBOM
+        run: |
+          cd src-tauri
+          cargo cyclonedx --format json --spec-version 1.5 --no-build-deps --override-filename sbom-rust
+          mv sbom-rust.json ../sbom-rust.json
+
+      - name: Scan npm SBOM with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'sbom'
+          scan-ref: 'sbom-npm.json'
+          format: 'sarif'
+          output: 'trivy-npm.sarif'
+          severity: 'HIGH,CRITICAL'
+
+      - name: Scan Rust SBOM with Trivy
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'sbom'
+          scan-ref: 'sbom-rust.json'
+          format: 'sarif'
+          output: 'trivy-rust.sarif'
+          severity: 'HIGH,CRITICAL'
+
+      - name: Scan filesystem for secrets and misconfigs
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-fs.sarif'
+          severity: 'HIGH,CRITICAL'
+          scanners: 'secret,misconfig'
+
+      - name: Upload Trivy npm results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-npm.sarif'
+          category: 'trivy-npm'
+
+      - name: Upload Trivy Rust results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-rust.sarif'
+          category: 'trivy-rust'
+
+      - name: Upload Trivy fs results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'trivy-fs.sarif'
+          category: 'trivy-fs'
+
+  semgrep:
+    name: Semgrep SAST Scan
+    runs-on: ubuntu-latest
+    container:
+      image: semgrep/semgrep
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Run Semgrep scan
+        run: semgrep scan --config auto --sarif --output semgrep.sarif
+        env:
+          SEMGREP_RULES: >-
+            p/typescript
+            p/react
+            p/rust
+            p/secrets
+            p/security-audit
+            p/github-actions
+
+      - name: Upload Semgrep results to Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        if: always()
+        with:
+          sarif_file: 'semgrep.sarif'
+          category: 'semgrep'
