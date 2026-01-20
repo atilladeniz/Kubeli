@@ -367,25 +367,21 @@ minikube-setup-helm: ## Install native Helm releases for testing (requires helm 
 	@echo "$(CYAN)Installing native Helm releases...$(RESET)"
 	@if command -v helm >/dev/null 2>&1; then \
 		echo "$(CYAN)Adding Helm repositories...$(RESET)"; \
-		helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || true; \
-		helm repo update 2>/dev/null || true; \
+		helm repo add bitnami https://charts.bitnami.com/bitnami >/dev/null 2>&1 || true; \
+		helm repo update >/dev/null 2>&1 || true; \
 		echo "$(CYAN)Installing nginx chart...$(RESET)"; \
 		helm upgrade --install demo-nginx bitnami/nginx \
 			--namespace kubeli-demo \
 			--set replicaCount=1 \
 			--set service.type=ClusterIP \
-			--timeout 60s 2>/dev/null || echo "$(YELLOW)Warning: nginx install failed$(RESET)"; \
+			--timeout 60s >/dev/null 2>&1 && echo "  $(GREEN)✓ demo-nginx$(RESET)" || echo "  $(YELLOW)✗ demo-nginx (failed)$(RESET)"; \
 		echo "$(CYAN)Installing mysql chart...$(RESET)"; \
 		helm upgrade --install demo-mysql bitnami/mysql \
 			--namespace kubeli-demo \
 			--set auth.rootPassword=testpassword \
 			--set primary.persistence.enabled=false \
-			--timeout 60s 2>/dev/null || echo "$(YELLOW)Warning: mysql install failed$(RESET)"; \
+			--timeout 60s >/dev/null 2>&1 && echo "  $(GREEN)✓ demo-mysql$(RESET)" || echo "  $(YELLOW)✗ demo-mysql (failed)$(RESET)"; \
 		echo "$(GREEN)✓ Native Helm releases installed$(RESET)"; \
-		echo ""; \
-		echo "$(CYAN)Native Helm Releases:$(RESET)"; \
-		echo "  - demo-nginx (bitnami/nginx)"; \
-		echo "  - demo-mysql (bitnami/mysql)"; \
 	else \
 		echo "$(YELLOW)Warning: helm CLI not found. Skipping native Helm releases.$(RESET)"; \
 		echo "$(YELLOW)Install helm to test native Helm releases: https://helm.sh/docs/intro/install/$(RESET)"; \
