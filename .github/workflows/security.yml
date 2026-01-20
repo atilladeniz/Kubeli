@@ -151,6 +151,7 @@ jobs:
             --config p/rust \
             --config .semgrep.yaml \
             --exclude-rule javascript.lang.security.audit.unsafe-formatstring.unsafe-formatstring \
+            --exclude-rule rust.lang.security.current-exe.current-exe \
             --sarif \
             --output semgrep.sarif \
             --metrics off

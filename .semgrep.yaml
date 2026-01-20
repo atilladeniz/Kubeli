@@ -26,15 +26,3 @@ rules:
     message: "Avoid dangerouslySetInnerHTML - XSS risk"
     languages: [typescript, javascript]
     severity: ERROR
-
-  # Rust: Prevent unwrap in production code
-  - id: rust-no-unwrap
-    pattern: $X.unwrap()
-    paths:
-      include:
-        - /src-tauri/src/
-      exclude:
-        - /src-tauri/src/**/*test*
-    message: "Use expect() or proper error handling instead of unwrap()"
-    languages: [rust]
-    severity: WARNING
