@@ -1059,6 +1059,8 @@ export interface HelmReleaseInfo {
   notes: string | null;
   /** Source managing this release (helm or flux) */
   managed_by: HelmManagedBy;
+  /** Whether the release is suspended (Flux only) */
+  suspended: boolean;
 }
 
 export interface HelmReleaseHistoryEntry {
@@ -1104,6 +1106,7 @@ export interface FluxKustomizationInfo {
   source_ref: string;
   interval: string;
   status: FluxKustomizationStatus;
+  suspended: boolean;
   message: string | null;
   last_applied_revision: string | null;
   created_at: string | null;

@@ -119,6 +119,8 @@ import {
   Star,
   Minus,
   Plus,
+  Pause,
+  Play,
 } from "lucide-react";
 import type { PodInfo, ServiceInfo, NodeInfo, DeploymentInfo, ConfigMapInfo, SecretInfo, EventInfo, LeaseInfo, ReplicaSetInfo, DaemonSetInfo, StatefulSetInfo, JobInfo, CronJobInfo, IngressInfo, EndpointSliceInfo, NetworkPolicyInfo, IngressClassInfo, HPAInfo, LimitRangeInfo, ResourceQuotaInfo, PDBInfo, PVInfo, PVCInfo, StorageClassInfo, CSIDriverInfo, CSINodeInfo, VolumeAttachmentInfo, ServiceAccountInfo, RoleInfo, RoleBindingInfo, ClusterRoleInfo, ClusterRoleBindingInfo, CRDInfo, PriorityClassInfo, RuntimeClassInfo, MutatingWebhookInfo, ValidatingWebhookInfo, HelmReleaseInfo, FluxKustomizationInfo } from "@/lib/types";
 import type { ContextMenuItemDef } from "./resources/ResourceList";
@@ -153,7 +155,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { getResourceYaml, applyResourceYaml, deleteResource, scaleDeployment } from "@/lib/tauri/commands";
+import { getResourceYaml, applyResourceYaml, deleteResource, scaleDeployment, reconcileFluxKustomization, suspendFluxKustomization, resumeFluxKustomization, reconcileFluxHelmRelease, suspendFluxHelmRelease, resumeFluxHelmRelease } from "@/lib/tauri/commands";
 import { useKeyboardShortcuts, NAVIGATION_SHORTCUTS } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpDialog } from "./shortcuts/ShortcutsHelpDialog";
 
@@ -3711,28 +3713,88 @@ function HelmReleasesView() {
     autoRefresh: true,
     refreshInterval: 30000,
   });
+  const { openResourceDetail } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("last_deployed");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  const getHelmContextMenu = (release: HelmReleaseInfo): ContextMenuItemDef[] => [
-    {
-      label: "Copy Name",
-      icon: <Copy className="size-4" />,
-      onClick: () => {
-        navigator.clipboard.writeText(release.name);
-        toast.success("Copied to clipboard", { description: release.name });
+  const getHelmContextMenu = (release: HelmReleaseInfo): ContextMenuItemDef[] => {
+    const items: ContextMenuItemDef[] = [];
+
+    // View Details only available for Flux-managed releases
+    if (release.managed_by === "flux") {
+      items.push({
+        label: "View Details",
+        icon: <Eye className="size-4" />,
+        onClick: () => openResourceDetail("helmrelease", release.name, release.namespace),
+      });
+      items.push({ separator: true, label: "", onClick: () => {} });
+      items.push({
+        label: "Reconcile",
+        icon: <RefreshCw className="size-4" />,
+        onClick: async () => {
+          try {
+            await reconcileFluxHelmRelease(release.name, release.namespace);
+            toast.success("Reconciliation triggered", { description: release.name });
+            refresh();
+          } catch (e) {
+            toast.error("Failed to trigger reconciliation", { description: String(e) });
+          }
+        },
+      });
+      items.push(
+        release.suspended
+          ? {
+              label: "Resume",
+              icon: <Play className="size-4" />,
+              onClick: async () => {
+                try {
+                  await resumeFluxHelmRelease(release.name, release.namespace);
+                  toast.success("HelmRelease resumed", { description: release.name });
+                  refresh();
+                } catch (e) {
+                  toast.error("Failed to resume", { description: String(e) });
+                }
+              },
+            }
+          : {
+              label: "Suspend",
+              icon: <Pause className="size-4" />,
+              onClick: async () => {
+                try {
+                  await suspendFluxHelmRelease(release.name, release.namespace);
+                  toast.success("HelmRelease suspended", { description: release.name });
+                  refresh();
+                } catch (e) {
+                  toast.error("Failed to suspend", { description: String(e) });
+                }
+              },
+            }
+      );
+      items.push({ separator: true, label: "", onClick: () => {} });
+    }
+
+    items.push(
+      {
+        label: "Copy Name",
+        icon: <Copy className="size-4" />,
+        onClick: () => {
+          navigator.clipboard.writeText(release.name);
+          toast.success("Copied to clipboard", { description: release.name });
+        },
       },
-    },
-    {
-      label: "Copy Chart",
-      icon: <Copy className="size-4" />,
-      onClick: () => {
-        const chartInfo = `${release.chart}-${release.chart_version}`;
-        navigator.clipboard.writeText(chartInfo);
-        toast.success("Copied to clipboard", { description: chartInfo });
-      },
-    },
-  ];
+      {
+        label: "Copy Chart",
+        icon: <Copy className="size-4" />,
+        onClick: () => {
+          const chartInfo = `${release.chart}-${release.chart_version}`;
+          navigator.clipboard.writeText(chartInfo);
+          toast.success("Copied to clipboard", { description: chartInfo });
+        },
+      }
+    );
+
+    return items;
+  };
 
   return (
     <ResourceList
@@ -3758,10 +3820,58 @@ function FluxKustomizationsView() {
     autoRefresh: true,
     refreshInterval: 30000,
   });
+  const { openResourceDetail } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
   const getKustomizationContextMenu = (k: FluxKustomizationInfo): ContextMenuItemDef[] => [
+    {
+      label: "View Details",
+      icon: <Eye className="size-4" />,
+      onClick: () => openResourceDetail("kustomization", k.name, k.namespace),
+    },
+    { separator: true, label: "", onClick: () => {} },
+    {
+      label: "Reconcile",
+      icon: <RefreshCw className="size-4" />,
+      onClick: async () => {
+        try {
+          await reconcileFluxKustomization(k.name, k.namespace);
+          toast.success("Reconciliation triggered", { description: k.name });
+          refresh();
+        } catch (e) {
+          toast.error("Failed to trigger reconciliation", { description: String(e) });
+        }
+      },
+    },
+    k.suspended
+      ? {
+          label: "Resume",
+          icon: <Play className="size-4" />,
+          onClick: async () => {
+            try {
+              await resumeFluxKustomization(k.name, k.namespace);
+              toast.success("Kustomization resumed", { description: k.name });
+              refresh();
+            } catch (e) {
+              toast.error("Failed to resume", { description: String(e) });
+            }
+          },
+        }
+      : {
+          label: "Suspend",
+          icon: <Pause className="size-4" />,
+          onClick: async () => {
+            try {
+              await suspendFluxKustomization(k.name, k.namespace);
+              toast.success("Kustomization suspended", { description: k.name });
+              refresh();
+            } catch (e) {
+              toast.error("Failed to suspend", { description: String(e) });
+            }
+          },
+        },
+    { separator: true, label: "", onClick: () => {} },
     {
       label: "Copy Name",
       icon: <Copy className="size-4" />,

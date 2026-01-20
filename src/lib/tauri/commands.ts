@@ -484,6 +484,48 @@ export async function listFluxKustomizations(
   return invoke<FluxKustomizationInfo[]>("list_flux_kustomizations", { namespace });
 }
 
+export async function reconcileFluxKustomization(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("reconcile_flux_kustomization", { name, namespace });
+}
+
+export async function suspendFluxKustomization(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("suspend_flux_kustomization", { name, namespace });
+}
+
+export async function resumeFluxKustomization(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("resume_flux_kustomization", { name, namespace });
+}
+
+export async function reconcileFluxHelmRelease(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("reconcile_flux_helmrelease", { name, namespace });
+}
+
+export async function suspendFluxHelmRelease(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("suspend_flux_helmrelease", { name, namespace });
+}
+
+export async function resumeFluxHelmRelease(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("resume_flux_helmrelease", { name, namespace });
+}
+
 // Network/Proxy commands
 export interface ProxyConfig {
   proxyType: string;
