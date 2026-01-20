@@ -322,21 +322,42 @@ minikube-setup-samples: ## Apply sample Kubernetes resources for testing
 	fi
 
 minikube-setup-flux: ## Install Flux CRDs and sample HelmReleases for testing
-	@echo "$(CYAN)Installing Flux HelmRelease CRD...$(RESET)"
+	@echo "$(CYAN)Installing Flux CRDs...$(RESET)"
 	@kubectl apply -f .dev/k8s-samples/11-flux-crds.yaml 2>/dev/null || true
 	@sleep 2
-	@echo "$(CYAN)Creating sample Flux HelmReleases...$(RESET)"
+	@echo "$(CYAN)Creating sample Flux resources...$(RESET)"
 	@kubectl apply -f .dev/k8s-samples/12-flux-helmreleases.yaml 2>/dev/null || true
+	@kubectl apply -f .dev/k8s-samples/13-flux-kustomizations.yaml 2>/dev/null || true
+	@sleep 1
+	@echo "$(CYAN)Setting resource statuses...$(RESET)"
+	@kubectl patch helmrelease podinfo -n kubeli-demo --type=merge --subresource=status \
+		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Release reconciliation succeeded","lastTransitionTime":"2024-01-20T10:00:00Z"}],"lastAppliedRevision":"6.5.0","lastAttemptedRevision":"6.5.0"}}' 2>/dev/null || true
+	@kubectl patch helmrelease redis -n kubeli-demo --type=merge --subresource=status \
+		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Release reconciliation succeeded","lastTransitionTime":"2024-01-20T09:30:00Z"}],"lastAppliedRevision":"18.6.1","lastAttemptedRevision":"18.6.1"}}' 2>/dev/null || true
+	@kubectl patch helmrelease prometheus-stack -n kubeli-demo --type=merge --subresource=status \
+		-p '{"status":{"conditions":[{"type":"Ready","status":"False","reason":"ReconciliationFailed","message":"Helm upgrade failed: timed out waiting for resources","lastTransitionTime":"2024-01-20T11:00:00Z"}],"lastAttemptedRevision":"55.5.0"}}' 2>/dev/null || true
+	@kubectl patch helmrelease cert-manager -n kubeli-demo --type=merge --subresource=status \
+		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Release reconciliation succeeded","lastTransitionTime":"2024-01-20T08:00:00Z"}],"lastAppliedRevision":"1.13.3","lastAttemptedRevision":"1.13.3"}}' 2>/dev/null || true
+	@kubectl patch kustomization apps -n kubeli-demo --type=merge --subresource=status \
+		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Applied revision: main@sha1:abc123","lastTransitionTime":"2024-01-20T10:00:00Z"}],"lastAppliedRevision":"main@sha1:abc123"}}' 2>/dev/null || true
+	@kubectl patch kustomization infrastructure -n kubeli-demo --type=merge --subresource=status \
+		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Applied revision: main@sha1:def456","lastTransitionTime":"2024-01-20T09:00:00Z"}],"lastAppliedRevision":"main@sha1:def456"}}' 2>/dev/null || true
+	@kubectl patch kustomization monitoring -n kubeli-demo --type=merge --subresource=status \
+		-p '{"status":{"conditions":[{"type":"Ready","status":"False","reason":"ReconciliationFailed","message":"kustomize build failed: missing resources","lastTransitionTime":"2024-01-20T11:00:00Z"}]}}' 2>/dev/null || true
 	@echo "$(GREEN)✓ Flux test resources installed$(RESET)"
 	@echo ""
-	@echo "$(CYAN)Flux HelmReleases created:$(RESET)"
+	@echo "$(CYAN)Flux HelmReleases:$(RESET)"
 	@echo "  - podinfo (Ready)"
 	@echo "  - redis (Ready)"
-	@echo "  - prometheus-stack (Failed - for testing)"
+	@echo "  - prometheus-stack (Failed)"
 	@echo "  - cert-manager (Ready)"
 	@echo ""
-	@echo "$(YELLOW)Note: These are mock resources for testing Kubeli's Flux support.$(RESET)"
-	@echo "$(YELLOW)They do not install actual Helm charts.$(RESET)"
+	@echo "$(CYAN)Flux Kustomizations:$(RESET)"
+	@echo "  - apps (Ready)"
+	@echo "  - infrastructure (Ready)"
+	@echo "  - monitoring (Failed)"
+	@echo ""
+	@echo "$(YELLOW)Note: Mock resources for testing Kubeli's Flux support.$(RESET)"
 
 minikube-clean-samples: ## Remove sample Kubernetes resources
 	@echo "$(CYAN)Removing sample resources...$(RESET)"
