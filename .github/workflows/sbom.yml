@@ -14,10 +14,10 @@ jobs:
     name: Generate SBOMs
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -26,18 +26,24 @@ jobs:
         run: npm ci
 
       - name: Generate npm SBOM
-        run: npm run sbom:npm
+        run: npx @cyclonedx/cyclonedx-npm --spec-version 1.5 --omit dev --output-format JSON --output-file sbom-npm.json --validate
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache cargo-cyclonedx
+        uses: actions/cache@v4
+        with:
+          path: ~/.cargo/bin/cargo-cyclonedx
+          key: cargo-cyclonedx-0.5
+
       - name: Install cargo-cyclonedx
-        run: cargo install cargo-cyclonedx --locked
+        run: command -v cargo-cyclonedx || cargo install cargo-cyclonedx --locked
 
       - name: Generate Rust SBOM
         run: |
           cd src-tauri
-          cargo cyclonedx --format json --spec-version 1.4 --override-filename sbom-rust
+          cargo cyclonedx --format json --spec-version 1.5 --no-build-deps --override-filename sbom-rust
           mv sbom-rust.json ../sbom-rust.json
 
       - name: Upload SBOMs to release
