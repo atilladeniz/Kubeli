@@ -5,9 +5,9 @@ severity:
   - HIGH
   - CRITICAL
 
-# Vulnerability scanning
-vulnerability:
-  type:
+# Package types to scan
+pkg:
+  types:
     - os
     - library
 
@@ -24,5 +24,5 @@ misconfiguration:
 # Ignore unfixed vulnerabilities
 ignore-unfixed: true
 
-# Exit with error on findings
-exit-code: 1
+# Exit code 0 - findings reported via SARIF in CI
+exit-code: 0
