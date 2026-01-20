@@ -1042,6 +1042,9 @@ export type HelmReleaseStatus =
   | "pending-upgrade"
   | "pending-rollback";
 
+/** Source managing the Helm release */
+export type HelmManagedBy = "helm" | "flux";
+
 export interface HelmReleaseInfo {
   name: string;
   namespace: string;
@@ -1054,6 +1057,8 @@ export interface HelmReleaseInfo {
   last_deployed: string | null;
   description: string;
   notes: string | null;
+  /** Source managing this release (helm or flux) */
+  managed_by: HelmManagedBy;
 }
 
 export interface HelmReleaseHistoryEntry {
@@ -1080,4 +1085,6 @@ export interface HelmReleaseDetail {
   notes: string | null;
   values: Record<string, unknown>;
   manifest: string;
+  /** Source managing this release (helm or flux) */
+  managed_by: HelmManagedBy;
 }

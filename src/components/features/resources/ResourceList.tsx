@@ -2928,7 +2928,16 @@ export const helmReleaseColumns: Column<HelmReleaseInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
-    render: (r) => <span className="font-medium text-xs">{r.name}</span>,
+    render: (r) => (
+      <div className="flex items-center gap-1.5">
+        <span className="font-medium text-xs">{r.name}</span>
+        {r.managed_by === "flux" && (
+          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
+            Flux
+          </span>
+        )}
+      </div>
+    ),
   },
   {
     key: "namespace",
@@ -2985,7 +2994,16 @@ export function getHelmReleaseColumns(t: TranslateFunc): Column<HelmReleaseInfo>
       key: "name",
       label: t("columns.name"),
       sortable: true,
-      render: (r) => <span className="font-medium text-xs">{r.name}</span>,
+      render: (r) => (
+        <div className="flex items-center gap-1.5">
+          <span className="font-medium text-xs">{r.name}</span>
+          {r.managed_by === "flux" && (
+            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
+              Flux
+            </span>
+          )}
+        </div>
+      ),
     },
     {
       key: "namespace",

@@ -1,0 +1,121 @@
+# Sample Flux HelmRelease resources for local testing
+# These simulate Flux-managed Helm releases in the kubeli-demo namespace
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: podinfo
+  namespace: kubeli-demo
+spec:
+  interval: 5m
+  chart:
+    spec:
+      chart: podinfo
+      version: "6.5.0"
+      sourceRef:
+        kind: HelmRepository
+        name: podinfo
+  releaseName: podinfo
+  targetNamespace: kubeli-demo
+  values:
+    replicaCount: 2
+    ui:
+      color: "#34577c"
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: ReconciliationSucceeded
+      message: "Release reconciliation succeeded"
+      lastTransitionTime: "2024-01-20T10:00:00Z"
+  lastAppliedRevision: "6.5.0"
+  lastAttemptedRevision: "6.5.0"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: redis
+  namespace: kubeli-demo
+spec:
+  interval: 10m
+  chart:
+    spec:
+      chart: redis
+      version: "18.6.1"
+      sourceRef:
+        kind: HelmRepository
+        name: bitnami
+  releaseName: redis
+  targetNamespace: kubeli-demo
+  values:
+    architecture: standalone
+    auth:
+      enabled: false
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: ReconciliationSucceeded
+      message: "Release reconciliation succeeded"
+      lastTransitionTime: "2024-01-20T09:30:00Z"
+  lastAppliedRevision: "18.6.1"
+  lastAttemptedRevision: "18.6.1"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: prometheus-stack
+  namespace: kubeli-demo
+spec:
+  interval: 15m
+  chart:
+    spec:
+      chart: kube-prometheus-stack
+      version: "55.5.0"
+      sourceRef:
+        kind: HelmRepository
+        name: prometheus-community
+  releaseName: prometheus-stack
+  targetNamespace: kubeli-demo
+  values:
+    grafana:
+      enabled: true
+    prometheus:
+      prometheusSpec:
+        retention: 7d
+status:
+  conditions:
+    - type: Ready
+      status: "False"
+      reason: ReconciliationFailed
+      message: "Helm upgrade failed: timed out waiting for resources"
+      lastTransitionTime: "2024-01-20T11:00:00Z"
+  lastAttemptedRevision: "55.5.0"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cert-manager
+  namespace: kubeli-demo
+spec:
+  interval: 30m
+  chart:
+    spec:
+      chart: cert-manager
+      version: "1.13.3"
+      sourceRef:
+        kind: HelmRepository
+        name: jetstack
+  releaseName: cert-manager
+  targetNamespace: cert-manager
+  values:
+    installCRDs: true
+status:
+  conditions:
+    - type: Ready
+      status: "True"
+      reason: ReconciliationSucceeded
+      message: "Release reconciliation succeeded"
+      lastTransitionTime: "2024-01-20T08:00:00Z"
+  lastAppliedRevision: "1.13.3"
+  lastAttemptedRevision: "1.13.3"

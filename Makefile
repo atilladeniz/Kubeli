@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
+.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
 
 # Default target
 .DEFAULT_GOAL := help
@@ -316,9 +316,27 @@ minikube-setup-samples: ## Apply sample Kubernetes resources for testing
 		echo "  - PV/PVC: demo-pv-1, demo-pv-2, demo-pvc"; \
 		echo "  - RBAC: Roles, RoleBindings, ServiceAccount"; \
 		echo "  - Quotas: ResourceQuota, LimitRange"; \
+		echo "  - Flux HelmReleases: podinfo, redis, prometheus-stack, cert-manager"; \
 	else \
 		echo "$(YELLOW)Warning: .dev/k8s-samples/ directory not found$(RESET)"; \
 	fi
+
+minikube-setup-flux: ## Install Flux CRDs and sample HelmReleases for testing
+	@echo "$(CYAN)Installing Flux HelmRelease CRD...$(RESET)"
+	@kubectl apply -f .dev/k8s-samples/11-flux-crds.yaml 2>/dev/null || true
+	@sleep 2
+	@echo "$(CYAN)Creating sample Flux HelmReleases...$(RESET)"
+	@kubectl apply -f .dev/k8s-samples/12-flux-helmreleases.yaml 2>/dev/null || true
+	@echo "$(GREEN)✓ Flux test resources installed$(RESET)"
+	@echo ""
+	@echo "$(CYAN)Flux HelmReleases created:$(RESET)"
+	@echo "  - podinfo (Ready)"
+	@echo "  - redis (Ready)"
+	@echo "  - prometheus-stack (Failed - for testing)"
+	@echo "  - cert-manager (Ready)"
+	@echo ""
+	@echo "$(YELLOW)Note: These are mock resources for testing Kubeli's Flux support.$(RESET)"
+	@echo "$(YELLOW)They do not install actual Helm charts.$(RESET)"
 
 minikube-clean-samples: ## Remove sample Kubernetes resources
 	@echo "$(CYAN)Removing sample resources...$(RESET)"
