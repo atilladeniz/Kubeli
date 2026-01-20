@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog
+.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate
 
 # Default target
 .DEFAULT_GOAL := help
@@ -186,7 +186,7 @@ deploy: ## Deploy update files to FTP server
 	echo "$(GREEN)✓ Files uploaded to $$DEPLOY_API_URL$(RESET)"; \
 	echo "$(GREEN)✓ Update URL: https://$$DEPLOY_API_URL/latest.json$(RESET)"
 
-build-deploy: build deploy generate-changelog astro-public github-release ## Build, deploy, and create GitHub release
+build-deploy: build deploy generate-changelog sbom astro-public github-release ## Build, deploy, and create GitHub release
 
 generate-changelog: ## Generate changelog using Claude Code CLI
 	@echo "$(CYAN)Generating changelog with Claude Code CLI...$(RESET)"
@@ -195,7 +195,7 @@ generate-changelog: ## Generate changelog using Claude Code CLI
 		echo "$(GREEN)✓ Changelog files updated$(RESET)"; \
 	fi
 
-github-release: ## Create GitHub release with DMG
+github-release: ## Create GitHub release with DMG and SBOMs
 	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
 	DMG_FILE="src-tauri/target/release/bundle/dmg/Kubeli_$${VERSION}_aarch64.dmg"; \
 	if [ ! -f "$$DMG_FILE" ]; then \
@@ -203,11 +203,18 @@ github-release: ## Create GitHub release with DMG
 		exit 1; \
 	fi; \
 	echo "$(CYAN)Creating GitHub release v$$VERSION...$(RESET)"; \
+	SBOM_FILES=""; \
+	if [ -f sbom-npm.json ]; then SBOM_FILES="$$SBOM_FILES sbom-npm.json"; fi; \
+	if [ -f sbom-rust.json ]; then SBOM_FILES="$$SBOM_FILES sbom-rust.json"; fi; \
 	if gh release view "v$$VERSION" --repo atilladeniz/Kubeli > /dev/null 2>&1; then \
 		echo "$(YELLOW)Release v$$VERSION already exists, updating notes...$(RESET)"; \
 		if [ -f .release-notes.md ]; then \
 			gh release edit "v$$VERSION" --repo atilladeniz/Kubeli --notes-file .release-notes.md; \
 			echo "$(GREEN)✓ Release notes updated$(RESET)"; \
+		fi; \
+		if [ -n "$$SBOM_FILES" ]; then \
+			gh release upload "v$$VERSION" --repo atilladeniz/Kubeli --clobber $$SBOM_FILES; \
+			echo "$(GREEN)✓ SBOMs uploaded$(RESET)"; \
 		fi; \
 	else \
 		NOTES="See [CHANGELOG.md](https://github.com/atilladeniz/Kubeli/blob/main/CHANGELOG.md) for details."; \
@@ -218,7 +225,7 @@ github-release: ## Create GitHub release with DMG
 			--repo atilladeniz/Kubeli \
 			--title "Kubeli v$$VERSION" \
 			--notes "$$NOTES" \
-			"$$DMG_FILE"; \
+			"$$DMG_FILE" $$SBOM_FILES; \
 		echo "$(GREEN)✓ GitHub release v$$VERSION created$(RESET)"; \
 	fi; \
 	rm -f .release-notes.md
@@ -337,6 +344,23 @@ k8s-services: ## List all services across namespaces
 
 k8s-namespaces: ## List all namespaces
 	kubectl get namespaces
+
+## Security / SBOM
+
+sbom-npm: ## Generate npm SBOM (CycloneDX JSON)
+	npm run sbom:npm
+
+sbom-rust: ## Generate Rust SBOM (CycloneDX JSON)
+	cd src-tauri && cargo cyclonedx --format json --spec-version 1.5 --no-build-deps --override-filename sbom-rust
+	mv src-tauri/sbom-rust.json sbom-rust.json
+
+sbom: sbom-npm sbom-rust ## Generate both SBOM files
+
+sbom-validate: sbom ## Generate and validate SBOMs with cyclonedx-cli
+	@echo "$(CYAN)Validating SBOMs against CycloneDX 1.5 schema...$(RESET)"
+	docker run --rm --platform linux/amd64 -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-npm.json --input-version v1_5 --fail-on-errors
+	docker run --rm --platform linux/amd64 -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-rust.json --input-version v1_5 --fail-on-errors
+	@echo "$(GREEN)✓ Both SBOMs validated$(RESET)"
 
 ## Utilities
 

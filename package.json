@@ -10,6 +10,7 @@
     "lint:fix": "eslint --fix .",
     "format": "cd src-tauri && cargo fmt",
     "typecheck": "tsc --noEmit",
+    "sbom:npm": "npx @cyclonedx/cyclonedx-npm --spec-version 1.5 --omit dev --output-format JSON --output-file sbom-npm.json --validate",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
     "tauri:build": "tauri build",

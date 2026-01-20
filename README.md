@@ -6,6 +6,7 @@
   <a href="https://github.com/atilladeniz/Kubeli/actions/workflows/ci.yml"><img src="https://github.com/atilladeniz/Kubeli/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/atilladeniz/Kubeli/releases/latest"><img src="https://img.shields.io/github/v/release/atilladeniz/Kubeli" alt="Release"></a>
   <a href="https://github.com/atilladeniz/Kubeli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/atilladeniz/Kubeli" alt="License"></a>
+  <a href="https://cyclonedx.org/"><img src="https://img.shields.io/badge/SBOM-CycloneDX-6db33f" alt="SBOM"></a>
   <img src="https://img.shields.io/badge/platform-macOS-blue" alt="Platform">
   <a href="https://github.com/atilladeniz/Kubeli/releases"><img src="https://img.shields.io/github/downloads/atilladeniz/Kubeli/total" alt="Downloads"></a>
 </p>
@@ -90,6 +91,43 @@ make format
 # Type check
 make check
 ```
+
+## SBOM (Software Bill of Materials)
+
+Kubeli provides [CycloneDX](https://cyclonedx.org/) SBOMs for supply chain security and compliance.
+
+### What's Included
+
+| SBOM File | Contents | Format |
+|-----------|----------|--------|
+| `sbom-npm.json` | Production npm dependencies | CycloneDX 1.5 JSON |
+| `sbom-rust.json` | Production Rust crates | CycloneDX 1.5 JSON |
+
+### Automatic Generation
+
+Every [GitHub Release](https://github.com/atilladeniz/Kubeli/releases) includes validated SBOMs as downloadable assets. The CI pipeline:
+
+1. Generates SBOMs excluding dev/build dependencies
+2. Validates against CycloneDX 1.5 schema
+3. Attaches to release for audit/compliance download
+
+### Local Generation
+
+```bash
+# Generate both SBOMs
+make sbom
+
+# Generate and validate (requires Docker)
+make sbom-validate
+```
+
+### Enterprise Use
+
+These SBOMs support:
+- **Vulnerability scanning** (Grype, Trivy, Snyk)
+- **License compliance** audits
+- **Supply chain security** (SLSA, SSDF frameworks)
+- **Regulatory requirements** (FDA, EU CRA, Executive Order 14028)
 
 ## Supported Kubernetes Providers
 
