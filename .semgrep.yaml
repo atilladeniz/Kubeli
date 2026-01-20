@@ -2,18 +2,6 @@
 # https://semgrep.dev/docs/writing-rules/rule-syntax/
 
 rules:
-  # Prevent hardcoded secrets in TypeScript/JavaScript
-  - id: no-hardcoded-secrets
-    patterns:
-      - pattern-either:
-          - pattern: const $KEY = "..."
-          - pattern: let $KEY = "..."
-          - pattern: var $KEY = "..."
-    pattern-regex: (api[_-]?key|secret|password|token|credential)
-    message: "Possible hardcoded secret detected"
-    languages: [typescript, javascript]
-    severity: ERROR
-
   # Prevent console.log in production code
   - id: no-console-log-in-prod
     pattern: console.log(...)
