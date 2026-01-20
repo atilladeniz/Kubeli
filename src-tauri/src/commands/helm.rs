@@ -416,6 +416,16 @@ fn parse_flux_helm_release(obj: DynamicObject) -> Option<HelmReleaseInfo> {
         .and_then(|s| s.parse::<i32>().ok())
         .unwrap_or(1);
 
+    // Try to get appVersion from status.history[0].appVersion (most recent release)
+    let app_version = status
+        .and_then(|s| s.get("history"))
+        .and_then(|h| h.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|entry| entry.get("appVersion"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
     Some(HelmReleaseInfo {
         name,
         namespace,
@@ -423,7 +433,7 @@ fn parse_flux_helm_release(obj: DynamicObject) -> Option<HelmReleaseInfo> {
         status: helm_status,
         chart: chart_name,
         chart_version,
-        app_version: String::new(), // Flux doesn't track app version separately
+        app_version,
         first_deployed: created_at.clone(),
         last_deployed,
         description,

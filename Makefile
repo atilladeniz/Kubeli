@@ -294,6 +294,10 @@ minikube-start: ## Start minikube cluster with addons and sample resources
 	@kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=120s 2>/dev/null || true
 	@echo "$(CYAN)Applying sample Kubernetes resources...$(RESET)"
 	@$(MAKE) minikube-setup-samples
+	@echo "$(CYAN)Setting up Flux test resources...$(RESET)"
+	@$(MAKE) minikube-setup-flux
+	@echo "$(CYAN)Setting up native Helm releases...$(RESET)"
+	@$(MAKE) minikube-setup-helm
 	@echo "$(GREEN)✓ Minikube ready with sample resources$(RESET)"
 
 minikube-setup-samples: ## Apply sample Kubernetes resources for testing
@@ -331,13 +335,13 @@ minikube-setup-flux: ## Install Flux CRDs and sample HelmReleases for testing
 	@sleep 1
 	@echo "$(CYAN)Setting resource statuses...$(RESET)"
 	@kubectl patch helmrelease podinfo -n kubeli-demo --type=merge --subresource=status \
-		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Release reconciliation succeeded","lastTransitionTime":"2026-01-20T10:00:00Z"}],"lastAppliedRevision":"6.5.0","lastAttemptedRevision":"6.5.0"}}' 2>/dev/null || true
+		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Release reconciliation succeeded","lastTransitionTime":"2026-01-20T10:00:00Z"}],"lastAppliedRevision":"6.5.0","lastAttemptedRevision":"6.5.0","history":[{"chartVersion":"6.5.0","appVersion":"6.5.0","status":"deployed"}]}}' 2>/dev/null || true
 	@kubectl patch helmrelease redis -n kubeli-demo --type=merge --subresource=status \
-		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Release reconciliation succeeded","lastTransitionTime":"2026-01-20T09:30:00Z"}],"lastAppliedRevision":"18.6.1","lastAttemptedRevision":"18.6.1"}}' 2>/dev/null || true
+		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Release reconciliation succeeded","lastTransitionTime":"2026-01-20T09:30:00Z"}],"lastAppliedRevision":"18.6.1","lastAttemptedRevision":"18.6.1","history":[{"chartVersion":"18.6.1","appVersion":"7.2.4","status":"deployed"}]}}' 2>/dev/null || true
 	@kubectl patch helmrelease prometheus-stack -n kubeli-demo --type=merge --subresource=status \
-		-p '{"status":{"conditions":[{"type":"Ready","status":"False","reason":"ReconciliationFailed","message":"Helm upgrade failed: timed out waiting for resources","lastTransitionTime":"2026-01-20T11:00:00Z"}],"lastAttemptedRevision":"55.5.0"}}' 2>/dev/null || true
+		-p '{"status":{"conditions":[{"type":"Ready","status":"False","reason":"ReconciliationFailed","message":"Helm upgrade failed: timed out waiting for resources","lastTransitionTime":"2026-01-20T11:00:00Z"}],"lastAttemptedRevision":"55.5.0","history":[{"chartVersion":"55.5.0","appVersion":"2.49.1","status":"failed"}]}}' 2>/dev/null || true
 	@kubectl patch helmrelease cert-manager -n kubeli-demo --type=merge --subresource=status \
-		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Release reconciliation succeeded","lastTransitionTime":"2026-01-20T08:00:00Z"}],"lastAppliedRevision":"1.13.3","lastAttemptedRevision":"1.13.3"}}' 2>/dev/null || true
+		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Release reconciliation succeeded","lastTransitionTime":"2026-01-20T08:00:00Z"}],"lastAppliedRevision":"1.13.3","lastAttemptedRevision":"1.13.3","history":[{"chartVersion":"1.13.3","appVersion":"1.13.3","status":"deployed"}]}}' 2>/dev/null || true
 	@kubectl patch kustomization apps -n kubeli-demo --type=merge --subresource=status \
 		-p '{"status":{"conditions":[{"type":"Ready","status":"True","reason":"ReconciliationSucceeded","message":"Applied revision: main@sha1:abc123","lastTransitionTime":"2026-01-20T10:00:00Z"}],"lastAppliedRevision":"main@sha1:abc123"}}' 2>/dev/null || true
 	@kubectl patch kustomization infrastructure -n kubeli-demo --type=merge --subresource=status \
@@ -359,8 +363,40 @@ minikube-setup-flux: ## Install Flux CRDs and sample HelmReleases for testing
 	@echo ""
 	@echo "$(YELLOW)Note: Mock resources for testing Kubeli's Flux support.$(RESET)"
 
+minikube-setup-helm: ## Install native Helm releases for testing (requires helm CLI)
+	@echo "$(CYAN)Installing native Helm releases...$(RESET)"
+	@if command -v helm >/dev/null 2>&1; then \
+		echo "$(CYAN)Adding Helm repositories...$(RESET)"; \
+		helm repo add bitnami https://charts.bitnami.com/bitnami 2>/dev/null || true; \
+		helm repo update 2>/dev/null || true; \
+		echo "$(CYAN)Installing nginx chart...$(RESET)"; \
+		helm upgrade --install demo-nginx bitnami/nginx \
+			--namespace kubeli-demo \
+			--set replicaCount=1 \
+			--set service.type=ClusterIP \
+			--wait --timeout 2m 2>/dev/null || echo "$(YELLOW)Warning: nginx install failed (may already exist or timeout)$(RESET)"; \
+		echo "$(CYAN)Installing mysql chart...$(RESET)"; \
+		helm upgrade --install demo-mysql bitnami/mysql \
+			--namespace kubeli-demo \
+			--set auth.rootPassword=testpassword \
+			--set primary.persistence.enabled=false \
+			--wait --timeout 3m 2>/dev/null || echo "$(YELLOW)Warning: mysql install failed (may already exist or timeout)$(RESET)"; \
+		echo "$(GREEN)✓ Native Helm releases installed$(RESET)"; \
+		echo ""; \
+		echo "$(CYAN)Native Helm Releases:$(RESET)"; \
+		echo "  - demo-nginx (bitnami/nginx)"; \
+		echo "  - demo-mysql (bitnami/mysql)"; \
+	else \
+		echo "$(YELLOW)Warning: helm CLI not found. Skipping native Helm releases.$(RESET)"; \
+		echo "$(YELLOW)Install helm to test native Helm releases: https://helm.sh/docs/intro/install/$(RESET)"; \
+	fi
+
 minikube-clean-samples: ## Remove sample Kubernetes resources
 	@echo "$(CYAN)Removing sample resources...$(RESET)"
+	@if command -v helm >/dev/null 2>&1; then \
+		helm uninstall demo-nginx -n kubeli-demo 2>/dev/null || true; \
+		helm uninstall demo-mysql -n kubeli-demo 2>/dev/null || true; \
+	fi
 	@kubectl delete namespace kubeli-demo --ignore-not-found=true
 	@kubectl delete pv demo-pv-1 demo-pv-2 --ignore-not-found=true
 	@kubectl delete ingressclass demo-ingress-class --ignore-not-found=true
