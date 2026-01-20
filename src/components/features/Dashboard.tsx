@@ -3720,13 +3720,19 @@ function HelmReleasesView() {
   const getHelmContextMenu = (release: HelmReleaseInfo): ContextMenuItemDef[] => {
     const items: ContextMenuItemDef[] = [];
 
-    // View Details only available for Flux-managed releases
+    // View Details for all releases (different resource type based on managed_by)
+    items.push({
+      label: "View Details",
+      icon: <Eye className="size-4" />,
+      onClick: () => openResourceDetail(
+        release.managed_by === "flux" ? "helmrelease" : "helm-release",
+        release.name,
+        release.namespace
+      ),
+    });
+
+    // Flux-specific actions
     if (release.managed_by === "flux") {
-      items.push({
-        label: "View Details",
-        icon: <Eye className="size-4" />,
-        onClick: () => openResourceDetail("helmrelease", release.name, release.namespace),
-      });
       items.push({ separator: true, label: "", onClick: () => {} });
       items.push({
         label: "Reconcile",
@@ -3770,9 +3776,9 @@ function HelmReleasesView() {
               },
             }
       );
-      items.push({ separator: true, label: "", onClick: () => {} });
     }
 
+    items.push({ separator: true, label: "", onClick: () => {} });
     items.push(
       {
         label: "Copy Name",
@@ -3815,7 +3821,7 @@ function HelmReleasesView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
-      onRowClick={(r) => r.managed_by === "flux" ? openResourceDetail("helmrelease", r.name, r.namespace) : undefined}
+      onRowClick={(r) => openResourceDetail(r.managed_by === "flux" ? "helmrelease" : "helm-release", r.name, r.namespace)}
       getRowKey={(r) => `${r.namespace}/${r.name}`}
       getRowNamespace={(r) => r.namespace}
       emptyMessage={t("empty.helmreleases")}
