@@ -330,7 +330,7 @@ async fn list_flux_helm_releases_internal(
 
     items
         .into_iter()
-        .filter_map(|obj| parse_flux_helm_release(obj))
+        .filter_map(parse_flux_helm_release)
         .collect()
 }
 

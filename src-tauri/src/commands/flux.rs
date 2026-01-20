@@ -68,7 +68,7 @@ pub async fn list_flux_kustomizations(
 
     Ok(items
         .into_iter()
-        .filter_map(|obj| parse_flux_kustomization(obj))
+        .filter_map(parse_flux_kustomization)
         .collect())
 }
 
