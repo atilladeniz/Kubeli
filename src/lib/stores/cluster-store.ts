@@ -12,7 +12,6 @@ import {
 // Debug logger - only logs in development
 const isDev = process.env.NODE_ENV === "development";
 const debug = (...args: unknown[]) => {
-  // nosemgrep: no-console-log-in-prod
   if (isDev) console.log("[Cluster]", ...args);
 };
 

@@ -6,7 +6,6 @@ export const isDev = process.env.NODE_ENV === "development";
 
 // Debug logger - only logs in development
 const debug = (...args: unknown[]) => {
-  // nosemgrep: no-console-log-in-prod
   if (isDev) console.log("[Updater]", ...args);
 };
 

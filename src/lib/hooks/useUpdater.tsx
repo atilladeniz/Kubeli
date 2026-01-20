@@ -10,7 +10,6 @@ import { Progress } from "@/components/ui/progress";
 
 // Debug logger - only logs in development
 const debug = (...args: unknown[]) => {
-  // nosemgrep: no-console-log-in-prod
   if (isDev) console.log("[Updater]", ...args);
 };
 
