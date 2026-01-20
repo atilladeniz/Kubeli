@@ -678,6 +678,7 @@
     "discardChanges": "Discard Changes",
     "dangerZone": "Danger Zone",
     "deleteResource": "Delete {type} \"{name}\"",
+    "uninstallResource": "Uninstall Helm release \"{name}\"",
     "deleteWarning": "This action cannot be undone."
   },
   "shortcuts": {

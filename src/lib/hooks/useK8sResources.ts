@@ -42,6 +42,7 @@ import {
   listMutatingWebhooks,
   listValidatingWebhooks,
   listHelmReleases,
+  listFluxKustomizations,
   watchPods,
   stopWatch,
 } from "../tauri/commands";
@@ -85,6 +86,7 @@ import type {
   MutatingWebhookInfo,
   ValidatingWebhookInfo,
   HelmReleaseInfo,
+  FluxKustomizationInfo,
   ListOptions,
   WatchEvent,
 } from "../types";
@@ -1628,6 +1630,51 @@ export function useHelmReleases(options: UseK8sResourcesOptions = {}): UseK8sRes
       setData(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to fetch Helm Releases");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [isConnected, namespace]);
+
+  useEffect(() => {
+    if (isConnected) {
+      refresh();
+    }
+  }, [isConnected, refresh]);
+
+  useEffect(() => {
+    if (!options.autoRefresh || !isConnected) return;
+    const interval = setInterval(refresh, options.refreshInterval || 30000);
+    return () => clearInterval(interval);
+  }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
+
+  return {
+    data,
+    isLoading,
+    error,
+    refresh,
+    startWatch: async () => {},
+    stopWatchFn: async () => {},
+    isWatching: false,
+  };
+}
+
+// Flux Kustomizations hook
+export function useFluxKustomizations(options: UseK8sResourcesOptions = {}): UseK8sResourcesReturn<FluxKustomizationInfo> {
+  const [data, setData] = useState<FluxKustomizationInfo[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const { isConnected, currentNamespace } = useClusterStore();
+  const namespace = options.namespace ?? currentNamespace;
+
+  const refresh = useCallback(async () => {
+    if (!isConnected) return;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const result = await listFluxKustomizations(namespace || undefined);
+      setData(result);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to fetch Flux Kustomizations");
     } finally {
       setIsLoading(false);
     }

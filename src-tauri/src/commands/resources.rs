@@ -1,4 +1,6 @@
 use crate::k8s::AppState;
+use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use flate2::read::GzDecoder;
 use k8s_openapi::api::admissionregistration::v1::{
     MutatingWebhookConfiguration, ValidatingWebhookConfiguration,
 };
@@ -25,6 +27,7 @@ use kube::ResourceExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::io::Read;
 use tauri::{command, State};
 
 // Helper function to convert BTreeMap to HashMap
@@ -908,6 +911,147 @@ pub async fn get_resource_yaml(
                     .map(|t| t.0.to_string()),
             })
         }
+        "kustomization" | "kustomizations" => {
+            let ns = namespace.ok_or("Namespace required for kustomizations")?;
+            let gvk = kube::api::GroupVersionKind::gvk(
+                "kustomize.toolkit.fluxcd.io",
+                "v1",
+                "Kustomization",
+            );
+            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
+            let api: Api<kube::api::DynamicObject> =
+                Api::namespaced_with(client, &ns, &api_resource);
+            let resource = api
+                .get(&name)
+                .await
+                .map_err(|e| format!("Failed to get kustomization: {}", e))?;
+
+            let yaml = serde_yaml::to_string(&resource)
+                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+
+            Ok(ResourceYaml {
+                yaml,
+                api_version: "kustomize.toolkit.fluxcd.io/v1".to_string(),
+                kind: "Kustomization".to_string(),
+                name: resource.name_any(),
+                namespace: resource.namespace(),
+                uid: resource.metadata.uid.unwrap_or_default(),
+                labels: btree_to_hashmap(resource.metadata.labels),
+                annotations: btree_to_hashmap(resource.metadata.annotations),
+                created_at: resource
+                    .metadata
+                    .creation_timestamp
+                    .map(|t| t.0.to_string()),
+            })
+        }
+        "helmrelease" | "helmreleases" => {
+            let ns = namespace.ok_or("Namespace required for helm releases")?;
+            let gvk =
+                kube::api::GroupVersionKind::gvk("helm.toolkit.fluxcd.io", "v2", "HelmRelease");
+            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
+            let api: Api<kube::api::DynamicObject> =
+                Api::namespaced_with(client, &ns, &api_resource);
+            let resource = api
+                .get(&name)
+                .await
+                .map_err(|e| format!("Failed to get helm release: {}", e))?;
+
+            let yaml = serde_yaml::to_string(&resource)
+                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+
+            Ok(ResourceYaml {
+                yaml,
+                api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
+                kind: "HelmRelease".to_string(),
+                name: resource.name_any(),
+                namespace: resource.namespace(),
+                uid: resource.metadata.uid.unwrap_or_default(),
+                labels: btree_to_hashmap(resource.metadata.labels),
+                annotations: btree_to_hashmap(resource.metadata.annotations),
+                created_at: resource
+                    .metadata
+                    .creation_timestamp
+                    .map(|t| t.0.to_string()),
+            })
+        }
+        "helm-release" => {
+            // Native Helm release (stored in secrets)
+            let ns = namespace.ok_or("Namespace required for helm releases")?;
+            let api: Api<Secret> = Api::namespaced(client, &ns);
+            let lp = ListParams::default().labels("owner=helm");
+            let secrets: Vec<Secret> = api
+                .list(&lp)
+                .await
+                .map_err(|e| format!("Failed to list secrets: {}", e))?
+                .items;
+
+            // Find the latest revision for this release
+            let prefix = format!("sh.helm.release.v1.{}.v", name);
+            let latest_rev = secrets
+                .iter()
+                .filter_map(|s| {
+                    let secret_name = s.metadata.name.as_ref()?;
+                    if secret_name.starts_with(&prefix) {
+                        secret_name.strip_prefix(&prefix)?.parse::<i32>().ok()
+                    } else {
+                        None
+                    }
+                })
+                .max()
+                .ok_or_else(|| format!("Helm release '{}' not found", name))?;
+
+            let secret_name = format!("sh.helm.release.v1.{}.v{}", name, latest_rev);
+            let secret = api
+                .get(&secret_name)
+                .await
+                .map_err(|e| format!("Failed to get helm secret: {}", e))?;
+
+            let data = secret
+                .data
+                .as_ref()
+                .and_then(|d| d.get("release"))
+                .ok_or("Release data not found in secret")?;
+
+            // Decode: base64 -> (maybe base64) -> gzip -> json
+            let data_str = String::from_utf8_lossy(&data.0);
+            let decoded1 = BASE64
+                .decode(data_str.as_ref())
+                .map_err(|e| format!("Failed to decode base64: {}", e))?;
+
+            // Check if we need second decode or if already gzip
+            let gzip_data = if decoded1.len() >= 2 && decoded1[0] == 0x1f && decoded1[1] == 0x8b {
+                decoded1
+            } else {
+                BASE64
+                    .decode(&decoded1)
+                    .map_err(|e| format!("Failed to decode base64 (2nd): {}", e))?
+            };
+
+            let mut decoder = GzDecoder::new(&gzip_data[..]);
+            let mut decompressed = String::new();
+            decoder
+                .read_to_string(&mut decompressed)
+                .map_err(|e| format!("Failed to decompress: {}", e))?;
+
+            // Parse and convert to YAML
+            let release_data: Value = serde_json::from_str(&decompressed)
+                .map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+            let yaml = serde_yaml::to_string(&release_data)
+                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+
+            Ok(ResourceYaml {
+                yaml,
+                api_version: "helm.sh/v3".to_string(),
+                kind: "Release".to_string(),
+                name: name.clone(),
+                namespace: Some(ns),
+                uid: secret.metadata.uid.unwrap_or_default(),
+                labels: btree_to_hashmap(secret.metadata.labels),
+                annotations: btree_to_hashmap(secret.metadata.annotations),
+                created_at: secret.metadata.creation_timestamp.map(|t| t.0.to_string()),
+            })
+        }
         _ => Err(format!("Unsupported resource type: {}", resource_type)),
     }
 }
@@ -1017,6 +1161,31 @@ pub async fn delete_resource(
             api.delete(&name, &dp)
                 .await
                 .map_err(|e| format!("Failed to delete secret: {}", e))?;
+        }
+        "kustomization" | "kustomizations" => {
+            let ns = namespace.ok_or("Namespace required for kustomizations")?;
+            let gvk = kube::api::GroupVersionKind::gvk(
+                "kustomize.toolkit.fluxcd.io",
+                "v1",
+                "Kustomization",
+            );
+            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
+            let api: Api<kube::api::DynamicObject> =
+                Api::namespaced_with(client, &ns, &api_resource);
+            api.delete(&name, &dp)
+                .await
+                .map_err(|e| format!("Failed to delete kustomization: {}", e))?;
+        }
+        "helmrelease" | "helmreleases" => {
+            let ns = namespace.ok_or("Namespace required for helm releases")?;
+            let gvk =
+                kube::api::GroupVersionKind::gvk("helm.toolkit.fluxcd.io", "v2", "HelmRelease");
+            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
+            let api: Api<kube::api::DynamicObject> =
+                Api::namespaced_with(client, &ns, &api_resource);
+            api.delete(&name, &dp)
+                .await
+                .map_err(|e| format!("Failed to delete helm release: {}", e))?;
         }
         _ => return Err(format!("Unsupported resource type: {}", resource_type)),
     }

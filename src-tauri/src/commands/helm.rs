@@ -2,11 +2,25 @@ use crate::k8s::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use flate2::read::GzDecoder;
 use k8s_openapi::api::core::v1::Secret;
-use kube::{api::ListParams, Api};
+use kube::{
+    api::{DynamicObject, ListParams},
+    discovery::ApiResource,
+    Api,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::io::Read;
 use tauri::{command, State};
+
+/// Source that manages the Helm release
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "lowercase")]
+pub enum HelmManagedBy {
+    /// Native Helm CLI release (stored in secrets)
+    Helm,
+    /// Flux CD HelmRelease CRD
+    Flux,
+}
 
 /// Helm release status
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -53,6 +67,10 @@ pub struct HelmReleaseInfo {
     pub last_deployed: Option<String>,
     pub description: String,
     pub notes: Option<String>,
+    /// Source managing this release (helm or flux)
+    pub managed_by: HelmManagedBy,
+    /// Whether the release is suspended (Flux only)
+    pub suspended: bool,
 }
 
 /// Helm release history entry
@@ -83,6 +101,8 @@ pub struct HelmReleaseDetail {
     pub notes: Option<String>,
     pub values: serde_json::Value,
     pub manifest: String,
+    /// Source managing this release (helm or flux)
+    pub managed_by: HelmManagedBy,
 }
 
 /// Internal Helm release structure (from secret data)
@@ -123,19 +143,28 @@ struct HelmChartMetadataData {
 
 /// Decode Helm release data from secret
 /// Helm stores data as: base64 -> base64 -> gzip compressed JSON
+/// Note: k8s-openapi's ByteString may or may not decode the outer base64 layer,
+/// so we try both approaches for robustness.
 fn decode_helm_release(data: &str) -> Result<HelmReleaseData, String> {
     // First base64 decode
     let decoded1 = BASE64
         .decode(data)
         .map_err(|e| format!("Failed to decode base64 (1st): {}", e))?;
 
-    // Second base64 decode
-    let decoded2 = BASE64
-        .decode(&decoded1)
-        .map_err(|e| format!("Failed to decode base64 (2nd): {}", e))?;
+    // Check if we need a second base64 decode or if we already have gzip data
+    // Gzip magic bytes: 0x1f 0x8b
+    let gzip_data = if decoded1.len() >= 2 && decoded1[0] == 0x1f && decoded1[1] == 0x8b {
+        // Already gzip data after first decode (ByteString pre-decoded outer layer)
+        decoded1
+    } else {
+        // Need second base64 decode (ByteString did not pre-decode)
+        BASE64
+            .decode(&decoded1)
+            .map_err(|e| format!("Failed to decode base64 (2nd): {}", e))?
+    };
 
     // Gzip decompress
-    let mut decoder = GzDecoder::new(&decoded2[..]);
+    let mut decoder = GzDecoder::new(&gzip_data[..]);
     let mut decompressed = String::new();
     decoder
         .read_to_string(&mut decompressed)
@@ -175,8 +204,8 @@ pub async fn list_helm_releases(
     // List params to filter Helm secrets
     let lp = ListParams::default().labels("owner=helm");
 
-    let secrets: Vec<Secret> = if let Some(ns) = namespace {
-        let api: Api<Secret> = Api::namespaced(client, &ns);
+    let secrets: Vec<Secret> = if let Some(ref ns) = namespace {
+        let api: Api<Secret> = Api::namespaced(client, ns);
         api.list(&lp).await.map_err(|e| e.to_string())?.items
     } else {
         let api: Api<Secret> = Api::all(client);
@@ -226,6 +255,8 @@ pub async fn list_helm_releases(
                         last_deployed: release_data.info.last_deployed.clone(),
                         description: release_data.info.description.clone().unwrap_or_default(),
                         notes: release_data.info.notes.clone(),
+                        managed_by: HelmManagedBy::Helm,
+                        suspended: false, // Native Helm releases can't be suspended
                     };
                     releases.insert((ns, release_name), info);
                 }
@@ -233,7 +264,192 @@ pub async fn list_helm_releases(
         }
     }
 
+    // Also fetch Flux HelmRelease CRDs and merge them
+    let flux_releases =
+        list_flux_helm_releases_internal(state.k8s.get_client().await.ok(), namespace.clone())
+            .await;
+    for flux_release in flux_releases {
+        // Only add if not already present (native Helm takes precedence)
+        let key = (flux_release.namespace.clone(), flux_release.name.clone());
+        releases.entry(key).or_insert(flux_release);
+    }
+
     Ok(releases.into_values().collect())
+}
+
+/// Fetch Flux HelmRelease CRDs and convert them to HelmReleaseInfo
+async fn list_flux_helm_releases_internal(
+    client: Option<kube::Client>,
+    namespace: Option<String>,
+) -> Vec<HelmReleaseInfo> {
+    let Some(client) = client else {
+        return Vec::new();
+    };
+
+    // Define the Flux HelmRelease API resource
+    // Flux v2 uses helm.toolkit.fluxcd.io/v2 (or v2beta1/v2beta2 for older versions)
+    let ar = ApiResource {
+        group: "helm.toolkit.fluxcd.io".to_string(),
+        version: "v2".to_string(),
+        api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
+        kind: "HelmRelease".to_string(),
+        plural: "helmreleases".to_string(),
+    };
+
+    let lp = ListParams::default();
+
+    let result: Result<Vec<DynamicObject>, _> = if let Some(ref ns) = namespace {
+        let api: Api<DynamicObject> = Api::namespaced_with(client.clone(), ns, &ar);
+        api.list(&lp).await.map(|list| list.items)
+    } else {
+        let api: Api<DynamicObject> = Api::all_with(client.clone(), &ar);
+        api.list(&lp).await.map(|list| list.items)
+    };
+
+    // If v2 fails, try v2beta2 (older Flux versions)
+    let items = match result {
+        Ok(items) => items,
+        Err(_) => {
+            let ar_beta = ApiResource {
+                group: "helm.toolkit.fluxcd.io".to_string(),
+                version: "v2beta2".to_string(),
+                api_version: "helm.toolkit.fluxcd.io/v2beta2".to_string(),
+                kind: "HelmRelease".to_string(),
+                plural: "helmreleases".to_string(),
+            };
+            let result_beta: Result<Vec<DynamicObject>, _> = if let Some(ref ns) = namespace {
+                let api: Api<DynamicObject> = Api::namespaced_with(client.clone(), ns, &ar_beta);
+                api.list(&lp).await.map(|list| list.items)
+            } else {
+                let api: Api<DynamicObject> = Api::all_with(client.clone(), &ar_beta);
+                api.list(&lp).await.map(|list| list.items)
+            };
+            result_beta.unwrap_or_default()
+        }
+    };
+
+    items
+        .into_iter()
+        .filter_map(parse_flux_helm_release)
+        .collect()
+}
+
+/// Parse a Flux HelmRelease DynamicObject into HelmReleaseInfo
+fn parse_flux_helm_release(obj: DynamicObject) -> Option<HelmReleaseInfo> {
+    let name = obj.metadata.name.clone()?;
+    let namespace = obj.metadata.namespace.clone().unwrap_or_default();
+    let created_at = obj
+        .metadata
+        .creation_timestamp
+        .as_ref()
+        .map(|t| t.0.to_string());
+
+    // Extract chart info from spec.chart.spec
+    let spec = obj.data.get("spec")?;
+    let chart_spec = spec.get("chart")?.get("spec")?;
+    let chart_name = chart_spec
+        .get("chart")
+        .and_then(|v| v.as_str())
+        .unwrap_or("unknown")
+        .to_string();
+    let chart_version = chart_spec
+        .get("version")
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+    let suspended = spec
+        .get("suspend")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+
+    // Extract status
+    let status = obj.data.get("status");
+    let (helm_status, last_deployed, description) = if let Some(status) = status {
+        // Get conditions to determine status
+        let conditions = status.get("conditions").and_then(|c| c.as_array());
+        let ready_condition = conditions.and_then(|conds| {
+            conds.iter().find(|c| {
+                c.get("type")
+                    .and_then(|t| t.as_str())
+                    .map(|t| t == "Ready")
+                    .unwrap_or(false)
+            })
+        });
+
+        let is_ready = ready_condition
+            .and_then(|c| c.get("status"))
+            .and_then(|s| s.as_str())
+            .map(|s| s == "True")
+            .unwrap_or(false);
+
+        let message = ready_condition
+            .and_then(|c| c.get("message"))
+            .and_then(|m| m.as_str())
+            .unwrap_or("")
+            .to_string();
+
+        let last_applied = status
+            .get("lastAppliedRevision")
+            .and_then(|v| v.as_str())
+            .or_else(|| status.get("lastAttemptedRevision").and_then(|v| v.as_str()));
+
+        let last_reconcile = ready_condition
+            .and_then(|c| c.get("lastTransitionTime"))
+            .and_then(|t| t.as_str())
+            .map(|s| s.to_string());
+
+        let helm_status = if is_ready {
+            HelmReleaseStatus::Deployed
+        } else if message.to_lowercase().contains("failed") {
+            HelmReleaseStatus::Failed
+        } else if message.to_lowercase().contains("pending") {
+            HelmReleaseStatus::PendingInstall
+        } else {
+            HelmReleaseStatus::Unknown
+        };
+
+        (
+            helm_status,
+            last_reconcile.or(last_applied.map(|s| s.to_string())),
+            message,
+        )
+    } else {
+        (HelmReleaseStatus::Unknown, None, String::new())
+    };
+
+    // Get revision from status.lastAttemptedRevision or default to 1
+    let revision = status
+        .and_then(|s| s.get("lastAttemptedRevision"))
+        .and_then(|v| v.as_str())
+        .and_then(|s| s.split('@').next())
+        .and_then(|s| s.parse::<i32>().ok())
+        .unwrap_or(1);
+
+    // Try to get appVersion from status.history[0].appVersion (most recent release)
+    let app_version = status
+        .and_then(|s| s.get("history"))
+        .and_then(|h| h.as_array())
+        .and_then(|arr| arr.first())
+        .and_then(|entry| entry.get("appVersion"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("")
+        .to_string();
+
+    Some(HelmReleaseInfo {
+        name,
+        namespace,
+        revision,
+        status: helm_status,
+        chart: chart_name,
+        chart_version,
+        app_version,
+        first_deployed: created_at.clone(),
+        last_deployed,
+        description,
+        notes: None,
+        managed_by: HelmManagedBy::Flux,
+        suspended,
+    })
 }
 
 /// Get detailed information about a specific Helm release
@@ -280,6 +496,7 @@ pub async fn get_helm_release(
         notes: release_data.info.notes,
         values: release_data.config,
         manifest: release_data.manifest,
+        managed_by: HelmManagedBy::Helm,
     })
 }
 
@@ -350,4 +567,49 @@ pub async fn get_helm_release_manifest(
 ) -> Result<String, String> {
     let detail = get_helm_release(state, name, namespace, revision).await?;
     Ok(detail.manifest)
+}
+
+/// Uninstall a native Helm release by deleting all its release secrets
+#[command]
+pub async fn uninstall_helm_release(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let api: Api<Secret> = Api::namespaced(client, &namespace);
+
+    // Find all secrets for this release (all revisions)
+    let lp = ListParams::default().labels("owner=helm");
+    let secrets: Vec<Secret> = api.list(&lp).await.map_err(|e| e.to_string())?.items;
+
+    let prefix = format!("sh.helm.release.v1.{}.", name);
+    let release_secrets: Vec<&Secret> = secrets
+        .iter()
+        .filter(|s| {
+            s.metadata
+                .name
+                .as_ref()
+                .map(|n| n.starts_with(&prefix))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if release_secrets.is_empty() {
+        return Err(format!(
+            "Helm release '{}' not found in namespace '{}'",
+            name, namespace
+        ));
+    }
+
+    // Delete all release secrets
+    for secret in release_secrets {
+        if let Some(secret_name) = &secret.metadata.name {
+            api.delete(secret_name, &kube::api::DeleteParams::default())
+                .await
+                .map_err(|e| format!("Failed to delete secret {}: {}", secret_name, e))?;
+        }
+    }
+
+    Ok(())
 }

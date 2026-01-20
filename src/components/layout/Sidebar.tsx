@@ -23,6 +23,7 @@ import {
   Trash2,
   Check,
   ChevronsUpDown,
+  GitBranch,
 } from "lucide-react";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
@@ -74,6 +75,8 @@ export type ResourceType =
   | "leases"
   // Helm
   | "helm-releases"
+  // Flux
+  | "flux-kustomizations"
   // Workloads
   | "workloads-overview"
   | "deployments"
@@ -174,6 +177,7 @@ const implementedViews: ResourceType[] = [
   "mutating-webhooks",
   "validating-webhooks",
   "helm-releases",
+  "flux-kustomizations",
 ];
 
 // Hook to get translated navigation sections
@@ -199,6 +203,12 @@ function useNavigationSections(): NavSection[] {
       title: t("helm"),
       icon: <Package className="size-4" />,
       items: [{ id: "helm-releases", label: t("releases") }],
+    },
+    {
+      id: "flux",
+      title: "Flux",
+      icon: <GitBranch className="size-4" />,
+      items: [{ id: "flux-kustomizations", label: "Kustomizations" }],
     },
     {
       id: "workloads",

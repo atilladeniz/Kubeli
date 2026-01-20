@@ -54,6 +54,7 @@ import type {
   HelmReleaseInfo,
   HelmReleaseDetail,
   HelmReleaseHistoryEntry,
+  FluxKustomizationInfo,
 } from "../types";
 
 // Cluster commands
@@ -474,6 +475,62 @@ export async function getHelmReleaseManifest(
   revision?: number
 ): Promise<string> {
   return invoke<string>("get_helm_release_manifest", { name, namespace, revision });
+}
+
+export async function uninstallHelmRelease(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("uninstall_helm_release", { name, namespace });
+}
+
+// Flux commands
+export async function listFluxKustomizations(
+  namespace?: string
+): Promise<FluxKustomizationInfo[]> {
+  return invoke<FluxKustomizationInfo[]>("list_flux_kustomizations", { namespace });
+}
+
+export async function reconcileFluxKustomization(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("reconcile_flux_kustomization", { name, namespace });
+}
+
+export async function suspendFluxKustomization(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("suspend_flux_kustomization", { name, namespace });
+}
+
+export async function resumeFluxKustomization(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("resume_flux_kustomization", { name, namespace });
+}
+
+export async function reconcileFluxHelmRelease(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("reconcile_flux_helmrelease", { name, namespace });
+}
+
+export async function suspendFluxHelmRelease(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("suspend_flux_helmrelease", { name, namespace });
+}
+
+export async function resumeFluxHelmRelease(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("resume_flux_helmrelease", { name, namespace });
 }
 
 // Network/Proxy commands

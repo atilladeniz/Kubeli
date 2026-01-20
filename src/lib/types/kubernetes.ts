@@ -1042,6 +1042,9 @@ export type HelmReleaseStatus =
   | "pending-upgrade"
   | "pending-rollback";
 
+/** Source managing the Helm release */
+export type HelmManagedBy = "helm" | "flux";
+
 export interface HelmReleaseInfo {
   name: string;
   namespace: string;
@@ -1054,6 +1057,10 @@ export interface HelmReleaseInfo {
   last_deployed: string | null;
   description: string;
   notes: string | null;
+  /** Source managing this release (helm or flux) */
+  managed_by: HelmManagedBy;
+  /** Whether the release is suspended (Flux only) */
+  suspended: boolean;
 }
 
 export interface HelmReleaseHistoryEntry {
@@ -1080,4 +1087,27 @@ export interface HelmReleaseDetail {
   notes: string | null;
   values: Record<string, unknown>;
   manifest: string;
+  /** Source managing this release (helm or flux) */
+  managed_by: HelmManagedBy;
+}
+
+// Flux Kustomization types
+export type FluxKustomizationStatus =
+  | "ready"
+  | "notready"
+  | "reconciling"
+  | "failed"
+  | "unknown";
+
+export interface FluxKustomizationInfo {
+  name: string;
+  namespace: string;
+  path: string;
+  source_ref: string;
+  interval: string;
+  status: FluxKustomizationStatus;
+  suspended: boolean;
+  message: string | null;
+  last_applied_revision: string | null;
+  created_at: string | null;
 }
