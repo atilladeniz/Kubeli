@@ -96,6 +96,7 @@ jobs:
           scanners: 'secret,misconfig'
           exit-code: '0'
           cache-dir: ${{ env.TRIVY_CACHE_DIR }}
+          skip-dirs: '.dev,node_modules,target'
 
       - name: Upload Trivy npm results to Security tab
         uses: github/codeql-action/upload-sarif@v4
