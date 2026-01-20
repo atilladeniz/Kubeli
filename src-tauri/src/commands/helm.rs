@@ -143,19 +143,28 @@ struct HelmChartMetadataData {
 
 /// Decode Helm release data from secret
 /// Helm stores data as: base64 -> base64 -> gzip compressed JSON
+/// Note: k8s-openapi's ByteString may or may not decode the outer base64 layer,
+/// so we try both approaches for robustness.
 fn decode_helm_release(data: &str) -> Result<HelmReleaseData, String> {
     // First base64 decode
     let decoded1 = BASE64
         .decode(data)
         .map_err(|e| format!("Failed to decode base64 (1st): {}", e))?;
 
-    // Second base64 decode
-    let decoded2 = BASE64
-        .decode(&decoded1)
-        .map_err(|e| format!("Failed to decode base64 (2nd): {}", e))?;
+    // Check if we need a second base64 decode or if we already have gzip data
+    // Gzip magic bytes: 0x1f 0x8b
+    let gzip_data = if decoded1.len() >= 2 && decoded1[0] == 0x1f && decoded1[1] == 0x8b {
+        // Already gzip data after first decode (ByteString pre-decoded outer layer)
+        decoded1
+    } else {
+        // Need second base64 decode (ByteString did not pre-decode)
+        BASE64
+            .decode(&decoded1)
+            .map_err(|e| format!("Failed to decode base64 (2nd): {}", e))?
+    };
 
     // Gzip decompress
-    let mut decoder = GzDecoder::new(&decoded2[..]);
+    let mut decoder = GzDecoder::new(&gzip_data[..]);
     let mut decompressed = String::new();
     decoder
         .read_to_string(&mut decompressed)

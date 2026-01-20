@@ -52,6 +52,8 @@ spec:
                 values:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
+                suspend:
+                  type: boolean
             status:
               type: object
               properties:
@@ -74,6 +76,17 @@ spec:
                   type: string
                 lastAttemptedRevision:
                   type: string
+                history:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      chartVersion:
+                        type: string
+                      appVersion:
+                        type: string
+                      status:
+                        type: string
       subresources:
         status: {}
       additionalPrinterColumns:
@@ -133,6 +146,8 @@ spec:
                 timeout:
                   type: string
                 wait:
+                  type: boolean
+                suspend:
                   type: boolean
             status:
               type: object
