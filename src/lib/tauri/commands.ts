@@ -477,6 +477,13 @@ export async function getHelmReleaseManifest(
   return invoke<string>("get_helm_release_manifest", { name, namespace, revision });
 }
 
+export async function uninstallHelmRelease(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke<void>("uninstall_helm_release", { name, namespace });
+}
+
 // Flux commands
 export async function listFluxKustomizations(
   namespace?: string

@@ -269,6 +269,7 @@ fn main() {
             commands::helm::get_helm_release_history,
             commands::helm::get_helm_release_values,
             commands::helm::get_helm_release_manifest,
+            commands::helm::uninstall_helm_release,
             // Flux commands
             commands::flux::list_flux_kustomizations,
             commands::flux::reconcile_flux_kustomization,

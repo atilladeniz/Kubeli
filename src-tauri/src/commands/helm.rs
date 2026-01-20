@@ -568,3 +568,48 @@ pub async fn get_helm_release_manifest(
     let detail = get_helm_release(state, name, namespace, revision).await?;
     Ok(detail.manifest)
 }
+
+/// Uninstall a native Helm release by deleting all its release secrets
+#[command]
+pub async fn uninstall_helm_release(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let api: Api<Secret> = Api::namespaced(client, &namespace);
+
+    // Find all secrets for this release (all revisions)
+    let lp = ListParams::default().labels("owner=helm");
+    let secrets: Vec<Secret> = api.list(&lp).await.map_err(|e| e.to_string())?.items;
+
+    let prefix = format!("sh.helm.release.v1.{}.", name);
+    let release_secrets: Vec<&Secret> = secrets
+        .iter()
+        .filter(|s| {
+            s.metadata
+                .name
+                .as_ref()
+                .map(|n| n.starts_with(&prefix))
+                .unwrap_or(false)
+        })
+        .collect();
+
+    if release_secrets.is_empty() {
+        return Err(format!(
+            "Helm release '{}' not found in namespace '{}'",
+            name, namespace
+        ));
+    }
+
+    // Delete all release secrets
+    for secret in release_secrets {
+        if let Some(secret_name) = &secret.metadata.name {
+            api.delete(secret_name, &kube::api::DeleteParams::default())
+                .await
+                .map_err(|e| format!("Failed to delete secret {}: {}", secret_name, e))?;
+        }
+    }
+
+    Ok(())
+}

@@ -155,7 +155,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { getResourceYaml, applyResourceYaml, deleteResource, scaleDeployment, reconcileFluxKustomization, suspendFluxKustomization, resumeFluxKustomization, reconcileFluxHelmRelease, suspendFluxHelmRelease, resumeFluxHelmRelease } from "@/lib/tauri/commands";
+import { getResourceYaml, applyResourceYaml, deleteResource, scaleDeployment, reconcileFluxKustomization, suspendFluxKustomization, resumeFluxKustomization, reconcileFluxHelmRelease, suspendFluxHelmRelease, resumeFluxHelmRelease, uninstallHelmRelease } from "@/lib/tauri/commands";
 import { useKeyboardShortcuts, NAVIGATION_SHORTCUTS } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpDialog } from "./shortcuts/ShortcutsHelpDialog";
 
@@ -3799,13 +3799,30 @@ function HelmReleasesView() {
       }
     );
 
-    // Delete only for Flux-managed releases
+    // Delete/Uninstall
+    items.push({ separator: true, label: "", onClick: () => {} });
     if (release.managed_by === "flux") {
-      items.push({ separator: true, label: "", onClick: () => {} });
       items.push({
         label: "Delete",
         icon: <Trash2 className="size-4" />,
         onClick: () => handleDeleteFromContext("helmrelease", release.name, release.namespace, refresh),
+        variant: "destructive",
+      });
+    } else {
+      items.push({
+        label: "Uninstall",
+        icon: <Trash2 className="size-4" />,
+        onClick: async () => {
+          if (confirm(`Uninstall Helm release "${release.name}"?`)) {
+            try {
+              await uninstallHelmRelease(release.name, release.namespace);
+              toast.success("Release uninstalled", { description: release.name });
+              refresh();
+            } catch (e) {
+              toast.error("Failed to uninstall", { description: String(e) });
+            }
+          }
+        },
         variant: "destructive",
       });
     }
