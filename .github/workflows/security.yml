@@ -52,6 +52,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-npm.sarif'
           severity: 'HIGH,CRITICAL'
+          exit-code: '0'
 
       - name: Scan Rust SBOM with Trivy
         uses: aquasecurity/trivy-action@0.33.1
@@ -61,6 +62,7 @@ jobs:
           format: 'sarif'
           output: 'trivy-rust.sarif'
           severity: 'HIGH,CRITICAL'
+          exit-code: '0'
 
       - name: Scan filesystem for secrets and misconfigs
         uses: aquasecurity/trivy-action@0.33.1
@@ -71,23 +73,24 @@ jobs:
           output: 'trivy-fs.sarif'
           severity: 'HIGH,CRITICAL'
           scanners: 'secret,misconfig'
+          exit-code: '0'
 
       - name: Upload Trivy npm results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-npm.sarif'
           category: 'trivy-npm'
 
       - name: Upload Trivy Rust results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-rust.sarif'
           category: 'trivy-rust'
 
       - name: Upload Trivy fs results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'trivy-fs.sarif'
@@ -113,7 +116,7 @@ jobs:
             p/github-actions
 
       - name: Upload Semgrep results to Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
           sarif_file: 'semgrep.sarif'
