@@ -8,6 +8,11 @@ import { useUpdaterStore, isDev } from "@/lib/stores/updater-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Progress } from "@/components/ui/progress";
 
+// Debug logger - only logs in development
+const debug = (...args: unknown[]) => {
+  if (isDev) console.log("[Updater]", ...args);
+};
+
 // Module-level flag to prevent multiple auto-install triggers across all hook instances
 // This is checked synchronously before any async work
 let autoInstallInProgress = false;
@@ -62,11 +67,11 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     try {
       const update = await check();
       if (update) {
-        console.log(`[Updater] Update available: ${update.version}`);
+        debug(` Update available: ${update.version}`);
         setAvailable(true, update);
         return update;
       } else {
-        console.log("[Updater] No update available");
+        debug(" No update available");
         setAvailable(false, null);
         return null;
       }
@@ -83,13 +88,13 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
 
     // Prevent multiple simultaneous downloads
     if (store.downloading) {
-      console.log("[Updater] Already downloading, skipping");
+      debug(" Already downloading, skipping");
       return;
     }
 
     // Handle simulated update in dev mode
     if (store.isSimulated && isDev) {
-      console.log("[Updater] DEV: Simulating download...");
+      debug(" DEV: Simulating download...");
       setDownloading(true);
       setProgress(0);
 
@@ -116,7 +121,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
 
       setDownloading(false);
       setDownloadComplete(true);
-      console.log("[Updater] DEV: Simulated install complete");
+      debug(" DEV: Simulated install complete");
 
       // Update toast to success if auto-install mode
       if (isAutoInstall) {
@@ -138,7 +143,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
       return;
     }
 
-    console.log("[Updater] Starting download and install...");
+    debug(" Starting download and install...");
     setDownloading(true);
     setProgress(0);
 
@@ -150,22 +155,22 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
         switch (event.event) {
           case "Started":
             contentLength = event.data.contentLength ?? 0;
-            console.log(`[Updater] Download started: ${contentLength} bytes`);
+            debug(` Download started: ${contentLength} bytes`);
             break;
           case "Progress":
             downloaded += event.data.chunkLength;
             const prog = contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
-            console.log(`[Updater] Progress: ${Math.round(prog)}%`);
+            debug(` Progress: ${Math.round(prog)}%`);
             setProgress(prog);
             break;
           case "Finished":
-            console.log("[Updater] Download finished, installing...");
+            debug(" Download finished, installing...");
             setProgress(100);
             break;
         }
       });
 
-      console.log("[Updater] Update installed successfully!");
+      debug(" Update installed successfully!");
       setDownloading(false);
       setDownloadComplete(true);
 
@@ -184,13 +189,13 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     const currentIsSimulated = useUpdaterStore.getState().isSimulated;
 
     if (currentIsSimulated && isDev) {
-      console.log("[Updater] DEV: Simulated restart - clearing state");
+      debug(" DEV: Simulated restart - clearing state");
       clearSimulation();
       setReadyToRestart(false);
       return;
     }
 
-    console.log("[Updater] Relaunching app...");
+    debug(" Relaunching app...");
     try {
       await relaunch();
     } catch (err) {
@@ -201,7 +206,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
 
   // Dismiss restart dialog (restart later)
   const restartLater = useCallback(() => {
-    console.log("[Updater] User chose to restart later");
+    debug(" User chose to restart later");
     setReadyToRestart(false);
   }, [setReadyToRestart]);
 
@@ -235,7 +240,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     // Set flag synchronously BEFORE any async work
     autoInstallInProgress = true;
 
-    console.log("[Updater] DEV: Auto-install enabled, triggering simulated download...");
+    debug(" DEV: Auto-install enabled, triggering simulated download...");
 
     // Show initial toast with loading state
     toast.loading("Installing update...", {
@@ -270,18 +275,18 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
 
       hasCheckedRef.current = true;
 
-      console.log("[Updater] Will check for updates in 3 seconds...");
+      debug(" Will check for updates in 3 seconds...");
       await new Promise((resolve) => setTimeout(resolve, 3000));
 
       if (cancelled) return;
 
-      console.log("[Updater] Checking for updates...");
+      debug(" Checking for updates...");
       const foundUpdate = await checkForUpdates();
 
       const shouldAutoInstall = autoInstall || autoInstallUpdates;
 
       if (foundUpdate && shouldAutoInstall) {
-        console.log("[Updater] Auto-installing update...");
+        debug(" Auto-installing update...");
         toast.info("Installing update...", {
           description: `Downloading Kubeli v${foundUpdate.version}`,
           duration: 5000,

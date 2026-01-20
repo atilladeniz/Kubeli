@@ -9,6 +9,12 @@ import {
   checkConnectionHealth,
 } from "../tauri/commands";
 
+// Debug logger - only logs in development
+const isDev = process.env.NODE_ENV === "development";
+const debug = (...args: unknown[]) => {
+  if (isDev) console.log("[Cluster]", ...args);
+};
+
 interface ClusterState {
   clusters: Cluster[];
   currentCluster: Cluster | null;
@@ -294,7 +300,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
 
     // Calculate backoff delay
     const delay = getBackoffDelay(reconnectAttempts);
-    console.log(`Attempting reconnect in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
+    debug(`Attempting reconnect in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
 
     // Wait for backoff delay
     await new Promise((resolve) => setTimeout(resolve, delay));
@@ -316,7 +322,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         });
         // Refetch namespaces
         get().fetchNamespaces();
-        console.log("Reconnected successfully");
+        debug("Reconnected successfully");
         return true;
       } else {
         // Retry

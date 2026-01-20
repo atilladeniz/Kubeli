@@ -120,7 +120,7 @@ impl KubeliMcpServer {
                 })
                 .as_object()
                 .cloned()
-                .unwrap()
+                .expect("json object")
                 .into(),
                 output_schema: None,
                 annotations: None,
@@ -144,7 +144,7 @@ impl KubeliMcpServer {
                 })
                 .as_object()
                 .cloned()
-                .unwrap()
+                .expect("json object")
                 .into(),
                 output_schema: None,
                 annotations: None,
@@ -168,7 +168,7 @@ impl KubeliMcpServer {
                 })
                 .as_object()
                 .cloned()
-                .unwrap()
+                .expect("json object")
                 .into(),
                 output_schema: None,
                 annotations: None,
@@ -203,7 +203,7 @@ impl KubeliMcpServer {
                 })
                 .as_object()
                 .cloned()
-                .unwrap()
+                .expect("json object")
                 .into(),
                 output_schema: None,
                 annotations: None,
@@ -220,7 +220,7 @@ impl KubeliMcpServer {
                 })
                 .as_object()
                 .cloned()
-                .unwrap()
+                .expect("json object")
                 .into(),
                 output_schema: None,
                 annotations: None,
@@ -239,7 +239,7 @@ impl KubeliMcpServer {
                 })
                 .as_object()
                 .cloned()
-                .unwrap()
+                .expect("json object")
                 .into(),
                 output_schema: None,
                 annotations: None,
@@ -261,7 +261,7 @@ impl KubeliMcpServer {
                 })
                 .as_object()
                 .cloned()
-                .unwrap()
+                .expect("json object")
                 .into(),
                 output_schema: None,
                 annotations: None,
@@ -294,7 +294,7 @@ impl KubeliMcpServer {
                 })
                 .as_object()
                 .cloned()
-                .unwrap()
+                .expect("json object")
                 .into(),
                 output_schema: None,
                 annotations: None,

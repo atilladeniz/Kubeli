@@ -21,6 +21,12 @@ misconfiguration:
     - dockerfile
     - kubernetes
 
+# Skip directories (dev samples are intentionally insecure for testing)
+skip-dirs:
+  - .dev
+  - node_modules
+  - target
+
 # Ignore unfixed vulnerabilities
 ignore-unfixed: true
 

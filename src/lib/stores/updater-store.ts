@@ -4,6 +4,11 @@ import type { Update } from "@tauri-apps/plugin-updater";
 // Check if we're in development mode
 export const isDev = process.env.NODE_ENV === "development";
 
+// Debug logger - only logs in development
+const debug = (...args: unknown[]) => {
+  if (isDev) console.log("[Updater]", ...args);
+};
+
 export interface UpdaterState {
   checking: boolean;
   available: boolean;
@@ -81,11 +86,8 @@ export const useUpdaterStore = create<UpdaterState>((set) => ({
 
   // DEV ONLY: Simulate an available update
   simulateUpdate: (version: string) => {
-    if (!isDev) {
-      console.warn("[Updater] simulateUpdate is only available in development mode");
-      return;
-    }
-    console.log(`[Updater] DEV: Simulating update to v${version}`);
+    if (!isDev) return;
+    debug(`DEV: Simulating update to v${version}`);
 
     const mockUpdate = {
       version,
@@ -103,7 +105,7 @@ export const useUpdaterStore = create<UpdaterState>((set) => ({
 
   clearSimulation: () => {
     if (!isDev) return;
-    console.log("[Updater] DEV: Clearing simulated update");
+    debug("DEV: Clearing simulated update");
     set({
       available: false,
       update: null,

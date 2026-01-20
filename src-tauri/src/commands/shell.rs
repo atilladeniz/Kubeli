@@ -201,8 +201,8 @@ async fn run_shell_session(
     stop_flag: Arc<AtomicBool>,
     input_rx: &mut mpsc::Receiver<ShellInput>,
 ) {
-    let mut stdin = attached.stdin().unwrap();
-    let mut stdout = attached.stdout().unwrap();
+    let mut stdin = attached.stdin().expect("stdin available after attach");
+    let mut stdout = attached.stdout().expect("stdout available after attach");
 
     let mut stdout_buf = vec![0u8; 4096];
 

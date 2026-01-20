@@ -31,6 +31,9 @@ Cargo.lock
 # Test fixtures with intentional secrets
 tests/fixtures/
 
+# Development sample files (intentionally insecure for testing)
+.dev/
+
 # Documentation
 docs/
 *.md
