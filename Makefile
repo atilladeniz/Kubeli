@@ -374,13 +374,13 @@ minikube-setup-helm: ## Install native Helm releases for testing (requires helm 
 			--namespace kubeli-demo \
 			--set replicaCount=1 \
 			--set service.type=ClusterIP \
-			--wait --timeout 2m 2>/dev/null || echo "$(YELLOW)Warning: nginx install failed (may already exist or timeout)$(RESET)"; \
+			--timeout 60s 2>/dev/null || echo "$(YELLOW)Warning: nginx install failed$(RESET)"; \
 		echo "$(CYAN)Installing mysql chart...$(RESET)"; \
 		helm upgrade --install demo-mysql bitnami/mysql \
 			--namespace kubeli-demo \
 			--set auth.rootPassword=testpassword \
 			--set primary.persistence.enabled=false \
-			--wait --timeout 3m 2>/dev/null || echo "$(YELLOW)Warning: mysql install failed (may already exist or timeout)$(RESET)"; \
+			--timeout 60s 2>/dev/null || echo "$(YELLOW)Warning: mysql install failed$(RESET)"; \
 		echo "$(GREEN)✓ Native Helm releases installed$(RESET)"; \
 		echo ""; \
 		echo "$(CYAN)Native Helm Releases:$(RESET)"; \
