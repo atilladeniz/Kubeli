@@ -46,6 +46,12 @@ jobs:
           cargo cyclonedx --format json --spec-version 1.5 --no-build-deps --override-filename sbom-rust
           mv sbom-rust.json ../sbom-rust.json
 
+      - name: Validate SBOMs
+        run: |
+          docker run --rm -v $(pwd):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-npm.json --input-version v1_5 --fail-on-errors
+          docker run --rm -v $(pwd):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-rust.json --input-version v1_5 --fail-on-errors
+          echo "✓ Both SBOMs validated against CycloneDX 1.5 schema"
+
       - name: Upload SBOMs to release
         uses: softprops/action-gh-release@v2
         with:

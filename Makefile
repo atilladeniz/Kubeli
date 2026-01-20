@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust
+.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate
 
 # Default target
 .DEFAULT_GOAL := help
@@ -355,6 +355,12 @@ sbom-rust: ## Generate Rust SBOM (CycloneDX JSON)
 	mv src-tauri/sbom-rust.json sbom-rust.json
 
 sbom: sbom-npm sbom-rust ## Generate both SBOM files
+
+sbom-validate: sbom ## Generate and validate SBOMs with cyclonedx-cli
+	@echo "$(CYAN)Validating SBOMs against CycloneDX 1.5 schema...$(RESET)"
+	docker run --rm -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-npm.json --input-version v1_5 --fail-on-errors
+	docker run --rm -v $(PWD):/data cyclonedx/cyclonedx-cli validate --input-file /data/sbom-rust.json --input-version v1_5 --fail-on-errors
+	@echo "$(GREEN)✓ Both SBOMs validated$(RESET)"
 
 ## Utilities
 
