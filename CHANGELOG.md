@@ -2,14 +2,6 @@
 
 All notable changes to Kubeli will be documented in this file.
 
-## [0.2.37] - 2026-01-20
-
-- Added **Security Scanning** with Trivy (SBOM vulnerabilities, secrets, misconfig) and Semgrep (SAST)
-- Security results uploaded to GitHub Security tab via SARIF
-- Weekly scheduled scans (Mondays 6 AM UTC)
-- Added `.trivyignore` and `.semgrepignore` for false positive management
-- Local scanning via `make security-scan`
-
 ## [0.2.36] - 2026-01-19
 
 - Added pod management enhancements in Dashboard and ResourceList components
