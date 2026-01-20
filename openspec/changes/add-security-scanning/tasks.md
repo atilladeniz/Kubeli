@@ -2,15 +2,24 @@
 
 ## 1. Trivy
 
-- [ ] 1.1 Add Trivy config (severity thresholds and ignores)
-- [ ] 1.2 Add a GitHub Actions job for Trivy filesystem scans
+- [x] 1.1 Add Trivy config (`trivy.yaml`, `trivy-secret.yaml`)
+- [x] 1.2 Add GitHub Actions job for SBOM-based vulnerability scanning
+- [x] 1.3 Add secret and misconfiguration scanning
+- [x] 1.4 SARIF upload to GitHub Security tab
 
 ## 2. Semgrep
 
-- [ ] 2.1 Add a Semgrep ruleset config for secrets and unsafe patterns
-- [ ] 2.2 Add a GitHub Actions job for Semgrep scans
+- [x] 2.1 Add Semgrep config (`.semgrep.yaml`) with TypeScript and Rust rules
+- [x] 2.2 Add GitHub Actions job using native `semgrep/semgrep` image (not deprecated action)
+- [x] 2.3 SARIF upload to GitHub Security tab
 
-## 3. Reporting
+## 3. Local Development
 
-- [ ] 3.1 Upload SARIF or artifacts for scan results
-- [ ] 3.2 Document local scan commands in README
+- [x] 3.1 `make security-scan` - Run all scans
+- [x] 3.2 `make security-trivy` - Vulnerability + secret scanning
+- [x] 3.3 `make security-semgrep` - SAST scanning
+
+## 4. Documentation
+
+- [x] 4.1 Security Scanning section in README
+- [x] 4.2 Configuration files documented
