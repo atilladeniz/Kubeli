@@ -43,6 +43,7 @@ import {
   mutatingWebhookColumns,
   validatingWebhookColumns,
   helmReleaseColumns,
+  fluxKustomizationColumns,
   translateColumns,
   type SortDirection,
   type FilterOption,
@@ -92,6 +93,7 @@ import {
   useMutatingWebhooks,
   useValidatingWebhooks,
   useHelmReleases,
+  useFluxKustomizations,
 } from "@/lib/hooks/useK8sResources";
 import { useClusterMetrics } from "@/lib/hooks/useMetrics";
 import { useClusterStore } from "@/lib/stores/cluster-store";
@@ -118,7 +120,7 @@ import {
   Minus,
   Plus,
 } from "lucide-react";
-import type { PodInfo, ServiceInfo, NodeInfo, DeploymentInfo, ConfigMapInfo, SecretInfo, EventInfo, LeaseInfo, ReplicaSetInfo, DaemonSetInfo, StatefulSetInfo, JobInfo, CronJobInfo, IngressInfo, EndpointSliceInfo, NetworkPolicyInfo, IngressClassInfo, HPAInfo, LimitRangeInfo, ResourceQuotaInfo, PDBInfo, PVInfo, PVCInfo, StorageClassInfo, CSIDriverInfo, CSINodeInfo, VolumeAttachmentInfo, ServiceAccountInfo, RoleInfo, RoleBindingInfo, ClusterRoleInfo, ClusterRoleBindingInfo, CRDInfo, PriorityClassInfo, RuntimeClassInfo, MutatingWebhookInfo, ValidatingWebhookInfo, HelmReleaseInfo } from "@/lib/types";
+import type { PodInfo, ServiceInfo, NodeInfo, DeploymentInfo, ConfigMapInfo, SecretInfo, EventInfo, LeaseInfo, ReplicaSetInfo, DaemonSetInfo, StatefulSetInfo, JobInfo, CronJobInfo, IngressInfo, EndpointSliceInfo, NetworkPolicyInfo, IngressClassInfo, HPAInfo, LimitRangeInfo, ResourceQuotaInfo, PDBInfo, PVInfo, PVCInfo, StorageClassInfo, CSIDriverInfo, CSINodeInfo, VolumeAttachmentInfo, ServiceAccountInfo, RoleInfo, RoleBindingInfo, ClusterRoleInfo, ClusterRoleBindingInfo, CRDInfo, PriorityClassInfo, RuntimeClassInfo, MutatingWebhookInfo, ValidatingWebhookInfo, HelmReleaseInfo, FluxKustomizationInfo } from "@/lib/types";
 import type { ContextMenuItemDef } from "./resources/ResourceList";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { TerminalTabsProvider, useTerminalTabs, TerminalTabs } from "./terminal";
@@ -618,6 +620,8 @@ function ResourceView({ activeResource }: { activeResource: ResourceType }) {
       return <ValidatingWebhooksView />;
     case "helm-releases":
       return <HelmReleasesView />;
+    case "flux-kustomizations":
+      return <FluxKustomizationsView />;
     default:
       return <ComingSoon resource={activeResource} />;
   }
@@ -3741,6 +3745,60 @@ function HelmReleasesView() {
       getRowKey={(r) => `${r.namespace}/${r.name}`}
       emptyMessage={t("empty.helmreleases")}
       contextMenuItems={getHelmContextMenu}
+      sortKey={sortKey}
+      sortDirection={sortDirection}
+      onSortChange={(key, dir) => { setSortKey(key); setSortDirection(dir); }}
+    />
+  );
+}
+
+function FluxKustomizationsView() {
+  const t = useTranslations();
+  const { data, isLoading, error, refresh } = useFluxKustomizations({
+    autoRefresh: true,
+    refreshInterval: 30000,
+  });
+  const [sortKey, setSortKey] = useState<string | null>("created_at");
+  const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  const getKustomizationContextMenu = (k: FluxKustomizationInfo): ContextMenuItemDef[] => [
+    {
+      label: "Copy Name",
+      icon: <Copy className="size-4" />,
+      onClick: () => {
+        navigator.clipboard.writeText(k.name);
+        toast.success("Copied to clipboard", { description: k.name });
+      },
+    },
+    {
+      label: "Copy Path",
+      icon: <Copy className="size-4" />,
+      onClick: () => {
+        navigator.clipboard.writeText(k.path);
+        toast.success("Copied to clipboard", { description: k.path });
+      },
+    },
+    {
+      label: "Copy Source",
+      icon: <Copy className="size-4" />,
+      onClick: () => {
+        navigator.clipboard.writeText(k.source_ref);
+        toast.success("Copied to clipboard", { description: k.source_ref });
+      },
+    },
+  ];
+
+  return (
+    <ResourceList
+      title="Kustomizations"
+      data={data}
+      columns={fluxKustomizationColumns}
+      isLoading={isLoading}
+      error={error}
+      onRefresh={refresh}
+      getRowKey={(k) => `${k.namespace}/${k.name}`}
+      emptyMessage="No Flux Kustomizations found"
+      contextMenuItems={getKustomizationContextMenu}
       sortKey={sortKey}
       sortDirection={sortDirection}
       onSortChange={(key, dir) => { setSortKey(key); setSortDirection(dir); }}

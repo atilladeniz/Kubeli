@@ -51,6 +51,7 @@ import type {
   MutatingWebhookInfo,
   ValidatingWebhookInfo,
   HelmReleaseInfo,
+  FluxKustomizationInfo,
 } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -2988,6 +2989,73 @@ export const helmReleaseColumns: Column<HelmReleaseInfo>[] = [
   },
 ];
 
+// Flux Kustomization columns
+export const fluxKustomizationColumns: Column<FluxKustomizationInfo>[] = [
+  {
+    key: "name",
+    label: "NAME",
+    sortable: true,
+    render: (k) => <span className="font-medium text-xs">{k.name}</span>,
+  },
+  {
+    key: "namespace",
+    label: "NAMESPACE",
+    sortable: true,
+    render: (k) => (
+      <div className="flex items-center gap-1.5">
+        <NamespaceColorDot namespace={k.namespace} />
+        <span className="text-muted-foreground text-xs">{k.namespace}</span>
+      </div>
+    ),
+  },
+  {
+    key: "status",
+    label: "STATUS",
+    sortable: true,
+    render: (k) => <FluxKustomizationStatusBadge status={k.status} />,
+  },
+  {
+    key: "path",
+    label: "PATH",
+    sortable: true,
+    render: (k) => (
+      <span className="text-xs text-muted-foreground font-mono">{k.path || "-"}</span>
+    ),
+  },
+  {
+    key: "source_ref",
+    label: "SOURCE",
+    sortable: true,
+    render: (k) => (
+      <span className="text-xs text-muted-foreground">{k.source_ref || "-"}</span>
+    ),
+  },
+  {
+    key: "interval",
+    label: "INTERVAL",
+    sortable: true,
+    render: (k) => (
+      <span className="text-xs text-muted-foreground">{k.interval || "-"}</span>
+    ),
+  },
+  {
+    key: "last_applied_revision",
+    label: "REVISION",
+    sortable: false,
+    render: (k) => (
+      <span className="text-xs text-muted-foreground font-mono truncate max-w-[120px] block">
+        {k.last_applied_revision ? k.last_applied_revision.slice(0, 12) : "-"}
+      </span>
+    ),
+  },
+  {
+    key: "created_at",
+    label: "AGE",
+    sortable: true,
+    render: (k) => (k.created_at ? formatAge(k.created_at) : "-"),
+  },
+];
+
 export function getHelmReleaseColumns(t: TranslateFunc): Column<HelmReleaseInfo>[] {
   return [
     {
@@ -3106,6 +3174,33 @@ function HelmStatusBadge({ status }: { status: string }) {
       className={cn("border-0 text-[10px]", variants[status] || "bg-muted text-muted-foreground")}
     >
       {status}
+    </Badge>
+  );
+}
+
+function FluxKustomizationStatusBadge({ status }: { status: string }) {
+  const variants: Record<string, string> = {
+    ready: "bg-green-500/10 text-green-500",
+    notready: "bg-yellow-500/10 text-yellow-500",
+    reconciling: "bg-blue-500/10 text-blue-500",
+    failed: "bg-destructive/10 text-destructive",
+    unknown: "bg-muted text-muted-foreground",
+  };
+
+  const labels: Record<string, string> = {
+    ready: "Ready",
+    notready: "Not Ready",
+    reconciling: "Reconciling",
+    failed: "Failed",
+    unknown: "Unknown",
+  };
+
+  return (
+    <Badge
+      variant="outline"
+      className={cn("border-0 text-[10px]", variants[status] || "bg-muted text-muted-foreground")}
+    >
+      {labels[status] || status}
     </Badge>
   );
 }
