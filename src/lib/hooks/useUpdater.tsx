@@ -304,7 +304,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
       if (cancelled) return;
 
       debug(" Checking for updates...");
-      const foundUpdate = await checkForUpdates();
+      const foundUpdate = await checkForUpdates(true);
 
       const shouldAutoInstall = autoInstall || autoInstallUpdates;
 

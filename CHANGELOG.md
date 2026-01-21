@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.38] - 2026-01-21
+
+- Fixed loading spinner to show only on the clicked cluster button
+- Improved update check toast notification UX
+- Fixed delete button icon spacing
+
 ## [0.2.37] - 2026-01-20
 
 - Added Flux CD support for HelmReleases and Kustomizations
