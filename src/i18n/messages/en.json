@@ -702,6 +702,8 @@
     "restartLater": "Later",
     "whatsNew": "What's new in v{version}",
     "checkingForUpdates": "Checking for updates...",
+    "checkFailed": "Update check failed",
+    "upToDate": "Kubeli is up to date",
     "percentComplete": "{percent}% complete",
     "installUpdate": "Install Update",
     "updateNow": "Update Now",
