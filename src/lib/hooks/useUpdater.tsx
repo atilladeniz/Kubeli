@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch, exit } from "@tauri-apps/plugin-process";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { useUpdaterStore, isDev } from "@/lib/stores/updater-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Progress } from "@/components/ui/progress";
@@ -29,6 +30,8 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     autoInstall = false,
     checkInterval = 0,
   } = options;
+
+  const t = useTranslations("updates");
 
   const {
     checking,
@@ -66,7 +69,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
 
     // Show loading toast if requested
     if (showToast) {
-      toast.loading("Checking for updates...", {
+      toast.loading(t("checkingForUpdates"), {
         id: "update-check-toast",
         duration: Infinity,
       });
@@ -85,7 +88,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
         debug(" No update available");
         setAvailable(false, null);
         if (showToast) {
-          toast.success("Kubeli ist auf dem neusten Stand", {
+          toast.success(t("upToDate"), {
             id: "update-check-toast",
             duration: 2000,
           });
@@ -96,14 +99,14 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
       console.error("[Updater] Check failed:", error);
       setError(error instanceof Error ? error.message : "Failed to check for updates");
       if (showToast) {
-        toast.error("Update check failed", {
+        toast.error(t("checkFailed"), {
           id: "update-check-toast",
           duration: 3000,
         });
       }
       return null;
     }
-  }, [checking, setChecking, setAvailable, setError]);
+  }, [checking, setChecking, setAvailable, setError, t]);
 
   const downloadAndInstall = useCallback(async (_autoRestart: boolean = false, isAutoInstall: boolean = false) => {
     // Get current state directly from store to avoid stale closure
