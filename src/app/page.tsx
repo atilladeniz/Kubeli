@@ -52,6 +52,7 @@ export default function Home() {
   const [isTauri, setIsTauri] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [isDownloadingDebugLog, setIsDownloadingDebugLog] = useState(false);
+  const [connectingContext, setConnectingContext] = useState<string | null>(null);
   const initialFetchDone = useRef(false);
 
   const {
@@ -107,6 +108,16 @@ export default function Home() {
       console.error("Failed to generate debug log:", err);
     } finally {
       setIsDownloadingDebugLog(false);
+    }
+  };
+
+  // Handle cluster connection with local loading state
+  const handleConnect = async (context: string) => {
+    setConnectingContext(context);
+    try {
+      await connect(context);
+    } finally {
+      setConnectingContext(null);
     }
   };
 
@@ -341,12 +352,12 @@ export default function Home() {
                           </p>
                         </div>
                         <Button
-                          onClick={() => connect(cluster.context)}
-                          disabled={isClusterLoading || isActive}
+                          onClick={() => handleConnect(cluster.context)}
+                          disabled={connectingContext !== null || isActive}
                           className="mt-auto w-full"
                           variant={isActive ? "secondary" : "default"}
                         >
-                          {isClusterLoading ? (
+                          {connectingContext === cluster.context ? (
                             <Loader2 className="size-4 animate-spin" />
                           ) : isActive ? (
                             t("connected")
