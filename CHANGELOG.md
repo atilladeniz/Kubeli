@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.41] - 2026-01-21
+
+- Fixed auto-update check to run only once globally
+
 ## [0.2.40] - 2026-01-21
 
 - Fixed auto-check toast stability issue by using useRef for stable toast strings
