@@ -33,6 +33,17 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
 
   const t = useTranslations("updates");
 
+  // Cache translation strings in ref to keep checkForUpdates stable (initialized once)
+  const toastStringsRef = useRef<{ checking: string; upToDate: string; checkFailed: string } | null>(null);
+  if (toastStringsRef.current === null) {
+    toastStringsRef.current = {
+      checking: t("checkingForUpdates"),
+      upToDate: t("upToDate"),
+      checkFailed: t("checkFailed"),
+    };
+  }
+  const toastStrings = toastStringsRef.current;
+
   const {
     checking,
     available,
@@ -69,7 +80,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
 
     // Show loading toast if requested
     if (showToast) {
-      toast.loading(t("checkingForUpdates"), {
+      toast.loading(toastStrings.checking, {
         id: "update-check-toast",
         duration: Infinity,
       });
@@ -88,7 +99,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
         debug(" No update available");
         setAvailable(false, null);
         if (showToast) {
-          toast.success(t("upToDate"), {
+          toast.success(toastStrings.upToDate, {
             id: "update-check-toast",
             duration: 2000,
           });
@@ -99,14 +110,14 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
       console.error("[Updater] Check failed:", error);
       setError(error instanceof Error ? error.message : "Failed to check for updates");
       if (showToast) {
-        toast.error(t("checkFailed"), {
+        toast.error(toastStrings.checkFailed, {
           id: "update-check-toast",
           duration: 3000,
         });
       }
       return null;
     }
-  }, [checking, setChecking, setAvailable, setError, t]);
+  }, [checking, setChecking, setAvailable, setError, toastStrings]);
 
   const downloadAndInstall = useCallback(async (_autoRestart: boolean = false, isAutoInstall: boolean = false) => {
     // Get current state directly from store to avoid stale closure
