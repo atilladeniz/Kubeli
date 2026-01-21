@@ -586,7 +586,7 @@ export function ResourceDetail({
                   size="sm"
                   onClick={() => setShowDeleteDialog(true)}
                 >
-                  <Trash2 className="size-4 mr-2" />
+                  <Trash2 className="size-4" />
                   {resourceType === "helm-release" ? "Uninstall" : t("common.delete")}
                 </Button>
               </div>
