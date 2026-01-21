@@ -55,6 +55,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     readyToRestart,
     downloadComplete,
     checkerDismissed,
+    hasAutoChecked,
     setChecking,
     setAvailable,
     setDownloading,
@@ -63,11 +64,10 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     setReadyToRestart,
     setDownloadComplete,
     setCheckerDismissed,
+    setHasAutoChecked,
     simulateUpdate,
     clearSimulation,
   } = useUpdaterStore();
-
-  const hasCheckedRef = useRef(false);
   const isTauriReady = useCallback(() => {
     if (typeof window === "undefined") return false;
     return "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
@@ -300,9 +300,11 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     }
   }, [isSimulated]);
 
-  // Auto-check on mount
+  // Auto-check on mount (only once globally via store flag)
   useEffect(() => {
-    if (!autoCheck || hasCheckedRef.current) return;
+    // Check store directly to avoid stale closure
+    const alreadyChecked = useUpdaterStore.getState().hasAutoChecked;
+    if (!autoCheck || alreadyChecked) return;
 
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
@@ -310,7 +312,8 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     const autoCheckFn = async () => {
       if (cancelled) return;
 
-      hasCheckedRef.current = true;
+      // Mark as checked globally (prevents other hook instances from checking)
+      setHasAutoChecked(true);
 
       debug(" Will check for updates in 3 seconds...");
       await new Promise((resolve) => setTimeout(resolve, 3000));
@@ -346,7 +349,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [autoCheck, autoInstall, autoInstallUpdates, checkForUpdates, downloadAndInstall, isTauriReady]);
+  }, [autoCheck, autoInstall, autoInstallUpdates, checkForUpdates, downloadAndInstall, isTauriReady, setHasAutoChecked]);
 
   // Interval checking
   useEffect(() => {

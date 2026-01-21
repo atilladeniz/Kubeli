@@ -27,6 +27,9 @@ export interface UpdaterState {
   // UpdateChecker dialog dismissed (but update still available)
   checkerDismissed: boolean;
 
+  // Auto-check has been performed (prevents multiple checks on remount)
+  hasAutoChecked: boolean;
+
   // Actions
   setChecking: (checking: boolean) => void;
   setAvailable: (available: boolean, update: Update | null) => void;
@@ -36,6 +39,7 @@ export interface UpdaterState {
   setReadyToRestart: (ready: boolean) => void;
   setDownloadComplete: (complete: boolean) => void;
   setCheckerDismissed: (dismissed: boolean) => void;
+  setHasAutoChecked: (checked: boolean) => void;
   reset: () => void;
 
   // DEV: Simulation
@@ -54,6 +58,7 @@ export const useUpdaterStore = create<UpdaterState>((set) => ({
   readyToRestart: false,
   downloadComplete: false,
   checkerDismissed: false,
+  hasAutoChecked: false,
 
   setChecking: (checking) => set({ checking, error: null }),
 
@@ -71,6 +76,8 @@ export const useUpdaterStore = create<UpdaterState>((set) => ({
 
   setCheckerDismissed: (dismissed) => set({ checkerDismissed: dismissed }),
 
+  setHasAutoChecked: (checked) => set({ hasAutoChecked: checked }),
+
   reset: () => set({
     checking: false,
     available: false,
@@ -82,6 +89,7 @@ export const useUpdaterStore = create<UpdaterState>((set) => ({
     readyToRestart: false,
     downloadComplete: false,
     checkerDismissed: false,
+    hasAutoChecked: false,
   }),
 
   // DEV ONLY: Simulate an available update
