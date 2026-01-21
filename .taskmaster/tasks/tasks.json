@@ -2,7 +2,7 @@
   "master": {
     "tasks": [
       {
-        "id": 1,
+        "id": "1",
         "title": "Initialize Tauri + Next.js Project Structure",
         "description": "Set up the basic project structure with Tauri 2.7+ backend and Next.js 14+ frontend",
         "details": "Create Tauri project with Next.js frontend using `tauri init` command. Configure package.json with Next.js 14+, TypeScript 5+, and required dependencies. Set up src-tauri/Cargo.toml with kube-rs 1.1.0, tokio 1.46.1, serde 1.0.219, and Tauri plugins (fs, shell, dialog, store, updater, window-state, deep-link, log, os, opener). Configure tauri.conf.json for static export compatibility and multi-platform builds. Set up basic directory structure: src/app/, src/components/, src/lib/, src-tauri/src/commands/, src-tauri/src/k8s/",
@@ -77,7 +77,7 @@
         "updatedAt": "2025-12-12T19:43:25.825Z"
       },
       {
-        "id": 2,
+        "id": "2",
         "title": "Implement Kubernetes Client and Config Management",
         "description": "Create Rust backend for Kubernetes API client and kubeconfig file handling",
         "details": "Implement src-tauri/src/k8s/client.rs with kube-rs Client initialization. Create src-tauri/src/k8s/config.rs for parsing kubeconfig files from ~/.kube/config and custom paths. Support multiple contexts and clusters. Implement secure credential storage using OS keychain (Keychain on macOS, Secret Service on Linux, Credential Manager on Windows). Create Tauri commands: cluster:list, cluster:switch_context, cluster:get_namespaces, cluster:add_config. Handle authentication methods: client certificates, bearer tokens, exec plugins, OIDC.",
@@ -153,7 +153,7 @@
         "updatedAt": "2025-12-12T20:27:00.973Z"
       },
       {
-        "id": 3,
+        "id": "3",
         "title": "Implement Resource Listing and Watching",
         "description": "Create backend commands for listing and watching Kubernetes resources with real-time updates",
         "details": "Implement src-tauri/src/commands/resources.rs with functions for listing pods, deployments, services, configmaps, secrets. Use kube-rs Api<T> for resource operations. Implement watch functionality using Kubernetes watch API with WebSocket streaming. Create resource:list, resource:get, resource:watch Tauri commands. Support filtering by namespace, labels, and field selectors. Implement pagination for large resource lists. Handle API errors gracefully and provide meaningful error messages. Use Tauri channels for streaming real-time updates to frontend.",
@@ -229,7 +229,7 @@
         "updatedAt": "2025-12-12T20:31:12.753Z"
       },
       {
-        "id": 4,
+        "id": "4",
         "title": "Create Frontend Cluster and Resource Management UI",
         "description": "Build React frontend with 8-category navigation structure based on Kubeli's complete menu system for cluster connection and comprehensive resource viewing",
         "details": "Create src/app/layout.tsx with providers (Zustand, TanStack Query). Implement src/components/layout/Sidebar.tsx with 8-category navigation structure: Cluster (Overview, Nodes, Events, Namespaces, Lease), Helm (Releases), Workloads (Overview, Deployments, Pods, ReplicaSets, DaemonSets, StatefulSets, Jobs, CronJobs), Networking (Services, Ingresses, Endpoint Slices, Network Policies, Ingress Classes), Configuration (Secrets, ConfigMaps, HPA v2, Limit Ranges, Resource Quotas, Pod Disruption Budgets), Storage (Persistent Volume, Persistent Volume Claims, Volume Attachments, Storage Classes, CSI Drivers, CSI Nodes), Access Control (Service Accounts, Roles, Role Bindings, Cluster Roles, Cluster Role Bindings), Administration (CRDs, Priority Classes, Runtime Classes, Mutating Webhooks, Validating Webhooks). Build src/components/features/cluster/ClusterSelector.tsx for context switching. Create src/components/features/resources/ResourceList.tsx with table view, status indicators, search/filter functionality for all 49 resource types. Implement src/lib/hooks/useCluster.ts and src/lib/hooks/useK8sResources.ts for state management. Use TanStack Query for caching and real-time updates. Add loading states, error boundaries, and empty states for each resource category. Implement responsive design with CSS Modules or Tailwind CSS following Kubeli conventions.",
@@ -304,7 +304,7 @@
         "expansionPrompt": "Break into: 1) Set up Next.js app layout with providers, 2) Implement sidebar layout with 8-category navigation structure for all 49 sub-menus, 3) Build cluster selector and context switching, 4) Create comprehensive resource list component supporting all 49 resource types, 5) Implement custom hooks for comprehensive resource state management"
       },
       {
-        "id": 5,
+        "id": "5",
         "title": "Implement Log Streaming System",
         "description": "Build real-time log streaming from pods with WebSocket backend and frontend viewer supporting multi-container pods across all workload types",
         "details": "Implement src-tauri/src/commands/logs.rs using Kubernetes logs API with WebSocket streaming. Support follow mode, container selection for multi-container pods across all workload types (Deployments, DaemonSets, StatefulSets, Jobs, CronJobs), and historical log retrieval. Create Tauri commands: logs:stream, logs:stop, logs:download. Use tokio channels for async log streaming. Build src/components/features/logs/LogViewer.tsx with virtual scrolling for performance, text search/filtering, auto-scroll toggle, and color-coded log levels. Implement src/lib/hooks/useLogs.ts for managing multiple log streams from different workload types. Support downloading logs to file. Handle connection loss and auto-reconnect. Integrate with workload navigation structure for seamless log access from any pod-based resource.",
@@ -381,7 +381,7 @@
         "expansionPrompt": "Organize into: 1) Implement Kubernetes logs API backend commands, 2) Create LogViewer React component with virtual scrolling, 3) Implement useLogs React hook for stream management, 4) Add container selection and log filtering features, 5) Implement log export and workload integration features"
       },
       {
-        "id": 6,
+        "id": "6",
         "title": "Implement Interactive Shell/Terminal Access",
         "description": "Create WebSocket-based terminal for executing commands in running containers across all workload types with integration to workload navigation structure",
         "details": "Implement src-tauri/src/commands/shell.rs using Kubernetes exec API with WebSocket. Support interactive shell sessions with proper terminal emulation (bash/sh) for containers in Deployments, DaemonSets, StatefulSets, Jobs, and CronJobs. Create shell:start, shell:send_input, shell:resize, shell:close Tauri commands. Handle terminal resize events and keyboard input. Build src/components/features/shell/Terminal.tsx using xterm.js for full terminal emulation. Support multiple concurrent shell sessions with tab management across different workload types. Implement copy/paste functionality and keyboard shortcuts. Handle session cleanup and reconnection on network issues. Integrate with workload navigation structure for seamless shell access from any pod-based resource.",
@@ -456,7 +456,7 @@
         "expansionPrompt": "Structure as: 1) Implement Kubernetes exec API WebSocket connection in shell.rs, 2) Create Tauri commands for shell session management, 3) Build Terminal.tsx component with xterm.js integration, 4) Implement multiple shell session management with tabs, 5) Add copy/paste functionality and workload integration"
       },
       {
-        "id": 7,
+        "id": "7",
         "title": "Implement Port Forwarding Management",
         "description": "Build port forwarding system for accessing services locally with integration to networking and workload navigation structure",
         "details": "Implement src-tauri/src/commands/portforward.rs using Kubernetes port-forward API. Support forwarding from pods (across all workload types) and services (from Networking section) to localhost ports. Create portforward:start, portforward:stop, portforward:list Tauri commands. Handle auto-reconnection on connection loss and port conflict detection. Build src/components/features/portforward/PortForwardManager.tsx for managing active forwards. Show status indicators (connected, connecting, failed) and provide easy start/stop controls. Implement automatic port assignment and validation. Store active forwards in application state with persistence across app restarts. Integrate with both workload navigation (for pod forwarding) and networking navigation (for service forwarding) for seamless access from resource lists.",
@@ -532,7 +532,7 @@
         "expansionPrompt": "Divide into: 1) Implement core Tauri backend for port forwarding, 2) Build port forwarding state management and persistence, 3) Create PortForwardManager React component, 4) Implement automatic port assignment and validation, 5) Add comprehensive error handling and navigation integration"
       },
       {
-        "id": 8,
+        "id": "8",
         "title": "Implement Resource Detail Views and YAML Editing",
         "description": "Create detailed resource views with YAML editing and update capabilities for all 49 resource types across 8 categories",
         "details": "Build src/components/features/resources/ResourceDetail.tsx showing complete resource information: metadata, spec, status, events, conditions for all resource types across 8 categories (Cluster, Helm, Workloads, Networking, Configuration, Storage, Access Control, Administration). Implement YAML editor with syntax highlighting using Monaco Editor or CodeMirror. Create resource:update, resource:delete, resource:apply Tauri commands supporting all resource types. Support different patch types (JSON Patch, Merge Patch, Strategic Merge Patch) for different resource kinds. Add validation for YAML syntax and Kubernetes schema for all resource types. Implement rollback functionality for failed updates. Show diff view when editing resources. Add confirmation dialogs for destructive operations. Include resource-specific detail views for complex resources like Deployments (replica status, conditions, events), Services (endpoints, ingress), PVCs (mounting status), etc.",
@@ -608,7 +608,7 @@
         "updatedAt": "2025-12-13T11:46:42.934Z"
       },
       {
-        "id": 9,
+        "id": "9",
         "title": "Implement Application Settings and Preferences",
         "description": "Build comprehensive settings system with theme support, auto-update, and user preferences supporting all 8 resource categories",
         "details": "Create src/components/features/settings/SettingsPanel.tsx for user preferences with settings organized by the 8 main navigation categories. Implement light/dark theme switching with system theme detection. Add auto-update functionality using Tauri updater plugin with signature verification. Create settings for default namespace, refresh intervals for different resource types, log retention, and keyboard shortcuts. Configure category-specific preferences (e.g., default workload type views, networking resource polling rates, storage metrics display). Use Tauri store plugin for settings persistence. Implement src/lib/store/ui-store.ts for UI state management across all navigation categories. Add settings:get, settings:set, settings:reset Tauri commands. Support importing/exporting configuration. Include accessibility options and performance settings for handling large numbers of resources across all categories. Add window vibrancy level settings with validation/defaults and ensure persisted UI settings rehydrate with correct typing.",
@@ -689,7 +689,7 @@
         "updatedAt": "2025-12-13T17:37:56.057Z"
       },
       {
-        "id": 10,
+        "id": "10",
         "title": "Implement Application Packaging and Distribution",
         "description": "Set up build pipeline for cross-platform distribution with code signing supporting the complete Kubeli application with all 8 resource categories",
         "details": "Configure Tauri build for macOS (.dmg), Linux (.deb, .AppImage), and Windows (.msi) distributions. Set up code signing for all platforms: Apple Developer ID for macOS, GPG signing for Linux packages, Authenticode for Windows. Create GitHub Actions workflow for automated builds and releases. Implement update manifest server endpoint for auto-updates. Configure bundle optimizations to keep installer size under 50MB despite supporting all 49 resource types. Set up crash reporting and telemetry collection (opt-in) with category-specific metrics. Create installation documentation and system requirements. Add uninstaller for Windows and cleanup scripts. Include application metadata reflecting the complete Kubeli feature set with all navigation categories.",
@@ -767,7 +767,7 @@
         "updatedAt": "2025-12-30T13:46:50.288Z"
       },
       {
-        "id": 11,
+        "id": "11",
         "title": "Implement Cluster Resources Views",
         "description": "Build views for Events, Namespaces, and Leases cluster resources",
         "details": "Implement the remaining Cluster category resources. Create EventsView with real-time event streaming, filtering by type/reason/involved object, and timeline visualization. Build NamespacesView with namespace management (create/delete), resource quota display, and quick namespace switching. Implement LeasesView showing leader election status for control plane components. Add backend commands for listing and watching these resources. Include proper error handling and empty states.",
@@ -782,7 +782,7 @@
         "updatedAt": "2025-12-30T04:44:27.300Z"
       },
       {
-        "id": 12,
+        "id": "12",
         "title": "Implement Helm Releases Management",
         "description": "Build comprehensive Helm releases management with install, upgrade, rollback capabilities",
         "details": "Create HelmReleasesView showing all Helm releases across namespaces. Display release status, chart version, app version, and revision history. Implement release actions: upgrade, rollback, uninstall. Add values editor with diff view for upgrades. Show release notes and computed values. Implement Rust backend using helm-rs or direct Helm API integration. Support adding Helm repositories and browsing available charts.",
@@ -797,7 +797,7 @@
         "updatedAt": "2025-12-30T13:17:01.949Z"
       },
       {
-        "id": 13,
+        "id": "13",
         "title": "Implement Extended Workload Resources",
         "description": "Build views for ReplicaSets, DaemonSets, StatefulSets, Jobs, and CronJobs",
         "details": "Implement WorkloadsOverview with aggregated status of all workload types. Create ReplicaSetsView showing replica sets with owner references to deployments. Build DaemonSetsView with node scheduling status and update strategy display. Implement StatefulSetsView with ordered pod management and persistent volume claims. Create JobsView with completion status, parallelism settings, and pod logs access. Build CronJobsView with schedule display, last execution time, and manual trigger capability. Add backend commands for all resource types.",
@@ -813,7 +813,7 @@
         "updatedAt": "2025-12-30T05:07:53.888Z"
       },
       {
-        "id": 14,
+        "id": "14",
         "title": "Implement Extended Networking Resources",
         "description": "Build views for Ingresses, Endpoint Slices, Network Policies, and Ingress Classes",
         "details": "Create IngressesView with routing rules display, TLS configuration, and backend service links. Implement EndpointSlicesView showing service endpoints with health status. Build NetworkPoliciesView with ingress/egress rules visualization and affected pods display. Create IngressClassesView for managing ingress controller configurations. Add backend commands with proper API group handling (networking.k8s.io).",
@@ -828,7 +828,7 @@
         "updatedAt": "2026-01-17T07:41:49.066Z"
       },
       {
-        "id": 15,
+        "id": "15",
         "title": "Implement Extended Configuration Resources",
         "description": "Build views for HPA, Limit Ranges, Resource Quotas, and Pod Disruption Budgets",
         "details": "Create HPAView (v2) with current/target metrics display, scaling history, and recommendations. Build LimitRangesView showing default/max/min limits per resource type. Implement ResourceQuotasView with usage vs quota visualization and alerts for near-limit resources. Create PodDisruptionBudgetsView with disruption status and affected workloads. Add backend commands with metrics API integration for HPA.",
@@ -843,7 +843,7 @@
         "updatedAt": "2025-12-30T13:32:11.224Z"
       },
       {
-        "id": 16,
+        "id": "16",
         "title": "Implement Storage Resources",
         "description": "Build views for PV, PVC, Volume Attachments, Storage Classes, CSI Drivers, and CSI Nodes",
         "details": "Create PersistentVolumesView with capacity, access modes, reclaim policy, and bound PVC display. Build PersistentVolumeClaimsView with storage class, capacity, and mounting pod information. Implement VolumeAttachmentsView showing CSI volume attachment status. Create StorageClassesView with provisioner, parameters, and default class indicator. Build CSIDriversView and CSINodesView for CSI infrastructure monitoring. Add storage-specific backend commands.",
@@ -858,7 +858,7 @@
         "updatedAt": "2025-12-30T05:48:50.915Z"
       },
       {
-        "id": 17,
+        "id": "17",
         "title": "Implement Access Control Resources",
         "description": "Build views for Service Accounts, Roles, Role Bindings, Cluster Roles, and Cluster Role Bindings",
         "details": "Create ServiceAccountsView with associated secrets, image pull secrets, and token management. Build RolesView and ClusterRolesView with rules display (verbs, resources, API groups). Implement RoleBindingsView and ClusterRoleBindingsView showing subject-to-role mappings. Add RBAC analyzer to show effective permissions for a user/service account. Include backend commands for RBAC resources with proper authorization checks.",
@@ -873,7 +873,7 @@
         "updatedAt": "2025-12-30T06:13:12.234Z"
       },
       {
-        "id": 18,
+        "id": "18",
         "title": "Implement Administration Resources",
         "description": "Build views for CRDs, Priority Classes, Runtime Classes, and Webhooks",
         "details": "Create CRDsView with custom resource definitions, versions, and schema display. Allow browsing and managing custom resource instances. Build PriorityClassesView with preemption policy and value display. Implement RuntimeClassesView showing container runtime configurations. Create MutatingWebhooksView and ValidatingWebhooksView with webhook rules, failure policy, and call statistics. Add backend commands for all admin resources. See openspec/specs/crd-management/spec.md for detailed CRD requirements.",
@@ -888,7 +888,7 @@
         "updatedAt": "2025-12-30T06:13:12.237Z"
       },
       {
-        "id": 19,
+        "id": "19",
         "title": "Implement Advanced Log Viewer Features",
         "description": "Enhance log viewer with advanced search, multi-pod tailing, and log aggregation",
         "details": "Add regex search and highlighting in log viewer. Implement multi-pod log tailing for deployments (aggregate logs from all pods). Add log level filtering with color coding. Implement log bookmarking and annotation. Add export to various formats (plain text, JSON, with timestamps). Create log comparison view for debugging. Add log streaming from init containers and previous container instances.",
@@ -903,7 +903,7 @@
         "updatedAt": "2025-12-30T13:44:42.176Z"
       },
       {
-        "id": 20,
+        "id": "20",
         "title": "Implement Resource Favorites and Quick Access",
         "description": "Add ability to favorite/pin resources for quick access across the application",
         "details": "Create favorites system allowing users to pin frequently accessed resources. Add favorites section in sidebar with quick navigation. Implement recent resources history. Add keyboard shortcuts for favorite resources (Cmd+1 through Cmd+9). Store favorites per cluster context. Add drag-and-drop reordering of favorites. Include favorite groups/folders for organization.",
@@ -918,7 +918,7 @@
         "updatedAt": "2025-12-30T13:41:18.510Z"
       },
       {
-        "id": 21,
+        "id": "21",
         "title": "Implement Auto-Reconnect and Connection Health",
         "description": "Add automatic reconnection on cluster disconnect and connection health monitoring",
         "details": "Implement connection health monitoring with periodic API server pings. Add automatic reconnection with exponential backoff when connection is lost. Show connection status indicator with latency information. Add offline mode with cached data display. Implement graceful degradation when cluster is unreachable. Add connection retry controls in UI. Store and restore watch subscriptions after reconnection. See openspec/specs/auto-reconnect/spec.md for detailed requirements.",
@@ -933,7 +933,7 @@
         "updatedAt": "2025-12-30T06:17:16.677Z"
       },
       {
-        "id": 22,
+        "id": "22",
         "title": "Implement Metrics Monitoring and Charts",
         "description": "Build real-time resource metrics visualization for nodes and pods including CPU, memory usage charts",
         "details": "Implement src-tauri/src/k8s/metrics.rs for fetching metrics from Kubernetes Metrics API. Create Tauri commands: metrics:get_node_metrics, metrics:get_pod_metrics, metrics:get_cluster_summary. Build frontend components for real-time charts showing CPU and memory usage with sparklines and historical data. Display metrics in Node and Pod detail views. Show cluster-wide resource utilization in Cluster Overview. Implement metrics polling with configurable intervals. Handle metrics-server unavailability gracefully. See openspec/specs/metrics-monitoring/spec.md for detailed requirements.",
@@ -948,7 +948,7 @@
         "updatedAt": "2025-12-14T15:37:11.891Z"
       },
       {
-        "id": 23,
+        "id": "23",
         "title": "Implement Proxy Support",
         "description": "Enable connecting to Kubernetes clusters through HTTP and SOCKS proxies for corporate environments",
         "details": "Implement src-tauri/src/network/proxy.rs for proxy configuration management. Support HTTP, HTTPS, SOCKS4, and SOCKS5 proxies. Add system proxy detection for macOS, Windows, and Linux. Create per-cluster proxy settings with global defaults. Implement proxy authentication with secure credential storage. Add proxy settings UI in Settings > Network. Create proxy connection testing functionality. Add hyper-http-proxy and hyper-socks2 dependencies. See openspec/specs/proxy-support/spec.md for detailed requirements.",
@@ -964,7 +964,7 @@
         "updatedAt": "2025-12-30T14:01:21.643Z"
       },
       {
-        "id": 24,
+        "id": "24",
         "title": "Implement AI Assistant Integration with Claude Agent SDK",
         "description": "Build intelligent AI assistant using Claude Agent SDK (not raw API) that can autonomously analyze cluster resources, diagnose issues, and suggest remediation",
         "details": "CRITICAL: Use Claude Agent SDK via `claude_agent_sdk` Rust crate - NOT the raw Claude API. The Agent SDK provides autonomous tool loop, context management, and multi-step workflow execution.\n\nRust Implementation:\n- Create src-tauri/src/ai/agent_manager.rs with AgentManager struct for process lifecycle\n- Use tokio::process::Command to spawn claude CLI in Agent Mode\n- Implement ClaudeSDKClient for stateful bi-directional streaming connection\n- Store Session IDs in SQLite (rusqlite) for session persistence and resume capability\n- Implement PermissionCallback trait for security guardrails\n\nPermission Modes (Defense-in-Depth):\n1. Plan (Default): Agent proposes commands, user must approve\n2. Default (Human-in-the-Loop): Safe commands (get, describe) auto-execute, destructive (delete, apply) require approval\n3. AcceptEdits: Full autonomy for sandboxed namespaces only\n\nHook-Based Guardrails:\n- PreToolUse hook inspects commands before execution\n- Regex matching for dangerous operations (rm -rf, kubectl delete)\n- Frontend modal via tauri://event for approval requests\n- Agent process suspended until user responds\n\nVirtual Context Strategy (Dynamic CLAUDE.md):\n- Generate ephemeral context when connecting to cluster\n- Include: Cluster Topology ('v1.28 on EKS'), Operational Constraints ('No deletes in kube-system'), Tool Availability\n- Inject via Agent SDK initialization options\n\nFrontend:\n- Create src/components/features/ai/AIAssistant.tsx with streaming chat interface\n- Support Extended Thinking display and interruptibility\n- Show tool execution steps and approval requests\n- Persist conversation history per cluster in SQLite\n\nTauri Commands:\n- ai:start_session, ai:send_message, ai:interrupt, ai:resume_session\n- ai:set_permission_mode, ai:approve_action, ai:reject_action",
@@ -1059,7 +1059,7 @@
         "updatedAt": "2026-01-01T14:31:35.554Z"
       },
       {
-        "id": 25,
+        "id": "25",
         "title": "Implement MCP Server (2025-06-18 Spec) for IDE Integration",
         "description": "Create Model Context Protocol server compliant with 2025-06-18 spec featuring Elicitation, Resource Subscriptions, and OAuth 2.1 security",
         "details": "CRITICAL: Implement MCP spec version 2025-06-18 with new features: Elicitation, Resource Subscriptions, OAuth 2.1 + DPoP.\n\nRust Crates:\n- `turbomcp` or `pulseengine-mcp` for MCP server implementation\n- `pulseengine-mcp-auth` for OAuth 2.1 with DPoP (Demonstrating Proof-of-Possession)\n\nElicitation Implementation (Handling Ambiguity):\n- When tool encounters ambiguity (e.g., multiple services matching 'payment'), return ElicitationRequest\n- ElicitationRequest contains message and JSON schema for choices\n- Agent SDK passes to frontend for user disambiguation modal\n- User selection sent back to MCP server to proceed\n- Example: #[mcp_tool] async fn restart_service() returns ToolResult::Elicit(ElicitationRequest{...})\n\nResource Subscriptions (kube-rs Watcher Bridge):\n- Agent subscribes to MCP Resource URI: k8s://default/events\n- Rust backend spawns kube::runtime::watcher if not active\n- K8s events (Added/Modified/Deleted) transformed to MCP ResourceUpdated notifications\n- Agent receives 'interrupts' and can proactively act ('payment pod is crashing, shall I investigate?')\n- Enables proactive monitoring partner, not just passive dashboard\n\nSecurity (OAuth 2.1 Resource Server):\n- Implement Resource Indicators per 2025-06-18 spec\n- Tokens bound to specific cluster context\n- DPoP prevents token replay attacks\n- Use `pulseengine-mcp-auth` crate for implementation\n\nMCP Tools to Expose:\n- get_pods, get_deployments, get_services, get_logs (streaming), get_metrics, get_events\n- describe_resource, get_yaml, apply_yaml, delete_resource (with permission checks)\n- get_cluster_info, switch_namespace, list_namespaces\n\nTransport:\n- Stdio for local connections (recommended for desktop)\n- HTTP/SSE or Streamable HTTP (2025-03-26 spec) for remote\n\nSettings UI:\n- Enable/disable MCP server\n- Port configuration\n- Auth settings\n- Documentation links for VS Code, Cursor, Claude Code integration",
@@ -1154,7 +1154,7 @@
         "updatedAt": "2026-01-18T10:41:06.634Z"
       },
       {
-        "id": 26,
+        "id": "26",
         "title": "Implement Visual Resource Relationship Diagram with Elkjs",
         "description": "Build high-performance interactive diagram using React Flow + Elkjs optimized for 1000+ nodes at 60 FPS",
         "details": "CRITICAL: Use Elkjs (NOT Dagre) for layout - Elkjs supports compound/nested nodes essential for Namespace and Node groupings.\n\nLayout Engine Selection:\n- Dagre: Fast but NO compound node support\n- Elkjs: Layered layouts with robust nested/compound nodes - REQUIRED for microservices visualization\n\nPerformance Optimizations (Target: 1000+ nodes @ 60 FPS):\n1. Web Worker: Offload Elkjs layout calculation to worker thread (off-main-thread architecture)\n2. React.memo: Wrap ALL custom Node components to prevent unnecessary re-renders\n3. Zustand State Management: External to React render cycle\n   - nodes array in React Flow = lightweight positional data only\n   - Heavy metadata (labels, annotations, conditions) in Zustand store\n   - Nodes subscribe to specific state slices: useStore(state => state.nodes[id])\n4. Level of Detail (LOD): Zoom-based rendering\n   - High zoom: Full details (metrics, status icons, labels)\n   - Low zoom: Simplified 'Dot' representation\n\nGraph Generation (Rust Backend):\nCreate src-tauri/src/graph/topology.rs with relationship discovery algorithms:\n1. OwnerReferences (Explicit): O(N) - metadata.ownerReferences contains UID\n   - controller: true → Solid 'Ownership' line\n   - controller: false → Dashed 'Reference' line\n2. Label Selectors (Implicit): O(N*M) optimized with BTreeMap indexes\n   - Service → Pod edges via spec.selector\n3. Volume Associations: Parse spec.volumes array for Pod → PVC → PV edges\n\nOutput: GraphData { nodes: [], edges: [] } sent to frontend via Tauri command\n\nFrontend Implementation:\n- src/components/features/visualization/ResourceDiagram.tsx\n- src/lib/workers/layout-worker.ts (Web Worker for Elkjs)\n- Custom node components for each K8s resource type with status indicators\n- Edge styling: owns (solid), selects (dashed), mounts (dotted), exposes (colored)\n\nFeatures:\n- Namespace-scoped and cluster-wide views\n- Compound nodes for Namespaces and Nodes\n- Click-to-navigate to resource details\n- Minimap for large clusters\n- Filter by resource type or label\n- Search to highlight specific resources\n- Export as PNG/SVG\n- Real-time updates via kube-rs watchers",
@@ -1241,7 +1241,7 @@
         "updatedAt": "2025-12-30T04:36:11.970Z"
       },
       {
-        "id": 27,
+        "id": "27",
         "title": "Implement i18n Internationalization with next-intl",
         "description": "Add complete internationalization support for the entire application with English and German translations",
         "details": "Implement i18n using next-intl library for static Next.js export compatibility with Tauri. Create I18nProvider component with locale detection and persistence. Add translation files for EN and DE covering: navigation items, Dashboard resource views (40+ views), ResourceList component (table columns, empty messages, watch/refresh buttons), Sidebar, Settings panel, AI Assistant, Terminal, Port Forward panel, Update checker, and all dialogs. Create translateColumns() helper for dynamic column translation. Update all components to use useTranslations() hook.",
@@ -1254,7 +1254,7 @@
         "updatedAt": "2026-01-16T12:00:00.000Z"
       },
       {
-        "id": 28,
+        "id": "28",
         "title": "Fix Unused Provider Field Warning in AgentSession",
         "description": "Use the provider field in AgentSession struct for session listing and add provider info to SessionInfo",
         "details": "Fix Rust compiler warning about unused 'provider' field in AgentSession struct. Update list_sessions() to return provider information alongside session ID and cluster context. Add get_session_provider() method for future use. Update SessionInfo struct in both Rust backend (src-tauri/src/ai/commands.rs) and TypeScript frontend (src/lib/tauri/commands.ts) to include the provider field (AiCliProvider type).",
@@ -1267,7 +1267,7 @@
         "updatedAt": "2026-01-16T12:30:00.000Z"
       },
       {
-        "id": 29,
+        "id": "29",
         "title": "Stabilize pod watch lifecycle with error recovery",
         "description": "Ensure pod watch sessions recover from errors and clean up correctly.",
         "details": "In `src-tauri/src/commands/watch.rs`, emit a terminal event on watch errors and ensure sessions are removed when the stream ends. In `src/lib/hooks/useK8sResources.ts`, handle `WatchEvent::Error` by setting `isWatching` false, surfacing the error state, and retrying with bounded backoff or falling back to polling. Ensure `stopWatch` is called on unmount and on watch failure so the backend session is cleaned up.",
@@ -1280,7 +1280,7 @@
         "updatedAt": "2026-01-18T11:05:08.715Z"
       },
       {
-        "id": 30,
+        "id": "30",
         "title": "Batch log streaming updates to reduce UI churn",
         "description": "Buffer log stream events and flush in batches to keep the UI responsive with high-volume logs.",
         "details": "Add a small in-memory buffer in `src/lib/hooks/useLogs.ts` to accumulate log lines and flush them on an interval (e.g. 100–250ms) instead of per-line state updates. Keep the ring buffer size capped (maxLines) without repeated array copies. Optionally add a backend-side batch mode in `src-tauri/src/commands/logs.rs` for large streams.",
@@ -1293,7 +1293,7 @@
         "updatedAt": "2026-01-18T10:37:19.182Z"
       },
       {
-        "id": 32,
+        "id": "32",
         "title": "Add caching and request dedup for resource fetching",
         "description": "Reduce repeated network calls and improve perceived performance by caching resource lists.",
         "details": "Adopt `@tanstack/react-query` (already in dependencies) for `useK8sResources` and related hooks. Add a shared `QueryClient` with sensible `staleTime`/`cacheTime`, and convert list commands to `useQuery` calls. Ensure namespace changes invalidate caches and that watch events update the cache instead of local component state.",
@@ -1306,7 +1306,7 @@
         "updatedAt": "2026-01-18T10:37:19.182Z"
       },
       {
-        "id": 33,
+        "id": "33",
         "title": "Parallelize multi-namespace listing with bounded concurrency",
         "description": "Speed up list operations that iterate across namespaces by running requests concurrently with limits.",
         "details": "In `src-tauri/src/commands/resources.rs`, replace sequential namespace loops with `futures::stream::iter(...).buffer_unordered(N)` for pods, deployments, services, configmaps, and secrets. Keep concurrency bounded (e.g. 5–10) to avoid API throttling. Add tracing around total duration.",
@@ -1319,195 +1319,247 @@
         "updatedAt": "2026-01-18T10:50:38.168Z"
       },
       {
-        "id": 34,
+        "id": "34",
         "title": "Install and configure CycloneDX tools for npm and Rust",
         "description": "Set up @cyclonedx/cyclonedx-npm for JavaScript dependencies and cargo-cyclonedx for Rust dependencies",
         "details": "1. Install @cyclonedx/cyclonedx-npm as a devDependency:\n   npm install --save-dev @cyclonedx/cyclonedx-npm\n\n2. Install cargo-cyclonedx for Rust SBOM generation:\n   cargo install cargo-cyclonedx\n\n3. Add npm script to package.json:\n   \"sbom:npm\": \"cyclonedx-npm --output-file sbom-npm.json\"\n\n4. Verify CycloneDX npm tool generates valid output:\n   npm run sbom:npm\n\n5. Verify cargo-cyclonedx generates valid output:\n   cd src-tauri && cargo cyclonedx --format json --output-cdx ../sbom-rust.json\n\nImplementation notes:\n- Use latest stable versions of both tools\n- CycloneDX format version should be 1.4 or higher for compliance\n- Output files should be generated at project root level\n- Both tools support CycloneDX JSON format natively",
         "testStrategy": "1. Run npm run sbom:npm and verify sbom-npm.json is created\n2. Validate JSON format with: cat sbom-npm.json | jq .\n3. Verify CycloneDX schema compliance by checking for required fields: bomFormat, specVersion, version, components\n4. Run cargo cyclonedx command and verify sbom-rust.json is created\n5. Validate Rust SBOM contains expected Cargo dependencies from Cargo.toml\n6. Check that both files are valid JSON and parseable",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.068Z"
       },
       {
-        "id": 35,
+        "id": "35",
         "title": "Add Makefile targets for SBOM generation",
         "description": "Create make targets for easy SBOM generation: sbom-npm, sbom-rust, and sbom (combined)",
         "details": "Add the following targets to Makefile after the \"## Utilities\" section:\n\n```makefile\n## Security & Compliance\n\nsbom-npm: ## Generate npm dependencies SBOM (CycloneDX)\n\t@echo \"$(CYAN)Generating npm SBOM...$(RESET)\"\n\tnpm run sbom:npm\n\t@echo \"$(GREEN)✓ SBOM generated: sbom-npm.json$(RESET)\"\n\nsbom-rust: ## Generate Rust dependencies SBOM (CycloneDX)\n\t@echo \"$(CYAN)Generating Rust SBOM...$(RESET)\"\n\t@cd src-tauri && cargo cyclonedx --format json --output-cdx ../sbom-rust.json\n\t@echo \"$(GREEN)✓ SBOM generated: sbom-rust.json$(RESET)\"\n\nsbom: sbom-npm sbom-rust ## Generate complete SBOM for all dependencies\n\t@echo \"$(GREEN)✓ All SBOM files generated$(RESET)\"\n\t@echo \"  - sbom-npm.json (JavaScript/npm dependencies)\"\n\t@echo \"  - sbom-rust.json (Rust/Cargo dependencies)\"\n```\n\nImplementation notes:\n- Place targets in logical section for security/compliance\n- Follow existing Makefile style with colored output\n- sbom target should depend on both sbom-npm and sbom-rust\n- Add descriptive help text for each target",
         "testStrategy": "1. Run make sbom-npm and verify:\n   - Colored output appears\n   - sbom-npm.json is created at project root\n   - Success message is displayed\n2. Run make sbom-rust and verify:\n   - Command executes from correct directory (src-tauri)\n   - sbom-rust.json is created at project root\n   - Success message is displayed\n3. Run make sbom and verify:\n   - Both files are generated\n   - Summary output lists both files\n4. Run make help and verify SBOM targets appear in help output",
         "priority": "high",
         "dependencies": [
-          34
+          "34"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.072Z"
       },
       {
-        "id": 36,
+        "id": "36",
         "title": "Update .gitignore to exclude SBOM files from version control",
         "description": "Add SBOM output files to .gitignore as they are generated artifacts",
         "details": "Add the following entries to .gitignore file:\n\n```gitignore\n# SBOM artifacts (generated)\nsbom-npm.json\nsbom-rust.json\n```\n\nImplementation notes:\n- Add entries in a dedicated section with descriptive comment\n- These files should be generated on-demand and in CI/CD, not committed\n- SBOM files will be attached to GitHub releases as artifacts instead\n- Place this section near other build artifacts (like .next/, out/, etc.)",
         "testStrategy": "1. Add entries to .gitignore\n2. Generate SBOM files with make sbom\n3. Run git status and verify sbom-*.json files are not listed as untracked\n4. Verify existing .gitignore patterns still work correctly\n5. Commit .gitignore changes and verify SBOM files remain ignored",
         "priority": "medium",
         "dependencies": [
-          34
+          "34"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.073Z"
       },
       {
-        "id": 37,
+        "id": "37",
         "title": "Implement GitHub Actions workflow for SBOM generation on releases",
         "description": "Modify release.yml workflow to automatically generate and attach SBOM files to GitHub releases",
         "details": "Update .github/workflows/release.yml to add SBOM generation step:\n\n1. Add a new job or step in the build-tauri job after frontend build:\n\n```yaml\n- name: Install CycloneDX npm\n  run: npm install --save-dev @cyclonedx/cyclonedx-npm\n\n- name: Install cargo-cyclonedx\n  run: cargo install cargo-cyclonedx\n\n- name: Generate SBOM files\n  run: |\n    npm run sbom:npm\n    cd src-tauri && cargo cyclonedx --format json --output-cdx ../sbom-rust.json\n\n- name: Upload SBOM artifacts to release\n  if: startsWith(github.ref, 'refs/tags/v')\n  uses: actions/upload-release-asset@v1\n  env:\n    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n  with:\n    upload_url: ${{ needs.create-release.outputs.upload_url }}\n    asset_path: ./sbom-npm.json\n    asset_name: sbom-npm.json\n    asset_content_type: application/json\n\n- name: Upload Rust SBOM to release\n  if: startsWith(github.ref, 'refs/tags/v')\n  uses: actions/upload-release-asset@v1\n  env:\n    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n  with:\n    upload_url: ${{ needs.create-release.outputs.upload_url }}\n    asset_path: ./sbom-rust.json\n    asset_name: sbom-rust.json\n    asset_content_type: application/json\n```\n\nAlternatively, use the simpler tauri-action integration:\n\n```yaml\n- name: Build Tauri App\n  uses: tauri-apps/tauri-action@v0\n  env:\n    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}\n  with:\n    releaseId: ${{ needs.create-release.outputs.release_id }}\n    args: --target ${{ matrix.target }}\n    # Add SBOM files as additional assets\n    includeRelease: true\n    releaseBody: 'See [CHANGELOG.md] for details.'\n    # Generate SBOMs before build\n    prerelease: |\n      npm run sbom:npm\n      cd src-tauri && cargo cyclonedx --format json --output-cdx ../sbom-rust.json\n```\n\nImplementation notes:\n- Install cargo-cyclonedx in CI environment\n- Generate both SBOM files before creating release assets\n- Attach SBOM files as release artifacts alongside DMG/binary\n- Ensure SBOM generation doesn't fail the build (use continue-on-error if needed)\n- Consider caching cargo-cyclonedx installation",
         "testStrategy": "1. Create a test tag and push to trigger workflow\n2. Monitor GitHub Actions workflow execution\n3. Verify SBOM generation steps complete successfully\n4. Check that both sbom-npm.json and sbom-rust.json are created\n5. Verify SBOM files are uploaded as release assets\n6. Download SBOM artifacts from release and validate JSON format\n7. Confirm CycloneDX schema compliance of generated files\n8. Test on both matrix targets (aarch64 and x86_64) if applicable",
         "priority": "high",
         "dependencies": [
-          34,
-          35
+          "34",
+          "35"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.075Z"
       },
       {
-        "id": 38,
+        "id": "38",
         "title": "Document SBOM generation in README.md",
         "description": "Add documentation section explaining SBOM generation, usage, and compliance benefits",
         "details": "Add a new section to README.md after the \"Development\" section:\n\n```markdown\n## Security & Compliance\n\n### SBOM (Software Bill of Materials)\n\nKubeli generates Software Bill of Materials (SBOM) documentation in CycloneDX format for supply chain security and compliance audits.\n\n#### Generate SBOM\n\n```bash\n# Generate npm dependencies SBOM\nmake sbom-npm\n\n# Generate Rust dependencies SBOM\nmake sbom-rust\n\n# Generate both SBOMs\nmake sbom\n```\n\n#### SBOM Files\n\n| File | Description | Format |\n|------|-------------|--------|\n| `sbom-npm.json` | JavaScript/npm dependencies | CycloneDX 1.4+ |\n| `sbom-rust.json` | Rust/Cargo dependencies | CycloneDX 1.4+ |\n\n#### Release Artifacts\n\nSBOM files are automatically generated and attached to each [GitHub Release](https://github.com/atilladeniz/Kubeli/releases) for:\n- Security vulnerability tracking\n- Compliance requirements (NTIA, Executive Order 14028)\n- Supply chain transparency\n- License compliance audits\n\n#### Tools Used\n\n- [@cyclonedx/cyclonedx-npm](https://github.com/CycloneDX/cyclonedx-node-npm) - npm SBOM generator\n- [cargo-cyclonedx](https://github.com/CycloneDX/cyclonedx-rust-cargo) - Cargo SBOM generator\n```\n\nImplementation notes:\n- Place section after Development section, before existing content\n- Include table for clarity on file purposes\n- Link to actual tools used for transparency\n- Mention compliance standards (NTIA minimum elements, EO 14028)\n- Add to table of contents if README has one",
         "testStrategy": "1. Add section to README.md\n2. Verify markdown renders correctly on GitHub\n3. Test all command examples work as documented\n4. Verify links to GitHub releases and tools are valid\n5. Check that documentation matches actual implementation\n6. Ensure formatting is consistent with existing README style\n7. Have team member review for clarity and completeness",
         "priority": "medium",
         "dependencies": [
-          34,
-          35,
-          37
+          "34",
+          "35",
+          "37"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.076Z"
       },
       {
-        "id": 39,
+        "id": "39",
         "title": "Initialize Nextra documentation project",
         "description": "Set up a new Nextra project in the docs/ directory with Next.js theme configuration and TypeScript support",
         "details": "1. Create docs/ directory at project root\n2. Initialize Nextra using latest version (nextra@^4.x with next@^15/16 compatibility)\n3. Install dependencies: nextra, nextra-theme-docs, next, react, react-dom\n4. Configure package.json with scripts for dev/build\n5. Set up TypeScript with tsconfig.json\n6. Create theme.config.tsx with Kubeli branding:\n   - Logo: use project logo from .assets/\n   - Colors: match Tailwind theme\n   - Project links: GitHub repo\n   - Footer: MIT license, author info\n7. Configure next.config.mjs for static export (output: 'export')\n8. Add .gitignore for .next/, out/, node_modules/\n9. Test dev server runs successfully",
         "testStrategy": "Run 'npm run dev' in docs/ directory and verify Nextra dev server starts on port 3000. Check that theme.config.tsx displays Kubeli branding. Verify static export builds successfully with 'npm run build'.",
         "priority": "high",
         "dependencies": [],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.179Z"
       },
       {
-        "id": 40,
+        "id": "40",
         "title": "Add Makefile targets for documentation workflow",
         "description": "Extend the project Makefile with targets for documentation development, build, and deployment",
         "details": "Add the following targets to Makefile:\n1. docs-dev: Start Nextra dev server (cd docs && npm run dev)\n2. docs-build: Build static documentation (cd docs && npm run build)\n3. docs-install: Install docs dependencies (cd docs && npm install)\n4. docs-clean: Clean build artifacts (rm -rf docs/.next docs/out)\n\nAdd documentation section header: ## Documentation\nEnsure targets follow existing Makefile patterns with color output (CYAN, GREEN, YELLOW)\nUpdate .PHONY declaration to include new targets\nAdd help text for each target using ## comments",
         "testStrategy": "Run 'make docs-dev' and verify Nextra starts. Run 'make docs-build' and verify out/ directory is created with static files. Run 'make help' and confirm new documentation targets appear in the help menu.",
         "priority": "high",
         "dependencies": [
-          39
+          "39"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.182Z"
       },
       {
-        "id": 41,
+        "id": "41",
         "title": "Create landing page and getting started guide",
         "description": "Write the documentation homepage (index.mdx), installation guide, and first cluster connection tutorial",
         "details": "Create MDX files in docs/pages/:\n\n1. index.mdx (Landing page):\n   - Hero section with Kubeli description\n   - Feature highlights (multi-cluster, real-time updates, terminal, etc.)\n   - Quick links to installation and tutorials\n   - Screenshot from .assets/preview.png\n\n2. getting-started/installation.mdx:\n   - Download instructions (GitHub releases)\n   - System requirements (Node 18+, Rust 1.70+)\n   - Build from source steps (matching README.md)\n   - Platform-specific instructions (macOS)\n\n3. getting-started/first-cluster.mdx:\n   - Prerequisites (kubectl, kubeconfig)\n   - Connecting to first cluster\n   - Kubeconfig auto-detection\n   - Testing with minikube (reference Makefile commands)\n\n4. getting-started/quick-tour.mdx:\n   - Overview of main features\n   - Navigation guide\n   - Resource browser walkthrough\n   - Link to feature-specific docs\n\nUse Nextra callouts for tips/warnings",
         "testStrategy": "Navigate to each page in the dev server. Verify all internal links work. Check that code blocks render correctly with syntax highlighting. Ensure images load properly. Validate MDX syntax with no build errors.",
         "priority": "medium",
         "dependencies": [
-          39
+          "39"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.183Z"
       },
       {
-        "id": 42,
+        "id": "42",
         "title": "Document core feature set",
         "description": "Create comprehensive documentation for cluster management, resource viewing, visualization diagram, and multi-cluster support",
         "details": "Create MDX files in docs/pages/features/:\n\n1. clusters.mdx:\n   - Adding/removing clusters\n   - Kubeconfig management\n   - Provider auto-detection (Minikube, EKS, GKE, AKS)\n   - Context switching\n   - Connection troubleshooting\n\n2. resources.mdx:\n   - Resource types supported (Pods, Deployments, Services, etc.)\n   - Viewing resource details\n   - YAML editing with Monaco\n   - Deleting resources\n   - Real-time updates\n\n3. visualization.mdx:\n   - Resource diagram overview\n   - React Flow architecture (reference CLAUDE.md diagram section)\n   - LOD (Level of Detail) system\n   - Navigation and zoom controls\n   - Viewport behavior\n\n4. multi-cluster.mdx:\n   - Managing multiple clusters\n   - Switching between contexts\n   - Cluster comparison\n   - Resource aggregation views\n\nInclude screenshots and code examples",
         "testStrategy": "Review each page for technical accuracy against src/components/features/ implementation. Verify links to related features work. Test code examples are syntactically correct. Ensure screenshots match current UI.",
         "priority": "medium",
         "dependencies": [
-          39
+          "39"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.185Z"
       },
       {
-        "id": 43,
+        "id": "43",
         "title": "Create advanced features documentation",
         "description": "Document terminal access, pod logs, port forwarding, metrics dashboard, and YAML editor capabilities",
         "details": "Create MDX files in docs/pages/features/:\n\n1. terminal.mdx:\n   - Interactive shell access (XTerm.js)\n   - Container selection\n   - Terminal shortcuts\n   - Copy/paste handling\n\n2. logs.mdx:\n   - Real-time log streaming\n   - Filtering and search\n   - Export functionality\n   - Multi-container logs\n\n3. port-forwarding.mdx:\n   - Setting up port forwards\n   - Status tracking\n   - Troubleshooting\n   - Use cases\n\n4. metrics.mdx:\n   - CPU/memory usage (Recharts)\n   - Requires metrics-server\n   - Dashboard customization\n   - Performance monitoring\n\nReference implementation in src/lib/hooks/ and src/components/features/",
         "testStrategy": "Cross-reference documentation with actual implementation in src/lib/tauri/commands.ts. Verify all described features exist in the codebase. Test command examples against the application. Ensure technical details match Rust backend in src-tauri/src/commands/",
         "priority": "medium",
         "dependencies": [
-          42
+          "42"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.186Z"
       },
       {
-        "id": 44,
+        "id": "44",
         "title": "Write tutorials and troubleshooting guide",
         "description": "Create step-by-step tutorials for deploying applications, managing resources, and troubleshooting common issues",
         "details": "Create MDX files in docs/pages/tutorials/:\n\n1. index.mdx:\n   - Tutorial overview\n   - Prerequisites\n   - Skill levels (beginner/intermediate/advanced)\n\n2. deploy-app.mdx:\n   - Deploy sample application\n   - Use minikube-setup-samples resources (.dev/k8s-samples/)\n   - Create deployment via YAML\n   - Expose service\n   - Monitor deployment status\n   - Scale deployment\n\n3. troubleshooting.mdx:\n   - Common connection issues\n   - Kubeconfig problems\n   - Permission errors\n   - Proxy configuration\n   - Platform-specific issues (macOS)\n   - Debug mode instructions\n\n4. advanced/helm.mdx:\n   - Viewing Helm releases\n   - Managing Helm deployments\n   - Helm values editing\n\nInclude step-by-step commands and expected outputs",
         "testStrategy": "Follow each tutorial step-by-step in a clean environment. Verify all commands work as documented. Test troubleshooting steps resolve actual issues. Validate tutorial outcomes match described results.",
         "priority": "medium",
         "dependencies": [
-          41,
-          42
+          "41",
+          "42"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.188Z"
       },
       {
-        "id": 45,
+        "id": "45",
         "title": "Create API and development reference",
         "description": "Document Tauri commands, Zustand stores, React hooks, and development setup for contributors",
         "details": "Create MDX files in docs/pages/:\n\n1. api/commands.mdx:\n   - Document Tauri commands from src/lib/tauri/commands.ts\n   - Rust backend architecture (src-tauri/src/commands/)\n   - KubeClientManager usage\n   - Error handling patterns\n\n2. api/stores.mdx:\n   - Zustand store architecture\n   - cluster-store.ts\n   - diagram-store.ts\n   - State management patterns\n\n3. development/setup.mdx:\n   - Prerequisites (Node.js, Rust, pnpm)\n   - Clone and install (reference Makefile)\n   - Development workflow\n   - Hot reload behavior\n\n4. development/contributing.mdx:\n   - Link to CONTRIBUTING.md\n   - Code style (ESLint, Prettier)\n   - Git commit guidelines (no emojis, clean messages)\n   - PR process\n\nGenerate API docs from JSDoc/TSDoc comments where available",
         "testStrategy": "Verify API documentation matches actual function signatures in src/lib/. Check that development setup instructions work on a fresh clone. Validate that all referenced files exist. Test code examples compile without errors.",
         "priority": "low",
         "dependencies": [
-          39
+          "39"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.189Z"
       },
       {
-        "id": 46,
+        "id": "46",
         "title": "Set up GitHub Actions deployment pipeline",
         "description": "Create CI/CD workflow for automated documentation deployment to GitHub Pages or Vercel",
         "details": "1. Create .github/workflows/docs.yml:\n   - Trigger: push to main, docs/** changes\n   - Jobs: build and deploy\n   - Use Node.js 18+ (match project)\n   - Install deps: cd docs && npm ci\n   - Build: npm run build\n   - Deploy to GitHub Pages using actions/deploy-pages@v4\n\n2. Configure GitHub Pages:\n   - Enable in repo settings\n   - Source: gh-pages branch or GitHub Actions\n   - Custom domain (optional): docs.kubeli.app\n\n3. Alternative Vercel deployment:\n   - Create vercel.json in docs/\n   - Configure build command and output directory\n   - Set up Vercel project\n\n4. Update main README.md:\n   - Add documentation link badge\n   - Link to docs site in Features section\n\n5. Add docs link to main project (src/components/layout/Sidebar.tsx or Help menu)\n\nUse existing .github/workflows/ci.yml as reference for Node.js setup",
         "testStrategy": "Create a test branch, push docs changes, and verify workflow runs successfully. Check GitHub Pages/Vercel deployment completes. Visit deployed URL and confirm site is accessible. Test that changes to docs/ trigger rebuilds. Verify README.md link points to correct URL.",
         "priority": "high",
         "dependencies": [
-          40,
-          41
+          "40",
+          "41"
         ],
-        "status": "pending",
-        "subtasks": []
+        "status": "done",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.190Z"
       },
       {
-        "id": 47,
+        "id": "47",
         "title": "Add Flux CD HelmRelease CRD Support",
         "description": "Extend Helm management to support Flux CD HelmRelease CRDs (helm.toolkit.fluxcd.io/v2) alongside native Helm releases, including backend commands, minikube test environment, and UI integration",
         "details": "Implement comprehensive Flux CD HelmRelease support following the existing Helm architecture:\n\n## 1. Rust Backend (src-tauri/src/commands/flux_helm.rs)\n\nCreate new module for Flux HelmRelease management:\n\n```rust\nuse kube::{Api, api::ListParams};\nuse k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;\nuse serde::{Deserialize, Serialize};\n\n// Flux HelmRelease CRD structures (helm.toolkit.fluxcd.io/v2)\n#[derive(Debug, Clone, Serialize, Deserialize)]\npub struct FluxHelmRelease {\n    pub name: String,\n    pub namespace: String,\n    pub chart_name: String,\n    pub chart_version: String,\n    pub status: FluxHelmReleaseStatus,\n    pub last_applied_revision: Option<String>,\n    pub ready: bool,\n    pub message: Option<String>,\n    pub created_at: Option<String>,\n}\n\n#[derive(Debug, Clone, Serialize, Deserialize)]\n#[serde(rename_all = \"lowercase\")]\npub enum FluxHelmReleaseStatus {\n    Ready,\n    Progressing,\n    Failed,\n    Unknown,\n}\n\n// Tauri commands\n#[command]\npub async fn list_flux_helm_releases(\n    state: State<'_, AppState>,\n    namespace: Option<String>,\n) -> Result<Vec<FluxHelmRelease>, String>\n\n#[command]\npub async fn get_flux_helm_release(\n    state: State<'_, AppState>,\n    name: String,\n    namespace: String,\n) -> Result<FluxHelmReleaseDetail, String>\n\n#[command]\npub async fn check_flux_installed(\n    state: State<'_, AppState>\n) -> Result<bool, String>\n```\n\n**Key Implementation Details:**\n- Use kube-rs Dynamic API for CRD access: `kube::api::DynamicObject`\n- Parse CRD spec/status from serde_json::Value\n- Map Flux conditions to FluxHelmReleaseStatus\n- Handle CRD not installed gracefully (return empty list)\n- Follow src-tauri/src/commands/helm.rs patterns for consistency\n\n## 2. Minikube Test Environment (.dev/flux-setup.sh)\n\nCreate automated Flux CD setup script:\n\n```bash\n#!/bin/bash\n# Install Flux CD on minikube\nflux install --namespace flux-system\n\n# Create test HelmRepository\nflux create source helm podinfo \\\\\n  --url=https://stefanprodan.github.io/podinfo \\\\\n  --namespace=flux-system\n\n# Create sample HelmRelease\nflux create helmrelease podinfo \\\\\n  --source=HelmRepository/podinfo \\\\\n  --chart=podinfo \\\\\n  --namespace=default \\\\\n  --target-namespace=default \\\\\n  --interval=5m\n```\n\n**Additional Setup:**\n- Add to Makefile: `make flux-setup`, `make flux-teardown`\n- Create .dev/k8s-samples/11-flux-helmreleases.yaml with sample CRDs\n- Update README.md with Flux testing instructions\n\n## 3. TypeScript Frontend Integration\n\n### A. Types (src/lib/types/kubernetes.ts)\n\n```typescript\nexport interface FluxHelmReleaseInfo {\n  name: string;\n  namespace: string;\n  chart_name: string;\n  chart_version: string;\n  status: FluxHelmReleaseStatus;\n  last_applied_revision: string | null;\n  ready: boolean;\n  message: string | null;\n  created_at: string | null;\n}\n\nexport type FluxHelmReleaseStatus = \"ready\" | \"progressing\" | \"failed\" | \"unknown\";\n```\n\n### B. Tauri Commands (src/lib/tauri/commands.ts)\n\n```typescript\nexport async function listFluxHelmReleases(\n  namespace?: string\n): Promise<FluxHelmReleaseInfo[]> {\n  return invoke<FluxHelmReleaseInfo[]>(\"list_flux_helm_releases\", { namespace });\n}\n\nexport async function checkFluxInstalled(): Promise<boolean> {\n  return invoke<boolean>(\"check_flux_installed\");\n}\n```\n\n### C. UI Integration\n\n**Option 1 (Recommended): Merged View**\n- Update existing HelmReleasesView (src/components/features/resources/HelmReleasesView.tsx)\n- Add \"Source\" column: \"Native Helm\" vs \"Flux CD\"\n- Filter toggle to show Native/Flux/Both\n- Unified action buttons (Flux releases read-only initially)\n\n**Option 2: Separate Tab**\n- Add \"Flux Releases\" to Sidebar under Helm category\n- Create FluxHelmReleasesView component\n- Keep UI patterns consistent with native Helm\n\n**Status Badge Mapping:**\n- Ready → green badge\n- Progressing → yellow badge\n- Failed → red badge\n- Unknown → gray badge\n\n## 4. Command Registration (src-tauri/src/main.rs)\n\n```rust\nmod commands {\n    pub mod flux_helm;\n}\n\n// In tauri::Builder::default()\n.invoke_handler(tauri::generate_handler![\n    // ... existing commands\n    commands::flux_helm::list_flux_helm_releases,\n    commands::flux_helm::get_flux_helm_release,\n    commands::flux_helm::check_flux_installed,\n])\n```\n\n## 5. Dependencies\n\nNo new Cargo dependencies needed:\n- kube-rs already supports Dynamic API for CRDs\n- k8s-openapi v0.27 with v1_35 features sufficient\n\n## 6. Architecture Alignment\n\nFollowing existing patterns:\n- Rust backend in src-tauri/src/commands/\n- Error handling: `Result<T, String>` for Tauri commands\n- TypeScript types mirror Rust structs\n- UI components in src/components/features/resources/\n- Test samples in .dev/k8s-samples/\n\n## 7. GitHub Issue #20 Reference\n\nThis implementation addresses GitHub Issue #20 requesting Flux CD support for HelmRelease CRDs.",
         "testStrategy": "1. **Flux Installation Check:**\n   - Run `make flux-setup` on minikube\n   - Verify `checkFluxInstalled()` returns true\n   - Confirm HelmRelease CRD exists: `kubectl get crd helmreleases.helm.toolkit.fluxcd.io`\n\n2. **Backend Command Testing:**\n   - Create test HelmRelease: `flux create helmrelease test-app`\n   - Call `list_flux_helm_releases()` and verify it appears\n   - Test namespace filtering with `list_flux_helm_releases(\"default\")`\n   - Call `get_flux_helm_release(\"test-app\", \"default\")` and validate structure\n   - Test graceful handling when Flux not installed (empty list)\n\n3. **UI Integration Testing:**\n   - Connect to minikube with Flux installed\n   - Navigate to Helm Releases view\n   - Verify Flux releases appear with \"Flux CD\" source indicator\n   - Test status badges render correctly (Ready=green, Failed=red, etc.)\n   - Verify filter toggle works (Native/Flux/Both)\n   - Confirm read-only behavior (no delete/upgrade buttons for Flux)\n\n4. **Cross-Reference Testing:**\n   - Compare native Helm release (`helm install nginx`) vs Flux HelmRelease\n   - Verify both appear in merged view with correct source labels\n   - Test sorting and filtering across both types\n\n5. **Error Handling:**\n   - Test with Flux not installed - should show 0 Flux releases, no errors\n   - Test with invalid namespace - should return empty list\n   - Test with Flux installed but no HelmReleases - should return empty list\n\n6. **Regression Testing:**\n   - Verify existing native Helm functionality unaffected\n   - Test existing commands: `listHelmReleases()`, `getHelmRelease()`\n   - Confirm native Helm releases still display correctly",
-        "status": "pending",
+        "status": "done",
         "dependencies": [
-          12,
-          2,
-          4
+          "12",
+          "2",
+          "4"
         ],
         "priority": "high",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:35:18.302Z"
+      },
+      {
+        "id": "48",
+        "title": "Remove loading state from Cluster Select buttons",
+        "description": "The loading spinner should not appear inside cluster selection buttons on the cluster picker screen",
+        "details": "In the cluster selection view (ClusterCard or similar component), remove the loading state indicator from individual cluster buttons. The loading feedback should happen elsewhere (e.g., a global loading indicator) rather than making the button show a spinner while connecting.",
+        "testStrategy": "1. Open Kubeli and navigate to cluster selection\n2. Click on a cluster to connect\n3. Verify the button does NOT show a loading spinner inside it\n4. Verify connection still works and feedback is provided elsewhere",
+        "status": "pending",
+        "dependencies": [],
+        "priority": "medium",
         "subtasks": []
+      },
+      {
+        "id": "49",
+        "title": "Improve fetching toast UX - avoid flickering",
+        "description": "The fetching toast should not flicker rapidly. Instead, show it briefly and then display 'Kubeli ist auf dem neusten Stand' message",
+        "details": "The current fetching toast appears and disappears too quickly causing a flickering effect. Implement a minimum display time (e.g., 500-800ms) for the loading toast, then transition smoothly to a success message 'Kubeli ist auf dem neusten Stand' (Kubeli is up to date) that stays visible for a moment before auto-dismissing. This provides better UX feedback.",
+        "testStrategy": "1. Trigger a data refresh in Kubeli\n2. Verify the fetching toast appears and stays visible for at least 500ms\n3. Verify it transitions to 'Kubeli ist auf dem neusten Stand' message\n4. Verify the success message dismisses smoothly after ~2 seconds\n5. No flickering should occur",
+        "status": "pending",
+        "dependencies": [],
+        "priority": "medium",
+        "subtasks": []
+      },
+      {
+        "id": "50",
+        "title": "Remove mr-2 margin from Delete buttons in danger zone",
+        "description": "Delete buttons in the danger zone section should not have mr-2 (margin-right) styling",
+        "details": "In the resource detail or settings views where danger zone actions are shown, the Delete button currently has mr-2 class applied which creates unnecessary spacing. Remove this margin to improve the visual layout of the danger zone section.",
+        "testStrategy": "1. Navigate to a resource detail view with a delete button in the danger zone\n2. Inspect the Delete button element\n3. Verify mr-2 class is NOT applied\n4. Verify the button layout looks correct without extra right margin",
+        "status": "done",
+        "dependencies": [],
+        "priority": "low",
+        "subtasks": [],
+        "updatedAt": "2026-01-21T11:40:36.611Z"
       }
     ],
     "metadata": {
-      "created": "2026-01-19T19:59:58.045Z",
-      "updated": "2026-01-19T22:35:09.887Z",
-      "description": "Tasks for master context"
+      "version": "1.0.0",
+      "lastModified": "2026-01-21T11:40:36.611Z",
+      "taskCount": 49,
+      "completedCount": 43,
+      "tags": [
+        "master"
+      ]
     }
   }
 }

@@ -59,25 +59,48 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     return "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
   }, []);
 
-  const checkForUpdates = useCallback(async () => {
+  const checkForUpdates = useCallback(async (showToast: boolean = false) => {
     if (checking) return null;
 
     setChecking(true);
+
+    // Show loading toast if requested
+    if (showToast) {
+      toast.loading("Checking for updates...", {
+        id: "update-check-toast",
+        duration: Infinity,
+      });
+    }
 
     try {
       const update = await check();
       if (update) {
         debug(` Update available: ${update.version}`);
         setAvailable(true, update);
+        if (showToast) {
+          toast.dismiss("update-check-toast");
+        }
         return update;
       } else {
         debug(" No update available");
         setAvailable(false, null);
+        if (showToast) {
+          toast.success("Kubeli ist auf dem neusten Stand", {
+            id: "update-check-toast",
+            duration: 2000,
+          });
+        }
         return null;
       }
     } catch (error) {
       console.error("[Updater] Check failed:", error);
       setError(error instanceof Error ? error.message : "Failed to check for updates");
+      if (showToast) {
+        toast.error("Update check failed", {
+          id: "update-check-toast",
+          duration: 3000,
+        });
+      }
       return null;
     }
   }, [checking, setChecking, setAvailable, setError]);
