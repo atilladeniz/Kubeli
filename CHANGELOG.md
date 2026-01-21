@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.39] - 2026-01-21
+
+- Fixed i18n translations for update check toast notifications
+- Fixed toast display on automatic update check at startup
+
 ## [0.2.38] - 2026-01-21
 
 - Fixed loading spinner to show only on the clicked cluster button
