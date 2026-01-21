@@ -6,7 +6,6 @@ import {
   Heart,
   RefreshCw,
   Download,
-  CheckCircle2,
   Bug,
   X,
   Globe,
@@ -128,14 +127,8 @@ export function SettingsPanel() {
 
   // Handler for check updates with toast feedback
   const handleCheckForUpdates = useCallback(async () => {
-    const result = await checkForUpdates();
-    if (result === null && !error) {
-      toast.success(t("about.upToDate"), {
-        description: t("about.upToDateDesc", { version: appVersion }),
-        icon: <CheckCircle2 className="size-4 text-green-500" />,
-      });
-    }
-  }, [checkForUpdates, error, appVersion, t]);
+    await checkForUpdates(true);
+  }, [checkForUpdates]);
 
   // Check both AI CLIs in parallel and auto-select best available
   const checkAiClis = useCallback(async () => {
