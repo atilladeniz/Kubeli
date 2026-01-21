@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.40] - 2026-01-21
+
+- Fixed auto-check toast stability issue by using useRef for stable toast strings
+
 ## [0.2.39] - 2026-01-21
 
 - Fixed i18n translations for update check toast notifications
