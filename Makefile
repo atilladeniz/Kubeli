@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
+.PHONY: dev build clean install test lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
 
 # Default target
 .DEFAULT_GOAL := help
@@ -406,6 +406,54 @@ minikube-status: ## Check minikube status
 	@echo ""
 	@echo "$(CYAN)Sample resources status:$(RESET)"
 	@kubectl get pods -n kubeli-demo --no-headers 2>/dev/null | wc -l | xargs -I{} echo "  Pods in kubeli-demo: {}" || echo "  kubeli-demo namespace not found"
+
+## Local Testing Lab (optional scenarios)
+
+minikube-setup-openshift: ## Install OpenShift CRDs and sample resources (Routes, DeploymentConfigs)
+	@echo "$(CYAN)Installing OpenShift CRDs...$(RESET)"
+	@kubectl apply -f .dev/k8s-samples/14-openshift-crds.yaml 2>/dev/null || true
+	@sleep 2
+	@echo "$(CYAN)Creating sample OpenShift resources...$(RESET)"
+	@kubectl apply -f .dev/k8s-samples/15-openshift-samples.yaml 2>/dev/null || true
+	@echo "$(GREEN)✓ OpenShift test resources installed$(RESET)"
+	@echo ""
+	@echo "$(CYAN)OpenShift Resources:$(RESET)"
+	@echo "  - Project: kubeli-openshift-demo"
+	@echo "  - Routes: demo-web-route, demo-secure-route, demo-api-route"
+	@echo "  - DeploymentConfigs: demo-web-dc, demo-api-dc"
+	@echo ""
+	@echo "$(YELLOW)Note: Mock resources for testing Kubeli's OpenShift detection.$(RESET)"
+
+minikube-clean-openshift: ## Remove OpenShift test resources
+	@echo "$(CYAN)Removing OpenShift test resources...$(RESET)"
+	@kubectl delete namespace kubeli-openshift-demo --ignore-not-found=true
+	@kubectl delete project kubeli-openshift-demo --ignore-not-found=true 2>/dev/null || true
+	@echo "$(GREEN)✓ OpenShift test resources removed$(RESET)"
+
+minikube-setup-scale: ## Create N dummy pods for scale testing (default N=100)
+	@echo "$(CYAN)Creating scale-test pods...$(RESET)"
+	@./scripts/k8s-scale.sh create $(or $(N),100)
+
+minikube-clean-scale: ## Remove all scale-test pods
+	@echo "$(CYAN)Removing scale-test pods...$(RESET)"
+	@./scripts/k8s-scale.sh delete
+	@kubectl delete namespace kubeli-scale-test --ignore-not-found=true 2>/dev/null || true
+	@echo "$(GREEN)✓ Scale-test resources removed$(RESET)"
+
+kubeconfig-fake-eks: ## Create fake EKS context pointing to local cluster
+	@./scripts/kubeconfig-sim.sh create-eks
+
+kubeconfig-fake-gke: ## Create fake GKE context pointing to local cluster
+	@./scripts/kubeconfig-sim.sh create-gke
+
+kubeconfig-fake-aks: ## Create fake AKS context pointing to local cluster
+	@./scripts/kubeconfig-sim.sh create-aks
+
+kubeconfig-auth-error: ## Create context with invalid token for auth error testing
+	@./scripts/kubeconfig-sim.sh create-auth-error
+
+kubeconfig-cleanup: ## Remove all kubeli-* simulated contexts
+	@./scripts/kubeconfig-sim.sh cleanup
 
 k8s-pods: ## List all pods across namespaces
 	kubectl get pods -A
