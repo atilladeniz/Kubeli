@@ -105,6 +105,8 @@ cd src-tauri && cargo test
 npm run test:e2e
 ```
 
+`npm run test:e2e` loads environment defaults from `config/e2e.env` and injects a mocked Google Fonts response from `config/font-mocks.cjs`.
+
 ## Local Testing Lab
 
 For testing Kubeli with simulated environments (OpenShift, EKS/GKE/AKS contexts, auth errors, scale testing), see the [Local Testing Lab documentation](.dev/README.md). This allows you to test environment detection and error handling without cloud provider access.

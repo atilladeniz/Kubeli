@@ -229,3 +229,6 @@ npm run test:e2e
 ```
 
 CI runs all three suites on every pull request and blocks merges on failure.
+
+`npm run test:e2e` loads its environment defaults from `config/e2e.env` and injects a mocked
+Google Fonts response from `config/font-mocks.cjs` for offline builds.
