@@ -1,4 +1,5 @@
-import { invoke } from "@tauri-apps/api/core";
+import { invoke as tauriInvoke } from "@tauri-apps/api/core";
+import { mockInvoke } from "./mock";
 import type {
   Cluster,
   ConnectionStatus,
@@ -56,6 +57,14 @@ import type {
   HelmReleaseHistoryEntry,
   FluxKustomizationInfo,
 } from "../types";
+
+const invoke = <T>(command: string, payload?: unknown): Promise<T> => {
+  if (process.env.NEXT_PUBLIC_TAURI_MOCK === "true") {
+    return mockInvoke(command, payload as Record<string, unknown> | undefined) as Promise<T>;
+  }
+
+  return tauriInvoke<T>(command, payload as Record<string, unknown> | undefined);
+};
 
 // Cluster commands
 export async function listClusters(): Promise<Cluster[]> {
