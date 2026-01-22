@@ -253,6 +253,38 @@ users:
     token: eyJhbGciOiJSUzI1NiIs...
 "#;
 
+    const SAMPLE_KUBECONFIG_EXTENDED: &str = r#"
+apiVersion: v1
+kind: Config
+current-context: exec-context
+clusters:
+- name: exec-cluster
+  cluster:
+    server: https://127.0.0.1:6443
+contexts:
+- name: exec-context
+  context:
+    cluster: exec-cluster
+    user: exec-user
+- name: oidc-context
+  context:
+    cluster: exec-cluster
+    user: oidc-user
+users:
+- name: exec-user
+  user:
+    exec:
+      apiVersion: client.authentication.k8s.io/v1beta1
+      command: aws
+      args: ["eks", "get-token", "--cluster-name", "demo"]
+- name: oidc-user
+  user:
+    auth-provider:
+      name: oidc
+      config:
+        id-token: fake
+"#;
+
     #[test]
     fn test_parse_kubeconfig() {
         let config = KubeConfig::parse(SAMPLE_KUBECONFIG, PathBuf::from("/test")).unwrap();
@@ -282,5 +314,14 @@ users:
         ));
         let admin_user = config.users.iter().find(|u| u.name == "admin").unwrap();
         assert!(matches!(admin_user.auth_type, AuthType::Token));
+    }
+
+    #[test]
+    fn test_auth_types_exec_and_oidc() {
+        let config = KubeConfig::parse(SAMPLE_KUBECONFIG_EXTENDED, PathBuf::from("/test")).unwrap();
+        let exec_user = config.users.iter().find(|u| u.name == "exec-user").unwrap();
+        assert!(matches!(exec_user.auth_type, AuthType::ExecPlugin));
+        let oidc_user = config.users.iter().find(|u| u.name == "oidc-user").unwrap();
+        assert!(matches!(oidc_user.auth_type, AuthType::Oidc));
     }
 }

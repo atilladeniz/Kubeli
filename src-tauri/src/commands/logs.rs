@@ -365,3 +365,35 @@ fn parse_log_line(line: &str, container: &str, pod: &str, namespace: &str) -> Lo
         namespace: namespace.to_string(),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::parse_log_line;
+
+    #[test]
+    fn parses_timestamped_log_line() {
+        let entry = parse_log_line(
+            "2024-01-01T12:00:00.000000000Z hello world",
+            "app",
+            "demo-pod",
+            "default",
+        );
+
+        assert_eq!(
+            entry.timestamp.as_deref(),
+            Some("2024-01-01T12:00:00.000000000Z")
+        );
+        assert_eq!(entry.message, "hello world");
+        assert_eq!(entry.container, "app");
+        assert_eq!(entry.pod, "demo-pod");
+        assert_eq!(entry.namespace, "default");
+    }
+
+    #[test]
+    fn parses_plain_log_line() {
+        let entry = parse_log_line("plain log", "app", "demo-pod", "default");
+
+        assert!(entry.timestamp.is_none());
+        assert_eq!(entry.message, "plain log");
+    }
+}
