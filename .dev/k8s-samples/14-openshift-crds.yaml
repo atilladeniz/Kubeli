@@ -1,0 +1,240 @@
+# OpenShift CRDs for local testing
+# Minimal definitions to enable detection logic without a real OpenShift cluster
+# These CRDs allow creating Route, Project, and DeploymentConfig resources in minikube
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: routes.route.openshift.io
+  labels:
+    app.kubernetes.io/part-of: kubeli-testing
+spec:
+  group: route.openshift.io
+  names:
+    kind: Route
+    listKind: RouteList
+    plural: routes
+    singular: route
+    shortNames:
+      - rt
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                host:
+                  type: string
+                path:
+                  type: string
+                to:
+                  type: object
+                  properties:
+                    kind:
+                      type: string
+                    name:
+                      type: string
+                    weight:
+                      type: integer
+                port:
+                  type: object
+                  properties:
+                    targetPort:
+                      x-kubernetes-int-or-string: true
+                tls:
+                  type: object
+                  properties:
+                    termination:
+                      type: string
+                    insecureEdgeTerminationPolicy:
+                      type: string
+            status:
+              type: object
+              properties:
+                ingress:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      host:
+                        type: string
+                      routerName:
+                        type: string
+                      conditions:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            type:
+                              type: string
+                            status:
+                              type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Host
+          type: string
+          jsonPath: .spec.host
+        - name: Service
+          type: string
+          jsonPath: .spec.to.name
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: projects.project.openshift.io
+  labels:
+    app.kubernetes.io/part-of: kubeli-testing
+spec:
+  group: project.openshift.io
+  names:
+    kind: Project
+    listKind: ProjectList
+    plural: projects
+    singular: project
+  scope: Cluster
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                finalizers:
+                  type: array
+                  items:
+                    type: string
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Display Name
+          type: string
+          jsonPath: .metadata.annotations['openshift\.io/display-name']
+        - name: Status
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
+
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: deploymentconfigs.apps.openshift.io
+  labels:
+    app.kubernetes.io/part-of: kubeli-testing
+spec:
+  group: apps.openshift.io
+  names:
+    kind: DeploymentConfig
+    listKind: DeploymentConfigList
+    plural: deploymentconfigs
+    singular: deploymentconfig
+    shortNames:
+      - dc
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                replicas:
+                  type: integer
+                selector:
+                  type: object
+                  additionalProperties:
+                    type: string
+                template:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                strategy:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                triggers:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      imageChangeParams:
+                        type: object
+                        x-kubernetes-preserve-unknown-fields: true
+            status:
+              type: object
+              properties:
+                observedGeneration:
+                  type: integer
+                replicas:
+                  type: integer
+                updatedReplicas:
+                  type: integer
+                availableReplicas:
+                  type: integer
+                unavailableReplicas:
+                  type: integer
+                latestVersion:
+                  type: integer
+                conditions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      type:
+                        type: string
+                      status:
+                        type: string
+                      reason:
+                        type: string
+                      message:
+                        type: string
+      subresources:
+        status: {}
+        scale:
+          specReplicasPath: .spec.replicas
+          statusReplicasPath: .status.replicas
+      additionalPrinterColumns:
+        - name: Revision
+          type: integer
+          jsonPath: .status.latestVersion
+        - name: Desired
+          type: integer
+          jsonPath: .spec.replicas
+        - name: Current
+          type: integer
+          jsonPath: .status.replicas
+        - name: Available
+          type: integer
+          jsonPath: .status.availableReplicas
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

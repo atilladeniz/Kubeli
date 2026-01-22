@@ -1,0 +1,247 @@
+# OpenShift Sample Resources for local testing
+# Dummy Route, Project, and DeploymentConfig resources to test Kubeli's OpenShift detection
+
+---
+# OpenShift Project (cluster-scoped)
+apiVersion: project.openshift.io/v1
+kind: Project
+metadata:
+  name: kubeli-openshift-demo
+  annotations:
+    openshift.io/display-name: "Kubeli OpenShift Demo"
+    openshift.io/description: "Demo project for testing OpenShift detection in Kubeli"
+    openshift.io/requester: "kubeli-testing"
+spec:
+  finalizers:
+    - kubernetes
+status:
+  phase: Active
+
+---
+# Namespace for OpenShift resources (matches Project name)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeli-openshift-demo
+  labels:
+    app.kubernetes.io/part-of: kubeli-testing
+
+---
+# Sample Service for Route target
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-openshift-web
+  namespace: kubeli-openshift-demo
+  labels:
+    app: demo-openshift-web
+spec:
+  selector:
+    app: demo-openshift-web
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+    - name: https
+      port: 8443
+      targetPort: 8443
+
+---
+# OpenShift Route - Edge TLS termination
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: demo-web-route
+  namespace: kubeli-openshift-demo
+  labels:
+    app: demo-openshift-web
+  annotations:
+    haproxy.router.openshift.io/timeout: 60s
+spec:
+  host: demo-web.apps.local.openshift.io
+  to:
+    kind: Service
+    name: demo-openshift-web
+    weight: 100
+  port:
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect
+status:
+  ingress:
+    - host: demo-web.apps.local.openshift.io
+      routerName: default
+      conditions:
+        - type: Admitted
+          status: "True"
+
+---
+# OpenShift Route - Passthrough TLS
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: demo-secure-route
+  namespace: kubeli-openshift-demo
+  labels:
+    app: demo-openshift-web
+spec:
+  host: demo-secure.apps.local.openshift.io
+  to:
+    kind: Service
+    name: demo-openshift-web
+    weight: 100
+  port:
+    targetPort: https
+  tls:
+    termination: passthrough
+status:
+  ingress:
+    - host: demo-secure.apps.local.openshift.io
+      routerName: default
+      conditions:
+        - type: Admitted
+          status: "True"
+
+---
+# OpenShift Route - Path-based routing
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: demo-api-route
+  namespace: kubeli-openshift-demo
+  labels:
+    app: demo-openshift-api
+spec:
+  host: demo-api.apps.local.openshift.io
+  path: /api/v1
+  to:
+    kind: Service
+    name: demo-openshift-api
+    weight: 100
+  port:
+    targetPort: 8080
+status:
+  ingress:
+    - host: demo-api.apps.local.openshift.io
+      routerName: default
+      conditions:
+        - type: Admitted
+          status: "True"
+
+---
+# Sample Service for API DeploymentConfig
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-openshift-api
+  namespace: kubeli-openshift-demo
+  labels:
+    app: demo-openshift-api
+spec:
+  selector:
+    app: demo-openshift-api
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+
+---
+# OpenShift DeploymentConfig - Web frontend
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  name: demo-web-dc
+  namespace: kubeli-openshift-demo
+  labels:
+    app: demo-openshift-web
+spec:
+  replicas: 2
+  selector:
+    app: demo-openshift-web
+  strategy:
+    type: Rolling
+  template:
+    metadata:
+      labels:
+        app: demo-openshift-web
+    spec:
+      containers:
+        - name: web
+          image: nginx:alpine
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+  triggers:
+    - type: ConfigChange
+status:
+  observedGeneration: 1
+  replicas: 2
+  updatedReplicas: 2
+  availableReplicas: 2
+  unavailableReplicas: 0
+  latestVersion: 1
+  conditions:
+    - type: Available
+      status: "True"
+      reason: MinimumReplicasAvailable
+      message: Deployment config has minimum availability.
+
+---
+# OpenShift DeploymentConfig - API backend
+apiVersion: apps.openshift.io/v1
+kind: DeploymentConfig
+metadata:
+  name: demo-api-dc
+  namespace: kubeli-openshift-demo
+  labels:
+    app: demo-openshift-api
+spec:
+  replicas: 3
+  selector:
+    app: demo-openshift-api
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: demo-openshift-api
+    spec:
+      containers:
+        - name: api
+          image: hashicorp/http-echo:latest
+          args:
+            - "-text=Hello from OpenShift API"
+          ports:
+            - containerPort: 8080
+          resources:
+            limits:
+              cpu: 300m
+              memory: 512Mi
+            requests:
+              cpu: 150m
+              memory: 256Mi
+  triggers:
+    - type: ConfigChange
+status:
+  observedGeneration: 1
+  replicas: 3
+  updatedReplicas: 3
+  availableReplicas: 3
+  unavailableReplicas: 0
+  latestVersion: 2
+  conditions:
+    - type: Available
+      status: "True"
+      reason: MinimumReplicasAvailable
+      message: Deployment config has minimum availability.
+    - type: Progressing
+      status: "True"
+      reason: NewReplicationControllerAvailable
+      message: replication controller "demo-api-dc-2" successfully rolled out
