@@ -92,6 +92,17 @@ make format
 make check
 ```
 
+## Local Testing Lab
+
+For testing Kubeli with simulated environments (OpenShift, EKS/GKE/AKS contexts, auth errors, scale testing), see the [Local Testing Lab documentation](.dev/README.md). This allows you to test environment detection and error handling without cloud provider access.
+
+```bash
+# Quick examples
+make minikube-setup-openshift    # OpenShift CRDs + Routes
+make kubeconfig-fake-eks         # Fake EKS context
+make minikube-setup-scale N=100  # Create 100 dummy pods
+```
+
 ## SBOM (Software Bill of Materials)
 
 Kubeli provides [CycloneDX](https://cyclonedx.org/) SBOMs for supply chain security and compliance.

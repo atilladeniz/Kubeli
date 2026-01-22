@@ -1,0 +1,77 @@
+# Scale Test Template for local testing
+# Base template used by scripts/k8s-scale.sh to generate N dummy pods
+# This file serves as reference - actual pods are generated dynamically
+
+---
+# Namespace for scale testing
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeli-scale-test
+  labels:
+    app.kubernetes.io/part-of: kubeli-testing
+    purpose: scale-testing
+
+---
+# ResourceQuota to prevent runaway resource usage
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: scale-test-quota
+  namespace: kubeli-scale-test
+spec:
+  hard:
+    pods: "500"
+    requests.cpu: "50"
+    requests.memory: 10Gi
+    limits.cpu: "100"
+    limits.memory: 20Gi
+
+---
+# LimitRange for default resource constraints
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: scale-test-limits
+  namespace: kubeli-scale-test
+spec:
+  limits:
+    - type: Container
+      default:
+        cpu: 50m
+        memory: 64Mi
+      defaultRequest:
+        cpu: 10m
+        memory: 32Mi
+      max:
+        cpu: 200m
+        memory: 256Mi
+      min:
+        cpu: 5m
+        memory: 16Mi
+
+---
+# Template Pod (used as base by k8s-scale.sh)
+# NAME_PLACEHOLDER will be replaced with scale-pod-{N}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: NAME_PLACEHOLDER
+  namespace: kubeli-scale-test
+  labels:
+    app: scale-test
+    app.kubernetes.io/part-of: kubeli-testing
+    batch: BATCH_PLACEHOLDER
+spec:
+  containers:
+    - name: pause
+      image: registry.k8s.io/pause:3.9
+      resources:
+        requests:
+          cpu: 5m
+          memory: 16Mi
+        limits:
+          cpu: 10m
+          memory: 32Mi
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 0
