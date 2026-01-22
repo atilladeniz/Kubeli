@@ -92,6 +92,19 @@ make format
 make check
 ```
 
+## Testing
+
+```bash
+# Frontend unit tests
+npm run test
+
+# Backend unit tests
+cd src-tauri && cargo test
+
+# E2E smoke tests (static export + mocked IPC)
+npm run test:e2e
+```
+
 ## Local Testing Lab
 
 For testing Kubeli with simulated environments (OpenShift, EKS/GKE/AKS contexts, auth errors, scale testing), see the [Local Testing Lab documentation](.dev/README.md). This allows you to test environment detection and error handling without cloud provider access.
