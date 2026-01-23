@@ -37,6 +37,12 @@ jobs:
   lint-backend:
     name: Lint Backend (Rust)
     runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_DEV_DEBUG: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: 'true'
     steps:
       - uses: actions/checkout@v6
 
@@ -45,31 +51,27 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install npm dependencies
-        run: npm ci
-
-      - name: Build Frontend
-        run: npm run build
-
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           components: clippy, rustfmt
 
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          shared-key: ubuntu-rust-lint
+          cache-on-failure: true
 
       - name: Check formatting
         working-directory: src-tauri
         run: cargo fmt --check
+
+      - name: Create dummy frontend dist for Tauri compile check
+        run: mkdir -p out && echo '<!DOCTYPE html><html><body></body></html>' > out/index.html
 
       - name: Run Clippy
         working-directory: src-tauri
