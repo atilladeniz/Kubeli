@@ -1,0 +1,252 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import pkg from "../../../../package.json";
+
+const version = pkg.version;
+const dmgUrlArm = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_aarch64.dmg`;
+
+const comparisonPoints = [
+  {
+    category: "Interface",
+    kubeli: "Native GUI",
+    k9s: "Terminal UI (TUI)",
+    winner: "kubeli",
+    detail: "Visual interface with point-and-click navigation vs terminal-based."
+  },
+  {
+    category: "Resource Visualization",
+    kubeli: "Interactive diagrams",
+    k9s: "Text-based lists",
+    winner: "kubeli",
+    detail: "See your cluster topology with visual diagrams and health indicators."
+  },
+  {
+    category: "Log Analysis",
+    kubeli: "AI-powered analysis",
+    k9s: "Basic log viewer",
+    winner: "kubeli",
+    detail: "Claude/OpenAI integration for intelligent error analysis and suggestions."
+  },
+  {
+    category: "Learning Curve",
+    kubeli: "Intuitive GUI",
+    k9s: "Keyboard shortcuts",
+    winner: "kubeli",
+    detail: "Point-and-click interface vs memorizing vim-style keybindings."
+  },
+  {
+    category: "Port Forwarding",
+    kubeli: "Visual management",
+    k9s: "Command-based",
+    winner: "kubeli",
+    detail: "One-click port forwards with browser integration."
+  },
+  {
+    category: "Performance",
+    kubeli: "Fast (Rust)",
+    k9s: "Fast (Go)",
+    winner: "tie",
+    detail: "Both are fast and lightweight."
+  },
+  {
+    category: "Price",
+    kubeli: "Free (MIT)",
+    k9s: "Free (Apache 2.0)",
+    winner: "tie",
+    detail: "Both are open source and free."
+  },
+  {
+    category: "Terminal Access",
+    kubeli: "Integrated",
+    k9s: "Native",
+    winner: "tie",
+    detail: "Both provide terminal access to pods."
+  },
+  {
+    category: "IDE Integration",
+    kubeli: "MCP Server",
+    k9s: "None",
+    winner: "kubeli",
+    detail: "Query your cluster from VS Code, Cursor, or Claude Code."
+  },
+  {
+    category: "Platforms",
+    kubeli: "macOS",
+    k9s: "macOS, Linux, Windows",
+    winner: "k9s",
+    detail: "k9s supports more platforms."
+  }
+];
+---
+
+<BaseLayout
+  title="Kubeli vs k9s - GUI Alternative to Terminal"
+  description="Looking for a k9s alternative with a visual interface? Kubeli is a native macOS Kubernetes GUI with AI-powered log analysis and interactive diagrams."
+  activeNav=""
+  canonicalPath="/compare/k9s-alternative"
+>
+  <!-- Hero -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-8 py-12 sm:py-20">
+    <div class="text-center">
+      <span class="inline-flex items-center rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700 mb-6">
+        Comparison
+      </span>
+      <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold max-w-4xl mx-auto leading-tight">
+        Looking for a <span class="text-purple-600">k9s Alternative</span>?
+      </h1>
+      <p class="text-neutral-500 max-w-2xl mx-auto text-lg mt-6">
+        Love the speed of k9s but want a visual interface? Kubeli offers the same
+        performance with an intuitive GUI, interactive diagrams, and AI-powered analysis.
+      </p>
+
+      <div class="mt-10">
+        <a
+          href={dmgUrlArm}
+          class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
+        >
+          Try Kubeli Free
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Differences -->
+  <section class="bg-neutral-50 py-16 sm:py-20">
+    <div class="mx-auto max-w-6xl px-4 sm:px-8">
+      <h2 class="text-2xl font-bold text-center mb-12">
+        Different approaches to the same goal
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="bg-white p-8 rounded-xl border border-neutral-200">
+          <h3 class="font-semibold text-lg mb-4">k9s</h3>
+          <ul class="space-y-3 text-neutral-600">
+            <li class="flex items-start gap-2">
+              <span class="text-neutral-400 mt-0.5">+</span>
+              <span>Fast terminal-based navigation</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-neutral-400 mt-0.5">+</span>
+              <span>Vim-style keybindings</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-neutral-400 mt-0.5">+</span>
+              <span>Runs in any terminal</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-neutral-400 mt-0.5">-</span>
+              <span>Learning curve for keybindings</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-neutral-400 mt-0.5">-</span>
+              <span>No visual topology view</span>
+            </li>
+          </ul>
+        </div>
+        <div class="bg-white p-8 rounded-xl border border-purple-200 border-2">
+          <h3 class="font-semibold text-lg mb-4 flex items-center gap-2">
+            Kubeli
+            <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">GUI</span>
+          </h3>
+          <ul class="space-y-3 text-neutral-600">
+            <li class="flex items-start gap-2">
+              <span class="text-green-500 mt-0.5">+</span>
+              <span>Point-and-click interface</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-green-500 mt-0.5">+</span>
+              <span>Interactive resource diagrams</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-green-500 mt-0.5">+</span>
+              <span>AI-powered log analysis</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-green-500 mt-0.5">+</span>
+              <span>Native macOS experience</span>
+            </li>
+            <li class="flex items-start gap-2">
+              <span class="text-neutral-400 mt-0.5">-</span>
+              <span>macOS only (for now)</span>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison Table -->
+  <section class="py-16 sm:py-24">
+    <div class="mx-auto max-w-4xl px-4 sm:px-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-12">
+        Feature Comparison
+      </h2>
+
+      <div class="space-y-4">
+        {comparisonPoints.map((point) => (
+          <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+            <div class="grid grid-cols-3 gap-4 p-4 items-center">
+              <div>
+                <div class="font-medium">{point.category}</div>
+                <div class="text-xs text-neutral-400 mt-1">{point.detail}</div>
+              </div>
+              <div class={`text-center py-2 rounded-lg ${point.winner === 'kubeli' ? 'bg-purple-50 text-purple-700 font-medium' : ''}`}>
+                {point.kubeli}
+              </div>
+              <div class={`text-center py-2 rounded-lg ${point.winner === 'k9s' ? 'bg-neutral-100 text-neutral-700 font-medium' : 'text-neutral-500'}`}>
+                {point.k9s}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- When to use which -->
+  <section class="bg-neutral-900 text-white py-16 sm:py-24">
+    <div class="mx-auto max-w-4xl px-4 sm:px-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-12">
+        When to use which?
+      </h2>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+        <div class="p-6 rounded-xl bg-neutral-800">
+          <h3 class="font-semibold text-lg mb-4">Choose k9s if you:</h3>
+          <ul class="space-y-2 text-neutral-400">
+            <li>Love terminal-based workflows</li>
+            <li>Already know vim keybindings</li>
+            <li>Need Linux/Windows support</li>
+            <li>Work primarily over SSH</li>
+          </ul>
+        </div>
+        <div class="p-6 rounded-xl bg-purple-900/30 border border-purple-500/30">
+          <h3 class="font-semibold text-lg mb-4">Choose Kubeli if you:</h3>
+          <ul class="space-y-2 text-neutral-300">
+            <li>Prefer visual interfaces</li>
+            <li>Want AI-assisted troubleshooting</li>
+            <li>Need to visualize cluster topology</li>
+            <li>Use macOS as your primary OS</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="py-16 sm:py-24">
+    <div class="mx-auto max-w-3xl px-4 sm:px-8 text-center">
+      <h2 class="text-2xl sm:text-3xl font-bold">Ready to try the visual approach?</h2>
+      <p class="text-neutral-500 mt-4">
+        Download Kubeli for free and see if a GUI fits your workflow.
+      </p>
+      <div class="mt-8">
+        <a
+          href={dmgUrlArm}
+          class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
+        >
+          Download Kubeli Free
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

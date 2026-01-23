@@ -1,0 +1,255 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import pkg from "../../../../package.json";
+
+const version = pkg.version;
+const dmgUrlArm = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_aarch64.dmg`;
+
+const comparisonPoints = [
+  {
+    category: "Architecture",
+    kubeli: "Tauri 2.0 + Rust",
+    lens: "Electron",
+    winner: "kubeli",
+    detail: "Kubeli uses native system webview instead of bundling Chromium, resulting in 70x smaller app size."
+  },
+  {
+    category: "App Size",
+    kubeli: "26.8MB",
+    lens: "~1.93 GB",
+    winner: "kubeli",
+    detail: "Lens bundles a full Chromium browser. Kubeli uses the native macOS WebView."
+  },
+  {
+    category: "Memory Usage",
+    kubeli: "~100 MB",
+    lens: "~350+ MB",
+    winner: "kubeli",
+    detail: "Native architecture means significantly lower RAM consumption."
+  },
+  {
+    category: "Startup Time",
+    kubeli: "<1 second",
+    lens: "~6 seconds",
+    winner: "kubeli",
+    detail: "Rust backend and native webview enable instant startup."
+  },
+  {
+    category: "AI Integration",
+    kubeli: "Claude + OpenAI (choice)",
+    lens: "Lens Prism only",
+    winner: "kubeli",
+    detail: "Kubeli lets you choose your preferred AI provider."
+  },
+  {
+    category: "MCP Server",
+    kubeli: "Included",
+    lens: "Not available",
+    winner: "kubeli",
+    detail: "Unique: Query your cluster from VS Code, Cursor, or Claude Code."
+  },
+  {
+    category: "Price",
+    kubeli: "Free forever (MIT)",
+    lens: "Free limited / $25-50/mo",
+    winner: "kubeli",
+    detail: "Kubeli is 100% open source with no paid tiers."
+  },
+  {
+    category: "Multi-Cluster",
+    kubeli: "Yes",
+    lens: "Yes",
+    winner: "tie",
+    detail: "Both support connecting to multiple clusters."
+  },
+  {
+    category: "Terminal",
+    kubeli: "Yes",
+    lens: "Yes",
+    winner: "tie",
+    detail: "Both provide integrated terminal access to pods."
+  },
+  {
+    category: "Helm Support",
+    kubeli: "Yes",
+    lens: "Yes",
+    winner: "tie",
+    detail: "Both support Helm chart management."
+  }
+];
+---
+
+<BaseLayout
+  title="Kubeli vs Lens - The Lightweight Alternative"
+  description="Looking for a Lens alternative? Kubeli is a native macOS Kubernetes client that's 70x smaller, uses 3x less memory, and is 100% free. Compare features."
+  activeNav=""
+  canonicalPath="/compare/lens-alternative"
+>
+  <!-- Hero -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-8 py-12 sm:py-20">
+    <div class="text-center">
+      <span class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 mb-6">
+        Comparison
+      </span>
+      <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold max-w-4xl mx-auto leading-tight">
+        Looking for a <span class="text-blue-600">Lens Alternative</span>?
+      </h1>
+      <p class="text-neutral-500 max-w-2xl mx-auto text-lg mt-6">
+        Kubeli is a native macOS Kubernetes client that's 70x smaller, uses 3x less memory,
+        starts instantly, and is 100% free and open source.
+      </p>
+
+      <div class="mt-10">
+        <a
+          href={dmgUrlArm}
+          class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
+        >
+          Try Kubeli Free
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Differences -->
+  <section class="bg-neutral-50 py-16 sm:py-20">
+    <div class="mx-auto max-w-6xl px-4 sm:px-8">
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
+        <div class="bg-white p-8 rounded-xl border border-neutral-200">
+          <div class="text-4xl font-bold text-green-600">70x</div>
+          <div class="text-neutral-600 mt-2">Smaller App Size</div>
+          <div class="text-sm text-neutral-400 mt-1">26.8MB vs 1.9GB</div>
+        </div>
+        <div class="bg-white p-8 rounded-xl border border-neutral-200">
+          <div class="text-4xl font-bold text-green-600">3x</div>
+          <div class="text-neutral-600 mt-2">Less Memory</div>
+          <div class="text-sm text-neutral-400 mt-1">100MB vs 350MB</div>
+        </div>
+        <div class="bg-white p-8 rounded-xl border border-neutral-200">
+          <div class="text-4xl font-bold text-green-600">6x</div>
+          <div class="text-neutral-600 mt-2">Faster Startup</div>
+          <div class="text-sm text-neutral-400 mt-1">&lt;1s vs 6s</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison Table -->
+  <section class="py-16 sm:py-24">
+    <div class="mx-auto max-w-4xl px-4 sm:px-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-12">
+        Feature-by-Feature Comparison
+      </h2>
+
+      <div class="space-y-4">
+        {comparisonPoints.map((point) => (
+          <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+            <div class="grid grid-cols-3 gap-4 p-4 items-center">
+              <div>
+                <div class="font-medium">{point.category}</div>
+                <div class="text-xs text-neutral-400 mt-1">{point.detail}</div>
+              </div>
+              <div class={`text-center py-2 rounded-lg ${point.winner === 'kubeli' ? 'bg-green-50 text-green-700 font-medium' : ''}`}>
+                {point.kubeli}
+              </div>
+              <div class="text-center py-2 text-neutral-500">
+                {point.lens}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div class="flex justify-center gap-8 mt-8 text-sm text-neutral-400">
+        <div class="flex items-center gap-2">
+          <div class="w-3 h-3 rounded bg-green-100"></div>
+          <span>Kubeli advantage</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Why Switch -->
+  <section class="bg-neutral-900 text-white py-16 sm:py-24">
+    <div class="mx-auto max-w-4xl px-4 sm:px-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-12">
+        Why developers are switching from Lens
+      </h2>
+
+      <div class="space-y-8">
+        <div class="flex gap-4">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-semibold text-lg">No more Electron bloat</h3>
+            <p class="text-neutral-400 mt-1">
+              Lens bundles an entire Chromium browser. Kubeli uses native macOS WebView for a lightweight experience.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex gap-4">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-semibold text-lg">Truly free, no feature gating</h3>
+            <p class="text-neutral-400 mt-1">
+              Lens Pro costs $25/month. Kubeli is MIT licensed - all features free, forever. No login required.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex gap-4">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-semibold text-lg">AI integration you control</h3>
+            <p class="text-neutral-400 mt-1">
+              Choose between Claude or OpenAI for AI analysis. Your data stays local - no cloud processing.
+            </p>
+          </div>
+        </div>
+
+        <div class="flex gap-4">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+            </svg>
+          </div>
+          <div>
+            <h3 class="font-semibold text-lg">Native macOS experience</h3>
+            <p class="text-neutral-400 mt-1">
+              Vibrancy effects, system-level integration, and a fraction of the memory footprint.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="py-16 sm:py-24">
+    <div class="mx-auto max-w-3xl px-4 sm:px-8 text-center">
+      <h2 class="text-2xl sm:text-3xl font-bold">Ready to try the lighter alternative?</h2>
+      <p class="text-neutral-500 mt-4">
+        Download Kubeli for free and experience the difference.
+      </p>
+      <div class="mt-8">
+        <a
+          href={dmgUrlArm}
+          class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
+        >
+          Download Kubeli Free
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
