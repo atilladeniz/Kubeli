@@ -14,6 +14,10 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Ignore Tauri Rust project (generated files)
     "src-tauri/**",
+    // Tooling configs
+    "jest.config.cjs",
+    // Astro generated files
+    "web/.astro/**",
   ]),
   // Custom rules
   {

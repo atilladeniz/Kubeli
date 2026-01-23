@@ -212,3 +212,23 @@ Use this checklist to verify Kubeli works correctly with each scenario:
 - [ ] 100+ pods load without noticeable lag
 - [ ] Resource list scrolls smoothly
 - [ ] Memory usage stays stable
+
+## Automated Tests
+
+Kubeli also ships automated tests that do not require a live cluster:
+
+```bash
+# Frontend unit tests
+npm run test
+
+# Backend unit tests
+cd src-tauri && cargo test
+
+# E2E smoke tests (builds static export, serves `out`, uses mocked IPC)
+npm run test:e2e
+```
+
+CI runs all three suites on every pull request and blocks merges on failure.
+
+`npm run test:e2e` loads its environment defaults from `config/e2e.env` and injects a mocked
+Google Fonts response from `config/font-mocks.cjs` for offline builds.

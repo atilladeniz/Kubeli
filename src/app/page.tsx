@@ -38,6 +38,7 @@ import packageJson from "../../package.json";
 // Check if we're in Tauri environment
 function checkIsTauri(): boolean {
   if (typeof window === "undefined") return false;
+  if (process.env.NEXT_PUBLIC_TAURI_MOCK === "true") return true;
   return "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
 }
 
