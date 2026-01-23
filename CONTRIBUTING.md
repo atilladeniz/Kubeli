@@ -6,6 +6,14 @@ Thank you for your interest in contributing to Kubeli! This document provides gu
 
 Please be respectful and constructive in all interactions. We welcome contributors of all experience levels.
 
+## AI Usage Policy
+
+We welcome AI-assisted development but require **Smart Coding over Vibe Coding**. Please read our [AI Usage Policy](AI_POLICY.md) before contributing. Key points:
+
+- You are 100% responsible for every line of code you submit
+- AI-generated code must be reviewed, understood, and refactored to match our standards
+- Use our existing patterns: shadcn/ui components, Zustand stores, Tauri commands
+
 ## Getting Started
 
 ### Prerequisites

@@ -218,6 +218,10 @@ kubeli/
 └── Makefile                # Development shortcuts
 ```
 
+## Contributing
+
+We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) and [AI Usage Policy](AI_POLICY.md) before submitting PRs.
+
 ## Changelog
 
 See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes.
