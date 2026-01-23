@@ -3885,7 +3885,6 @@ function HelmReleasesView() {
 }
 
 function FluxKustomizationsView() {
-  const t = useTranslations();
   const { data, isLoading, error, refresh } = useFluxKustomizations({
     autoRefresh: true,
     refreshInterval: 30000,

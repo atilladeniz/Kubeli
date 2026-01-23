@@ -55,7 +55,6 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
     readyToRestart,
     downloadComplete,
     checkerDismissed,
-    hasAutoChecked,
     setChecking,
     setAvailable,
     setDownloading,
