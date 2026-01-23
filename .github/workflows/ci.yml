@@ -71,6 +71,9 @@ jobs:
         working-directory: src-tauri
         run: cargo fmt --check
 
+      - name: Create dummy frontend dist for Tauri compile check
+        run: mkdir -p out && echo '<!DOCTYPE html><html><body></body></html>' > out/index.html
+
       - name: Run Clippy
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
