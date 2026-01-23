@@ -1,0 +1,183 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import pkg from "../../../../package.json";
+
+const version = pkg.version;
+const dmgUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_aarch64.dmg`;
+
+const comparisonPoints = [
+  {
+    category: "Installation",
+    kubeli: "Download & run",
+    dashboard: "Deploy to cluster",
+    winner: "kubeli",
+    detail: "No cluster deployment needed. Just download and connect."
+  },
+  {
+    category: "Security",
+    kubeli: "Local app, no exposure",
+    dashboard: "Requires ingress/proxy",
+    winner: "kubeli",
+    detail: "No need to expose a web interface to access your cluster."
+  },
+  {
+    category: "Multi-Cluster",
+    kubeli: "Yes, native",
+    dashboard: "One per cluster",
+    winner: "kubeli",
+    detail: "Manage all clusters from one app vs. deploying Dashboard to each."
+  },
+  {
+    category: "AI Integration",
+    kubeli: "Claude + OpenAI",
+    dashboard: "None",
+    winner: "kubeli",
+    detail: "AI-powered log analysis and troubleshooting."
+  },
+  {
+    category: "Resource Usage",
+    kubeli: "Local Mac only",
+    dashboard: "Uses cluster resources",
+    winner: "kubeli",
+    detail: "Dashboard consumes CPU/memory in your cluster."
+  },
+  {
+    category: "Offline Access",
+    kubeli: "Works offline",
+    dashboard: "Requires cluster",
+    winner: "kubeli",
+    detail: "View cached data even when disconnected."
+  },
+  {
+    category: "Log Streaming",
+    kubeli: "Yes + AI analysis",
+    dashboard: "Basic",
+    winner: "kubeli",
+    detail: "Real-time logs with intelligent error detection."
+  },
+  {
+    category: "Terminal Access",
+    kubeli: "Full terminal",
+    dashboard: "Basic exec",
+    winner: "kubeli",
+    detail: "Native terminal experience vs. web-based console."
+  },
+  {
+    category: "Price",
+    kubeli: "Free (MIT)",
+    dashboard: "Free",
+    winner: "tie",
+    detail: "Both are free and open source."
+  }
+];
+---
+
+<BaseLayout
+  title="Kubeli vs Kubernetes Dashboard - Desktop Alternative"
+  description="Looking for a Kubernetes Dashboard alternative? Kubeli is a native macOS app that doesn't require cluster deployment. AI-powered, multi-cluster, and secure."
+  activeNav=""
+  canonicalPath="/compare/dashboard-alternative"
+>
+  <!-- Hero -->
+  <section class="mx-auto max-w-6xl px-4 sm:px-8 py-12 sm:py-20">
+    <div class="text-center">
+      <span class="inline-flex items-center rounded-full bg-orange-50 px-3 py-1 text-xs font-medium text-orange-700 mb-6">
+        Comparison
+      </span>
+      <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold max-w-4xl mx-auto leading-tight">
+        Looking for a <span class="text-orange-600">Dashboard Alternative</span>?
+      </h1>
+      <p class="text-neutral-500 max-w-2xl mx-auto text-lg mt-6">
+        Kubeli is a native macOS app that doesn't require deploying anything to your cluster.
+        Multi-cluster support, AI-powered analysis, and zero security exposure.
+      </p>
+
+      <div class="mt-10">
+        <a
+          href={dmgUrl}
+          class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
+        >
+          Try Kubeli Free
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Key Differences -->
+  <section class="bg-neutral-50 py-16 sm:py-20">
+    <div class="mx-auto max-w-6xl px-4 sm:px-8">
+      <h2 class="text-2xl font-bold text-center mb-12">
+        Why use a desktop app instead of Dashboard?
+      </h2>
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="bg-white p-8 rounded-xl border border-neutral-200">
+          <div class="text-3xl mb-4">🔒</div>
+          <h3 class="font-semibold text-lg mb-2">No Cluster Exposure</h3>
+          <p class="text-neutral-500 text-sm">
+            Dashboard requires ingress or port-forwarding. Kubeli connects directly via kubeconfig - no web interface to secure.
+          </p>
+        </div>
+        <div class="bg-white p-8 rounded-xl border border-neutral-200">
+          <div class="text-3xl mb-4">🌐</div>
+          <h3 class="font-semibold text-lg mb-2">Multi-Cluster Native</h3>
+          <p class="text-neutral-500 text-sm">
+            Dashboard needs to be deployed to each cluster. Kubeli manages all your clusters from one app.
+          </p>
+        </div>
+        <div class="bg-white p-8 rounded-xl border border-neutral-200">
+          <div class="text-3xl mb-4">🤖</div>
+          <h3 class="font-semibold text-lg mb-2">AI-Powered</h3>
+          <p class="text-neutral-500 text-sm">
+            Dashboard shows data. Kubeli analyzes it with Claude or OpenAI to help you troubleshoot.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Comparison Table -->
+  <section class="py-16 sm:py-24">
+    <div class="mx-auto max-w-4xl px-4 sm:px-8">
+      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-12">
+        Feature Comparison
+      </h2>
+
+      <div class="space-y-4">
+        {comparisonPoints.map((point) => (
+          <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+            <div class="grid grid-cols-3 gap-4 p-4 items-center">
+              <div>
+                <div class="font-medium">{point.category}</div>
+                <div class="text-xs text-neutral-400 mt-1">{point.detail}</div>
+              </div>
+              <div class={`text-center py-2 rounded-lg ${point.winner === 'kubeli' ? 'bg-orange-50 text-orange-700 font-medium' : ''}`}>
+                {point.kubeli}
+              </div>
+              <div class="text-center py-2 text-neutral-500">
+                {point.dashboard}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </section>
+
+  <!-- CTA -->
+  <section class="bg-neutral-900 text-white py-16 sm:py-24">
+    <div class="mx-auto max-w-3xl px-4 sm:px-8 text-center">
+      <h2 class="text-2xl sm:text-3xl font-bold">Skip the cluster deployment</h2>
+      <p class="text-neutral-400 mt-4">
+        Download Kubeli and start managing your clusters in seconds - no Helm charts, no YAML, no ingress configuration.
+      </p>
+      <div class="mt-8">
+        <a
+          href={dmgUrl}
+          class="inline-flex items-center gap-2 rounded-full bg-white text-black px-8 py-3 text-lg font-medium hover:bg-neutral-100 transition-colors"
+        >
+          Download Kubeli Free
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

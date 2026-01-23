@@ -5,19 +5,96 @@ interface Props {
   title: string;
   description?: string;
   activeNav?: string;
+  ogImage?: string;
+  canonicalPath?: string;
 }
 
-const { title, description = "Kubeli - Modern Kubernetes Management for macOS", activeNav = "" } = Astro.props;
+const {
+  title,
+  description = "Native Kubernetes Desktop App for macOS. Multi-Cluster Management, Real-Time Monitoring, AI-Powered Log Analysis with Claude & OpenAI. Open Source & Free.",
+  activeNav = "",
+  ogImage = "/og-image.png",
+  canonicalPath = ""
+} = Astro.props;
+
 const currentYear = new Date().getFullYear();
+const siteUrl = "https://kubeli.dev";
+const canonicalUrl = `${siteUrl}${canonicalPath}`;
+const fullTitle = title === "Home" ? "Kubeli - Native Kubernetes Desktop App for macOS | Multi-Cluster & AI" : `${title} | Kubeli`;
+
+// Schema.org structured data
+const schemaData = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "Kubeli",
+  "applicationCategory": "DeveloperApplication",
+  "operatingSystem": "macOS",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  },
+  "description": description,
+  "url": siteUrl,
+  "author": {
+    "@type": "Person",
+    "name": "Atilla Deniz"
+  },
+  "license": "https://opensource.org/licenses/MIT",
+  "softwareVersion": "0.2.0",
+  "downloadUrl": "https://github.com/atilladeniz/Kubeli/releases",
+  "screenshot": `${siteUrl}/screens/02-cluster-overview.webp`,
+  "featureList": [
+    "Multi-Cluster Management",
+    "Real-Time Resource Monitoring",
+    "AI-Powered Log Analysis",
+    "Interactive Resource Diagram",
+    "Port Forwarding",
+    "Claude & OpenAI Integration",
+    "Native macOS App with Tauri"
+  ]
+};
 ---
 
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <link rel="icon" type="image/svg+xml" href="/kubeli.svg" />
-    <meta name="viewport" content="width=device-width" />
+    <link rel="apple-touch-icon" href="/kubeli.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+    <!-- Primary Meta Tags -->
+    <title>{fullTitle}</title>
+    <meta name="title" content={fullTitle} />
     <meta name="description" content={description} />
-    <title>{title} - Kubeli</title>
+    <meta name="keywords" content="kubernetes, k8s, kubernetes gui, kubernetes desktop, kubernetes management, kubernetes client, macos, tauri, rust, multi-cluster, ai, claude, openai, open source, lens alternative, k9s alternative" />
+    <meta name="author" content="Atilla Deniz" />
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href={canonicalUrl} />
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={`${siteUrl}${ogImage}`} />
+    <meta property="og:site_name" content="Kubeli" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:url" content={canonicalUrl} />
+    <meta name="twitter:title" content={fullTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={`${siteUrl}${ogImage}`} />
+
+    <!-- Additional Meta -->
+    <meta name="theme-color" content="#ffffff" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+
+    <!-- Schema.org JSON-LD -->
+    <script type="application/ld+json" set:html={JSON.stringify(schemaData)} />
   </head>
   <body class="min-h-dvh w-full m-0 flex flex-col antialiased bg-white text-neutral-900">
     <!-- Header -->
@@ -33,7 +110,7 @@ const currentYear = new Date().getFullYear();
           <a href="/" class={activeNav === "home" ? "text-neutral-900 font-medium" : "text-neutral-500 hover:text-neutral-900 transition-colors"}>Home</a>
           <a href="/screenshots" class={activeNav === "screenshots" ? "text-neutral-900 font-medium" : "text-neutral-500 hover:text-neutral-900 transition-colors"}>Screenshots</a>
           <a href="/changelog" class={activeNav === "changelog" ? "text-neutral-900 font-medium" : "text-neutral-500 hover:text-neutral-900 transition-colors"}>Changelog</a>
-          <a href="https://github.com/atilladeniz/kubeli" class="text-neutral-500 hover:text-neutral-900 transition-colors">GitHub</a>
+          <a href="https://github.com/atilladeniz/kubeli" target="_blank" rel="noopener" class="text-neutral-500 hover:text-neutral-900 transition-colors">GitHub</a>
         </nav>
 
         <!-- Mobile Menu Toggle (Vercel-style) -->
@@ -57,7 +134,7 @@ const currentYear = new Date().getFullYear();
         <a href="/" class={`mobile-nav-link ${activeNav === "home" ? "font-medium text-neutral-900" : ""}`}>Home</a>
         <a href="/screenshots" class={`mobile-nav-link ${activeNav === "screenshots" ? "font-medium text-neutral-900" : ""}`}>Screenshots</a>
         <a href="/changelog" class={`mobile-nav-link ${activeNav === "changelog" ? "font-medium text-neutral-900" : ""}`}>Changelog</a>
-        <a href="https://github.com/atilladeniz/kubeli" class="mobile-nav-link">GitHub</a>
+        <a href="https://github.com/atilladeniz/kubeli" target="_blank" rel="noopener" class="mobile-nav-link">GitHub</a>
       </nav>
     </div>
 
@@ -155,12 +232,61 @@ const currentYear = new Date().getFullYear();
       <slot />
     </main>
 
-    <footer class="border-t border-neutral-100 py-4">
-      <div class="mx-auto max-w-6xl px-4 sm:px-8 flex justify-between items-center text-xs text-neutral-500">
-        <span>&copy; {currentYear} Kubeli</span>
-        <a href="https://github.com/atilladeniz/kubeli" class="hover:text-neutral-900 hover:underline underline-offset-4 transition-colors">
-          GitHub
-        </a>
+    <footer class="border-t border-neutral-100 py-12 sm:py-16">
+      <div class="mx-auto max-w-6xl px-4 sm:px-8">
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-12">
+          <!-- Product -->
+          <div>
+            <h3 class="font-semibold text-sm text-neutral-900 mb-4">Product</h3>
+            <ul class="space-y-3 text-sm">
+              <li><a href="/screenshots" class="text-neutral-500 hover:text-neutral-900 transition-colors">Screenshots</a></li>
+              <li><a href="/changelog" class="text-neutral-500 hover:text-neutral-900 transition-colors">Changelog</a></li>
+              <li><a href="https://github.com/atilladeniz/Kubeli/releases" target="_blank" rel="noopener" class="text-neutral-500 hover:text-neutral-900 transition-colors">Downloads</a></li>
+            </ul>
+          </div>
+
+          <!-- Compare -->
+          <div>
+            <h3 class="font-semibold text-sm text-neutral-900 mb-4">Compare</h3>
+            <ul class="space-y-3 text-sm">
+              <li><a href="/compare/lens-alternative" class="text-neutral-500 hover:text-neutral-900 transition-colors">Lens alternative</a></li>
+              <li><a href="/compare/k9s-alternative" class="text-neutral-500 hover:text-neutral-900 transition-colors">K9s alternative</a></li>
+              <li><a href="/compare/dashboard-alternative" class="text-neutral-500 hover:text-neutral-900 transition-colors">Dashboard alternative</a></li>
+              <li><a href="/compare/kubectl-alternative" class="text-neutral-500 hover:text-neutral-900 transition-colors">kubectl alternative</a></li>
+            </ul>
+          </div>
+
+          <!-- Support -->
+          <div>
+            <h3 class="font-semibold text-sm text-neutral-900 mb-4">Support</h3>
+            <ul class="space-y-3 text-sm">
+              <li><a href="https://github.com/atilladeniz/kubeli" target="_blank" rel="noopener" class="text-neutral-500 hover:text-neutral-900 transition-colors">GitHub</a></li>
+              <li><a href="https://github.com/atilladeniz/kubeli/discussions" target="_blank" rel="noopener" class="text-neutral-500 hover:text-neutral-900 transition-colors">Discussions</a></li>
+              <li><a href="https://github.com/atilladeniz/kubeli/issues/new?assignees=&labels=enhancement&template=feature_request.yml" target="_blank" rel="noopener" class="text-neutral-500 hover:text-neutral-900 transition-colors">Feature Request</a></li>
+              <li><a href="https://github.com/atilladeniz/kubeli/issues/new?assignees=&labels=bug&template=bug_report.yml" target="_blank" rel="noopener" class="text-neutral-500 hover:text-neutral-900 transition-colors">Report a Bug</a></li>
+            </ul>
+          </div>
+
+          <!-- Legal -->
+          <div>
+            <h3 class="font-semibold text-sm text-neutral-900 mb-4">Legal</h3>
+            <ul class="space-y-3 text-sm">
+              <li><a href="https://github.com/atilladeniz/kubeli/blob/main/LICENSE" target="_blank" rel="noopener" class="text-neutral-500 hover:text-neutral-900 transition-colors">MIT License</a></li>
+            </ul>
+          </div>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-center pt-8 border-t border-neutral-100">
+          <div class="flex items-center gap-2 mb-4 sm:mb-0">
+            <img src="/kubeli.svg" class="w-6 h-6" alt="Kubeli" />
+            <span class="text-sm text-neutral-500">&copy; {currentYear} Kubeli. Open Source under MIT.</span>
+          </div>
+          <div class="flex items-center gap-4">
+            <a href="https://github.com/atilladeniz/kubeli" target="_blank" rel="noopener" class="text-neutral-400 hover:text-neutral-900 transition-colors">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            </a>
+          </div>
+        </div>
       </div>
     </footer>
   </body>
