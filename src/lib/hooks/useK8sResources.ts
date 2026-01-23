@@ -1865,7 +1865,15 @@ function useK8sResource<T extends PodInfo | DeploymentInfo | ServiceInfo | Confi
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [options.autoWatch, isConnected, isWatching, isLoading, _resourceType, startWatch]);
+  }, [
+    options.autoWatch,
+    isConnected,
+    isWatching,
+    isLoading,
+    watchId,
+    _resourceType,
+    startWatch,
+  ]);
 
   // Cleanup watch on unmount
   useEffect(() => {
