@@ -63,9 +63,8 @@ jobs:
         uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
-          shared-key: ubuntu-rust
-          save-if: ${{ github.ref == 'refs/heads/main' }}
-          cache-targets: false
+          shared-key: ubuntu-rust-lint
+          cache-on-failure: true
 
       - name: Check formatting
         working-directory: src-tauri
