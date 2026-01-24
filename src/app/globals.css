@@ -357,39 +357,39 @@
 
 /* Windows-specific vibrancy adjustments - higher opacity to compensate for Mica/Acrylic blur */
 .platform-windows.vibrancy-standard {
-  --vibrancy-bg-light: rgba(245, 245, 245, 0.92);
-  --vibrancy-bg-dark: rgba(31, 31, 31, 0.88);
-  --vibrancy-bg-classic: rgba(25, 26, 34, 0.88);
-  --vibrancy-sidebar-light: rgba(239, 239, 239, 0.85);
-  --vibrancy-sidebar-dark: rgba(38, 38, 38, 0.8);
-  --vibrancy-sidebar-classic: rgba(20, 21, 27, 0.8);
-  --vibrancy-card-light: rgba(252, 252, 252, 0.9);
-  --vibrancy-card-dark: rgba(42, 42, 42, 0.85);
-  --vibrancy-card-classic: rgba(30, 31, 40, 0.85);
+  --vibrancy-bg-light: rgba(245, 245, 245, 0.95);
+  --vibrancy-bg-dark: rgba(31, 31, 31, 0.95);
+  --vibrancy-bg-classic: rgba(25, 26, 34, 0.95);
+  --vibrancy-sidebar-light: rgba(239, 239, 239, 0.92);
+  --vibrancy-sidebar-dark: rgba(38, 38, 38, 0.92);
+  --vibrancy-sidebar-classic: rgba(20, 21, 27, 0.92);
+  --vibrancy-card-light: rgba(252, 252, 252, 0.95);
+  --vibrancy-card-dark: rgba(42, 42, 42, 0.95);
+  --vibrancy-card-classic: rgba(30, 31, 40, 0.95);
 }
 
 .platform-windows.vibrancy-more {
-  --vibrancy-bg-light: rgba(245, 245, 245, 0.82);
-  --vibrancy-bg-dark: rgba(31, 31, 31, 0.75);
-  --vibrancy-bg-classic: rgba(25, 26, 34, 0.75);
-  --vibrancy-sidebar-light: rgba(239, 239, 239, 0.7);
-  --vibrancy-sidebar-dark: rgba(38, 38, 38, 0.65);
-  --vibrancy-sidebar-classic: rgba(20, 21, 27, 0.65);
-  --vibrancy-card-light: rgba(252, 252, 252, 0.8);
-  --vibrancy-card-dark: rgba(42, 42, 42, 0.72);
-  --vibrancy-card-classic: rgba(30, 31, 40, 0.72);
+  --vibrancy-bg-light: rgba(245, 245, 245, 0.88);
+  --vibrancy-bg-dark: rgba(31, 31, 31, 0.88);
+  --vibrancy-bg-classic: rgba(25, 26, 34, 0.88);
+  --vibrancy-sidebar-light: rgba(239, 239, 239, 0.85);
+  --vibrancy-sidebar-dark: rgba(38, 38, 38, 0.85);
+  --vibrancy-sidebar-classic: rgba(20, 21, 27, 0.85);
+  --vibrancy-card-light: rgba(252, 252, 252, 0.88);
+  --vibrancy-card-dark: rgba(42, 42, 42, 0.88);
+  --vibrancy-card-classic: rgba(30, 31, 40, 0.88);
 }
 
 .platform-windows.vibrancy-extra {
-  --vibrancy-bg-light: rgba(245, 245, 245, 0.7);
-  --vibrancy-bg-dark: rgba(31, 31, 31, 0.6);
-  --vibrancy-bg-classic: rgba(25, 26, 34, 0.6);
-  --vibrancy-sidebar-light: rgba(239, 239, 239, 0.55);
-  --vibrancy-sidebar-dark: rgba(38, 38, 38, 0.5);
-  --vibrancy-sidebar-classic: rgba(20, 21, 27, 0.5);
-  --vibrancy-card-light: rgba(252, 252, 252, 0.65);
-  --vibrancy-card-dark: rgba(42, 42, 42, 0.55);
-  --vibrancy-card-classic: rgba(30, 31, 40, 0.55);
+  --vibrancy-bg-light: rgba(245, 245, 245, 0.78);
+  --vibrancy-bg-dark: rgba(31, 31, 31, 0.78);
+  --vibrancy-bg-classic: rgba(25, 26, 34, 0.78);
+  --vibrancy-sidebar-light: rgba(239, 239, 239, 0.75);
+  --vibrancy-sidebar-dark: rgba(38, 38, 38, 0.75);
+  --vibrancy-sidebar-classic: rgba(20, 21, 27, 0.75);
+  --vibrancy-card-light: rgba(252, 252, 252, 0.78);
+  --vibrancy-card-dark: rgba(42, 42, 42, 0.78);
+  --vibrancy-card-classic: rgba(30, 31, 40, 0.78);
 }
 
 /* Global cursor and selection styles - outside @layer for higher specificity */
