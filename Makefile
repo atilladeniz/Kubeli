@@ -354,6 +354,30 @@ build-windows: ## Cross-compile Windows NSIS installer from macOS
 	@export PATH="/opt/homebrew/opt/llvm/bin:$$PATH" && \
 	npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
 	@echo "$(GREEN)✓ Windows installer built$(RESET)"
+	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
+	NSIS_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"; \
+	EXE_FILE="$$NSIS_DIR/Kubeli_$${VERSION}_x64-setup.exe"; \
+	ZIP_FILE="$$NSIS_DIR/Kubeli_$${VERSION}_x64-setup.nsis.zip"; \
+	if [ -f "$$EXE_FILE" ]; then \
+		echo "$(CYAN)Creating update bundle...$(RESET)"; \
+		cd "$$NSIS_DIR" && zip -j "$$(basename $$ZIP_FILE)" "$$(basename $$EXE_FILE)"; \
+		echo "$(GREEN)✓ Created $$ZIP_FILE$(RESET)"; \
+		if [ -f .env ]; then \
+			set -a; source .env; set +a; \
+		fi; \
+		if [ -z "$$TAURI_SIGNING_PRIVATE_KEY" ] && [ -f ~/.tauri/kubeli.key ]; then \
+			export TAURI_SIGNING_PRIVATE_KEY="$$(cat ~/.tauri/kubeli.key)"; \
+		fi; \
+		if [ -n "$$TAURI_SIGNING_PRIVATE_KEY" ]; then \
+			echo "$(CYAN)Signing update bundle...$(RESET)"; \
+			TAURI_PRIVATE_KEY="$$TAURI_SIGNING_PRIVATE_KEY" \
+			TAURI_PRIVATE_KEY_PASSWORD="$${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" \
+			npx tauri signer sign -p "$${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" "$$ZIP_FILE"; \
+			echo "$(GREEN)✓ Signed $$ZIP_FILE.sig$(RESET)"; \
+		else \
+			echo "$(YELLOW)Warning: TAURI_SIGNING_PRIVATE_KEY not set, skipping signature$(RESET)"; \
+		fi; \
+	fi
 	@echo "$(CYAN)Output: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/$(RESET)"
 
 reinstall: clean-all install ## Clean and reinstall all dependencies
