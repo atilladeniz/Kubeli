@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.3] - 2026-01-24
+
+- Fixed AI analyze button in LogViewer being enabled when no CLI is available
+
 ## [0.3.2] - 2026-01-24
 
 Based on the commits provided, here's the changelog entry for version 0.3.2:
