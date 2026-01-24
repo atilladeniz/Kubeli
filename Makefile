@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test test-all test-e2e lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
+.PHONY: dev build clean install install-windows-build-deps build-windows test test-all test-e2e lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
 
 # Default target
 .DEFAULT_GOAL := help
@@ -286,6 +286,24 @@ clean-all: clean ## Deep clean including node_modules
 install: ## Install all dependencies
 	npm install
 	cd src-tauri && cargo fetch
+
+install-windows-build-deps: ## Install dependencies for cross-compiling Windows builds on macOS
+	@echo "$(CYAN)Installing Windows cross-compile dependencies...$(RESET)"
+	@which brew > /dev/null || (echo "$(YELLOW)Homebrew not found. Please install from https://brew.sh$(RESET)" && exit 1)
+	brew install nsis llvm lld cmake ninja nasm
+	rustup target add x86_64-pc-windows-msvc
+	cargo install --locked cargo-xwin
+	@echo "$(GREEN)✓ Windows build dependencies installed$(RESET)"
+	@echo ""
+	@echo "$(CYAN)To build for Windows, run:$(RESET)"
+	@echo "  make build-windows"
+
+build-windows: ## Cross-compile Windows NSIS installer from macOS
+	@echo "$(CYAN)Building Windows installer (cross-compile)...$(RESET)"
+	@export PATH="/opt/homebrew/opt/llvm/bin:$$PATH" && \
+	npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
+	@echo "$(GREEN)✓ Windows installer built$(RESET)"
+	@echo "$(CYAN)Output: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/$(RESET)"
 
 reinstall: clean-all install ## Clean and reinstall all dependencies
 
