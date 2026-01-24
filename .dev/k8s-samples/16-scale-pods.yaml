@@ -50,28 +50,5 @@ spec:
         cpu: 5m
         memory: 16Mi
 
----
-# Template Pod (used as base by k8s-scale.sh)
-# NAME_PLACEHOLDER will be replaced with scale-pod-{N}
-apiVersion: v1
-kind: Pod
-metadata:
-  name: NAME_PLACEHOLDER
-  namespace: kubeli-scale-test
-  labels:
-    app: scale-test
-    app.kubernetes.io/part-of: kubeli-testing
-    batch: BATCH_PLACEHOLDER
-spec:
-  containers:
-    - name: pause
-      image: registry.k8s.io/pause:3.9
-      resources:
-        requests:
-          cpu: 5m
-          memory: 16Mi
-        limits:
-          cpu: 10m
-          memory: 32Mi
-  restartPolicy: Never
-  terminationGracePeriodSeconds: 0
+# Template Pod definition is embedded in scripts/k8s-scale.sh
+# The script generates pods dynamically with names like scale-pod-{N}
