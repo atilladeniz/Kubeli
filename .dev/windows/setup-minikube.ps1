@@ -331,13 +331,62 @@ function Start-MinikubeCluster {
         if ($response -eq '' -or $response -match '^[Yy]') {
             $installed = Install-WithWinget -PackageId 'Docker.DockerDesktop' -Name 'Docker Desktop'
             if ($installed) {
-                Write-Warning "Docker Desktop installed. Please:"
-                Write-ColorOutput "  1. Start Docker Desktop from Start Menu" -Color $Colors.White
-                Write-ColorOutput "  2. Wait for it to fully start (whale icon in system tray)" -Color $Colors.White
-                Write-ColorOutput "  3. Run this script again" -Color $Colors.White
+                # Start Docker Desktop automatically
+                Write-Step "Starting Docker Desktop..."
+                $dockerPath = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+                if (Test-Path $dockerPath) {
+                    Start-Process $dockerPath
+                }
+                else {
+                    # Try alternative path
+                    $dockerPath = "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
+                    if (Test-Path $dockerPath) {
+                        Start-Process $dockerPath
+                    }
+                    else {
+                        Start-Process "Docker Desktop" -ErrorAction SilentlyContinue
+                    }
+                }
+
+                # Wait for Docker to be ready
+                Write-ColorOutput "Waiting for Docker to start (this may take 1-2 minutes)..." -Color $Colors.Yellow
+                $maxWait = 120  # 2 minutes
+                $waited = 0
+                $ready = $false
+
+                while ($waited -lt $maxWait) {
+                    Start-Sleep -Seconds 5
+                    $waited += 5
+
+                    # Check if docker is responding
+                    $dockerInfo = docker info 2>$null
+                    if ($LASTEXITCODE -eq 0) {
+                        $ready = $true
+                        break
+                    }
+
+                    Write-ColorOutput "." -Color $Colors.Yellow -NoNewline
+                }
+
+                Write-Host ""  # New line after dots
+
+                if ($ready) {
+                    Write-Success "Docker is ready!"
+                    $driver = 'docker'
+                    $hasDocker = $true
+                }
+                else {
+                    Write-Warning "Docker not ready yet. Please wait for Docker Desktop to fully start, then run this script again."
+                    return $false
+                }
+            }
+            else {
+                return $false
             }
         }
-        return $false
+        else {
+            return $false
+        }
     }
 
     Write-ColorOutput "Using driver: $driver" -Color $Colors.White
