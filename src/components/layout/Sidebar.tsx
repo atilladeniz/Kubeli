@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { usePlatform } from "@/lib/hooks/usePlatform";
 import { useTranslations } from "next-intl";
 
 import {
@@ -320,6 +321,7 @@ export function Sidebar({ activeResource, onResourceSelect }: SidebarProps) {
     useFavoritesStore();
   const [namespaceOpen, setNamespaceOpen] = useState(false);
   const navigationSections = useNavigationSections();
+  const { modKey } = usePlatform();
 
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
@@ -582,6 +584,7 @@ export function Sidebar({ activeResource, onResourceSelect }: SidebarProps) {
                     onResourceSelect(fav.resourceType as ResourceType)
                   }
                   onRemove={() => removeFavorite(clusterContext, fav.id)}
+                  modKey={modKey}
                 />
               ))}
             </div>
@@ -658,7 +661,7 @@ export function Sidebar({ activeResource, onResourceSelect }: SidebarProps) {
             <Cog className="size-4" />
             {tNav("settings")}
           </span>
-          <Kbd className="text-[10px]">⌘,</Kbd>
+          <Kbd className="text-[10px]">{modKey},</Kbd>
         </Button>
       </div>
     </aside>
@@ -735,6 +738,7 @@ interface FavoriteItemProps {
   index: number;
   onSelect: () => void;
   onRemove: () => void;
+  modKey: string;
 }
 
 function FavoriteItem({
@@ -742,6 +746,7 @@ function FavoriteItem({
   index,
   onSelect,
   onRemove,
+  modKey,
 }: FavoriteItemProps) {
   const shortcutKey = index < 9 ? index + 1 : null;
 
@@ -762,7 +767,7 @@ function FavoriteItem({
       <div className="flex items-center gap-1 shrink-0 ml-1">
         {shortcutKey && (
           <Kbd className="text-[9px] opacity-50 group-hover:opacity-100 transition-opacity">
-            ⌘{shortcutKey}
+            {modKey}{shortcutKey}
           </Kbd>
         )}
         <button
