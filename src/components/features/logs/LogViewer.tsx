@@ -52,6 +52,7 @@ import { useTranslations } from "next-intl";
 import { useAIStore } from "@/lib/stores/ai-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { aiCheckCliAvailable, aiCheckCodexCliAvailable } from "@/lib/tauri/commands";
 
 interface LogViewerProps {
   namespace: string;
@@ -96,6 +97,26 @@ export function LogViewer({
   const { setPendingAnalysis } = useAIStore();
   const { currentCluster, currentNamespace } = useClusterStore();
   const { setAIAssistantOpen } = useUIStore();
+
+  // AI CLI availability check
+  const [isAICliAvailable, setIsAICliAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkAiClis = async () => {
+      try {
+        const [claudeInfo, codexInfo] = await Promise.all([
+          aiCheckCliAvailable().catch(() => ({ status: "error" as const })),
+          aiCheckCodexCliAvailable().catch(() => ({ status: "error" as const })),
+        ]);
+        const claudeAvailable = claudeInfo.status === "authenticated";
+        const codexAvailable = codexInfo.status === "authenticated";
+        setIsAICliAvailable(claudeAvailable || codexAvailable);
+      } catch {
+        setIsAICliAvailable(false);
+      }
+    };
+    checkAiClis();
+  }, []);
 
   // Set initial container
   useEffect(() => {
@@ -505,13 +526,22 @@ Bitte analysiere diese Logs und:
                   variant="ghost"
                   size="icon"
                   onClick={handleAnalyzeWithAI}
-                  disabled={logs.length === 0}
-                  className="size-7 text-violet-500 hover:text-violet-600 hover:bg-violet-500/10"
+                  disabled={logs.length === 0 || isAICliAvailable === false}
+                  className={cn(
+                    "size-7 text-violet-500 hover:text-violet-600 hover:bg-violet-500/10",
+                    isAICliAvailable === false && "opacity-50 cursor-not-allowed"
+                  )}
                 >
                   <Sparkles className="size-3.5" />
                 </Button>
               </TooltipTrigger>
-              <TooltipContent>Logs mit AI analysieren</TooltipContent>
+              <TooltipContent>
+                {isAICliAvailable === false ? (
+                  <span className="text-muted-foreground">AI CLI not installed</span>
+                ) : (
+                  "Logs mit AI analysieren"
+                )}
+              </TooltipContent>
             </Tooltip>
 
             <Tooltip>
