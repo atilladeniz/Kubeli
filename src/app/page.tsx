@@ -18,6 +18,7 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { useUpdater } from "@/lib/hooks/useUpdater";
+import { usePlatform } from "@/lib/hooks/usePlatform";
 import { Dashboard } from "@/components/features/Dashboard";
 import { SettingsPanel } from "@/components/features/settings/SettingsPanel";
 import { RestartDialog } from "@/components/features/updates/RestartDialog";
@@ -54,8 +55,9 @@ export default function Home() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [isDownloadingDebugLog, setIsDownloadingDebugLog] = useState(false);
   const [connectingContext, setConnectingContext] = useState<string | null>(null);
-  const [kubeconfigPath, setKubeconfigPath] = useState("~/.kube/config");
   const initialFetchDone = useRef(false);
+  const { isWindows } = usePlatform();
+  const kubeconfigPath = isWindows ? "C:\\Users\\<username>\\.kube\\config" : "~/.kube/config";
 
   const {
     clusters,
@@ -143,18 +145,6 @@ export default function Home() {
         }
       } else {
         setIsTauri(true);
-      }
-
-      // Detect platform and set kubeconfig path
-      try {
-        const { type } = await import("@tauri-apps/plugin-os");
-        const osType = await type();
-        if (osType === "windows") {
-          setKubeconfigPath("C:\\Users\\<username>\\.kube\\config");
-        }
-        // macOS and Linux use ~/.kube/config (default)
-      } catch {
-        // Platform detection failed, keep default
       }
 
       // Fetch clusters before showing UI
