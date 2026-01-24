@@ -8,11 +8,11 @@ import {
 const faqs = [
   {
     question: "What makes Kubeli different from Lens?",
-    answer: "Kubeli is a native macOS app built with Tauri and Rust - not Electron like Lens. This means significantly lower memory usage (~100MB vs ~350MB), faster startup, and better macOS integration. Plus: Kubeli is 100% open source and free."
+    answer: "Kubeli is a native desktop app built with Tauri and Rust - not Electron like Lens. This means significantly lower memory usage (~100MB vs ~350MB), faster startup, and better OS integration. Plus: Kubeli is 100% open source and free."
   },
   {
     question: "Is Kubeli an Electron app?",
-    answer: "No! Kubeli uses Tauri 2.0 with a Rust backend. This makes the app about 10x smaller than comparable Electron apps and much more resource-efficient. The native webview integration provides a true macOS experience."
+    answer: "No! Kubeli uses Tauri 2.0 with a Rust backend. This makes the app about 10x smaller than comparable Electron apps and much more resource-efficient. The native webview integration provides a true native experience on both macOS and Windows."
   },
   {
     question: "How does the AI assistant work?",
@@ -23,12 +23,12 @@ const faqs = [
     answer: "Kubeli supports all current Kubernetes versions through k8s-openapi v1.32. This includes local clusters (Minikube, kind, Docker Desktop) as well as cloud providers like GKE, EKS, and AKS."
   },
   {
-    question: "Why macOS only?",
-    answer: "We're focusing first on an excellent macOS experience with native features like Vibrancy effects and system integration. Windows and Linux versions are on the roadmap."
+    question: "Which platforms are supported?",
+    answer: "Kubeli runs natively on macOS (10.15+) and Windows (10/11). Both platforms support auto-updates, so you'll always have the latest features and security fixes."
   },
   {
     question: "Is my cluster data secure?",
-    answer: "Absolutely. Kubeli processes all data locally on your Mac. There's no cloud connection, no telemetry, no data collection. Your kubeconfig stays on your machine."
+    answer: "Absolutely. Kubeli processes all data locally on your machine. There's no cloud connection, no telemetry, no data collection. Your kubeconfig stays on your device."
   }
 ]
 

@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useUpdater } from "@/lib/hooks/useUpdater";
+import { usePlatform } from "@/lib/hooks/usePlatform";
 import {
   aiCheckCliAvailable,
   aiCheckCodexCliAvailable,
@@ -124,6 +125,9 @@ export function SettingsPanel() {
   const [mcpInstallingId, setMcpInstallingId] = useState<string | null>(null);
   const [mcpExamplesOpen, setMcpExamplesOpen] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
+
+  // Platform detection for OS-specific commands
+  const { isWindows } = usePlatform();
 
   // Handler for check updates with toast feedback
   const handleCheckForUpdates = useCallback(async () => {
@@ -823,22 +827,45 @@ export function SettingsPanel() {
                 installInstructions={
                   <div className="space-y-3">
                     <p className="font-medium">{t("ai.installClaude")}</p>
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground/80">
-                        {t("ai.installClaudeNative")}
-                      </p>
-                      <code className="block bg-background rounded px-2 py-1 text-xs font-mono">
-                        curl -fsSL https://claude.ai/install.sh | bash
-                      </code>
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground/80">
-                        {t("ai.installClaudeBrew")}
-                      </p>
-                      <code className="block bg-background rounded px-2 py-1 text-xs font-mono">
-                        brew install --cask claude-code
-                      </code>
-                    </div>
+                    {isWindows ? (
+                      <>
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground/80">
+                            {t("ai.installClaudeNative")} (PowerShell)
+                          </p>
+                          <code className="block bg-background rounded px-2 py-1 text-xs font-mono">
+                            irm https://claude.ai/install.ps1 | iex
+                          </code>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground/80">
+                            {t("ai.installClaudeWinget")}
+                          </p>
+                          <code className="block bg-background rounded px-2 py-1 text-xs font-mono">
+                            winget install Anthropic.ClaudeCode
+                          </code>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground/80">
+                            {t("ai.installClaudeNative")}
+                          </p>
+                          <code className="block bg-background rounded px-2 py-1 text-xs font-mono">
+                            curl -fsSL https://claude.ai/install.sh | bash
+                          </code>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="text-xs text-muted-foreground/80">
+                            {t("ai.installClaudeBrew")}
+                          </p>
+                          <code className="block bg-background rounded px-2 py-1 text-xs font-mono">
+                            brew install --cask claude-code
+                          </code>
+                        </div>
+                      </>
+                    )}
                     <p className="text-xs">
                       {t("ai.installClaudeAuth")}
                     </p>
@@ -871,14 +898,16 @@ export function SettingsPanel() {
                         npm i -g @openai/codex
                       </code>
                     </div>
-                    <div className="space-y-2">
-                      <p className="text-xs text-muted-foreground/80">
-                        {t("ai.installCodexBrew")}
-                      </p>
-                      <code className="block bg-background rounded px-2 py-1 text-xs font-mono">
-                        brew install codex
-                      </code>
-                    </div>
+                    {!isWindows && (
+                      <div className="space-y-2">
+                        <p className="text-xs text-muted-foreground/80">
+                          {t("ai.installCodexBrew")}
+                        </p>
+                        <code className="block bg-background rounded px-2 py-1 text-xs font-mono">
+                          brew install codex
+                        </code>
+                      </div>
+                    )}
                     <p className="text-xs">
                       {t("ai.installCodexAuth")}
                     </p>

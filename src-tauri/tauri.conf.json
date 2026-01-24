@@ -48,6 +48,16 @@
       "bundleName": "Kubeli",
       "minimumSystemVersion": "10.15"
     },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "embedBootstrapper"
+      },
+      "nsis": {
+        "languages": ["English", "German"],
+        "displayLanguageSelector": true,
+        "installMode": "currentUser"
+      }
+    },
     "iOS": {
       "developmentTeam": ""
     }

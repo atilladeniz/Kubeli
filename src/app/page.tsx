@@ -18,6 +18,7 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { useUpdater } from "@/lib/hooks/useUpdater";
+import { usePlatform } from "@/lib/hooks/usePlatform";
 import { Dashboard } from "@/components/features/Dashboard";
 import { SettingsPanel } from "@/components/features/settings/SettingsPanel";
 import { RestartDialog } from "@/components/features/updates/RestartDialog";
@@ -55,6 +56,8 @@ export default function Home() {
   const [isDownloadingDebugLog, setIsDownloadingDebugLog] = useState(false);
   const [connectingContext, setConnectingContext] = useState<string | null>(null);
   const initialFetchDone = useRef(false);
+  const { isWindows } = usePlatform();
+  const kubeconfigPath = isWindows ? "C:\\Users\\<username>\\.kube\\config" : "~/.kube/config";
 
   const {
     clusters,
@@ -289,7 +292,7 @@ export default function Home() {
                     {t("noClusters")}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground/70">
-                    {t("noClustersHint")}
+                    {t("noClustersHint", { path: kubeconfigPath })}
                   </p>
                 </CardContent>
               </Card>

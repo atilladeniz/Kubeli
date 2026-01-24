@@ -49,7 +49,9 @@ make build
 |---------|-------------|
 | `make dev` | Start Tauri development environment |
 | `make web-dev` | Start Next.js only (no Tauri) |
-| `make build` | Build production Tauri app |
+| `make build` | Build production Tauri app (macOS) |
+| `make build-windows` | Cross-compile Windows NSIS installer from macOS |
+| `make build-all` | Build both macOS and Windows installers |
 | `make lint` | Run ESLint |
 | `make format` | Format code with Prettier |
 | `make check` | Run TypeScript type checking |
@@ -58,6 +60,15 @@ make build
 | `make clean` | Clean build artifacts |
 | `make install` | Install all dependencies |
 | `make help` | Show all available commands |
+
+### Release & Deploy
+
+| Command | Description |
+|---------|-------------|
+| `make build-deploy` | Build, deploy, and create GitHub release |
+| `make deploy` | Deploy update files to FTP (macOS + Windows) |
+| `make deploy-web` | Deploy installers to landing page |
+| `make github-release` | Create GitHub release with DMG + EXE |
 
 ### Using npm
 
@@ -153,6 +164,59 @@ The `make minikube-start` command automatically creates sample Kubernetes resour
 | LimitRanges | 1 | demo-limit-range |
 
 Sample manifests are located in `.dev/k8s-samples/`.
+
+## Windows Development
+
+### Building for Windows (from macOS)
+
+```bash
+# Install cross-compile dependencies (one-time)
+make install-windows-build-deps
+
+# Build Windows NSIS installer
+make build-windows
+
+# Build both macOS and Windows
+make build-all
+```
+
+Output: `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Kubeli_*_x64-setup.exe`
+
+### Windows VM Testing
+
+For testing in Windows VMs (UTM, VirtualBox) without nested virtualization:
+
+```bash
+# On Mac: Expose minikube API
+make minikube-serve
+
+# On Windows: Connect to Mac's minikube
+.\connect-minikube.ps1 -HostIP <mac-ip>
+```
+
+See `.dev/windows/WINDOWS-SETUP.md` for full documentation.
+
+## Platform Detection
+
+Use the `usePlatform` hook for OS-specific behavior:
+
+```typescript
+import { usePlatform } from "@/lib/hooks/usePlatform";
+
+function MyComponent() {
+  const { isMac, isWindows, modKeySymbol } = usePlatform();
+
+  // modKeySymbol: "⌘" on Mac, "Ctrl+" on Windows
+  return <Kbd>{modKeySymbol}S</Kbd>;
+}
+```
+
+Available properties:
+- `platform`: "macos" | "windows" | "linux" | "unknown"
+- `isMac`, `isWindows`, `isLinux`: boolean helpers
+- `modKey`: "⌘" or "Ctrl"
+- `modKeySymbol`: "⌘" or "Ctrl+" (with plus for clarity)
+- `altKey`, `shiftKey`: OS-specific symbols
 
 ## Key Files
 

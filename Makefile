@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install test test-all test-e2e lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
+.PHONY: dev build build-all clean install install-windows-build-deps build-windows test test-all test-e2e lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
 
 # Default target
 .DEFAULT_GOAL := help
@@ -111,6 +111,9 @@ build-dmg: build dmg ## Build app and create DMG
 
 build-universal-dmg: build-universal dmg ## Build Universal Binary and create DMG
 
+build-all: build build-windows ## Build both macOS and Windows installers
+	@echo "$(GREEN)✓ Both macOS and Windows builds complete$(RESET)"
+
 ## Astro Landing Page (web/)
 
 astro: ## Start Astro dev server for landing page
@@ -142,47 +145,83 @@ astro-public: astro-build ## Build and deploy landing page to FTP
 	done; \
 	echo "$(GREEN)✓ Landing page deployed to https://$$DEPLOY_LANDING_URL$(RESET)"
 
-deploy-web: ## Deploy DMG to landing page for direct download
-	@echo "$(CYAN)Deploying DMG to landing page...$(RESET)"
+deploy-web: ## Deploy DMG and Windows EXE to landing page for direct download
+	@echo "$(CYAN)Deploying installers to landing page...$(RESET)"
 	@if [ -f .env ]; then \
 		set -a; source .env; set +a; \
 	fi; \
+	VERSION=$$(node -e "console.log(require('./package.json').version)"); \
 	DMG_DIR="src-tauri/target/release/bundle/dmg"; \
 	DMG_FILE=$$(ls $$DMG_DIR/*.dmg 2>/dev/null | head -1); \
-	if [ -z "$$DMG_FILE" ]; then \
-		echo "$(YELLOW)Error: No DMG found in $$DMG_DIR. Run 'make build' first.$(RESET)"; \
-		exit 1; \
+	EXE_FILE="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Kubeli_$${VERSION}_x64-setup.exe"; \
+	if [ -n "$$DMG_FILE" ]; then \
+		DMG_NAME=$$(basename "$$DMG_FILE"); \
+		echo "$(CYAN)Uploading $$DMG_NAME...$(RESET)"; \
+		curl -# --ftp-create-dirs -T "$$DMG_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/$$DMG_NAME"; \
+		curl -# --ftp-create-dirs -T "$$DMG_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/Kubeli_latest.dmg"; \
+		echo "$(GREEN)✓ DMG deployed:$(RESET)"; \
+		echo "  - https://$$DEPLOY_LANDING_URL/$$DMG_NAME"; \
+		echo "  - https://$$DEPLOY_LANDING_URL/Kubeli_latest.dmg"; \
+	else \
+		echo "$(YELLOW)Warning: No DMG found$(RESET)"; \
 	fi; \
-	DMG_NAME=$$(basename "$$DMG_FILE"); \
-	echo "$(CYAN)Uploading $$DMG_NAME to $$DEPLOY_LANDING_URL...$(RESET)"; \
-	curl -# --ftp-create-dirs -T "$$DMG_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/$$DMG_NAME"; \
-	curl -# --ftp-create-dirs -T "$$DMG_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/Kubeli_latest.dmg"; \
-	echo "$(GREEN)✓ DMG deployed:$(RESET)"; \
-	echo "  - https://$$DEPLOY_LANDING_URL/$$DMG_NAME"; \
-	echo "  - https://$$DEPLOY_LANDING_URL/Kubeli_latest.dmg"
+	if [ -f "$$EXE_FILE" ]; then \
+		EXE_NAME=$$(basename "$$EXE_FILE"); \
+		echo "$(CYAN)Uploading $$EXE_NAME...$(RESET)"; \
+		curl -# --ftp-create-dirs -T "$$EXE_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/$$EXE_NAME"; \
+		curl -# --ftp-create-dirs -T "$$EXE_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/Kubeli_latest_x64-setup.exe"; \
+		echo "$(GREEN)✓ Windows EXE deployed:$(RESET)"; \
+		echo "  - https://$$DEPLOY_LANDING_URL/$$EXE_NAME"; \
+		echo "  - https://$$DEPLOY_LANDING_URL/Kubeli_latest_x64-setup.exe"; \
+	else \
+		echo "$(YELLOW)Warning: No Windows EXE found$(RESET)"; \
+	fi
 
 ## Deployment
 
-deploy: ## Deploy update files to FTP server
+deploy: ## Deploy update files to FTP server (macOS and Windows)
 	@echo "$(CYAN)Deploying update files to FTP...$(RESET)"
 	@if [ -f .env ]; then \
 		set -a; source .env; set +a; \
 	fi; \
 	VERSION=$$(node -e "console.log(require('./package.json').version)"); \
-	BUNDLE_DIR="src-tauri/target/release/bundle/macos"; \
-	if [ ! -f "$$BUNDLE_DIR/Kubeli.app.tar.gz" ]; then \
-		echo "$(YELLOW)Error: Update bundle not found. Run 'make build' first.$(RESET)"; \
+	MAC_BUNDLE_DIR="src-tauri/target/release/bundle/macos"; \
+	WIN_BUNDLE_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"; \
+	DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
+	PLATFORMS=""; \
+	if [ -f "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz" ]; then \
+		MAC_SIG=$$(cat "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz.sig"); \
+		PLATFORMS="$$PLATFORMS\"darwin-aarch64\": { \"signature\": \"$$MAC_SIG\", \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$$VERSION.app.tar.gz\" }, \"darwin-x86_64\": { \"signature\": \"$$MAC_SIG\", \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$$VERSION.app.tar.gz\" }"; \
+		echo "$(GREEN)✓ Found macOS bundle$(RESET)"; \
+	else \
+		echo "$(YELLOW)Warning: macOS bundle not found$(RESET)"; \
+	fi; \
+	WIN_EXE_FILE="$$WIN_BUNDLE_DIR/Kubeli_$${VERSION}_x64-setup.exe"; \
+	if [ -f "$$WIN_EXE_FILE" ] && [ -f "$$WIN_EXE_FILE.sig" ]; then \
+		WIN_SIG=$$(cat "$$WIN_EXE_FILE.sig"); \
+		if [ -n "$$PLATFORMS" ]; then PLATFORMS="$$PLATFORMS, "; fi; \
+		PLATFORMS="$$PLATFORMS\"windows-x86_64\": { \"signature\": \"$$WIN_SIG\", \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$${VERSION}_x64-setup.exe\" }"; \
+		echo "$(GREEN)✓ Found Windows bundle$(RESET)"; \
+	else \
+		echo "$(YELLOW)Warning: Windows bundle not found (run 'make build-windows' first)$(RESET)"; \
+	fi; \
+	if [ -z "$$PLATFORMS" ]; then \
+		echo "$(YELLOW)Error: No update bundles found. Run 'make build-all' first.$(RESET)"; \
 		exit 1; \
 	fi; \
 	echo "$(CYAN)Creating latest.json...$(RESET)"; \
-	SIG=$$(cat "$$BUNDLE_DIR/Kubeli.app.tar.gz.sig"); \
-	DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
-	echo "{\n  \"version\": \"$$VERSION\",\n  \"notes\": \"Kubeli v$$VERSION\",\n  \"pub_date\": \"$$DATE\",\n  \"platforms\": {\n    \"darwin-aarch64\": {\n      \"signature\": \"$$SIG\",\n      \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$$VERSION.app.tar.gz\"\n    },\n    \"darwin-x86_64\": {\n      \"signature\": \"$$SIG\",\n      \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$$VERSION.app.tar.gz\"\n    }\n  }\n}" > "$$BUNDLE_DIR/latest.json"; \
+	echo "{ \"version\": \"$$VERSION\", \"notes\": \"Kubeli v$$VERSION\", \"pub_date\": \"$$DATE\", \"platforms\": { $$PLATFORMS } }" > "$$MAC_BUNDLE_DIR/latest.json"; \
 	echo "$(GREEN)✓ latest.json created$(RESET)"; \
 	echo "$(CYAN)Uploading to FTP...$(RESET)"; \
-	curl -v -T "$$BUNDLE_DIR/Kubeli.app.tar.gz" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$$VERSION.app.tar.gz" --ftp-create-dirs; \
-	curl -v -T "$$BUNDLE_DIR/Kubeli.app.tar.gz.sig" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$$VERSION.app.tar.gz.sig" --ftp-create-dirs; \
-	curl -v -T "$$BUNDLE_DIR/latest.json" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/latest.json" --ftp-create-dirs; \
+	if [ -f "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz" ]; then \
+		curl -v -T "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$$VERSION.app.tar.gz" --ftp-create-dirs; \
+		curl -v -T "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz.sig" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$$VERSION.app.tar.gz.sig" --ftp-create-dirs; \
+	fi; \
+	if [ -f "$$WIN_EXE_FILE" ] && [ -f "$$WIN_EXE_FILE.sig" ]; then \
+		curl -v -T "$$WIN_EXE_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$${VERSION}_x64-setup.exe" --ftp-create-dirs; \
+		curl -v -T "$$WIN_EXE_FILE.sig" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$${VERSION}_x64-setup.exe.sig" --ftp-create-dirs; \
+	fi; \
+	curl -v -T "$$MAC_BUNDLE_DIR/latest.json" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/latest.json" --ftp-create-dirs; \
 	echo "$(GREEN)✓ Files uploaded to $$DEPLOY_API_URL$(RESET)"; \
 	echo "$(GREEN)✓ Update URL: https://$$DEPLOY_API_URL/latest.json$(RESET)"
 
@@ -195,11 +234,25 @@ generate-changelog: ## Generate changelog using Claude Code CLI
 		echo "$(GREEN)✓ Changelog files updated$(RESET)"; \
 	fi
 
-github-release: ## Create GitHub release with DMG and SBOMs
+github-release: ## Create GitHub release with DMG, Windows EXE, and SBOMs
 	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
 	DMG_FILE="src-tauri/target/release/bundle/dmg/Kubeli_$${VERSION}_aarch64.dmg"; \
-	if [ ! -f "$$DMG_FILE" ]; then \
-		echo "$(YELLOW)Error: DMG not found at $$DMG_FILE$(RESET)"; \
+	EXE_FILE="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Kubeli_$${VERSION}_x64-setup.exe"; \
+	RELEASE_FILES=""; \
+	if [ -f "$$DMG_FILE" ]; then \
+		RELEASE_FILES="$$RELEASE_FILES $$DMG_FILE"; \
+		echo "$(GREEN)✓ Found macOS DMG$(RESET)"; \
+	else \
+		echo "$(YELLOW)Warning: DMG not found at $$DMG_FILE$(RESET)"; \
+	fi; \
+	if [ -f "$$EXE_FILE" ]; then \
+		RELEASE_FILES="$$RELEASE_FILES $$EXE_FILE"; \
+		echo "$(GREEN)✓ Found Windows EXE$(RESET)"; \
+	else \
+		echo "$(YELLOW)Warning: Windows EXE not found at $$EXE_FILE$(RESET)"; \
+	fi; \
+	if [ -z "$$RELEASE_FILES" ]; then \
+		echo "$(YELLOW)Error: No installers found. Run 'make build-all' first.$(RESET)"; \
 		exit 1; \
 	fi; \
 	echo "$(CYAN)Creating GitHub release v$$VERSION...$(RESET)"; \
@@ -207,15 +260,13 @@ github-release: ## Create GitHub release with DMG and SBOMs
 	if [ -f sbom-npm.json ]; then SBOM_FILES="$$SBOM_FILES sbom-npm.json"; fi; \
 	if [ -f sbom-rust.json ]; then SBOM_FILES="$$SBOM_FILES sbom-rust.json"; fi; \
 	if gh release view "v$$VERSION" --repo atilladeniz/Kubeli > /dev/null 2>&1; then \
-		echo "$(YELLOW)Release v$$VERSION already exists, updating notes...$(RESET)"; \
+		echo "$(YELLOW)Release v$$VERSION already exists, updating...$(RESET)"; \
 		if [ -f .release-notes.md ]; then \
 			gh release edit "v$$VERSION" --repo atilladeniz/Kubeli --notes-file .release-notes.md; \
 			echo "$(GREEN)✓ Release notes updated$(RESET)"; \
 		fi; \
-		if [ -n "$$SBOM_FILES" ]; then \
-			gh release upload "v$$VERSION" --repo atilladeniz/Kubeli --clobber $$SBOM_FILES; \
-			echo "$(GREEN)✓ SBOMs uploaded$(RESET)"; \
-		fi; \
+		gh release upload "v$$VERSION" --repo atilladeniz/Kubeli --clobber $$RELEASE_FILES $$SBOM_FILES; \
+		echo "$(GREEN)✓ Files uploaded$(RESET)"; \
 	else \
 		NOTES="See [CHANGELOG.md](https://github.com/atilladeniz/Kubeli/blob/main/CHANGELOG.md) for details."; \
 		if [ -f .release-notes.md ]; then \
@@ -225,7 +276,7 @@ github-release: ## Create GitHub release with DMG and SBOMs
 			--repo atilladeniz/Kubeli \
 			--title "Kubeli v$$VERSION" \
 			--notes "$$NOTES" \
-			"$$DMG_FILE" $$SBOM_FILES; \
+			$$RELEASE_FILES $$SBOM_FILES; \
 		echo "$(GREEN)✓ GitHub release v$$VERSION created$(RESET)"; \
 	fi; \
 	rm -f .release-notes.md
@@ -287,7 +338,77 @@ install: ## Install all dependencies
 	npm install
 	cd src-tauri && cargo fetch
 
+install-windows-build-deps: ## Install dependencies for cross-compiling Windows builds on macOS
+	@echo "$(CYAN)Installing Windows cross-compile dependencies...$(RESET)"
+	@which brew > /dev/null || (echo "$(YELLOW)Homebrew not found. Please install from https://brew.sh$(RESET)" && exit 1)
+	brew install nsis llvm lld cmake ninja nasm
+	rustup target add x86_64-pc-windows-msvc
+	cargo install --locked cargo-xwin
+	@echo "$(GREEN)✓ Windows build dependencies installed$(RESET)"
+	@echo ""
+	@echo "$(CYAN)To build for Windows, run:$(RESET)"
+	@echo "  make build-windows"
+
+build-windows: ## Cross-compile Windows NSIS installer from macOS
+	@echo "$(CYAN)Building Windows installer (cross-compile)...$(RESET)"
+	@export PATH="/opt/homebrew/opt/llvm/bin:$$PATH" && \
+	npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
+	@echo "$(GREEN)✓ Windows installer built$(RESET)"
+	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
+	NSIS_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"; \
+	EXE_FILE="$$NSIS_DIR/Kubeli_$${VERSION}_x64-setup.exe"; \
+	if [ -f "$$EXE_FILE" ]; then \
+		if [ -f .env ]; then \
+			set -a; source .env; set +a; \
+		fi; \
+		if [ -z "$$TAURI_SIGNING_PRIVATE_KEY" ] && [ -f ~/.tauri/kubeli.key ]; then \
+			export TAURI_SIGNING_PRIVATE_KEY="$$(cat ~/.tauri/kubeli.key)"; \
+		fi; \
+		if [ -n "$$TAURI_SIGNING_PRIVATE_KEY" ]; then \
+			echo "$(CYAN)Signing Windows installer for auto-updates...$(RESET)"; \
+			TAURI_PRIVATE_KEY="$$TAURI_SIGNING_PRIVATE_KEY" \
+			TAURI_PRIVATE_KEY_PASSWORD="$${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" \
+			npx tauri signer sign -p "$${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" "$$EXE_FILE"; \
+			echo "$(GREEN)✓ Signed $$EXE_FILE.sig$(RESET)"; \
+		else \
+			echo "$(YELLOW)Warning: TAURI_SIGNING_PRIVATE_KEY not set, skipping signature$(RESET)"; \
+		fi; \
+	fi
+	@echo "$(CYAN)Output: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/$(RESET)"
+
 reinstall: clean-all install ## Clean and reinstall all dependencies
+
+## Windows VM Testing (Remote Kubernetes)
+
+minikube-serve: ## Expose minikube API for Windows VM testing (run on Mac)
+	@echo "$(CYAN)Starting minikube API proxy for remote access...$(RESET)"
+	@if ! minikube status > /dev/null 2>&1; then \
+		echo "$(YELLOW)Minikube not running. Starting...$(RESET)"; \
+		$(MAKE) minikube-start; \
+	fi
+	@HOST_IP=$$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "0.0.0.0"); \
+	echo "$(GREEN)✓ Minikube is running$(RESET)"; \
+	echo ""; \
+	echo "$(CYAN)============================================$(RESET)"; \
+	echo "$(CYAN)   Kubernetes API Proxy for Windows VM     $(RESET)"; \
+	echo "$(CYAN)============================================$(RESET)"; \
+	echo ""; \
+	echo "$(YELLOW)Mac IP:$(RESET)     $$HOST_IP"; \
+	echo "$(YELLOW)Proxy Port:$(RESET) 8001"; \
+	echo ""; \
+	echo "$(CYAN)In Windows VM (UTM shared folder), run:$(RESET)"; \
+	echo ""; \
+	printf '  cd <SharedDrive>:\\.dev\\windows\n'; \
+	printf '  .\\connect-minikube.ps1 -HostIP %s\n' "$$HOST_IP"; \
+	echo ""; \
+	echo "$(CYAN)Example with Z: drive:$(RESET)"; \
+	echo ""; \
+	printf '  cd Z:\\.dev\\windows\n'; \
+	printf '  .\\connect-minikube.ps1 -HostIP %s\n' "$$HOST_IP"; \
+	echo ""; \
+	echo "$(YELLOW)Press Ctrl+C to stop the proxy$(RESET)"; \
+	echo ""; \
+	kubectl proxy --address='0.0.0.0' --port=8001 --accept-hosts='.*'
 
 ## Kubernetes (for local development)
 
