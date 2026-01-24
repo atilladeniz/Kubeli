@@ -164,7 +164,8 @@ function Test-Prerequisites {
     # Check for Hyper-V or WSL2 (minikube drivers)
     Write-ColorOutput "`nChecking virtualization..." -Color $Colors.Cyan
 
-    $hasHyperV = (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction SilentlyContinue)?.State -eq 'Enabled'
+    $hyperVFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction SilentlyContinue
+    $hasHyperV = ($null -ne $hyperVFeature) -and ($hyperVFeature.State -eq 'Enabled')
     $hasWSL = Test-Command 'wsl'
     $hasDocker = Test-Command 'docker'
 
@@ -243,7 +244,8 @@ function Start-MinikubeCluster {
     # Determine best driver
     $driver = 'docker'  # Default
     if (-not (Test-Command 'docker')) {
-        $hasHyperV = (Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction SilentlyContinue)?.State -eq 'Enabled'
+        $hyperVFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction SilentlyContinue
+        $hasHyperV = ($null -ne $hyperVFeature) -and ($hyperVFeature.State -eq 'Enabled')
         if ($hasHyperV) {
             $driver = 'hyperv'
         }
