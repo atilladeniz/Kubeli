@@ -503,6 +503,7 @@
       "installClaude": "Install Claude Code CLI:",
       "installClaudeNative": "Native Install (Recommended):",
       "installClaudeBrew": "Or via Homebrew:",
+      "installClaudeWinget": "Or via WinGet:",
       "installClaudeAuth": "After installation, run claude to authenticate.",
       "installCodex": "Install Codex CLI:",
       "installCodexNpm": "Via npm (Recommended):",
