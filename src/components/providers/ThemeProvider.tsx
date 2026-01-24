@@ -2,9 +2,11 @@
 
 import { useEffect } from "react";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { usePlatform } from "@/lib/hooks/usePlatform";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const { settings, resolvedTheme, setResolvedTheme, setSettingsOpen, isSettingsOpen } = useUIStore();
+  const { platform } = usePlatform();
 
   // Global keyboard shortcuts
   useEffect(() => {
@@ -52,6 +54,19 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     // Add the appropriate vibrancy class
     root.classList.add(`vibrancy-${settings.vibrancyLevel}`);
   }, [settings.vibrancyLevel]);
+
+  // Apply platform class to document for platform-specific styling
+  useEffect(() => {
+    const root = document.documentElement;
+
+    // Remove all platform classes first
+    root.classList.remove("platform-macos", "platform-windows", "platform-linux");
+
+    // Add the appropriate platform class
+    if (platform !== "unknown") {
+      root.classList.add(`platform-${platform}`);
+    }
+  }, [platform]);
 
   // Listen for system theme changes
   useEffect(() => {

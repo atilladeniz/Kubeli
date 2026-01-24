@@ -25,7 +25,7 @@
         "hiddenTitle": true,
         "transparent": true,
         "windowEffects": {
-          "effects": ["hudWindow"],
+          "effects": ["hudWindow", "mica"],
           "state": "active",
           "radius": 16
         }
