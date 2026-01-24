@@ -325,7 +325,7 @@ minikube-setup-samples: ## Apply sample Kubernetes resources for testing
 		echo "  - NetworkPolicies: 4 policies"; \
 		echo "  - HPAs: demo-web-hpa, demo-api-hpa (v2)"; \
 		echo "  - PDBs: demo-web-pdb, demo-api-pdb"; \
-		echo "  - PV/PVC: demo-pv-1, demo-pv-2, demo-pvc"; \
+		echo "  - PVs: 10 volumes (100Mi-256Gi), PVC: demo-pvc"; \
 		echo "  - RBAC: Roles, RoleBindings, ServiceAccount"; \
 		echo "  - Quotas: ResourceQuota, LimitRange"; \
 		echo "  - Flux HelmReleases: podinfo, redis, prometheus-stack, cert-manager"; \
@@ -402,7 +402,7 @@ minikube-clean-samples: ## Remove sample Kubernetes resources
 		helm uninstall demo-mysql -n kubeli-demo 2>/dev/null || true; \
 	fi
 	@kubectl delete namespace kubeli-demo --ignore-not-found=true
-	@kubectl delete pv demo-pv-1 demo-pv-2 --ignore-not-found=true
+	@kubectl delete pv demo-pv-100mi demo-pv-500mi demo-pv-1gi demo-pv-2gi demo-pv-5gi demo-pv-10gi demo-pv-20gi demo-pv-50gi demo-pv-100gi demo-pv-256gi --ignore-not-found=true
 	@kubectl delete ingressclass demo-ingress-class --ignore-not-found=true
 	@echo "$(GREEN)✓ Sample resources removed$(RESET)"
 
