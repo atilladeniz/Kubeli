@@ -196,14 +196,14 @@ deploy: ## Deploy update files to FTP server (macOS and Windows)
 	else \
 		echo "$(YELLOW)Warning: macOS bundle not found$(RESET)"; \
 	fi; \
-	WIN_NSIS_FILE="$$WIN_BUNDLE_DIR/Kubeli_$${VERSION}_x64-setup.nsis.zip"; \
-	if [ -f "$$WIN_NSIS_FILE" ] && [ -f "$$WIN_NSIS_FILE.sig" ]; then \
-		WIN_SIG=$$(cat "$$WIN_NSIS_FILE.sig"); \
+	WIN_EXE_FILE="$$WIN_BUNDLE_DIR/Kubeli_$${VERSION}_x64-setup.exe"; \
+	if [ -f "$$WIN_EXE_FILE" ] && [ -f "$$WIN_EXE_FILE.sig" ]; then \
+		WIN_SIG=$$(cat "$$WIN_EXE_FILE.sig"); \
 		if [ -n "$$PLATFORMS" ]; then PLATFORMS="$$PLATFORMS, "; fi; \
-		PLATFORMS="$$PLATFORMS\"windows-x86_64\": { \"signature\": \"$$WIN_SIG\", \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$${VERSION}_x64-setup.nsis.zip\" }"; \
+		PLATFORMS="$$PLATFORMS\"windows-x86_64\": { \"signature\": \"$$WIN_SIG\", \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$${VERSION}_x64-setup.exe\" }"; \
 		echo "$(GREEN)✓ Found Windows bundle$(RESET)"; \
 	else \
-		echo "$(YELLOW)Warning: Windows bundle not found (auto-update requires signed .nsis.zip)$(RESET)"; \
+		echo "$(YELLOW)Warning: Windows bundle not found (run 'make build-windows' first)$(RESET)"; \
 	fi; \
 	if [ -z "$$PLATFORMS" ]; then \
 		echo "$(YELLOW)Error: No update bundles found. Run 'make build-all' first.$(RESET)"; \
@@ -217,9 +217,9 @@ deploy: ## Deploy update files to FTP server (macOS and Windows)
 		curl -v -T "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$$VERSION.app.tar.gz" --ftp-create-dirs; \
 		curl -v -T "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz.sig" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$$VERSION.app.tar.gz.sig" --ftp-create-dirs; \
 	fi; \
-	if [ -f "$$WIN_NSIS_FILE" ]; then \
-		curl -v -T "$$WIN_NSIS_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$${VERSION}_x64-setup.nsis.zip" --ftp-create-dirs; \
-		curl -v -T "$$WIN_NSIS_FILE.sig" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$${VERSION}_x64-setup.nsis.zip.sig" --ftp-create-dirs; \
+	if [ -f "$$WIN_EXE_FILE" ] && [ -f "$$WIN_EXE_FILE.sig" ]; then \
+		curl -v -T "$$WIN_EXE_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$${VERSION}_x64-setup.exe" --ftp-create-dirs; \
+		curl -v -T "$$WIN_EXE_FILE.sig" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$${VERSION}_x64-setup.exe.sig" --ftp-create-dirs; \
 	fi; \
 	curl -v -T "$$MAC_BUNDLE_DIR/latest.json" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/latest.json" --ftp-create-dirs; \
 	echo "$(GREEN)✓ Files uploaded to $$DEPLOY_API_URL$(RESET)"; \
@@ -357,11 +357,7 @@ build-windows: ## Cross-compile Windows NSIS installer from macOS
 	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
 	NSIS_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"; \
 	EXE_FILE="$$NSIS_DIR/Kubeli_$${VERSION}_x64-setup.exe"; \
-	ZIP_FILE="$$NSIS_DIR/Kubeli_$${VERSION}_x64-setup.nsis.zip"; \
 	if [ -f "$$EXE_FILE" ]; then \
-		echo "$(CYAN)Creating update bundle...$(RESET)"; \
-		cd "$$NSIS_DIR" && zip -j "$$(basename $$ZIP_FILE)" "$$(basename $$EXE_FILE)"; \
-		echo "$(GREEN)✓ Created $$ZIP_FILE$(RESET)"; \
 		if [ -f .env ]; then \
 			set -a; source .env; set +a; \
 		fi; \
@@ -369,11 +365,11 @@ build-windows: ## Cross-compile Windows NSIS installer from macOS
 			export TAURI_SIGNING_PRIVATE_KEY="$$(cat ~/.tauri/kubeli.key)"; \
 		fi; \
 		if [ -n "$$TAURI_SIGNING_PRIVATE_KEY" ]; then \
-			echo "$(CYAN)Signing update bundle...$(RESET)"; \
+			echo "$(CYAN)Signing Windows installer for auto-updates...$(RESET)"; \
 			TAURI_PRIVATE_KEY="$$TAURI_SIGNING_PRIVATE_KEY" \
 			TAURI_PRIVATE_KEY_PASSWORD="$${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" \
-			npx tauri signer sign -p "$${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" "$$ZIP_FILE"; \
-			echo "$(GREEN)✓ Signed $$ZIP_FILE.sig$(RESET)"; \
+			npx tauri signer sign -p "$${TAURI_SIGNING_PRIVATE_KEY_PASSWORD:-}" "$$EXE_FILE"; \
+			echo "$(GREEN)✓ Signed $$EXE_FILE.sig$(RESET)"; \
 		else \
 			echo "$(YELLOW)Warning: TAURI_SIGNING_PRIVATE_KEY not set, skipping signature$(RESET)"; \
 		fi; \
