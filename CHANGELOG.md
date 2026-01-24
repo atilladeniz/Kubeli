@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.43] - 2026-01-24
+
+- Improved trackpad gesture handling for Mac in resource diagram
+
 ## [0.2.42] - 2026-01-24
 
 - Fixed invalid template pod in scale-pods sample
