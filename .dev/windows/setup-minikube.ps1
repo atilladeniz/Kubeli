@@ -304,13 +304,40 @@ function Start-MinikubeCluster {
     Write-Step "Starting minikube..."
 
     # Determine best driver
-    $driver = 'docker'  # Default
-    if (-not (Test-Command 'docker')) {
-        $hyperVFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction SilentlyContinue
-        $hasHyperV = ($null -ne $hyperVFeature) -and ($hyperVFeature.State -eq 'Enabled')
-        if ($hasHyperV) {
-            $driver = 'hyperv'
+    $hasDocker = Test-Command 'docker'
+    $hyperVFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction SilentlyContinue
+    $hasHyperV = ($null -ne $hyperVFeature) -and ($hyperVFeature.State -eq 'Enabled')
+
+    $driver = $null
+
+    if ($hasDocker) {
+        $driver = 'docker'
+    }
+    elseif ($hasHyperV) {
+        $driver = 'hyperv'
+    }
+    else {
+        Write-Error "No virtualization driver available!"
+        Write-ColorOutput "`nMinikube needs Docker or Hyper-V to run." -Color $Colors.Yellow
+        Write-ColorOutput "`nOptions:" -Color $Colors.Cyan
+        Write-ColorOutput "  1. Install Docker Desktop (recommended):" -Color $Colors.White
+        Write-ColorOutput "     winget install Docker.DockerDesktop --source winget" -Color $Colors.White
+        Write-ColorOutput "`n  2. Enable Hyper-V (requires Windows Pro/Enterprise):" -Color $Colors.White
+        Write-ColorOutput "     Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -All" -Color $Colors.White
+
+        Write-ColorOutput "`nDo you want to install Docker Desktop now? [Y/n]: " -Color $Colors.Cyan -NoNewline
+        $response = Read-Host
+
+        if ($response -eq '' -or $response -match '^[Yy]') {
+            $installed = Install-WithWinget -PackageId 'Docker.DockerDesktop' -Name 'Docker Desktop'
+            if ($installed) {
+                Write-Warning "Docker Desktop installed. Please:"
+                Write-ColorOutput "  1. Start Docker Desktop from Start Menu" -Color $Colors.White
+                Write-ColorOutput "  2. Wait for it to fully start (whale icon in system tray)" -Color $Colors.White
+                Write-ColorOutput "  3. Run this script again" -Color $Colors.White
+            }
         }
+        return $false
     }
 
     Write-ColorOutput "Using driver: $driver" -Color $Colors.White
