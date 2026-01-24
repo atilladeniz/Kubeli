@@ -321,7 +321,7 @@ export function Sidebar({ activeResource, onResourceSelect }: SidebarProps) {
     useFavoritesStore();
   const [namespaceOpen, setNamespaceOpen] = useState(false);
   const navigationSections = useNavigationSections();
-  const { modKey } = usePlatform();
+  const { modKeySymbol } = usePlatform();
 
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
@@ -584,7 +584,7 @@ export function Sidebar({ activeResource, onResourceSelect }: SidebarProps) {
                     onResourceSelect(fav.resourceType as ResourceType)
                   }
                   onRemove={() => removeFavorite(clusterContext, fav.id)}
-                  modKey={modKey}
+                  modKey={modKeySymbol}
                 />
               ))}
             </div>
@@ -661,7 +661,7 @@ export function Sidebar({ activeResource, onResourceSelect }: SidebarProps) {
             <Cog className="size-4" />
             {tNav("settings")}
           </span>
-          <Kbd className="text-[10px]">{modKey},</Kbd>
+          <Kbd className="text-[10px]">{modKeySymbol},</Kbd>
         </Button>
       </div>
     </aside>
