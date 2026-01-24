@@ -318,16 +318,22 @@ minikube-serve: ## Expose minikube API for Windows VM testing (run on Mac)
 	@HOST_IP=$$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "0.0.0.0"); \
 	echo "$(GREEN)✓ Minikube is running$(RESET)"; \
 	echo ""; \
-	echo "$(CYAN)========================================$(RESET)"; \
-	echo "$(CYAN)  Kubernetes API Proxy for Windows VM  $(RESET)"; \
-	echo "$(CYAN)========================================$(RESET)"; \
+	echo "$(CYAN)============================================$(RESET)"; \
+	echo "$(CYAN)   Kubernetes API Proxy for Windows VM     $(RESET)"; \
+	echo "$(CYAN)============================================$(RESET)"; \
 	echo ""; \
-	echo "$(YELLOW)Mac IP: $$HOST_IP$(RESET)"; \
-	echo "$(YELLOW)Proxy Port: 8001$(RESET)"; \
+	echo "$(YELLOW)Mac IP:$(RESET)     $$HOST_IP"; \
+	echo "$(YELLOW)Proxy Port:$(RESET) 8001"; \
 	echo ""; \
-	echo "$(CYAN)In Windows VM, run:$(RESET)"; \
-	echo "  cd Z:\\.dev\\windows"; \
-	echo "  .\\connect-minikube.ps1 -HostIP $$HOST_IP"; \
+	echo "$(CYAN)In Windows VM (UTM shared folder), run:$(RESET)"; \
+	echo ""; \
+	printf '  cd <SharedDrive>:\\.dev\\windows\n'; \
+	printf '  .\\connect-minikube.ps1 -HostIP %s\n' "$$HOST_IP"; \
+	echo ""; \
+	echo "$(CYAN)Example with Z: drive:$(RESET)"; \
+	echo ""; \
+	printf '  cd Z:\\.dev\\windows\n'; \
+	printf '  .\\connect-minikube.ps1 -HostIP %s\n' "$$HOST_IP"; \
 	echo ""; \
 	echo "$(YELLOW)Press Ctrl+C to stop the proxy$(RESET)"; \
 	echo ""; \
