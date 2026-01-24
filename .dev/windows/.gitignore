@@ -1,0 +1,5 @@
+# Generated kubeconfig files (contain local IPs and certs)
+kubeconfig-remote/
+
+# Local environment variables
+.env

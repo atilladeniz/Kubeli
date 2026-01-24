@@ -72,6 +72,45 @@ The script creates the `kubeli-demo` namespace with:
 | CronJob | demo-cleanup | Hourly cleanup job |
 | Services | demo-web, demo-api | ClusterIP services |
 
+## Remote Connection (UTM / No Virtualization)
+
+If you're running Windows in a VM that doesn't support nested virtualization (like UTM on Apple Silicon), you can connect to minikube running on the Mac host.
+
+### On Mac (Host)
+
+```bash
+# Start minikube if not running, then expose API
+make minikube-serve
+```
+
+This starts a kubectl proxy that exposes the Kubernetes API on port 8001.
+
+### On Windows (VM)
+
+```powershell
+# Navigate to shared folder (UTM mounts Mac folders to Z:)
+cd Z:\.dev\windows
+
+# Connect to Mac's minikube (IP shown in 'make minikube-serve' output)
+.\connect-minikube.ps1 -HostIP 192.168.64.1
+```
+
+The script will:
+1. Create/update kubeconfig for remote connection
+2. Test the connection
+3. Show available namespaces and nodes
+
+### Save IP for Future Use
+
+The connect script can save the IP to `.env`:
+```powershell
+# First run - will prompt to save
+.\connect-minikube.ps1 -HostIP 192.168.64.1
+
+# Future runs - uses saved IP
+.\connect-minikube.ps1
+```
+
 ## Troubleshooting
 
 ### Docker not starting
@@ -97,6 +136,15 @@ Run PowerShell as Administrator, or set execution policy:
 ```powershell
 Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
 ```
+
+### Virtualization not supported (UTM / VMs)
+
+If you see "Virtualization support not detected" when starting Docker Desktop, your VM doesn't support nested virtualization. This is common with:
+- UTM on Apple Silicon
+- VirtualBox without VT-x/AMD-V passthrough
+- Some cloud VMs
+
+**Solution:** Use the remote connection method - run minikube on the Mac host and connect from Windows. See "Remote Connection" section above.
 
 ## Manual kubectl Commands
 

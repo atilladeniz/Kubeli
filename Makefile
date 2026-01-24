@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build clean install install-windows-build-deps build-windows test test-all test-e2e lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
+.PHONY: dev build clean install install-windows-build-deps build-windows test test-all test-e2e lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
 
 # Default target
 .DEFAULT_GOAL := help
@@ -306,6 +306,32 @@ build-windows: ## Cross-compile Windows NSIS installer from macOS
 	@echo "$(CYAN)Output: src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/$(RESET)"
 
 reinstall: clean-all install ## Clean and reinstall all dependencies
+
+## Windows VM Testing (Remote Kubernetes)
+
+minikube-serve: ## Expose minikube API for Windows VM testing (run on Mac)
+	@echo "$(CYAN)Starting minikube API proxy for remote access...$(RESET)"
+	@if ! minikube status > /dev/null 2>&1; then \
+		echo "$(YELLOW)Minikube not running. Starting...$(RESET)"; \
+		$(MAKE) minikube-start; \
+	fi
+	@HOST_IP=$$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || echo "0.0.0.0"); \
+	echo "$(GREEN)✓ Minikube is running$(RESET)"; \
+	echo ""; \
+	echo "$(CYAN)========================================$(RESET)"; \
+	echo "$(CYAN)  Kubernetes API Proxy for Windows VM  $(RESET)"; \
+	echo "$(CYAN)========================================$(RESET)"; \
+	echo ""; \
+	echo "$(YELLOW)Mac IP: $$HOST_IP$(RESET)"; \
+	echo "$(YELLOW)Proxy Port: 8001$(RESET)"; \
+	echo ""; \
+	echo "$(CYAN)In Windows VM, run:$(RESET)"; \
+	echo "  cd Z:\\.dev\\windows"; \
+	echo "  .\\connect-minikube.ps1 -HostIP $$HOST_IP"; \
+	echo ""; \
+	echo "$(YELLOW)Press Ctrl+C to stop the proxy$(RESET)"; \
+	echo ""; \
+	kubectl proxy --address='0.0.0.0' --port=8001 --accept-hosts='.*'
 
 ## Kubernetes (for local development)
 
