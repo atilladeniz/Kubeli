@@ -113,7 +113,9 @@ users:
 
 "@
 
-$kubeConfigContent | Out-File -FilePath $KubeConfig -Encoding UTF8
+# Write UTF8 without BOM (PowerShell 5.1's Out-File adds BOM which breaks YAML parsing)
+$Utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText($KubeConfig, $kubeConfigContent, $Utf8NoBom)
 
 Write-Host "[+] Updated kubeconfig at $KubeConfig" -ForegroundColor Green
 Write-Host ""
