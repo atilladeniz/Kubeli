@@ -147,7 +147,7 @@ The `make minikube-start` command automatically creates sample Kubernetes resour
 | NetworkPolicies | 4 | deny, allow-web, allow-api, allow-dns |
 | HPAs | 2 | demo-web-hpa, demo-api-hpa (v2) |
 | PDBs | 2 | demo-web-pdb, demo-api-pdb |
-| PVs | 2 | demo-pv-1, demo-pv-2 |
+| PVs | 10 | demo-pv-100mi to demo-pv-256gi |
 | Roles | 2 | pod-manager, deployment-manager |
 | ResourceQuotas | 1 | demo-quota |
 | LimitRanges | 1 | demo-limit-range |
