@@ -92,7 +92,7 @@ if (Test-Path $KubeConfig) {
 }
 
 # Create minimal kubeconfig for kubectl proxy connection
-# Note: kubectl proxy doesn't require authentication
+# Note: kubectl proxy doesn't require authentication, but Kubeli parser needs the user field
 $kubeConfigContent = @"
 apiVersion: v1
 kind: Config
@@ -103,11 +103,13 @@ clusters:
 contexts:
 - context:
     cluster: minikube-remote
+    user: minikube-remote
     namespace: default
   name: minikube-remote
 current-context: minikube-remote
 users:
 - name: minikube-remote
+  user: {}
 
 "@
 
