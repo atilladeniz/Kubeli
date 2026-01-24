@@ -21,6 +21,7 @@ import {
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useUpdater } from "@/lib/hooks/useUpdater";
+import { usePlatform } from "@/lib/hooks/usePlatform";
 import {
   aiCheckCliAvailable,
   aiCheckCodexCliAvailable,
@@ -126,20 +127,7 @@ export function SettingsPanel() {
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
 
   // Platform detection for OS-specific commands
-  const [isWindows, setIsWindows] = useState(false);
-
-  useEffect(() => {
-    const detectPlatform = async () => {
-      try {
-        const { type } = await import("@tauri-apps/plugin-os");
-        const osType = await type();
-        setIsWindows(osType === "windows");
-      } catch {
-        // Platform detection failed, assume non-Windows
-      }
-    };
-    detectPlatform();
-  }, []);
+  const { isWindows } = usePlatform();
 
   // Handler for check updates with toast feedback
   const handleCheckForUpdates = useCallback(async () => {
