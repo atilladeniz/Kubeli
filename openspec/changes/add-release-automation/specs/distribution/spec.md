@@ -8,17 +8,30 @@ publishes release artifacts when a version tag is pushed.
 - **WHEN** a tag matching `v*` pattern is pushed to the repository
 - **THEN** the release workflow SHALL be triggered automatically
 - **AND** builds SHALL be created for macOS ARM64 and x86_64 architectures
+- **AND** builds SHALL be created for Windows x64 architecture
 
 #### Scenario: Manual release trigger
 - **WHEN** a maintainer triggers the workflow manually via `workflow_dispatch`
 - **THEN** the release workflow SHALL execute with the current branch state
 - **AND** a draft release SHALL be created
 
-#### Scenario: Build artifacts signed
+#### Scenario: macOS build artifacts signed
 - **WHEN** the macOS build completes
 - **THEN** the application bundle SHALL be code-signed with Apple Developer ID
 - **AND** the application SHALL be notarized with Apple
 - **AND** the DMG installer SHALL be created
+
+#### Scenario: Windows build artifacts generated
+- **WHEN** the Windows build completes on `windows-latest` runner
+- **THEN** an MSI installer SHALL be generated at `bundle/msi/*.msi`
+- **AND** an NSIS installer SHALL be generated at `bundle/nsis/*.exe`
+- **AND** both installers SHALL be uploaded as release artifacts
+
+#### Scenario: Windows build artifacts signed
+- **WHEN** the Windows build completes
+- **THEN** the MSI installer SHALL be code-signed with the Windows certificate
+- **AND** the NSIS installer SHALL be code-signed with the Windows certificate
+- **AND** the signed installers SHALL pass Windows SmartScreen validation
 
 #### Scenario: SBOM generation
 - **WHEN** the release build completes
