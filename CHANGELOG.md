@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.0] - 2026-01-24
+
+- Added Windows build support with cross-platform improvements
+- Fixed Makefile to load .env before Windows build for signing key
+- Fixed build-deploy to build all platforms
+
 ## [0.2.43] - 2026-01-24
 
 - Improved trackpad gesture handling for Mac in resource diagram
