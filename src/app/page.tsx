@@ -150,7 +150,7 @@ export default function Home() {
         const { type } = await import("@tauri-apps/plugin-os");
         const osType = await type();
         if (osType === "windows") {
-          setKubeconfigPath("%USERPROFILE%\\.kube\\config");
+          setKubeconfigPath("C:\\Users\\<username>\\.kube\\config");
         }
         // macOS and Linux use ~/.kube/config (default)
       } catch {
