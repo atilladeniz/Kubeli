@@ -11,7 +11,7 @@ interface Props {
 
 const {
   title,
-  description = "Native Kubernetes Desktop App for macOS. Multi-Cluster Management, Real-Time Monitoring, AI-Powered Log Analysis with Claude & OpenAI. Open Source & Free.",
+  description = "Native Kubernetes Desktop App for macOS & Windows. Multi-Cluster Management, Real-Time Monitoring, AI-Powered Log Analysis with Claude & OpenAI. Open Source & Free.",
   activeNav = "",
   ogImage = "/og-image.png",
   canonicalPath = ""
@@ -20,7 +20,7 @@ const {
 const currentYear = new Date().getFullYear();
 const siteUrl = "https://kubeli.dev";
 const canonicalUrl = `${siteUrl}${canonicalPath}`;
-const fullTitle = title === "Home" ? "Kubeli - Native Kubernetes Desktop App for macOS | Multi-Cluster & AI" : `${title} | Kubeli`;
+const fullTitle = title === "Home" ? "Kubeli - Native Kubernetes Desktop App for macOS & Windows | Multi-Cluster & AI" : `${title} | Kubeli`;
 
 // Schema.org structured data
 const schemaData = {
@@ -28,7 +28,7 @@ const schemaData = {
   "@type": "SoftwareApplication",
   "name": "Kubeli",
   "applicationCategory": "DeveloperApplication",
-  "operatingSystem": "macOS",
+  "operatingSystem": "macOS, Windows",
   "offers": {
     "@type": "Offer",
     "price": "0",
@@ -51,7 +51,7 @@ const schemaData = {
     "Interactive Resource Diagram",
     "Port Forwarding",
     "Claude & OpenAI Integration",
-    "Native macOS App with Tauri"
+    "Native Desktop App with Tauri"
   ]
 };
 ---
