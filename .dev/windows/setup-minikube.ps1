@@ -205,7 +205,16 @@ function Test-Prerequisites {
     $hasDocker = Test-Command 'docker'
 
     if ($hasDocker) {
-        Write-Success "Docker found - can use docker driver"
+        # Check if Docker is actually running
+        $dockerRunning = $false
+        $dockerInfo = docker info 2>$null
+        if ($LASTEXITCODE -eq 0) {
+            $dockerRunning = $true
+            Write-Success "Docker found and running - can use docker driver"
+        }
+        else {
+            Write-Warning "Docker installed but not running"
+        }
     }
     elseif ($hasHyperV) {
         Write-Success "Hyper-V enabled - can use hyperv driver"
@@ -305,18 +314,65 @@ function Start-MinikubeCluster {
 
     # Determine best driver
     $hasDocker = Test-Command 'docker'
+    $dockerRunning = $false
+    if ($hasDocker) {
+        $dockerInfo = docker info 2>$null
+        $dockerRunning = ($LASTEXITCODE -eq 0)
+    }
+
     $hyperVFeature = Get-WindowsOptionalFeature -Online -FeatureName Microsoft-Hyper-V -ErrorAction SilentlyContinue
     $hasHyperV = ($null -ne $hyperVFeature) -and ($hyperVFeature.State -eq 'Enabled')
 
     $driver = $null
 
-    if ($hasDocker) {
+    if ($dockerRunning) {
         $driver = 'docker'
     }
-    elseif ($hasHyperV) {
+    elseif ($hasDocker -and -not $dockerRunning) {
+        # Docker installed but not running - try to start it
+        Write-Warning "Docker is installed but not running. Starting Docker Desktop..."
+
+        $dockerPath = "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe"
+        if (Test-Path $dockerPath) {
+            Start-Process $dockerPath
+        }
+        else {
+            Start-Process "Docker Desktop" -ErrorAction SilentlyContinue
+        }
+
+        # Wait for Docker to be ready
+        Write-ColorOutput "Waiting for Docker to start (this may take 1-2 minutes)..." -Color $Colors.Yellow
+        $maxWait = 120
+        $waited = 0
+
+        while ($waited -lt $maxWait) {
+            Start-Sleep -Seconds 5
+            $waited += 5
+            Write-ColorOutput "." -Color $Colors.Yellow -NoNewline
+
+            $dockerInfo = docker info 2>$null
+            if ($LASTEXITCODE -eq 0) {
+                Write-Host ""
+                Write-Success "Docker is ready!"
+                $driver = 'docker'
+                $dockerRunning = $true
+                break
+            }
+        }
+
+        if (-not $dockerRunning) {
+            Write-Host ""
+            Write-Warning "Docker not ready after waiting."
+        }
+    }
+
+    # If still no driver, check Hyper-V
+    if (-not $driver -and $hasHyperV) {
         $driver = 'hyperv'
     }
-    else {
+
+    # If still no driver, offer to install Docker
+    if (-not $driver) {
         Write-Error "No virtualization driver available!"
         Write-ColorOutput "`nMinikube needs Docker or Hyper-V to run." -Color $Colors.Yellow
         Write-ColorOutput "`nOptions:" -Color $Colors.Cyan
