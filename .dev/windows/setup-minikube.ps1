@@ -69,14 +69,13 @@ function Write-Error {
 function Show-Banner {
     $banner = @"
 
-    ██╗  ██╗██╗   ██╗██████╗ ███████╗██╗     ██╗
-    ██║ ██╔╝██║   ██║██╔══██╗██╔════╝██║     ██║
-    █████╔╝ ██║   ██║██████╔╝█████╗  ██║     ██║
-    ██╔═██╗ ██║   ██║██╔══██╗██╔══╝  ██║     ██║
-    ██║  ██╗╚██████╔╝██████╔╝███████╗███████╗██║
-    ╚═╝  ╚═╝ ╚═════╝ ╚═════╝ ╚══════╝╚══════╝╚═╝
+    _  __     _          _ _
+   | |/ /   _| |__   ___| (_)
+   | ' / | | | '_ \ / _ \ | |
+   | . \ |_| | |_) |  __/ | |
+   |_|\_\__,_|_.__/ \___|_|_|
 
-    Minikube Setup Script for Windows
+   Minikube Setup Script for Windows
 
 "@
     Write-ColorOutput $banner -Color $Colors.Cyan
@@ -118,32 +117,68 @@ function Test-Command {
     $null -ne (Get-Command $Command -ErrorAction SilentlyContinue)
 }
 
+function Install-WithWinget {
+    param(
+        [string]$PackageId,
+        [string]$Name
+    )
+
+    Write-ColorOutput "Installing $Name..." -Color $Colors.Yellow
+
+    # Check if winget is available
+    if (-not (Test-Command 'winget')) {
+        Write-Error "winget not found. Please install App Installer from Microsoft Store."
+        return $false
+    }
+
+    try {
+        $process = Start-Process -FilePath "winget" -ArgumentList "install", "--id", $PackageId, "--accept-source-agreements", "--accept-package-agreements", "-e" -Wait -PassThru -NoNewWindow
+        if ($process.ExitCode -eq 0) {
+            Write-Success "$Name installed successfully"
+            # Refresh PATH
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+            return $true
+        }
+        else {
+            Write-Error "Failed to install $Name (exit code: $($process.ExitCode))"
+            return $false
+        }
+    }
+    catch {
+        Write-Error "Error installing $Name : $_"
+        return $false
+    }
+}
+
 function Test-Prerequisites {
     Write-Step "Checking prerequisites..."
 
-    $requirements = @{
-        'minikube' = @{
+    $requirements = @(
+        @{
+            Name = 'minikube'
             Required = $true
             InstallUrl = 'https://minikube.sigs.k8s.io/docs/start/'
             WingetId = 'Kubernetes.minikube'
-        }
-        'kubectl' = @{
+        },
+        @{
+            Name = 'kubectl'
             Required = $true
             InstallUrl = 'https://kubernetes.io/docs/tasks/tools/install-kubectl-windows/'
             WingetId = 'Kubernetes.kubectl'
-        }
-        'docker' = @{
+        },
+        @{
+            Name = 'docker'
             Required = $false
             InstallUrl = 'https://docs.docker.com/desktop/install/windows-install/'
             WingetId = 'Docker.DockerDesktop'
         }
-    }
+    )
 
     $allGood = $true
     $missing = @()
 
-    foreach ($cmd in $requirements.Keys) {
-        $req = $requirements[$cmd]
+    foreach ($req in $requirements) {
+        $cmd = $req.Name
         if (Test-Command $cmd) {
             $version = & $cmd version --short 2>$null
             if (-not $version) { $version = "installed" }
@@ -182,19 +217,46 @@ function Test-Prerequisites {
         Write-Warning "No virtualization driver found. Install Docker Desktop or enable Hyper-V."
     }
 
-    if (-not $allGood) {
-        Write-ColorOutput "`nMissing required tools. Install with winget:" -Color $Colors.Yellow
-        foreach ($req in $missing) {
-            Write-ColorOutput "  winget install $($req.WingetId)" -Color $Colors.White
+    # Auto-install missing tools
+    if (-not $allGood -and $missing.Count -gt 0) {
+        Write-ColorOutput "`nMissing required tools detected." -Color $Colors.Yellow
+        Write-ColorOutput "Do you want to install them automatically with winget? [Y/n]: " -Color $Colors.Cyan -NoNewline
+        $response = Read-Host
+
+        if ($response -eq '' -or $response -match '^[Yy]') {
+            foreach ($req in $missing) {
+                $installed = Install-WithWinget -PackageId $req.WingetId -Name $req.Name
+                if ($installed) {
+                    $allGood = $true
+                }
+            }
+
+            # Re-check after installation
+            Write-Step "Verifying installation..."
+            foreach ($req in $missing) {
+                if (Test-Command $req.Name) {
+                    Write-Success "$($req.Name) - now available"
+                }
+                else {
+                    Write-Error "$($req.Name) - still not found. You may need to restart PowerShell."
+                    $allGood = $false
+                }
+            }
         }
-        Write-ColorOutput "`nOr visit:" -Color $Colors.Yellow
-        foreach ($req in $missing) {
-            Write-ColorOutput "  $($req.InstallUrl)" -Color $Colors.White
+        else {
+            Write-ColorOutput "`nManual installation:" -Color $Colors.Yellow
+            foreach ($req in $missing) {
+                Write-ColorOutput "  winget install $($req.WingetId)" -Color $Colors.White
+            }
+            Write-ColorOutput "`nOr visit:" -Color $Colors.Yellow
+            foreach ($req in $missing) {
+                Write-ColorOutput "  $($req.InstallUrl)" -Color $Colors.White
+            }
+            return $false
         }
-        return $false
     }
 
-    return $true
+    return $allGood
 }
 
 function Get-MinikubeStatus {
