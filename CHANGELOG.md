@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.1] - 2026-01-24
+
+- Fixed window vibrancy transparency on Windows for better readability
+
 ## [0.3.0] - 2026-01-24
 
 - Added Windows build support with cross-platform improvements
