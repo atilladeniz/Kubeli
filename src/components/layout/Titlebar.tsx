@@ -18,13 +18,13 @@ interface TitlebarProps {
   showTitle?: boolean;
   isAIOpen?: boolean;
   isAIProcessing?: boolean;
+  isAIDisabled?: boolean;
   onToggleAI?: () => void;
   onOpenSettings?: () => void;
 }
 
-export function Titlebar({ isAIOpen, isAIProcessing, onToggleAI, onOpenSettings }: TitlebarProps) {
+export function Titlebar({ isAIOpen, isAIProcessing, isAIDisabled, onToggleAI, onOpenSettings }: TitlebarProps) {
   const { modKeySymbol } = usePlatform();
-
   useEffect(() => {
     // Disable native context menu globally
     const handleContextMenu = (e: MouseEvent) => {
@@ -61,9 +61,11 @@ export function Titlebar({ isAIOpen, isAIProcessing, onToggleAI, onOpenSettings 
                 className={cn(
                   "size-6",
                   isAIOpen && "bg-primary/10 text-primary hover:bg-primary/20",
-                  !isAIOpen && isAIProcessing && "text-violet-500"
+                  !isAIOpen && isAIProcessing && "text-violet-500",
+                  isAIDisabled && "opacity-50 cursor-not-allowed"
                 )}
-                onClick={onToggleAI}
+                onClick={isAIDisabled ? undefined : onToggleAI}
+                disabled={isAIDisabled}
               >
                 {!isAIOpen && isAIProcessing ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -73,8 +75,14 @@ export function Titlebar({ isAIOpen, isAIProcessing, onToggleAI, onOpenSettings 
               </Button>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="flex items-center gap-2">
-              <span>AI Assistant</span>
-              <Kbd className="text-[10px]">G I</Kbd>
+              {isAIDisabled ? (
+                <span className="text-muted-foreground">AI CLI not installed</span>
+              ) : (
+                <>
+                  <span>AI Assistant</span>
+                  <Kbd className="text-[10px]">G I</Kbd>
+                </>
+              )}
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

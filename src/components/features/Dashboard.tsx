@@ -155,7 +155,7 @@ import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
-import { getResourceYaml, applyResourceYaml, deleteResource, scaleDeployment, reconcileFluxKustomization, suspendFluxKustomization, resumeFluxKustomization, reconcileFluxHelmRelease, suspendFluxHelmRelease, resumeFluxHelmRelease, uninstallHelmRelease } from "@/lib/tauri/commands";
+import { getResourceYaml, applyResourceYaml, deleteResource, scaleDeployment, reconcileFluxKustomization, suspendFluxKustomization, resumeFluxKustomization, reconcileFluxHelmRelease, suspendFluxHelmRelease, resumeFluxHelmRelease, uninstallHelmRelease, aiCheckCliAvailable, aiCheckCodexCliAvailable } from "@/lib/tauri/commands";
 import { useKeyboardShortcuts, NAVIGATION_SHORTCUTS } from "@/lib/hooks/useKeyboardShortcuts";
 import { ShortcutsHelpDialog } from "./shortcuts/ShortcutsHelpDialog";
 
@@ -207,6 +207,26 @@ function DashboardContent() {
   const { isThinking, isStreaming } = useAIStore();
   const isAIProcessing = isThinking || isStreaming;
 
+  // AI CLI availability check
+  const [isAICliAvailable, setIsAICliAvailable] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const checkAiClis = async () => {
+      try {
+        const [claudeInfo, codexInfo] = await Promise.all([
+          aiCheckCliAvailable().catch(() => ({ status: "error" as const })),
+          aiCheckCodexCliAvailable().catch(() => ({ status: "error" as const })),
+        ]);
+        const claudeAvailable = claudeInfo.status === "authenticated";
+        const codexAvailable = codexInfo.status === "authenticated";
+        setIsAICliAvailable(claudeAvailable || codexAvailable);
+      } catch {
+        setIsAICliAvailable(false);
+      }
+    };
+    checkAiClis();
+  }, []);
+
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
 
@@ -238,7 +258,7 @@ function DashboardContent() {
     { key: NAVIGATION_SHORTCUTS.GOTO_SECRETS, handler: () => setActiveResource("secrets"), description: "Go to Secrets" },
     { key: NAVIGATION_SHORTCUTS.GOTO_NAMESPACES, handler: () => setActiveResource("namespaces"), description: "Go to Namespaces" },
     { key: NAVIGATION_SHORTCUTS.HELP, handler: () => setShowShortcutsHelp(true), description: "Show shortcuts help" },
-    { key: NAVIGATION_SHORTCUTS.TOGGLE_AI, handler: toggleAIAssistant, description: "Toggle AI Assistant" },
+    { key: NAVIGATION_SHORTCUTS.TOGGLE_AI, handler: () => { if (isAICliAvailable !== false) toggleAIAssistant(); }, description: "Toggle AI Assistant" },
     // Favorite shortcuts (Cmd+1 through Cmd+9)
     { key: NAVIGATION_SHORTCUTS.FAVORITE_1, meta: true, handler: () => navigateToFavorite(0), description: "Go to Favorite 1" },
     { key: NAVIGATION_SHORTCUTS.FAVORITE_2, meta: true, handler: () => navigateToFavorite(1), description: "Go to Favorite 2" },
@@ -249,7 +269,7 @@ function DashboardContent() {
     { key: NAVIGATION_SHORTCUTS.FAVORITE_7, meta: true, handler: () => navigateToFavorite(6), description: "Go to Favorite 7" },
     { key: NAVIGATION_SHORTCUTS.FAVORITE_8, meta: true, handler: () => navigateToFavorite(7), description: "Go to Favorite 8" },
     { key: NAVIGATION_SHORTCUTS.FAVORITE_9, meta: true, handler: () => navigateToFavorite(8), description: "Go to Favorite 9" },
-  ], [navigateToFavorite, toggleAIAssistant]);
+  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable]);
 
   useKeyboardShortcuts(shortcuts, { enabled: isConnected });
 
@@ -366,6 +386,7 @@ function DashboardContent() {
             <Titlebar
               isAIOpen={isAIAssistantOpen}
               isAIProcessing={isAIProcessing}
+              isAIDisabled={isAICliAvailable === false}
               onToggleAI={toggleAIAssistant}
               onOpenSettings={() => setSettingsOpen(true)}
             />
