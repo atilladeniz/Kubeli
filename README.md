@@ -7,7 +7,7 @@
   <a href="https://github.com/atilladeniz/Kubeli/releases/latest"><img src="https://img.shields.io/github/v/release/atilladeniz/Kubeli" alt="Release"></a>
   <a href="https://github.com/atilladeniz/Kubeli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/atilladeniz/Kubeli" alt="License"></a>
   <a href="https://cyclonedx.org/"><img src="https://img.shields.io/badge/SBOM-CycloneDX-6db33f" alt="SBOM"></a>
-  <img src="https://img.shields.io/badge/platform-macOS-blue" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue" alt="Platform">
   <a href="https://github.com/atilladeniz/Kubeli/releases"><img src="https://img.shields.io/github/downloads/atilladeniz/Kubeli/total" alt="Downloads"></a>
 </p>
 
@@ -49,7 +49,12 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 
 ### Download
 
-Download the latest release for your platform from the [Releases](https://github.com/atilladeniz/kubeli/releases) page.
+Download the latest release for your platform from the [Releases](https://github.com/atilladeniz/kubeli/releases) page:
+
+| Platform | File | Notes |
+|----------|------|-------|
+| **macOS** | `Kubeli_*_aarch64.dmg` | Apple Silicon (M1/M2/M3) |
+| **Windows** | `Kubeli_*_x64-setup.exe` | Windows 10/11 (64-bit) |
 
 ### Build from Source
 
@@ -69,8 +74,15 @@ make install
 # Run in development mode
 make dev
 
-# Build for production
+# Build for production (macOS)
 make build
+
+# Build for Windows (cross-compile from macOS)
+make install-windows-build-deps  # One-time setup
+make build-windows
+
+# Build both platforms
+make build-all
 ```
 
 ## Development
@@ -185,6 +197,23 @@ make security-semgrep  # Static code analysis
 - `trivy.yaml` - Severity thresholds and scan settings
 - `trivy-secret.yaml` - Secret detection rules
 - `.semgrep.yaml` - Custom SAST rules for TypeScript and Rust
+
+## Platform Support
+
+### macOS
+- **Requirements:** macOS 10.15+ (Catalina or later)
+- **Architecture:** Apple Silicon (arm64) native
+- **Auto-Updates:** Fully supported via Tauri updater
+
+### Windows
+- **Requirements:** Windows 10/11 (64-bit)
+- **WebView2:** Automatically installed if missing (embedded bootstrapper)
+- **Auto-Updates:** Fully supported via Tauri updater
+- **Note:** First launch may show SmartScreen warning (app is not code-signed with Microsoft certificate)
+
+### Windows Development Setup
+
+For developing or testing Kubeli on Windows, see the [Windows Setup Guide](.dev/windows/WINDOWS-SETUP.md).
 
 ## Supported Kubernetes Providers
 
