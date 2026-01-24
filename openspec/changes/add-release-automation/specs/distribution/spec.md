@@ -22,10 +22,16 @@ publishes release artifacts when a version tag is pushed.
 - **AND** the DMG installer SHALL be created
 
 #### Scenario: Windows build artifacts generated
-- **WHEN** the Windows build completes on `windows-latest` runner
-- **THEN** an MSI installer SHALL be generated at `bundle/msi/*.msi`
-- **AND** an NSIS installer SHALL be generated at `bundle/nsis/*.exe`
-- **AND** both installers SHALL be uploaded as release artifacts
+- **WHEN** the Windows build completes (native or cross-compiled)
+- **THEN** an NSIS installer SHALL be generated at `bundle/nsis/*.exe`
+- **AND** the installer SHALL be uploaded as release artifact
+- **AND** cross-compilation from macOS SHALL be supported via `make build-windows`
+
+#### Scenario: Windows auto-update artifacts generated
+- **WHEN** the Windows build completes with Tauri signing key available
+- **THEN** the `.exe` installer SHALL be signed with Tauri signing key
+- **AND** a `.exe.sig` signature file SHALL be created
+- **AND** the signature SHALL be included in `latest.json` for auto-updates
 
 #### Scenario: Windows build artifacts signed
 - **WHEN** the Windows build completes
