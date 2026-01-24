@@ -351,7 +351,8 @@ install-windows-build-deps: ## Install dependencies for cross-compiling Windows 
 
 build-windows: ## Cross-compile Windows NSIS installer from macOS
 	@echo "$(CYAN)Building Windows installer (cross-compile)...$(RESET)"
-	@export PATH="/opt/homebrew/opt/llvm/bin:$$PATH" && \
+	@if [ -f .env ]; then set -a; source .env; set +a; fi; \
+	export PATH="/opt/homebrew/opt/llvm/bin:$$PATH" && \
 	npm run tauri build -- --runner cargo-xwin --target x86_64-pc-windows-msvc
 	@echo "$(GREEN)✓ Windows installer built$(RESET)"
 	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
