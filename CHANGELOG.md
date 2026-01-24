@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.2] - 2026-01-24
+
+Based on the commits provided, here's the changelog entry for version 0.3.2:
+
+- Fixed AI button being enabled when Claude CLI is not installed or authenticated
+
 ## [0.3.1] - 2026-01-24
 
 - Fixed window vibrancy transparency on Windows for better readability
