@@ -132,7 +132,7 @@ function Install-WithWinget {
     }
 
     try {
-        $process = Start-Process -FilePath "winget" -ArgumentList "install", "--id", $PackageId, "--accept-source-agreements", "--accept-package-agreements", "-e" -Wait -PassThru -NoNewWindow
+        $process = Start-Process -FilePath "winget" -ArgumentList "install", "--id", $PackageId, "--source", "winget", "--accept-source-agreements", "--accept-package-agreements", "-e" -Wait -PassThru -NoNewWindow
         if ($process.ExitCode -eq 0) {
             Write-Success "$Name installed successfully"
             # Refresh PATH
