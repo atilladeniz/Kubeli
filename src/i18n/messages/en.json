@@ -127,7 +127,7 @@
     "selectCluster": "Select a Cluster",
     "selectClusterDesc": "Choose a context to connect",
     "noClusters": "No clusters found",
-    "noClustersHint": "Make sure you have a valid kubeconfig file at ~/.kube/config",
+    "noClustersHint": "Make sure you have a valid kubeconfig file at {path}",
     "default": "default",
     "reconnecting": "Reconnecting (attempt {count})...",
     "unhealthy": "Connection unhealthy",

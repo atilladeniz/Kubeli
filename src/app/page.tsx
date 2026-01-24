@@ -54,6 +54,7 @@ export default function Home() {
   const [showDashboard, setShowDashboard] = useState(false);
   const [isDownloadingDebugLog, setIsDownloadingDebugLog] = useState(false);
   const [connectingContext, setConnectingContext] = useState<string | null>(null);
+  const [kubeconfigPath, setKubeconfigPath] = useState("~/.kube/config");
   const initialFetchDone = useRef(false);
 
   const {
@@ -142,6 +143,18 @@ export default function Home() {
         }
       } else {
         setIsTauri(true);
+      }
+
+      // Detect platform and set kubeconfig path
+      try {
+        const { type } = await import("@tauri-apps/plugin-os");
+        const osType = await type();
+        if (osType === "windows") {
+          setKubeconfigPath("%USERPROFILE%\\.kube\\config");
+        }
+        // macOS and Linux use ~/.kube/config (default)
+      } catch {
+        // Platform detection failed, keep default
       }
 
       // Fetch clusters before showing UI
@@ -289,7 +302,7 @@ export default function Home() {
                     {t("noClusters")}
                   </p>
                   <p className="mt-1 text-sm text-muted-foreground/70">
-                    {t("noClustersHint")}
+                    {t("noClustersHint", { path: kubeconfigPath })}
                   </p>
                 </CardContent>
               </Card>
