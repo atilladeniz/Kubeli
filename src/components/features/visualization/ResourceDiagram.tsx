@@ -523,6 +523,12 @@ function ResourceDiagramInner() {
           translateExtent={cachedExtent}
           proOptions={{ hideAttribution: true }}
           zIndexMode="auto"
+          panOnScroll
+          zoomOnScroll={false}
+          zoomOnPinch
+          zoomOnDoubleClick={false}
+          panOnDrag
+          selectionOnDrag={false}
         >
           <Background gap={16} size={1} />
           <Controls showInteractive={false} showFitView={false} />
