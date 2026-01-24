@@ -218,7 +218,17 @@ export function ResourceList<T>({
         if (aValue === null || aValue === undefined) return 1;
         if (bValue === null || bValue === undefined) return -1;
 
-        const comparison = String(aValue).localeCompare(String(bValue));
+        let comparison: number;
+
+        // Use numeric comparison for capacity fields (Kubernetes quantities)
+        if (sortKey === "capacity") {
+          const aBytes = parseQuantityToBytes(aValue as string);
+          const bBytes = parseQuantityToBytes(bValue as string);
+          comparison = aBytes - bBytes;
+        } else {
+          comparison = String(aValue).localeCompare(String(bValue));
+        }
+
         return sortDirection === "asc" ? comparison : -comparison;
       });
     }
@@ -3293,6 +3303,22 @@ function formatAge(timestamp: string): string {
   if (diffHours > 0) return `${diffHours}h`;
   if (diffMins > 0) return `${diffMins}m`;
   return `${diffSecs}s`;
+}
+
+/** Parse Kubernetes quantity string (e.g., "10Gi", "500Mi") to bytes for sorting */
+function parseQuantityToBytes(quantity: string | null | undefined): number {
+  if (!quantity) return 0;
+
+  const units: Record<string, number> = {
+    Ki: 1024, Mi: 1024 ** 2, Gi: 1024 ** 3, Ti: 1024 ** 4, Pi: 1024 ** 5, Ei: 1024 ** 6,
+    K: 1e3, k: 1e3, M: 1e6, G: 1e9, T: 1e12, P: 1e15, E: 1e18,
+  };
+
+  const match = quantity.trim().match(/^([\d.]+)\s*([A-Za-z]*)$/);
+  if (!match) return 0;
+
+  const value = parseFloat(match[1]);
+  return isNaN(value) ? 0 : value * (units[match[2]] || 1);
 }
 
 function formatDuration(seconds: number): string {
