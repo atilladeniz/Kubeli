@@ -2,6 +2,15 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.2.42] - 2026-01-24
+
+- Fixed invalid template pod in scale-pods sample
+- Fixed PV capacity sorting to correctly interpret storage units
+- Added website SEO optimization and redesign
+- Added Local Testing Lab for simulated Kubernetes environments
+- Added automated tests and CI gates
+- Updated Rust lint CI job for faster builds
+
 ## [0.2.41] - 2026-01-21
 
 - Fixed auto-update check to run only once globally
