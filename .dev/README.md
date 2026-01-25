@@ -163,6 +163,47 @@ make minikube-clean-scale
 | `scripts/kubeconfig-sim.sh` | Create/manage simulated cloud contexts |
 | `scripts/k8s-scale.sh` | Create/delete scale test pods |
 
+### 6. Windows Development & Testing
+
+For developing or testing Kubeli on Windows, including VM-based testing.
+
+#### Building for Windows (from macOS)
+
+```bash
+# Install cross-compile dependencies (one-time)
+make install-windows-build-deps
+
+# Build Windows NSIS installer
+make build-windows
+
+# Build both macOS and Windows
+make build-all
+```
+
+Output: `src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Kubeli_*_x64-setup.exe`
+
+#### Windows VM Testing
+
+For testing in Windows VMs (UTM, VirtualBox) without nested virtualization:
+
+```bash
+# On Mac: Expose minikube API
+make minikube-serve
+
+# On Windows: Connect to Mac's minikube
+.\connect-minikube.ps1 -HostIP <mac-ip>
+```
+
+**Expected Kubeli behavior:**
+- Connects to minikube running on host Mac
+- All K8s operations work normally
+- Auto-update functionality works
+
+See [Windows Setup Guide](windows/WINDOWS-SETUP.md) for full documentation including:
+- UTM/VirtualBox VM setup
+- PowerShell connection script
+- Troubleshooting network issues
+
 ## Cleanup
 
 ```bash
@@ -212,6 +253,12 @@ Use this checklist to verify Kubeli works correctly with each scenario:
 - [ ] 100+ pods load without noticeable lag
 - [ ] Resource list scrolls smoothly
 - [ ] Memory usage stays stable
+
+### Windows Development
+- [ ] Cross-compile from macOS succeeds
+- [ ] Windows installer runs correctly
+- [ ] VM connects to Mac's minikube
+- [ ] All K8s operations work in Windows
 
 ## Automated Tests
 
