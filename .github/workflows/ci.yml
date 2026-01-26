@@ -11,7 +11,7 @@ env:
 
 jobs:
   lint-frontend:
-    name: Lint Frontend
+    name: Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -37,7 +37,28 @@ jobs:
       - name: Run TypeScript check
         run: npm run typecheck
 
-      - name: Run frontend tests with coverage
+  test-frontend:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            npm install --package-lock-only --ignore-scripts
+            npm ci
+          else
+            npm ci
+          fi
+
+      - name: Run tests with coverage
         run: npm run test:coverage
 
       - name: Upload frontend coverage
