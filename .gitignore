@@ -60,3 +60,7 @@ Cargo.lock
 # Task management (local)
 .taskmaster/
 .release-notes.md
+
+# Test coverage
+coverage/
+coverage-rust.lcov
