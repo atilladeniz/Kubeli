@@ -25,7 +25,7 @@ jobs:
       - name: Install dependencies
         run: |
           if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
-            npm install --package-lock-only
+            npm install --package-lock-only --ignore-scripts
             npm ci
           else
             npm ci
@@ -103,7 +103,7 @@ jobs:
       - name: Install dependencies
         run: |
           if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
-            npm install --package-lock-only
+            npm install --package-lock-only --ignore-scripts
             npm ci
           else
             npm ci
@@ -145,7 +145,7 @@ jobs:
       - name: Install dependencies
         run: |
           if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
-            npm install --package-lock-only
+            npm install --package-lock-only --ignore-scripts
             npm ci
           else
             npm ci
