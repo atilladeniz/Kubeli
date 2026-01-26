@@ -23,7 +23,13 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            npm install --package-lock-only
+            npm ci
+          else
+            npm ci
+          fi
 
       - name: Run ESLint
         run: npm run lint
@@ -95,7 +101,13 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            npm install --package-lock-only
+            npm ci
+          else
+            npm ci
+          fi
 
       - name: Install Playwright browsers
         run: npx playwright install --with-deps
@@ -131,7 +143,13 @@ jobs:
           workspaces: src-tauri
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            npm install --package-lock-only
+            npm ci
+          else
+            npm ci
+          fi
 
       - name: Build Frontend
         run: npm run build

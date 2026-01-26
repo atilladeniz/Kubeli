@@ -41,7 +41,13 @@ jobs:
           cache: 'npm'
 
       - name: Install dependencies
-        run: npm ci
+        run: |
+          if [ "${{ github.actor }}" = "dependabot[bot]" ]; then
+            npm install --package-lock-only
+            npm ci
+          else
+            npm ci
+          fi
 
       - name: Generate npm SBOM
         run: npx @cyclonedx/cyclonedx-npm --spec-version 1.5 --omit dev --output-format JSON --output-file sbom-npm.json
@@ -100,34 +106,35 @@ jobs:
 
       - name: Upload Trivy npm results to Security tab
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        if: always() && hashFiles('trivy-npm.sarif') != ''
         with:
           sarif_file: 'trivy-npm.sarif'
           category: 'trivy-npm'
 
       - name: Upload Trivy Rust results to Security tab
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        if: always() && hashFiles('trivy-rust.sarif') != ''
         with:
           sarif_file: 'trivy-rust.sarif'
           category: 'trivy-rust'
 
       - name: Upload Trivy fs results to Security tab
         uses: github/codeql-action/upload-sarif@v4
-        if: always()
+        if: always() && hashFiles('trivy-fs.sarif') != ''
         with:
           sarif_file: 'trivy-fs.sarif'
           category: 'trivy-fs'
 
       - name: Upload Trivy artifacts
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && (hashFiles('trivy-npm.sarif') != '' || hashFiles('trivy-rust.sarif') != '' || hashFiles('trivy-fs.sarif') != '')
         with:
           name: trivy-results
           path: |
             trivy-npm.sarif
             trivy-rust.sarif
             trivy-fs.sarif
+          if-no-files-found: ignore
           retention-days: 30
 
   semgrep:
