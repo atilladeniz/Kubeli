@@ -284,6 +284,8 @@ describe("ClusterStore", () => {
     });
 
     it("should detect unhealthy connection", async () => {
+      const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
+
       useClusterStore.setState({
         isConnected: true,
         isHealthy: true,
@@ -303,11 +305,16 @@ describe("ClusterStore", () => {
       expect(state.isHealthy).toBe(false);
       expect(state.isConnected).toBe(false);
       expect(state.error).toBe("Connection lost");
+      expect(warnSpy).toHaveBeenCalledWith("Connection health check failed, connection lost");
+
+      warnSpy.mockRestore();
     });
   });
 
   describe("auto-reconnect", () => {
     it("should respect maxReconnectAttempts", async () => {
+      const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
       useClusterStore.setState({
         lastConnectedContext: "test-context",
         reconnectAttempts: 5,
@@ -318,6 +325,9 @@ describe("ClusterStore", () => {
 
       expect(result).toBe(false);
       expect(useClusterStore.getState().error).toContain("Failed to reconnect");
+      expect(errorSpy).toHaveBeenCalledWith("Max reconnect attempts (5) reached");
+
+      errorSpy.mockRestore();
     });
 
     it("should not reconnect when already reconnecting", async () => {
