@@ -22,31 +22,129 @@ jest.mock("../../tauri/commands", () => ({
   deletePod: (name: string, namespace: string) => mockDeletePod(name, namespace),
 }));
 
-// Test data
+// Test data - partial mocks with only fields needed for tests
 const mockPods = [
-  { name: "nginx-1", namespace: "default", status: "Running" },
-  { name: "nginx-2", namespace: "default", status: "Running" },
+  {
+    name: "nginx-1",
+    namespace: "default",
+    uid: "uid-1",
+    phase: "Running",
+    node_name: "node-1",
+    pod_ip: "10.0.0.1",
+    host_ip: "192.168.1.1",
+    containers: [],
+    created_at: "2024-01-01T00:00:00Z",
+    deletion_timestamp: null,
+    labels: {},
+    restart_count: 0,
+    ready_containers: "1/1",
+  },
+  {
+    name: "nginx-2",
+    namespace: "default",
+    uid: "uid-2",
+    phase: "Running",
+    node_name: "node-1",
+    pod_ip: "10.0.0.2",
+    host_ip: "192.168.1.1",
+    containers: [],
+    created_at: "2024-01-01T00:00:00Z",
+    deletion_timestamp: null,
+    labels: {},
+    restart_count: 0,
+    ready_containers: "1/1",
+  },
 ];
 
 const mockDeployments = [
-  { name: "nginx", namespace: "default", replicas: 2, ready_replicas: 2 },
+  {
+    name: "nginx",
+    namespace: "default",
+    uid: "deploy-uid-1",
+    replicas: 2,
+    ready_replicas: 2,
+    available_replicas: 2,
+    updated_replicas: 2,
+    created_at: "2024-01-01T00:00:00Z",
+    labels: {},
+    strategy: "RollingUpdate",
+    selector: {},
+  },
 ];
 
 const mockServices = [
-  { name: "nginx-svc", namespace: "default", type: "ClusterIP", cluster_ip: "10.0.0.1" },
+  {
+    name: "nginx-svc",
+    namespace: "default",
+    uid: "svc-uid-1",
+    service_type: "ClusterIP",
+    cluster_ip: "10.0.0.1",
+    external_ip: null,
+    ports: [],
+    selector: {},
+    created_at: "2024-01-01T00:00:00Z",
+    labels: {},
+  },
 ];
 
 const mockConfigmaps = [
-  { name: "app-config", namespace: "default", data_count: 3 },
+  {
+    name: "app-config",
+    namespace: "default",
+    uid: "cm-uid-1",
+    data_keys: ["key1", "key2", "key3"],
+    created_at: "2024-01-01T00:00:00Z",
+    labels: {},
+  },
 ];
 
 const mockSecrets = [
-  { name: "app-secret", namespace: "default", type: "Opaque" },
+  {
+    name: "app-secret",
+    namespace: "default",
+    uid: "secret-uid-1",
+    secret_type: "Opaque",
+    data_keys: [],
+    created_at: "2024-01-01T00:00:00Z",
+    labels: {},
+  },
 ];
 
 const mockNodes = [
-  { name: "node-1", status: "Ready", roles: ["control-plane"] },
-  { name: "node-2", status: "Ready", roles: ["worker"] },
+  {
+    name: "node-1",
+    uid: "node-uid-1",
+    status: "Ready",
+    roles: ["control-plane"],
+    version: "v1.28.0",
+    os_image: "Ubuntu 22.04",
+    kernel_version: "5.15.0",
+    container_runtime: "containerd://1.7.0",
+    cpu_capacity: "4",
+    memory_capacity: "8Gi",
+    pod_capacity: "110",
+    internal_ip: "192.168.1.1",
+    external_ip: null,
+    created_at: "2024-01-01T00:00:00Z",
+    labels: {},
+  },
+  {
+    name: "node-2",
+    uid: "node-uid-2",
+    status: "Ready",
+    roles: ["worker"],
+    version: "v1.28.0",
+    os_image: "Ubuntu 22.04",
+    kernel_version: "5.15.0",
+    container_runtime: "containerd://1.7.0",
+    cpu_capacity: "4",
+    memory_capacity: "8Gi",
+    pod_capacity: "110",
+    internal_ip: "192.168.1.2",
+    external_ip: null,
+    created_at: "2024-01-01T00:00:00Z",
+    labels: {},
+  },
 ];
 
 describe("ResourceStore", () => {

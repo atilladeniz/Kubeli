@@ -20,8 +20,26 @@ jest.mock("../../tauri/commands", () => ({
 
 // Test data
 const mockClusters = [
-  { name: "test-cluster", context: "test-context", current: true, server: "https://test:6443" },
-  { name: "prod-cluster", context: "prod-context", current: false, server: "https://prod:6443" },
+  {
+    id: "1",
+    name: "test-cluster",
+    context: "test-context",
+    current: true,
+    server: "https://test:6443",
+    namespace: "default",
+    user: "test-user",
+    auth_type: "certificate" as const,
+  },
+  {
+    id: "2",
+    name: "prod-cluster",
+    context: "prod-context",
+    current: false,
+    server: "https://prod:6443",
+    namespace: "default",
+    user: "prod-user",
+    auth_type: "certificate" as const,
+  },
 ];
 
 describe("ClusterStore", () => {
