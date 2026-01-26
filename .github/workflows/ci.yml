@@ -11,7 +11,7 @@ env:
 
 jobs:
   lint-frontend:
-    name: Lint & Type Check
+    name: Frontend Lint & Type Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -38,7 +38,7 @@ jobs:
         run: npm run typecheck
 
   test-frontend:
-    name: Unit Tests
+    name: Frontend Unit Tests
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
