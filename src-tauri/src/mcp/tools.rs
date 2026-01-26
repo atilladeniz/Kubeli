@@ -7,8 +7,8 @@ use k8s_openapi::api::core::v1::{Event, Namespace, Pod, Service};
 use kube::api::{Api, ListParams, LogParams};
 use kube::ResourceExt;
 use rmcp::model::{
-    CallToolRequestParam, CallToolResult, Content, Implementation, InitializeRequestParam,
-    InitializeResult, ListToolsResult, PaginatedRequestParam, ProtocolVersion, ServerCapabilities,
+    CallToolRequestParams, CallToolResult, Content, Implementation, InitializeRequestParams,
+    InitializeResult, ListToolsResult, PaginatedRequestParams, ProtocolVersion, ServerCapabilities,
     ServerInfo, Tool, ToolsCapability,
 };
 use rmcp::service::RequestContext;
@@ -641,7 +641,7 @@ impl ServerHandler for KubeliMcpServer {
 
     async fn initialize(
         &self,
-        _request: InitializeRequestParam,
+        _request: InitializeRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<InitializeResult, McpError> {
         Ok(self.get_info())
@@ -649,7 +649,7 @@ impl ServerHandler for KubeliMcpServer {
 
     async fn list_tools(
         &self,
-        _request: Option<PaginatedRequestParam>,
+        _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
         Ok(ListToolsResult {
@@ -661,7 +661,7 @@ impl ServerHandler for KubeliMcpServer {
 
     async fn call_tool(
         &self,
-        request: CallToolRequestParam,
+        request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
     ) -> Result<CallToolResult, McpError> {
         let name: &str = &request.name;
