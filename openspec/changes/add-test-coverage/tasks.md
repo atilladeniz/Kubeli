@@ -24,10 +24,11 @@
 ## Phase 2: Frontend Unit Tests
 
 ### Zustand Stores (High Priority)
-- [ ] `cluster-store.test.ts` - Cluster state management
+- [x] `cluster-store.test.ts` - Cluster state management (21 tests, 78% coverage)
+- [x] `ui-store.test.ts` - UI settings and state (24 tests, 94% coverage)
 - [ ] `diagram-store.test.ts` - Diagram state
 - [ ] `resource-store.test.ts` - Resource caching
-- [ ] `settings-store.test.ts` - User preferences
+- [ ] `favorites-store.test.ts` - Favorites management
 
 ### Tauri Command Mocks
 - [ ] Create `__mocks__/@tauri-apps/api.ts`
