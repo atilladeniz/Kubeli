@@ -2,6 +2,16 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.4] - 2026-01-26
+
+- Updated rmcp from 0.13 to 0.14
+- Updated Jest and related packages to v30
+- Updated lucide-react to 0.563.0
+- Updated GitHub Actions (upload-artifact v6, cache v5)
+- Added CI workflow to auto-update package-lock.json for Dependabot PRs
+- Fixed CI issues with Dependabot PR handling and husky errors
+- Added Windows development documentation
+
 ## [0.3.3] - 2026-01-24
 
 - Fixed AI analyze button in LogViewer being enabled when no CLI is available
