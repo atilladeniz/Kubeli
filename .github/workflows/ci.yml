@@ -70,12 +70,11 @@ jobs:
           retention-days: 7
 
   lint-backend:
-    name: Lint Backend (Rust)
+    name: Backend Lint & Clippy
     runs-on: ubuntu-latest
     env:
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_DEV_DEBUG: '0'
-      CARGO_PROFILE_TEST_DEBUG: '0'
       RUSTC_WRAPPER: sccache
       SCCACHE_GHA_ENABLED: 'true'
     steps:
@@ -111,6 +110,38 @@ jobs:
       - name: Run Clippy
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
+
+  test-backend:
+    name: Backend Unit Tests
+    runs-on: ubuntu-latest
+    env:
+      CARGO_INCREMENTAL: '0'
+      CARGO_PROFILE_TEST_DEBUG: '0'
+      RUSTC_WRAPPER: sccache
+      SCCACHE_GHA_ENABLED: 'true'
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Setup sccache
+        uses: mozilla-actions/sccache-action@v0.0.9
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: ubuntu-rust-test
+          cache-on-failure: true
+
+      - name: Create dummy frontend dist for Tauri compile check
+        run: mkdir -p out && echo '<!DOCTYPE html><html><body></body></html>' > out/index.html
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov
@@ -159,7 +190,7 @@ jobs:
     if: false # Temporarily disabled; re-enable when macOS build is ready.
     name: Build (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
-    needs: [lint-frontend, lint-backend]
+    needs: [lint-frontend, lint-backend, test-backend]
     strategy:
       fail-fast: false
       matrix:
