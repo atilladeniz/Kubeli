@@ -329,3 +329,291 @@ pub async fn generate_resource_graph(
 
     Ok(GraphData { nodes, edges })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use k8s_openapi::api::apps::v1::{DeploymentSpec, DeploymentStatus};
+    use k8s_openapi::api::core::v1::{ContainerStatus, PodStatus};
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn test_btree_to_hashmap_with_data() {
+        let mut btree = BTreeMap::new();
+        btree.insert("app".to_string(), "nginx".to_string());
+        btree.insert("env".to_string(), "prod".to_string());
+
+        let result = btree_to_hashmap(Some(btree));
+
+        assert_eq!(result.len(), 2);
+        assert_eq!(result.get("app"), Some(&"nginx".to_string()));
+        assert_eq!(result.get("env"), Some(&"prod".to_string()));
+    }
+
+    #[test]
+    fn test_btree_to_hashmap_none() {
+        let result = btree_to_hashmap(None);
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_btree_to_hashmap_empty() {
+        let btree: BTreeMap<String, String> = BTreeMap::new();
+        let result = btree_to_hashmap(Some(btree));
+        assert!(result.is_empty());
+    }
+
+    #[test]
+    fn test_node_type_serialization() {
+        assert_eq!(
+            serde_json::to_string(&NodeType::Namespace).unwrap(),
+            "\"namespace\""
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeType::Deployment).unwrap(),
+            "\"deployment\""
+        );
+        assert_eq!(serde_json::to_string(&NodeType::Pod).unwrap(), "\"pod\"");
+    }
+
+    #[test]
+    fn test_node_status_serialization() {
+        assert_eq!(
+            serde_json::to_string(&NodeStatus::Healthy).unwrap(),
+            "\"healthy\""
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeStatus::Warning).unwrap(),
+            "\"warning\""
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeStatus::Error).unwrap(),
+            "\"error\""
+        );
+        assert_eq!(
+            serde_json::to_string(&NodeStatus::Unknown).unwrap(),
+            "\"unknown\""
+        );
+    }
+
+    #[test]
+    fn test_edge_type_serialization() {
+        assert_eq!(serde_json::to_string(&EdgeType::Owns).unwrap(), "\"owns\"");
+        assert_eq!(
+            serde_json::to_string(&EdgeType::Contains).unwrap(),
+            "\"contains\""
+        );
+    }
+
+    #[test]
+    fn test_get_pod_status_running_ready() {
+        let pod = Pod {
+            metadata: ObjectMeta::default(),
+            spec: None,
+            status: Some(PodStatus {
+                phase: Some("Running".to_string()),
+                container_statuses: Some(vec![ContainerStatus {
+                    name: "nginx".to_string(),
+                    ready: true,
+                    ..Default::default()
+                }]),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_pod_status(&pod), NodeStatus::Healthy);
+    }
+
+    #[test]
+    fn test_get_pod_status_running_not_ready() {
+        let pod = Pod {
+            metadata: ObjectMeta::default(),
+            spec: None,
+            status: Some(PodStatus {
+                phase: Some("Running".to_string()),
+                container_statuses: Some(vec![ContainerStatus {
+                    name: "nginx".to_string(),
+                    ready: false,
+                    ..Default::default()
+                }]),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_pod_status(&pod), NodeStatus::Warning);
+    }
+
+    #[test]
+    fn test_get_pod_status_pending() {
+        let pod = Pod {
+            metadata: ObjectMeta::default(),
+            spec: None,
+            status: Some(PodStatus {
+                phase: Some("Pending".to_string()),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_pod_status(&pod), NodeStatus::Warning);
+    }
+
+    #[test]
+    fn test_get_pod_status_failed() {
+        let pod = Pod {
+            metadata: ObjectMeta::default(),
+            spec: None,
+            status: Some(PodStatus {
+                phase: Some("Failed".to_string()),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_pod_status(&pod), NodeStatus::Error);
+    }
+
+    #[test]
+    fn test_get_pod_status_succeeded() {
+        let pod = Pod {
+            metadata: ObjectMeta::default(),
+            spec: None,
+            status: Some(PodStatus {
+                phase: Some("Succeeded".to_string()),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_pod_status(&pod), NodeStatus::Healthy);
+    }
+
+    #[test]
+    fn test_get_pod_status_unknown() {
+        let pod = Pod {
+            metadata: ObjectMeta::default(),
+            spec: None,
+            status: Some(PodStatus {
+                phase: Some("SomeUnknownPhase".to_string()),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_pod_status(&pod), NodeStatus::Unknown);
+    }
+
+    #[test]
+    fn test_get_pod_status_no_status() {
+        let pod = Pod {
+            metadata: ObjectMeta::default(),
+            spec: None,
+            status: None,
+        };
+
+        assert_eq!(get_pod_status(&pod), NodeStatus::Unknown);
+    }
+
+    #[test]
+    fn test_get_deployment_status_healthy() {
+        let deployment = Deployment {
+            metadata: ObjectMeta::default(),
+            spec: Some(DeploymentSpec {
+                replicas: Some(3),
+                ..Default::default()
+            }),
+            status: Some(DeploymentStatus {
+                ready_replicas: Some(3),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_deployment_status(&deployment), NodeStatus::Healthy);
+    }
+
+    #[test]
+    fn test_get_deployment_status_warning() {
+        let deployment = Deployment {
+            metadata: ObjectMeta::default(),
+            spec: Some(DeploymentSpec {
+                replicas: Some(3),
+                ..Default::default()
+            }),
+            status: Some(DeploymentStatus {
+                ready_replicas: Some(2),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_deployment_status(&deployment), NodeStatus::Warning);
+    }
+
+    #[test]
+    fn test_get_deployment_status_error() {
+        let deployment = Deployment {
+            metadata: ObjectMeta::default(),
+            spec: Some(DeploymentSpec {
+                replicas: Some(3),
+                ..Default::default()
+            }),
+            status: Some(DeploymentStatus {
+                ready_replicas: Some(0),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_deployment_status(&deployment), NodeStatus::Error);
+    }
+
+    #[test]
+    fn test_get_deployment_status_zero_replicas() {
+        let deployment = Deployment {
+            metadata: ObjectMeta::default(),
+            spec: Some(DeploymentSpec {
+                replicas: Some(0),
+                ..Default::default()
+            }),
+            status: Some(DeploymentStatus {
+                ready_replicas: Some(0),
+                ..Default::default()
+            }),
+        };
+
+        assert_eq!(get_deployment_status(&deployment), NodeStatus::Unknown);
+    }
+
+    #[test]
+    fn test_graph_node_serialization() {
+        let node = GraphNode {
+            id: "pod-1".to_string(),
+            uid: "uid-123".to_string(),
+            name: "nginx".to_string(),
+            namespace: Some("default".to_string()),
+            node_type: NodeType::Pod,
+            status: NodeStatus::Healthy,
+            labels: HashMap::new(),
+            parent_id: Some("deploy-1".to_string()),
+            ready_status: Some("1/1".to_string()),
+            replicas: None,
+            is_group: false,
+            child_count: None,
+        };
+
+        let json = serde_json::to_string(&node).unwrap();
+        assert!(json.contains("\"id\":\"pod-1\""));
+        assert!(json.contains("\"node_type\":\"pod\""));
+        assert!(json.contains("\"status\":\"healthy\""));
+    }
+
+    #[test]
+    fn test_graph_edge_serialization() {
+        let edge = GraphEdge {
+            id: "edge-1".to_string(),
+            source: "deploy-1".to_string(),
+            target: "pod-1".to_string(),
+            edge_type: EdgeType::Owns,
+            label: Some("manages".to_string()),
+        };
+
+        let json = serde_json::to_string(&edge).unwrap();
+        assert!(json.contains("\"edge_type\":\"owns\""));
+        assert!(json.contains("\"source\":\"deploy-1\""));
+    }
+}

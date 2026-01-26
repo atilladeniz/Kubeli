@@ -368,7 +368,7 @@ fn parse_log_line(line: &str, container: &str, pod: &str, namespace: &str) -> Lo
 
 #[cfg(test)]
 mod tests {
-    use super::parse_log_line;
+    use super::*;
 
     #[test]
     fn parses_timestamped_log_line() {
@@ -395,5 +395,175 @@ mod tests {
 
         assert!(entry.timestamp.is_none());
         assert_eq!(entry.message, "plain log");
+    }
+
+    #[test]
+    fn parses_log_line_with_spaces_in_message() {
+        let entry = parse_log_line(
+            "2024-06-15T08:30:45.123456789Z INFO Starting server on port 8080",
+            "nginx",
+            "web-pod",
+            "production",
+        );
+
+        assert_eq!(
+            entry.timestamp.as_deref(),
+            Some("2024-06-15T08:30:45.123456789Z")
+        );
+        assert_eq!(entry.message, "INFO Starting server on port 8080");
+    }
+
+    #[test]
+    fn parses_empty_log_line() {
+        let entry = parse_log_line("", "app", "demo-pod", "default");
+
+        assert!(entry.timestamp.is_none());
+        assert_eq!(entry.message, "");
+    }
+
+    #[test]
+    fn parses_short_log_line() {
+        let entry = parse_log_line("abc", "app", "demo-pod", "default");
+
+        assert!(entry.timestamp.is_none());
+        assert_eq!(entry.message, "abc");
+    }
+
+    #[test]
+    fn log_entry_serialization() {
+        let entry = LogEntry {
+            timestamp: Some("2024-01-01T00:00:00Z".to_string()),
+            message: "Test message".to_string(),
+            container: "app".to_string(),
+            pod: "test-pod".to_string(),
+            namespace: "default".to_string(),
+        };
+
+        let json = serde_json::to_string(&entry).unwrap();
+        assert!(json.contains("\"message\":\"Test message\""));
+        assert!(json.contains("\"container\":\"app\""));
+    }
+
+    #[test]
+    fn log_options_default() {
+        let options = LogOptions::default();
+
+        assert!(options.namespace.is_empty());
+        assert!(options.pod_name.is_empty());
+        assert!(options.container.is_none());
+        assert!(options.follow.is_none());
+        assert!(options.tail_lines.is_none());
+    }
+
+    #[test]
+    fn log_event_line_serialization() {
+        let entry = LogEntry {
+            timestamp: None,
+            message: "test".to_string(),
+            container: "app".to_string(),
+            pod: "pod".to_string(),
+            namespace: "ns".to_string(),
+        };
+        let event = LogEvent::Line(entry);
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"Line\""));
+    }
+
+    #[test]
+    fn log_event_error_serialization() {
+        let event = LogEvent::Error("Connection failed".to_string());
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"Error\""));
+        assert!(json.contains("Connection failed"));
+    }
+
+    #[test]
+    fn log_event_started_serialization() {
+        let event = LogEvent::Started {
+            stream_id: "stream-123".to_string(),
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"Started\""));
+        assert!(json.contains("stream-123"));
+    }
+
+    #[test]
+    fn log_event_stopped_serialization() {
+        let event = LogEvent::Stopped {
+            stream_id: "stream-456".to_string(),
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"Stopped\""));
+        assert!(json.contains("stream-456"));
+    }
+
+    #[tokio::test]
+    async fn log_stream_manager_new() {
+        let manager = LogStreamManager::new();
+
+        // Should start with no active streams
+        assert!(!manager.is_active("non-existent").await);
+    }
+
+    #[tokio::test]
+    async fn log_stream_manager_add_and_check() {
+        let manager = LogStreamManager::new();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+
+        manager.add_stream("stream-1".to_string(), stop_flag).await;
+
+        assert!(manager.is_active("stream-1").await);
+        assert!(!manager.is_active("stream-2").await);
+    }
+
+    #[tokio::test]
+    async fn log_stream_manager_stop_stream() {
+        let manager = LogStreamManager::new();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+
+        manager
+            .add_stream("stream-1".to_string(), stop_flag.clone())
+            .await;
+
+        // Stop flag should be false initially
+        assert!(!stop_flag.load(Ordering::SeqCst));
+
+        // Stop the stream
+        let result = manager.stop_stream("stream-1").await;
+        assert!(result);
+
+        // Stop flag should now be true
+        assert!(stop_flag.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn log_stream_manager_stop_non_existent() {
+        let manager = LogStreamManager::new();
+
+        let result = manager.stop_stream("non-existent").await;
+        assert!(!result);
+    }
+
+    #[tokio::test]
+    async fn log_stream_manager_remove_stream() {
+        let manager = LogStreamManager::new();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+
+        manager.add_stream("stream-1".to_string(), stop_flag).await;
+        assert!(manager.is_active("stream-1").await);
+
+        manager.remove_stream("stream-1").await;
+        assert!(!manager.is_active("stream-1").await);
+    }
+
+    #[test]
+    fn log_stream_manager_default() {
+        let manager = LogStreamManager::default();
+        // Just verify it doesn't panic and creates properly
+        assert!(std::mem::size_of_val(&manager) > 0);
     }
 }

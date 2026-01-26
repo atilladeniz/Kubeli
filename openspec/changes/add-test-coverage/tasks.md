@@ -55,11 +55,12 @@
 ### Commands Module
 - [ ] `commands/clusters.rs` - Cluster operations
 - [ ] `commands/resources.rs` - Resource CRUD
-- [ ] `commands/logs.rs` - Additional log parsing tests
+- [x] `commands/logs.rs` - Log parsing, LogStreamManager (18 tests)
+- [x] `commands/graph.rs` - Graph helpers, status functions (19 tests)
 - [ ] `commands/mcp.rs` - MCP command tests
 
 ### MCP Module
-- [ ] `mcp/tools.rs` - MCP tool handlers
+- [x] `mcp/tools.rs` - MCP tool handlers (8 tests)
 - [ ] `mcp/server.rs` - Server initialization
 - [ ] `mcp/ide_config.rs` - Additional IDE config tests
 
