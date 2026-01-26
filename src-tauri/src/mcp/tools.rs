@@ -762,3 +762,132 @@ impl ServerHandler for KubeliMcpServer {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_pod_summary_serialization() {
+        let pod = PodSummary {
+            name: "nginx-abc123".to_string(),
+            namespace: "default".to_string(),
+            phase: "Running".to_string(),
+            node: Some("node-1".to_string()),
+            ready: "1/1".to_string(),
+            restarts: 0,
+            age: "5d".to_string(),
+        };
+
+        let json = serde_json::to_string(&pod).unwrap();
+        assert!(json.contains("\"name\":\"nginx-abc123\""));
+        assert!(json.contains("\"phase\":\"Running\""));
+        assert!(json.contains("\"restarts\":0"));
+    }
+
+    #[test]
+    fn test_deployment_summary_serialization() {
+        let deployment = DeploymentSummary {
+            name: "nginx".to_string(),
+            namespace: "default".to_string(),
+            ready: "3/3".to_string(),
+            up_to_date: 3,
+            available: 3,
+            age: "10d".to_string(),
+        };
+
+        let json = serde_json::to_string(&deployment).unwrap();
+        assert!(json.contains("\"name\":\"nginx\""));
+        assert!(json.contains("\"ready\":\"3/3\""));
+        assert!(json.contains("\"up_to_date\":3"));
+    }
+
+    #[test]
+    fn test_service_summary_serialization() {
+        let service = ServiceSummary {
+            name: "nginx-svc".to_string(),
+            namespace: "default".to_string(),
+            service_type: "ClusterIP".to_string(),
+            cluster_ip: Some("10.0.0.1".to_string()),
+            ports: vec!["80/TCP".to_string(), "443/TCP".to_string()],
+            age: "7d".to_string(),
+        };
+
+        let json = serde_json::to_string(&service).unwrap();
+        assert!(json.contains("\"service_type\":\"ClusterIP\""));
+        assert!(json.contains("\"cluster_ip\":\"10.0.0.1\""));
+        assert!(json.contains("\"ports\":[\"80/TCP\",\"443/TCP\"]"));
+    }
+
+    #[test]
+    fn test_event_summary_serialization() {
+        let event = EventSummary {
+            namespace: "default".to_string(),
+            name: "nginx-abc123.123456".to_string(),
+            kind: "Pod".to_string(),
+            reason: Some("Pulled".to_string()),
+            message: Some("Successfully pulled image".to_string()),
+            count: Some(1),
+            last_seen: Some("2024-01-01T00:00:00Z".to_string()),
+        };
+
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"kind\":\"Pod\""));
+        assert!(json.contains("\"reason\":\"Pulled\""));
+        assert!(json.contains("\"count\":1"));
+    }
+
+    #[test]
+    fn test_format_age_none() {
+        assert_eq!(KubeliMcpServer::format_age(None), "Unknown");
+    }
+
+    #[test]
+    fn test_get_tools_returns_expected_tools() {
+        let tools = KubeliMcpServer::get_tools();
+
+        // Check that we have the expected number of tools
+        assert!(tools.len() >= 6, "Should have at least 6 tools");
+
+        // Check tool names
+        let tool_names: Vec<&str> = tools.iter().map(|t| &*t.name).collect();
+        assert!(tool_names.contains(&"get_pods"));
+        assert!(tool_names.contains(&"get_deployments"));
+        assert!(tool_names.contains(&"get_services"));
+        assert!(tool_names.contains(&"get_logs"));
+        assert!(tool_names.contains(&"get_events"));
+        assert!(tool_names.contains(&"get_yaml"));
+    }
+
+    #[test]
+    fn test_tool_has_description() {
+        let tools = KubeliMcpServer::get_tools();
+
+        for tool in tools {
+            assert!(
+                tool.description.is_some(),
+                "Tool {} should have a description",
+                tool.name
+            );
+            assert!(
+                !tool.description.as_ref().unwrap().is_empty(),
+                "Tool {} description should not be empty",
+                tool.name
+            );
+        }
+    }
+
+    #[test]
+    fn test_tool_has_input_schema() {
+        let tools = KubeliMcpServer::get_tools();
+
+        for tool in tools {
+            // Input schema should be a valid JSON object
+            assert!(
+                !tool.input_schema.is_empty(),
+                "Tool {} should have input schema",
+                tool.name
+            );
+        }
+    }
+}
