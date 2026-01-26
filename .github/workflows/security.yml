@@ -126,7 +126,7 @@ jobs:
           category: 'trivy-fs'
 
       - name: Upload Trivy artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always() && (hashFiles('trivy-npm.sarif') != '' || hashFiles('trivy-rust.sarif') != '' || hashFiles('trivy-fs.sarif') != '')
         with:
           name: trivy-results
@@ -172,7 +172,7 @@ jobs:
           category: 'semgrep'
 
       - name: Upload Semgrep artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         if: always()
         with:
           name: semgrep-results
