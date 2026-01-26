@@ -4,17 +4,42 @@
 
 This document outlines the technical approach for implementing comprehensive test coverage.
 
+## Important Considerations
+
+### Jest 30 Known Issues
+- [Branch coverage reporting bug](https://github.com/jestjs/jest/issues/15760) - may show incorrect branch coverage after upgrade
+- Workaround: Use `v8` coverage provider instead of `babel` for more accurate results
+
+### Next.js App Router Limitations
+- **Async Server Components NOT supported by Jest** - use E2E tests instead
+- Need to mock `next/navigation` for App Router hooks
+- Use `next-router-mock` package for router mocking
+
+### Tauri 2.0 Testing
+- Official `tauri::test` module (unstable but usable)
+- Frontend mocking via `@tauri-apps/api/mocks`
+- See: [Tauri Testing Docs](https://v2.tauri.app/develop/tests/)
+
+### Rust Coverage Tool Choice
+- **Use `cargo-llvm-cov`** (NOT `cargo-tarpaulin`)
+- Reasons:
+  - Cross-platform (macOS + Linux + Windows)
+  - More accurate LLVM-based coverage
+  - Supports line, region, AND branch coverage
+  - tarpaulin is Linux-only with limited macOS support
+
 ## Frontend Testing Stack
 
 ### Current Setup
 ```
-Jest + React Testing Library + Playwright (E2E)
+Jest 30 + React Testing Library + Playwright (E2E)
 ```
 
 ### Additions
 ```
-+ Jest Coverage (istanbul)
-+ MSW (Mock Service Worker) for API mocking
++ Jest Coverage (v8 provider for accuracy)
++ @tauri-apps/api/mocks (official Tauri mocks)
++ next-router-mock (App Router mocking)
 + @testing-library/user-event for interactions
 ```
 
@@ -26,12 +51,18 @@ Jest + React Testing Library + Playwright (E2E)
 // jest.config.js additions
 module.exports = {
   // ... existing config
+
+  // Use v8 provider for more accurate coverage (avoids Jest 30 branch coverage bugs)
+  coverageProvider: 'v8',
+
   collectCoverage: true,
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',
     '!src/**/*.d.ts',
     '!src/**/__tests__/**',
     '!src/**/__mocks__/**',
+    '!src/app/**/layout.tsx',  // Async server components - test via E2E
+    '!src/app/**/loading.tsx',
   ],
   coverageThreshold: {
     global: {
@@ -43,7 +74,18 @@ module.exports = {
   },
   coverageReporters: ['text', 'lcov', 'html'],
   coverageDirectory: 'coverage',
+
+  // Mock next/navigation for App Router
+  moduleNameMapper: {
+    '^next/navigation$': 'next-router-mock',
+  },
 };
+```
+
+### Install Additional Dependencies
+
+```bash
+npm install -D next-router-mock @testing-library/user-event
 ```
 
 ### Rust Coverage
@@ -63,6 +105,9 @@ cargo llvm-cov --html
 
 ## Tauri Mock Strategy
 
+Tauri 2.0 provides official mocking utilities via `@tauri-apps/api/mocks`.
+See: [Tauri Mock Docs](https://v2.tauri.app/develop/tests/mocking/)
+
 ### Mock File Structure
 
 ```
@@ -71,10 +116,58 @@ src/
     @tauri-apps/
       api.ts          # Core API mocks
       plugin-store.ts # Store plugin mock
-    tauri-commands.ts # Command response mocks
+  test-utils/
+    tauri-mocks.ts    # Command response fixtures
+    setup.ts          # Test setup with mocks
 ```
 
-### Mock Implementation
+### Using Official Tauri Mocks
+
+```typescript
+// src/test-utils/setup.ts
+import { mockIPC, mockWindows, clearMocks } from '@tauri-apps/api/mocks';
+
+beforeAll(() => {
+  // Mock window labels
+  mockWindows('main', 'settings');
+});
+
+afterEach(() => {
+  clearMocks();
+});
+```
+
+### Custom IPC Mock Implementation
+
+```typescript
+// src/test-utils/tauri-mocks.ts
+import { mockIPC } from '@tauri-apps/api/mocks';
+
+export const mockKubeliCommands = () => {
+  mockIPC((cmd, args) => {
+    switch (cmd) {
+      case 'get_clusters':
+        return [
+          { name: 'test-cluster', context: 'test-context' }
+        ];
+      case 'get_pods':
+        return [
+          { name: 'nginx-pod', namespace: 'default', status: 'Running' }
+        ];
+      case 'connect_cluster':
+        return { success: true };
+      default:
+        throw new Error(`Unhandled command: ${cmd}`);
+    }
+  });
+};
+
+// Usage in tests:
+// import { mockKubeliCommands } from '@/test-utils/tauri-mocks';
+// beforeEach(() => mockKubeliCommands());
+```
+
+### Fallback Manual Mock (if needed)
 
 ```typescript
 // src/__mocks__/@tauri-apps/api.ts
@@ -85,7 +178,6 @@ const mockResponses: Record<string, unknown> = {
   'get_pods': [
     { name: 'nginx-pod', namespace: 'default', status: 'Running' }
   ],
-  // ... more commands
 };
 
 export const invoke = jest.fn((cmd: string, args?: unknown) => {

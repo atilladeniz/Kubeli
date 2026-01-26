@@ -3,11 +3,16 @@
 ## Phase 1: Infrastructure Setup
 
 ### Coverage Tools
-- [ ] Add Jest coverage configuration (`jest.config.js`)
+- [ ] Update Jest config with `coverageProvider: 'v8'` (avoids Jest 30 bugs)
 - [ ] Add coverage thresholds (60% lines, 50% branches)
-- [ ] Install `@jest/coverage` reporter
-- [ ] Add Rust coverage with `cargo-tarpaulin` or `cargo-llvm-cov`
+- [ ] Exclude async server components from Jest coverage (test via E2E)
+- [ ] Install `cargo-llvm-cov` for Rust (NOT tarpaulin - cross-platform support)
 - [ ] Create coverage output directories
+
+### Dependencies
+- [ ] Install `next-router-mock` for App Router testing
+- [ ] Install `@testing-library/user-event`
+- [ ] Verify `@tauri-apps/api/mocks` is available
 
 ### CI Integration
 - [ ] Update `.github/workflows/ci.yml` to generate coverage reports
