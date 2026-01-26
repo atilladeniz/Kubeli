@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build build-all clean install install-windows-build-deps build-windows test test-all test-e2e lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
+.PHONY: dev build build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
 
 # Default target
 .DEFAULT_GOAL := help
@@ -316,6 +316,24 @@ test-all: ## Run frontend, backend, and E2E tests
 
 test-e2e: ## Run Playwright E2E tests
 	npm run test:e2e
+
+test-coverage: ## Run all tests with coverage
+	@echo "$(CYAN)Running frontend tests with coverage...$(RESET)"
+	npm run test:coverage
+	@echo ""
+	@echo "$(CYAN)Running Rust tests with coverage...$(RESET)"
+	cd src-tauri && cargo llvm-cov --lcov --output-path ../coverage-rust.lcov
+	@echo ""
+	@echo "$(GREEN)Coverage reports generated:$(RESET)"
+	@echo "  Frontend: coverage/index.html"
+	@echo "  Rust: coverage-rust.lcov"
+
+test-coverage-frontend: ## Run frontend tests with coverage
+	npm run test:coverage
+
+test-coverage-rust: ## Run Rust tests with coverage
+	cd src-tauri && cargo llvm-cov --html --output-dir ../coverage-rust
+	@echo "$(GREEN)Rust coverage report: coverage-rust/html/index.html$(RESET)"
 
 rust-test: ## Run Rust tests
 	cd src-tauri && cargo test

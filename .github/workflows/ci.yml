@@ -37,8 +37,16 @@ jobs:
       - name: Run TypeScript check
         run: npm run typecheck
 
-      - name: Run frontend tests
-        run: npm run test
+      - name: Run frontend tests with coverage
+        run: npm run test:coverage
+
+      - name: Upload frontend coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: frontend-coverage
+          path: coverage/
+          retention-days: 7
 
   lint-backend:
     name: Lint Backend (Rust)
@@ -83,9 +91,20 @@ jobs:
         working-directory: src-tauri
         run: cargo clippy -- -D warnings
 
-      - name: Run Rust tests
+      - name: Install cargo-llvm-cov
+        uses: taiki-e/install-action@cargo-llvm-cov
+
+      - name: Run Rust tests with coverage
         working-directory: src-tauri
-        run: cargo test
+        run: cargo llvm-cov --lcov --output-path ../coverage-rust.lcov
+
+      - name: Upload Rust coverage
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: rust-coverage
+          path: coverage-rust.lcov
+          retention-days: 7
 
   test-e2e:
     name: E2E Smoke Tests
