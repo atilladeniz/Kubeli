@@ -1,5 +1,16 @@
 import "@testing-library/jest-dom";
 
+// Mock next/image - renders plain <img> since Next.js optimization doesn't run in tests
+jest.mock("next/image", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const React = require("react");
+  return {
+    __esModule: true,
+    default: (props: React.ImgHTMLAttributes<HTMLImageElement>) =>
+      React.createElement("img", { alt: "", ...props }),
+  };
+});
+
 jest.mock("@tauri-apps/api/core", () => ({
   invoke: jest.fn(),
 }));

@@ -9,7 +9,6 @@ const customJestConfig = {
   testEnvironment: "jsdom",
   moduleNameMapper: {
     "^@/(.*)$": "<rootDir>/src/$1",
-    "^next/image$": "<rootDir>/__mocks__/next/image.tsx",
     "\\.(css|less|scss|sass)$": "identity-obj-proxy",
   },
   testPathIgnorePatterns: [
