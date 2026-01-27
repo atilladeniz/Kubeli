@@ -19,7 +19,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { useUpdater } from "@/lib/hooks/useUpdater";
 import { usePlatform } from "@/lib/hooks/usePlatform";
-import { Dashboard } from "@/components/features/Dashboard";
+import { Dashboard } from "@/components/features/dashboard";
 import { SettingsPanel } from "@/components/features/settings/SettingsPanel";
 import { RestartDialog } from "@/components/features/updates/RestartDialog";
 import { Button } from "@/components/ui/button";

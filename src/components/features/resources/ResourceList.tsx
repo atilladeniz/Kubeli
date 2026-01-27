@@ -89,7 +89,7 @@ export interface ContextMenuItemDef {
 
 export type SortDirection = "asc" | "desc";
 
-interface Column<T> {
+export interface Column<T> {
   key: keyof T | string;
   label: string;
   sortable?: boolean;

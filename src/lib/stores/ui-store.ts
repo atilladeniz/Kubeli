@@ -90,6 +90,10 @@ interface UIState {
   // Navigation state - for navigating to specific resources
   pendingPodLogs: { namespace: string; podName: string } | null;
 
+  // Refresh trigger - incremented when a resource is deleted from detail panel
+  // Views can watch this to know when to refresh
+  resourceDeleteTrigger: number;
+
   // Actions
   setTheme: (theme: Theme) => void;
   setLocale: (locale: Locale) => void;
@@ -102,6 +106,7 @@ interface UIState {
   setPendingPodLogs: (
     pod: { namespace: string; podName: string } | null
   ) => void;
+  triggerResourceDeleteRefresh: () => void;
 }
 
 // Helper to get valid vibrancy level
@@ -121,6 +126,7 @@ export const useUIStore = create<UIState>()(
       isSettingsOpen: false,
       isAIAssistantOpen: false,
       pendingPodLogs: null,
+      resourceDeleteTrigger: 0,
 
       setTheme: (theme) => {
         set((state) => ({
@@ -176,6 +182,9 @@ export const useUIStore = create<UIState>()(
         set((state) => ({ isAIAssistantOpen: !state.isAIAssistantOpen })),
 
       setPendingPodLogs: (pod) => set({ pendingPodLogs: pod }),
+
+      triggerResourceDeleteRefresh: () =>
+        set((state) => ({ resourceDeleteTrigger: state.resourceDeleteTrigger + 1 })),
     }),
     {
       name: "kubeli-ui-settings",
