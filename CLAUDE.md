@@ -226,6 +226,46 @@ Available properties:
 - `src-tauri/src/k8s/client.rs` - Kubernetes client manager
 - `src-tauri/src/k8s/config.rs` - Kubeconfig parsing
 
+## Code Quality Skills
+
+This project includes custom Claude skills for code quality based on industry best practices.
+
+### Available Skills
+
+| Skill | Purpose | Usage |
+|-------|---------|-------|
+| `/software-design-review` | Analyzes code against 15 Ousterhout principles | `/software-design-review src/lib/stores/cluster-store.ts` |
+| `/refactor` | Strategic refactoring with safety-first approach | `/refactor src/lib/stores/cluster-store.ts` |
+
+### `/software-design-review` (Analysis)
+
+Based on John Ousterhout's "A Philosophy of Software Design". Checks for:
+
+- Module Depth (Deep vs. Shallow)
+- Information Hiding & Leaks
+- Generalization vs. Specialization
+- Error Handling (Define errors away)
+- Consistency & Obviousness
+- Strategic vs. Tactical Programming
+
+### `/refactor` (Action)
+
+Combines Ousterhout principles with Clean Code (Robert Martin) smells. Includes:
+
+- **Phase 1-2**: Analysis + Safety checklist (tests, git state)
+- **Phase 3**: Clean Code smells (F1-F4, G1-G36, N1-N7, T1-T9)
+- **Phase 4**: Stack-specific patterns (Next.js, Zustand, Tauri/Rust)
+- **Phase 5-6**: Workflow + Prioritization
+
+Key rules enforced:
+- Functions: Small, one task, max 3 args
+- Law of Demeter: No train wrecks (`a.b().c().d()`)
+- DRY: No duplication
+- F.I.R.S.T.: Fast, Independent, Repeatable, Self-validating, Timely tests
+- Boy Scout Rule: Leave code cleaner than you found it
+
+---
+
 ## Git Commit Guidelines
 
 **IMPORTANT: Do NOT add the following to commit messages:**
