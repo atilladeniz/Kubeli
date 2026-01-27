@@ -2,6 +2,16 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.5] - 2026-01-27
+
+- Added custom code quality skills for analysis and refactoring
+- Refactored dashboard to modular architecture with factory pattern
+- Added 42 Rust unit tests for graph, logs, and MCP modules
+- Added comprehensive store tests with test coverage infrastructure
+- Split CI backend into separate Lint and Unit Tests jobs
+- Moved next/image mock inline to jest.setup.ts
+- Removed unused taskmaster configuration
+
 ## [0.3.4] - 2026-01-26
 
 - Updated rmcp from 0.13 to 0.14
