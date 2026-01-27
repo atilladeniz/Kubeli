@@ -167,6 +167,8 @@ function DashboardContent() {
     }
   };
 
+  const { triggerResourceDeleteRefresh } = useUIStore();
+
   const handleDeleteResource = async () => {
     if (!selectedResource) return;
     await deleteResource(
@@ -175,6 +177,7 @@ function DashboardContent() {
       selectedResource.data.namespace
     );
     setSelectedResource(null);
+    triggerResourceDeleteRefresh();
   };
 
   const handleDeleteFromContext = (resourceType: string, name: string, namespace?: string, onSuccess?: () => void) => {
