@@ -44,7 +44,7 @@ jest.mock("@/lib/hooks/useUpdater", () => ({
   }),
 }));
 
-jest.mock("@/components/features/Dashboard", () => ({
+jest.mock("@/components/features/dashboard", () => ({
   Dashboard: () => <div>Dashboard</div>,
 }));
 
