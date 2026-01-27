@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Copy, Trash2, Eye, RefreshCw, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useHelmReleases } from "@/lib/hooks/useK8sResources";
+import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import {
   ResourceList,
   helmReleaseColumns,
@@ -29,6 +30,9 @@ export function HelmReleasesView() {
   const { openResourceDetail, handleDeleteFromContext, handleUninstallFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("last_deployed");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  // Refresh when a resource is deleted from detail panel
+  useRefreshOnDelete(refresh);
 
   const getHelmContextMenu = (release: HelmReleaseInfo): ContextMenuItemDef[] => {
     const items: ContextMenuItemDef[] = [];

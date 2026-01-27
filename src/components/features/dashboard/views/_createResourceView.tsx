@@ -13,6 +13,7 @@ import {
   type Column,
 } from "../../resources/ResourceList";
 import { useResourceDetail } from "../context";
+import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 
 // Base resource type - all K8s resources have these
 interface BaseResource {
@@ -98,6 +99,9 @@ export function createResourceView<T extends BaseResource>(
     const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
     const [sortKey, setSortKey] = useState<string | null>(defaultSortKey);
     const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSortDirection);
+
+    // Refresh when a resource is deleted from detail panel
+    useRefreshOnDelete(refresh);
 
     const translatedColumns = useMemo(
       () => translateColumns(columns, t),

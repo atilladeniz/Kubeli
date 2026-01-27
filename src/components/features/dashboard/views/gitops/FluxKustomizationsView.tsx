@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Copy, Trash2, Eye, RefreshCw, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useFluxKustomizations } from "@/lib/hooks/useK8sResources";
+import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import {
   ResourceList,
   fluxKustomizationColumns,
@@ -26,6 +27,9 @@ export function FluxKustomizationsView() {
   const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  // Refresh when a resource is deleted from detail panel
+  useRefreshOnDelete(refresh);
 
   const getKustomizationContextMenu = (k: FluxKustomizationInfo): ContextMenuItemDef[] => [
     {

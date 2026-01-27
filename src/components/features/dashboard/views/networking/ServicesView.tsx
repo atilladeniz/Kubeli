@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useServices } from "@/lib/hooks/useK8sResources";
 import { usePortForward } from "@/lib/hooks/usePortForward";
+import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import {
@@ -33,6 +34,9 @@ export function ServicesView() {
   const { currentCluster } = useClusterStore();
   const { addFavorite, removeFavorite, isFavorite } = useFavoritesStore();
   const clusterContext = currentCluster?.context || "";
+
+  // Refresh when a resource is deleted from detail panel
+  useRefreshOnDelete(refresh);
 
   // Check if a service is currently being forwarded
   const getForwardForService = (svc: ServiceInfo) => {

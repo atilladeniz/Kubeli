@@ -20,6 +20,7 @@ import { usePortForward } from "@/lib/hooks/usePortForward";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import { useTerminalTabs } from "../../../terminal";
 import { LogViewer } from "../../../logs/LogViewer";
 import {
@@ -53,6 +54,9 @@ export function PodsView() {
   const { addFavorite, removeFavorite, isFavorite } = useFavoritesStore();
   const { pendingPodLogs, setPendingPodLogs } = useUIStore();
   const clusterContext = currentCluster?.context || "";
+
+  // Refresh when a resource is deleted from detail panel (only if not watching)
+  useRefreshOnDelete(refresh, !isWatching);
 
   // Watch for pending pod logs from AI assistant link clicks
   useEffect(() => {

@@ -6,6 +6,7 @@ import { Copy, Trash2, Eye, Scale, RefreshCw, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useDeployments } from "@/lib/hooks/useK8sResources";
+import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import {
@@ -30,6 +31,9 @@ export function DeploymentsView() {
   const { currentCluster } = useClusterStore();
   const { addFavorite, removeFavorite, isFavorite } = useFavoritesStore();
   const clusterContext = currentCluster?.context || "";
+
+  // Refresh when a resource is deleted from detail panel
+  useRefreshOnDelete(refresh);
 
   const getDeploymentContextMenu = (dep: DeploymentInfo): ContextMenuItemDef[] => {
     const isFav = isFavorite(clusterContext, "deployments", dep.name, dep.namespace);
