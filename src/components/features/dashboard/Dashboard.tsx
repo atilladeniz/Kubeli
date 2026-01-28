@@ -257,12 +257,12 @@ function DashboardContent() {
         <Sidebar
           activeResource={activeResource}
           onResourceSelect={setActiveResource}
-          onResourceSelectNewTab={(type, title) => {
+          onResourceSelectNewTab={(type) => {
             if (resourceTabs.length >= 10) {
               toast.warning("Sie haben bereits 10 Tabs offen. Bitte schließen Sie einen Tab, um einen neuen zu öffnen.");
               return;
             }
-            openTab(type, title, { newTab: true });
+            openTab(type, RESOURCE_TITLES[type] || type, { newTab: true });
           }}
         />
         <div className="flex flex-1 overflow-hidden overscroll-none">
