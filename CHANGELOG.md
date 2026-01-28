@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.6] - 2026-01-28
+
+- Refactored AI components into modular architecture with dedicated hooks, utilities, and tests
+
 ## [0.3.5] - 2026-01-27
 
 - Added custom code quality skills for analysis and refactoring
