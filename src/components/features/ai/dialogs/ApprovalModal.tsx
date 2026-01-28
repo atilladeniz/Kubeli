@@ -21,6 +21,16 @@ interface ApprovalModalProps {
   onOpenChange: (open: boolean) => void;
 }
 
+const SEVERITY_STYLES = {
+  critical: "bg-red-500/20 text-red-400 border-red-500/50",
+  high: "bg-orange-500/20 text-orange-400 border-orange-500/50",
+  medium: "bg-yellow-500/20 text-yellow-400 border-yellow-500/50",
+  low: "bg-blue-500/20 text-blue-400 border-blue-500/50",
+} as const;
+
+/**
+ * Modal for approving/rejecting AI tool execution requests.
+ */
 export function ApprovalModal({ open, onOpenChange }: ApprovalModalProps) {
   const t = useTranslations("ai");
   const { pendingApproval, approveAction, rejectAction } = useAIStore();
@@ -33,52 +43,36 @@ export function ApprovalModal({ open, onOpenChange }: ApprovalModalProps) {
   };
 
   const handleReject = async () => {
-    await rejectAction(pendingApproval.request_id, "User rejected the action");
+    await rejectAction(pendingApproval.request_id, t("userRejectedAction"));
     onOpenChange(false);
   };
 
-  const getSeverityColor = (severity: string) => {
-    switch (severity) {
-      case "critical":
-        return "bg-red-500/20 text-red-400 border-red-500/50";
-      case "high":
-        return "bg-orange-500/20 text-orange-400 border-orange-500/50";
-      case "medium":
-        return "bg-yellow-500/20 text-yellow-400 border-yellow-500/50";
-      case "low":
-        return "bg-blue-500/20 text-blue-400 border-blue-500/50";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
+  const severityStyle =
+    SEVERITY_STYLES[pendingApproval.severity as keyof typeof SEVERITY_STYLES] ||
+    "bg-muted text-muted-foreground";
 
-  const getSeverityIcon = (severity: string) => {
-    switch (severity) {
-      case "critical":
-      case "high":
-        return <ShieldX className="h-5 w-5 text-red-400" />;
-      case "medium":
-        return <ShieldAlert className="h-5 w-5 text-yellow-400" />;
-      default:
-        return <ShieldCheck className="h-5 w-5 text-blue-400" />;
-    }
-  };
+  const isHighRisk =
+    pendingApproval.severity === "critical" ||
+    pendingApproval.severity === "high";
 
   return (
     <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent className="max-w-lg">
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">
-            {getSeverityIcon(pendingApproval.severity)}
+            {isHighRisk ? (
+              <ShieldX className="h-5 w-5 text-red-400" />
+            ) : pendingApproval.severity === "medium" ? (
+              <ShieldAlert className="h-5 w-5 text-yellow-400" />
+            ) : (
+              <ShieldCheck className="h-5 w-5 text-blue-400" />
+            )}
             {t("approvalRequired")}
           </AlertDialogTitle>
           <AlertDialogDescription asChild>
             <div className="space-y-4">
               <div className="flex items-center gap-2">
-                <Badge
-                  variant="outline"
-                  className={getSeverityColor(pendingApproval.severity)}
-                >
+                <Badge variant="outline" className={severityStyle}>
                   {pendingApproval.severity.toUpperCase()}
                 </Badge>
                 <span className="text-sm text-muted-foreground">
@@ -110,12 +104,7 @@ export function ApprovalModal({ open, onOpenChange }: ApprovalModalProps) {
           </AlertDialogCancel>
           <AlertDialogAction
             onClick={handleApprove}
-            className={
-              pendingApproval.severity === "critical" ||
-              pendingApproval.severity === "high"
-                ? "bg-red-600 hover:bg-red-700"
-                : ""
-            }
+            className={isHighRisk ? "bg-red-600 hover:bg-red-700" : ""}
           >
             {t("approve")}
           </AlertDialogAction>
