@@ -79,6 +79,9 @@ export function AIAssistant() {
       actionDenied: t("ai.actionDenied"),
       blocked: t("ai.blocked"),
       noPermission: t("ai.noPermission"),
+      actionRequiresApproval: t("ai.actionRequiresApproval"),
+      actionBlockedByPermission: t("ai.actionBlockedByPermission"),
+      unknownError: t("ai.unknownError"),
     }),
     [t]
   );

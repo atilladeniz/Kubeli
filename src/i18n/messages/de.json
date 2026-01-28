@@ -662,7 +662,11 @@
     "stop": "Beenden",
     "you": "Du",
     "assistant": "KI-Assistent",
-    "copyFailed": "Kopieren fehlgeschlagen"
+    "copyFailed": "Kopieren fehlgeschlagen",
+    "actionRequiresApproval": "Aktion erfordert Genehmigung",
+    "actionBlockedByPermission": "Aktion wurde vom Berechtigungssystem blockiert",
+    "unknownError": "Unbekannter Fehler",
+    "userRejectedAction": "Benutzer hat die Aktion abgelehnt"
   },
   "favorites": {
     "title": "Favoriten",

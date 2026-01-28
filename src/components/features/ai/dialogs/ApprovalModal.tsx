@@ -43,7 +43,7 @@ export function ApprovalModal({ open, onOpenChange }: ApprovalModalProps) {
   };
 
   const handleReject = async () => {
-    await rejectAction(pendingApproval.request_id, "User rejected the action");
+    await rejectAction(pendingApproval.request_id, t("userRejectedAction"));
     onOpenChange(false);
   };
 

@@ -16,6 +16,9 @@ interface AIEventsI18n {
   actionDenied: string;
   blocked: string;
   noPermission: string;
+  actionRequiresApproval: string;
+  actionBlockedByPermission: string;
+  unknownError: string;
 }
 
 /**
@@ -72,7 +75,7 @@ export function useAIEvents(
               tool_name: data.tool_name,
               tool_input: data.tool_input || {},
               command_preview: data.command_preview || "",
-              reason: data.reason || "Action requires approval",
+              reason: data.reason || i18n.actionRequiresApproval,
               severity: data.severity || "medium",
             });
             callbacks.onApprovalRequired();
@@ -93,12 +96,12 @@ export function useAIEvents(
           addToolCall({
             name: data.tool_name || "blocked",
             status: "failed",
-            output: data.reason || "Action was blocked by permission system",
+            output: data.reason || i18n.actionBlockedByPermission,
           });
           break;
 
         case "Error":
-          setError(data.message || "Unknown error");
+          setError(data.message || i18n.unknownError);
           break;
 
         case "SessionEnded":

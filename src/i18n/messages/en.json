@@ -625,6 +625,10 @@
     "you": "You",
     "assistant": "AI Assistant",
     "copyFailed": "Copy failed",
+    "actionRequiresApproval": "Action requires approval",
+    "actionBlockedByPermission": "Action was blocked by permission system",
+    "unknownError": "Unknown error",
+    "userRejectedAction": "User rejected the action",
     "thinkingMessages": [
       "Analyzing request...",
       "Searching cluster...",
