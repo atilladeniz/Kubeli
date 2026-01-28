@@ -162,14 +162,12 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         searchRegex={searchRegex}
         onScroll={handleScroll}
         onStartStream={() => startStream()}
+        endRef={endRef}
         loadingText={t("common.loading")}
         searchingText={t("logs.searching")}
         noLogsText={t("logs.noLogs")}
         followText={t("logs.follow")}
       />
-
-      {/* Scroll end marker - used by useAutoScroll */}
-      <div ref={endRef} />
 
       <LogFooter
         filteredCount={filteredLogs.length}

@@ -15,6 +15,8 @@ interface LogContentProps {
   searchRegex: RegExp | null;
   onScroll: () => void;
   onStartStream: () => void;
+  /** Ref for scroll-to-bottom target (placed at end of logs) */
+  endRef?: React.RefObject<HTMLDivElement | null>;
   // i18n
   loadingText: string;
   searchingText: string;
@@ -37,6 +39,7 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
       searchRegex,
       onScroll,
       onStartStream,
+      endRef,
       loadingText,
       searchingText,
       noLogsText,
@@ -81,6 +84,8 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
               searchRegex={searchRegex}
             />
           ))}
+          {/* Scroll target for auto-scroll */}
+          {endRef && <div ref={endRef} />}
         </div>
       </div>
     );
