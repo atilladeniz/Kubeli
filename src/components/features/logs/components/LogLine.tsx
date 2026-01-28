@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { memo, useMemo } from "react";
 import type { LogEntry } from "@/lib/types";
 import { LOG_LEVEL_COLORS } from "../types";
 import { getLogLevel, formatTimestamp, escapeRegExp } from "../lib";
@@ -16,8 +16,11 @@ interface LogLineProps {
 /**
  * Renders a single log line with optional timestamp and search highlighting.
  * Automatically detects and colors log levels (error, warn, info, debug).
+ *
+ * Memoized to prevent unnecessary re-renders when parent updates.
+ * Critical for performance with 10k+ log lines.
  */
-export function LogLine({
+export const LogLine = memo(function LogLine({
   log,
   showTimestamp,
   searchQuery,
@@ -50,7 +53,7 @@ export function LogLine({
       </span>
     </div>
   );
-}
+});
 
 /**
  * Highlights matches in text using a regex pattern.
