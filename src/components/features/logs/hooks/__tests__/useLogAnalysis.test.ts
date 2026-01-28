@@ -168,6 +168,11 @@ describe("useLogAnalysis", () => {
 
     const { result } = renderHook(() => useLogAnalysis(defaultOptions));
 
+    // Wait for async CLI check to complete
+    await waitFor(() => {
+      expect(mockAiCheckCliAvailable).toHaveBeenCalled();
+    });
+
     act(() => {
       result.current.analyzeWithAI();
     });
@@ -179,6 +184,11 @@ describe("useLogAnalysis", () => {
     const { result } = renderHook(() =>
       useLogAnalysis({ ...defaultOptions, logs: [] })
     );
+
+    // Wait for async CLI check to complete
+    await waitFor(() => {
+      expect(mockAiCheckCliAvailable).toHaveBeenCalled();
+    });
 
     act(() => {
       result.current.analyzeWithAI();

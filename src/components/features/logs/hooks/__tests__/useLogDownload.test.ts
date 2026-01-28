@@ -142,6 +142,9 @@ describe("useLogDownload", () => {
   });
 
   it("shows error toast on failure", async () => {
+    // Suppress expected console.error
+    const consoleSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+
     mockSave.mockRejectedValue(new Error("Save failed"));
 
     const { result } = renderHook(() => useLogDownload(defaultOptions));
@@ -151,6 +154,9 @@ describe("useLogDownload", () => {
     });
 
     expect(toast.error).toHaveBeenCalledWith("messages.saveError");
+    expect(consoleSpy).toHaveBeenCalledWith("Download failed:", expect.any(Error));
+
+    consoleSpy.mockRestore();
   });
 
   it("sets isDownloading during download", async () => {
