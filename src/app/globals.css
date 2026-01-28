@@ -479,6 +479,15 @@ summary *,
   cursor: not-allowed !important;
 }
 
+/* Hide scrollbar utility */
+.hide-scrollbar {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge */
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome/Safari/Tauri */
+}
+
 /* Custom scrollbar styles */
 ::-webkit-scrollbar {
   width: 10px;

@@ -11,14 +11,17 @@ import { SettingsPanel } from "../settings/SettingsPanel";
 import { BrowserOpenDialog } from "../portforward/BrowserOpenDialog";
 import { RestartDialog } from "../updates/RestartDialog";
 import { Titlebar } from "@/components/layout/Titlebar";
+import { TabBar, RESOURCE_TITLES } from "@/components/layout/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
+import { useTabsStore } from "@/lib/stores/tabs-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAIStore } from "@/lib/stores/ai-store";
 import { useKeyboardShortcuts, NAVIGATION_SHORTCUTS } from "@/lib/hooks/useKeyboardShortcuts";
+import { toast } from "sonner";
 import {
   getResourceYaml,
   applyResourceYaml,
@@ -52,7 +55,15 @@ export function Dashboard() {
 
 function DashboardContent() {
   const t = useTranslations();
-  const [activeResource, setActiveResource] = useState<ResourceType>("cluster-overview");
+  const { tabs: resourceTabs, activeTabId, navigateCurrentTab, openTab, closeTab, setActiveTab, restoreTabs } = useTabsStore();
+  const activeTab = resourceTabs.find((t) => t.id === activeTabId) || resourceTabs[0];
+  const activeResource = activeTab?.type ?? "cluster-overview";
+  const setActiveResource = useCallback(
+    (type: ResourceType) => {
+      navigateCurrentTab(type, RESOURCE_TITLES[type] || type);
+    },
+    [navigateCurrentTab]
+  );
   const { isConnected, currentCluster } = useClusterStore();
   const { tabs, isOpen, setIsOpen } = useTerminalTabs();
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
@@ -88,6 +99,13 @@ function DashboardContent() {
 
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
+
+  // Restore tabs when cluster connects
+  useEffect(() => {
+    if (isConnected && clusterContext) {
+      restoreTabs(clusterContext);
+    }
+  }, [isConnected, clusterContext, restoreTabs]);
 
   // Watch for pending pod logs navigation from AI assistant
   useEffect(() => {
@@ -127,7 +145,19 @@ function DashboardContent() {
     { key: NAVIGATION_SHORTCUTS.FAVORITE_7, meta: true, handler: () => navigateToFavorite(6), description: "Go to Favorite 7" },
     { key: NAVIGATION_SHORTCUTS.FAVORITE_8, meta: true, handler: () => navigateToFavorite(7), description: "Go to Favorite 8" },
     { key: NAVIGATION_SHORTCUTS.FAVORITE_9, meta: true, handler: () => navigateToFavorite(8), description: "Go to Favorite 9" },
-  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable]);
+    // Tab shortcuts
+    { key: "w", meta: true, handler: () => { if (resourceTabs.length > 1) closeTab(activeTabId); }, description: "Close current tab", global: true },
+    { key: "Tab", meta: true, handler: () => {
+      const idx = resourceTabs.findIndex((t) => t.id === activeTabId);
+      const nextIdx = (idx + 1) % resourceTabs.length;
+      setActiveTab(resourceTabs[nextIdx].id);
+    }, description: "Next tab", global: true },
+    { key: "Tab", meta: true, shift: true, handler: () => {
+      const idx = resourceTabs.findIndex((t) => t.id === activeTabId);
+      const prevIdx = (idx - 1 + resourceTabs.length) % resourceTabs.length;
+      setActiveTab(resourceTabs[prevIdx].id);
+    }, description: "Previous tab", global: true },
+  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, closeTab, setActiveTab]);
 
   useKeyboardShortcuts(shortcuts, { enabled: isConnected });
 
@@ -224,7 +254,17 @@ function DashboardContent() {
       }}
     >
       <div className="flex h-screen bg-background text-foreground overscroll-none">
-        <Sidebar activeResource={activeResource} onResourceSelect={setActiveResource} />
+        <Sidebar
+          activeResource={activeResource}
+          onResourceSelect={setActiveResource}
+          onResourceSelectNewTab={(type, title) => {
+            if (resourceTabs.length >= 10) {
+              toast.warning("Sie haben bereits 10 Tabs offen. Bitte schließen Sie einen Tab, um einen neuen zu öffnen.");
+              return;
+            }
+            openTab(type, title, { newTab: true });
+          }}
+        />
         <div className="flex flex-1 overflow-hidden overscroll-none">
           {/* Main content area */}
           <div className="flex flex-1 flex-col overflow-hidden">
@@ -235,6 +275,7 @@ function DashboardContent() {
               onToggleAI={toggleAIAssistant}
               onOpenSettings={() => setSettingsOpen(true)}
             />
+            {isConnected && <TabBar />}
             <main className={cn("flex-1 overflow-hidden", isOpen && "h-[60%]")}>
               {!isConnected ? (
                 <NotConnectedState />
