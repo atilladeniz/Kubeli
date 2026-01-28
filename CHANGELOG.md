@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.7] - 2026-01-28
+
+- Refactored LogViewer component into modular architecture
+- Fixed comparison pages to reflect Windows support
+- Added proposal for performance profiling via `make perf`
+- Added proposal for OpenCode and Ollama AI providers
+
 ## [0.3.6] - 2026-01-28
 
 - Refactored AI components into modular architecture with dedicated hooks, utilities, and tests
