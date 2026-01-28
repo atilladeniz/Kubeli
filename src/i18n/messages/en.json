@@ -944,5 +944,13 @@
   "watch": {
     "watching": "Watching",
     "watch": "Watch"
+  },
+  "tabs": {
+    "newTab": "New tab",
+    "limitReached": "Tab limit reached (max. 10)",
+    "limitToast": "You already have 10 tabs open. Please close a tab to open a new one.",
+    "close": "Close",
+    "closeOthers": "Close Others",
+    "closeToRight": "Close to Right"
   }
 }

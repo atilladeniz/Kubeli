@@ -295,9 +295,10 @@ function useNavigationSections(): NavSection[] {
 interface SidebarProps {
   activeResource: ResourceType;
   onResourceSelect: (resource: ResourceType) => void;
+  onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
 }
 
-export function Sidebar({ activeResource, onResourceSelect }: SidebarProps) {
+export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewTab }: SidebarProps) {
   const t = useTranslations();
   const tNav = useTranslations("navigation");
   const tCluster = useTranslations("cluster");
@@ -637,6 +638,7 @@ export function Sidebar({ activeResource, onResourceSelect }: SidebarProps) {
               section={section}
               activeResource={activeResource}
               onResourceSelect={onResourceSelect}
+              onResourceSelectNewTab={onResourceSelectNewTab}
               defaultOpen={
                 section.id === "cluster" ||
                 section.id === "workloads" ||
@@ -672,6 +674,7 @@ interface NavSectionCollapsibleProps {
   section: NavSection;
   activeResource: ResourceType;
   onResourceSelect: (resource: ResourceType) => void;
+  onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
   defaultOpen?: boolean;
   soonLabel: string;
 }
@@ -680,6 +683,7 @@ function NavSectionCollapsible({
   section,
   activeResource,
   onResourceSelect,
+  onResourceSelectNewTab,
   defaultOpen = false,
   soonLabel,
 }: NavSectionCollapsibleProps) {
@@ -704,7 +708,14 @@ function NavSectionCollapsible({
               key={item.id}
               variant="ghost"
               size="sm"
-              onClick={() => isImplemented && onResourceSelect(item.id)}
+              onClick={(e) => {
+                if (!isImplemented) return;
+                if ((e.metaKey || e.ctrlKey) && onResourceSelectNewTab) {
+                  onResourceSelectNewTab(item.id, item.label);
+                } else {
+                  onResourceSelect(item.id);
+                }
+              }}
               disabled={!isImplemented}
               className={cn(
                 "w-full justify-between px-2 font-normal",
