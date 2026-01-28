@@ -140,7 +140,7 @@ function SortableTab({
   } = useSortable({ id: tab.id });
 
   const style = {
-    transform: CSS.Transform.toString(transform),
+    transform: CSS.Transform.toString(transform ? { ...transform, scaleX: 1, scaleY: 1 } : null),
     transition,
     zIndex: isDragging ? 10 : undefined,
     opacity: isDragging ? 0.8 : undefined,
