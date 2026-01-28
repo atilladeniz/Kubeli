@@ -944,5 +944,13 @@
   "watch": {
     "watching": "Beobachte",
     "watch": "Beobachten"
+  },
+  "tabs": {
+    "newTab": "Neuer Tab",
+    "limitReached": "Tab-Limit erreicht (max. 10)",
+    "limitToast": "Sie haben bereits 10 Tabs offen. Bitte schließen Sie einen Tab, um einen neuen zu öffnen.",
+    "close": "Schließen",
+    "closeOthers": "Andere schließen",
+    "closeToRight": "Rechts schließen"
   }
 }

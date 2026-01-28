@@ -481,11 +481,13 @@ summary *,
 
 /* Hide scrollbar utility */
 .hide-scrollbar {
-  scrollbar-width: none; /* Firefox */
-  -ms-overflow-style: none; /* IE/Edge */
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
 }
 .hide-scrollbar::-webkit-scrollbar {
-  display: none; /* Chrome/Safari/Tauri */
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
 }
 
 /* Custom scrollbar styles */

@@ -11,7 +11,7 @@ import { SettingsPanel } from "../settings/SettingsPanel";
 import { BrowserOpenDialog } from "../portforward/BrowserOpenDialog";
 import { RestartDialog } from "../updates/RestartDialog";
 import { Titlebar } from "@/components/layout/Titlebar";
-import { TabBar, RESOURCE_TITLES } from "@/components/layout/TabBar";
+import { TabBar, useTabTitle } from "@/components/layout/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -56,13 +56,14 @@ export function Dashboard() {
 function DashboardContent() {
   const t = useTranslations();
   const { tabs: resourceTabs, activeTabId, navigateCurrentTab, openTab, closeTab, setActiveTab, restoreTabs } = useTabsStore();
+  const getTabTitle = useTabTitle();
   const activeTab = resourceTabs.find((t) => t.id === activeTabId) || resourceTabs[0];
   const activeResource = activeTab?.type ?? "cluster-overview";
   const setActiveResource = useCallback(
     (type: ResourceType) => {
-      navigateCurrentTab(type, RESOURCE_TITLES[type] || type);
+      navigateCurrentTab(type, getTabTitle(type));
     },
-    [navigateCurrentTab]
+    [navigateCurrentTab, getTabTitle]
   );
   const { isConnected, currentCluster } = useClusterStore();
   const { tabs, isOpen, setIsOpen } = useTerminalTabs();
@@ -259,10 +260,10 @@ function DashboardContent() {
           onResourceSelect={setActiveResource}
           onResourceSelectNewTab={(type) => {
             if (resourceTabs.length >= 10) {
-              toast.warning("Sie haben bereits 10 Tabs offen. Bitte schließen Sie einen Tab, um einen neuen zu öffnen.");
+              toast.warning(t("tabs.limitToast"));
               return;
             }
-            openTab(type, RESOURCE_TITLES[type] || type, { newTab: true });
+            openTab(type, getTabTitle(type), { newTab: true });
           }}
         />
         <div className="flex flex-1 overflow-hidden overscroll-none">

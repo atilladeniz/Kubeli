@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import { X, Plus } from "lucide-react";
-import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { useTabsStore, type Tab } from "@/lib/stores/tabs-store";
 import { cn } from "@/lib/utils";
 import {
@@ -18,62 +18,82 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Map resource types to short display titles
-export const RESOURCE_TITLES: Record<string, string> = {
-  "cluster-overview": "Cluster - Overview",
-  "resource-diagram": "Cluster - Diagram",
-  nodes: "Cluster - Nodes",
-  events: "Cluster - Events",
-  namespaces: "Cluster - Namespaces",
-  leases: "Cluster - Leases",
-  "helm-releases": "Helm - Releases",
-  "flux-kustomizations": "Flux - Kustomizations",
-  "workloads-overview": "Workloads - Overview",
-  deployments: "Workloads - Deployments",
-  pods: "Workloads - Pods",
-  replicasets: "Workloads - ReplicaSets",
-  daemonsets: "Workloads - DaemonSets",
-  statefulsets: "Workloads - StatefulSets",
-  jobs: "Workloads - Jobs",
-  cronjobs: "Workloads - CronJobs",
-  "port-forwards": "Network - Port Forwards",
-  services: "Network - Services",
-  ingresses: "Network - Ingresses",
-  "endpoint-slices": "Network - Endpoints",
-  "network-policies": "Network - Policies",
-  "ingress-classes": "Network - Ingress Classes",
-  secrets: "Config - Secrets",
-  configmaps: "Config - ConfigMaps",
-  hpa: "Config - HPA",
-  "limit-ranges": "Config - Limit Ranges",
-  "resource-quotas": "Config - Quotas",
-  "pod-disruption-budgets": "Config - PDBs",
-  "persistent-volumes": "Storage - PVs",
-  "persistent-volume-claims": "Storage - PVCs",
-  "volume-attachments": "Storage - Vol Attachments",
-  "storage-classes": "Storage - Classes",
-  "csi-drivers": "Storage - CSI Drivers",
-  "csi-nodes": "Storage - CSI Nodes",
-  "service-accounts": "Access - Service Accounts",
-  roles: "Access - Roles",
-  "role-bindings": "Access - Role Bindings",
-  "cluster-roles": "Access - Cluster Roles",
-  "cluster-role-bindings": "Access - CRBs",
-  crds: "Admin - CRDs",
-  "priority-classes": "Admin - Priority Classes",
-  "runtime-classes": "Admin - Runtime Classes",
-  "mutating-webhooks": "Admin - Mutating WHs",
-  "validating-webhooks": "Admin - Validating WHs",
+// Map resource type → [sectionKey, itemKey] for i18n lookup
+const RESOURCE_I18N_KEYS: Record<string, [string, string]> = {
+  "cluster-overview": ["cluster", "overview"],
+  "resource-diagram": ["cluster", "resourceDiagram"],
+  nodes: ["cluster", "nodes"],
+  events: ["cluster", "events"],
+  namespaces: ["cluster", "namespaces"],
+  leases: ["cluster", "leases"],
+  "helm-releases": ["helm", "releases"],
+  "flux-kustomizations": ["flux", "kustomizations"],
+  "workloads-overview": ["workloads", "overview"],
+  deployments: ["workloads", "deployments"],
+  pods: ["workloads", "pods"],
+  replicasets: ["workloads", "replicaSets"],
+  daemonsets: ["workloads", "daemonSets"],
+  statefulsets: ["workloads", "statefulSets"],
+  jobs: ["workloads", "jobs"],
+  cronjobs: ["workloads", "cronJobs"],
+  "port-forwards": ["networking", "portForwards"],
+  services: ["networking", "services"],
+  ingresses: ["networking", "ingresses"],
+  "endpoint-slices": ["networking", "endpointSlices"],
+  "network-policies": ["networking", "networkPolicies"],
+  "ingress-classes": ["networking", "ingressClasses"],
+  secrets: ["configuration", "secrets"],
+  configmaps: ["configuration", "configMaps"],
+  hpa: ["configuration", "hpa"],
+  "limit-ranges": ["configuration", "limitRanges"],
+  "resource-quotas": ["configuration", "resourceQuotas"],
+  "pod-disruption-budgets": ["configuration", "podDisruptionBudgets"],
+  "persistent-volumes": ["storage", "persistentVolumes"],
+  "persistent-volume-claims": ["storage", "persistentVolumeClaims"],
+  "volume-attachments": ["storage", "volumeAttachments"],
+  "storage-classes": ["storage", "storageClasses"],
+  "csi-drivers": ["storage", "csiDrivers"],
+  "csi-nodes": ["storage", "csiNodes"],
+  "service-accounts": ["accessControl", "serviceAccounts"],
+  roles: ["accessControl", "roles"],
+  "role-bindings": ["accessControl", "roleBindings"],
+  "cluster-roles": ["accessControl", "clusterRoles"],
+  "cluster-role-bindings": ["accessControl", "clusterRoleBindings"],
+  crds: ["administration", "crds"],
+  "priority-classes": ["administration", "priorityClasses"],
+  "runtime-classes": ["administration", "runtimeClasses"],
+  "mutating-webhooks": ["administration", "mutatingWebhooks"],
+  "validating-webhooks": ["administration", "validatingWebhooks"],
 };
+
+/** Build a translated tab title from resource type */
+export function useTabTitle() {
+  const tNav = useTranslations("navigation");
+
+  return useCallback(
+    (type: string): string => {
+      const keys = RESOURCE_I18N_KEYS[type];
+      if (!keys) return type;
+      const [sectionKey, itemKey] = keys;
+      // Some keys (e.g. flux) may not exist in navigation i18n — capitalize fallback
+      const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
+      const section = tNav.has(sectionKey) ? tNav(sectionKey) : capitalize(sectionKey);
+      const item = tNav.has(itemKey) ? tNav(itemKey) : capitalize(itemKey);
+      return `${section} - ${item}`;
+    },
+    [tNav]
+  );
+}
 
 export function TabBar() {
   const { tabs, activeTabId, setActiveTab, closeTab, closeOtherTabs, closeTabsToRight, openTab } =
     useTabsStore();
   const scrollRef = useRef<HTMLDivElement>(null);
+  const t = useTranslations("tabs");
+  const getTabTitle = useTabTitle();
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, tab: Tab) => {
-      // Middle-click to close
       if (e.button === 1) {
         e.preventDefault();
         if (tabs.length > 1) {
@@ -88,8 +108,8 @@ export function TabBar() {
 
   const handleAddTab = useCallback(() => {
     if (isAtLimit) return;
-    openTab("cluster-overview", "Cluster - Overview", { newTab: true });
-  }, [openTab, isAtLimit]);
+    openTab("cluster-overview", getTabTitle("cluster-overview"), { newTab: true });
+  }, [openTab, isAtLimit, getTabTitle]);
 
   return (
     <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border bg-card/30">
@@ -111,7 +131,7 @@ export function TabBar() {
                 )}
               >
                 <span className="truncate">
-                  {tab.title || RESOURCE_TITLES[tab.type] || tab.type}
+                  {getTabTitle(tab.type)}
                 </span>
                 {tabs.length > 1 && (
                   <span
@@ -132,13 +152,13 @@ export function TabBar() {
                 onClick={() => closeTab(tab.id)}
                 disabled={tabs.length <= 1}
               >
-                Close
+                {t("close")}
               </ContextMenuItem>
               <ContextMenuItem
                 onClick={() => closeOtherTabs(tab.id)}
                 disabled={tabs.length <= 1}
               >
-                Close Others
+                {t("closeOthers")}
               </ContextMenuItem>
               <ContextMenuItem
                 onClick={() => closeTabsToRight(tab.id)}
@@ -146,7 +166,7 @@ export function TabBar() {
                   tabs.indexOf(tab) === tabs.length - 1
                 }
               >
-                Close to Right
+                {t("closeToRight")}
               </ContextMenuItem>
             </ContextMenuContent>
           </ContextMenu>
@@ -169,7 +189,7 @@ export function TabBar() {
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            <p>{isAtLimit ? "Tab-Limit erreicht (max. 10)" : "New tab"}</p>
+            <p>{isAtLimit ? t("limitReached") : t("newTab")}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
