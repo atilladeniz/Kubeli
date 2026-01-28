@@ -2,6 +2,14 @@ import { renderHook, act } from "@testing-library/react";
 import { useAutoScroll } from "../useAutoScroll";
 
 describe("useAutoScroll", () => {
+  beforeEach(() => {
+    jest.useFakeTimers();
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
   it("returns refs and state", () => {
     const { result } = renderHook(() => useAutoScroll({ dependencies: [] }));
 
@@ -27,8 +35,16 @@ describe("useAutoScroll", () => {
     expect(result.current.autoScroll).toBe(false);
   });
 
-  it("scrollToBottom re-enables autoScroll", () => {
+  it("scrollToBottom re-enables autoScroll after delay", () => {
     const { result } = renderHook(() => useAutoScroll({ dependencies: [] }));
+
+    // Mock endRef.current with a DOM element
+    const mockElement = document.createElement("div");
+    mockElement.scrollIntoView = jest.fn();
+    Object.defineProperty(result.current.endRef, "current", {
+      value: mockElement,
+      writable: true,
+    });
 
     // First disable
     act(() => {
@@ -36,9 +52,16 @@ describe("useAutoScroll", () => {
     });
     expect(result.current.autoScroll).toBe(false);
 
-    // Then scrollToBottom should re-enable
+    // scrollToBottom sets autoScroll after 300ms delay
     act(() => {
       result.current.scrollToBottom();
+    });
+    // Not yet enabled
+    expect(result.current.autoScroll).toBe(false);
+
+    // Advance timers by 300ms
+    act(() => {
+      jest.advanceTimersByTime(300);
     });
     expect(result.current.autoScroll).toBe(true);
   });

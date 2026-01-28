@@ -14,15 +14,17 @@ export const LOG_LEVEL_COLORS: Record<LogLevel, string> = {
 
 export const LOG_FILTER_OPTIONS: Array<{
   value: string;
-  label: string;
   color?: string;
 }> = [
-  { value: "all", label: "All Levels" },
-  { value: "error", label: "Error", color: "bg-destructive" },
-  { value: "warn", label: "Warning", color: "bg-yellow-500" },
-  { value: "info", label: "Info", color: "bg-blue-500" },
-  { value: "debug", label: "Debug", color: "bg-muted-foreground" },
+  { value: "all" },
+  { value: "error", color: "bg-destructive" },
+  { value: "warn", color: "bg-yellow-500" },
+  { value: "info", color: "bg-blue-500" },
+  { value: "debug", color: "bg-muted-foreground" },
 ];
+
+/** Labels for log level filter options (i18n keys) */
+export type LogLevelLabels = Record<string, string>;
 
 /**
  * Default values for log viewer behavior.

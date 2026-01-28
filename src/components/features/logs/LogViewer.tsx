@@ -112,6 +112,13 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         filter={{
           logLevel,
           onLogLevelChange: setLogLevel,
+          logLevelLabels: {
+            all: t("logs.levelAll"),
+            error: t("logs.levelError"),
+            warn: t("logs.levelWarn"),
+            info: t("logs.levelInfo"),
+            debug: t("logs.levelDebug"),
+          },
           showTimestamps,
           onTimestampsToggle: setShowTimestamps,
           timestampsLabel: t("logs.timestamps"),

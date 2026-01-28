@@ -309,7 +309,12 @@
     "aiPromptTitle": "Analyze the logs of pod {namespace}/{podName}{containerInfo}:",
     "aiPromptStats": "**Log Statistics**: {total} lines total, {errors} errors, {warnings} warnings",
     "aiPromptLogsHeader": "**Logs** (sorted by relevance, max. {maxLines} lines):",
-    "aiPromptInstructions": "Please analyze these logs and:\n1. Identify critical errors or issues\n2. Explain what the root cause might be\n3. Summarize the key patterns"
+    "aiPromptInstructions": "Please analyze these logs and:\n1. Identify critical errors or issues\n2. Explain what the root cause might be\n3. Summarize the key patterns",
+    "levelAll": "All Levels",
+    "levelError": "Error",
+    "levelWarn": "Warning",
+    "levelInfo": "Info",
+    "levelDebug": "Debug"
   },
   "terminal": {
     "title": "Terminal",

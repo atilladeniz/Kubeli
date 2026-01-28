@@ -1,7 +1,7 @@
 "use client";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { DownloadFormat } from "../types";
+import type { DownloadFormat, LogLevelLabels } from "../types";
 import {
   SearchInput,
   LogLevelFilter,
@@ -29,6 +29,7 @@ export interface SearchProps {
 export interface FilterProps {
   logLevel: string;
   onLogLevelChange: (level: string) => void;
+  logLevelLabels: LogLevelLabels;
   showTimestamps: boolean;
   onTimestampsToggle: (checked: boolean) => void;
   timestampsLabel: string;
@@ -96,7 +97,7 @@ export function LogToolbar({
       />
 
       {/* Log level filter */}
-      <LogLevelFilter value={filter.logLevel} onChange={filter.onLogLevelChange} />
+      <LogLevelFilter value={filter.logLevel} onChange={filter.onLogLevelChange} labels={filter.logLevelLabels} />
 
       {/* Timestamp toggle */}
       <ToggleCheckbox
