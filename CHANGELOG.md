@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.8] - 2026-01-28
+
+- Added tab navigation with drag and drop support
+- Fixed test warnings by suppressing act() and console.error noise
+
 ## [0.3.7] - 2026-01-28
 
 - Refactored LogViewer component into modular architecture
