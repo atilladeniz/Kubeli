@@ -50,10 +50,17 @@ export function useAutoScroll({ dependencies }: UseAutoScrollOptions): UseAutoSc
     setAutoScroll(isAtBottom);
   }, []);
 
-  // Scroll to bottom and re-enable auto-scroll
+  // Scroll to bottom and re-enable auto-scroll after animation completes
   const scrollToBottom = useCallback(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-    setAutoScroll(true);
+    if (!endRef.current) return;
+
+    endRef.current.scrollIntoView({ behavior: "smooth" });
+
+    // Delay setting autoScroll to avoid button flicker during smooth scroll
+    // 300ms matches typical smooth scroll duration
+    setTimeout(() => {
+      setAutoScroll(true);
+    }, 300);
   }, []);
 
   return {
