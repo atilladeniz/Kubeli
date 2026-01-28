@@ -17,6 +17,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { restrictToHorizontalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { useTabsStore, type Tab } from "@/lib/stores/tabs-store";
 import { cn } from "@/lib/utils";
 import {
@@ -238,7 +239,7 @@ export function TabBar() {
 
   return (
     <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border bg-card/30">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToHorizontalAxis, restrictToParentElement]}>
         <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
           <div
             ref={scrollRef}
