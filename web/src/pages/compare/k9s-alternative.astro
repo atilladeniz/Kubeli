@@ -71,17 +71,17 @@ const comparisonPoints = [
   },
   {
     category: "Platforms",
-    kubeli: "macOS",
+    kubeli: "macOS, Windows",
     k9s: "macOS, Linux, Windows",
-    winner: "k9s",
-    detail: "k9s supports more platforms."
+    winner: "tie",
+    detail: "Both support major desktop platforms. k9s also supports Linux."
   }
 ];
 ---
 
 <BaseLayout
   title="Kubeli vs k9s - GUI Alternative to Terminal"
-  description="Looking for a k9s alternative with a visual interface? Kubeli is a native macOS Kubernetes GUI with AI-powered log analysis and interactive diagrams."
+  description="Looking for a k9s alternative with a visual interface? Kubeli is a native Kubernetes GUI for macOS and Windows with AI-powered log analysis and interactive diagrams."
   activeNav=""
   canonicalPath="/compare/k9s-alternative"
 >
@@ -162,11 +162,7 @@ const comparisonPoints = [
             </li>
             <li class="flex items-start gap-2">
               <span class="text-green-500 mt-0.5">+</span>
-              <span>Native macOS experience</span>
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-neutral-400 mt-0.5">-</span>
-              <span>macOS only (for now)</span>
+              <span>Native desktop experience (macOS & Windows)</span>
             </li>
           </ul>
         </div>
@@ -215,7 +211,7 @@ const comparisonPoints = [
           <ul class="space-y-2 text-neutral-400">
             <li>Love terminal-based workflows</li>
             <li>Already know vim keybindings</li>
-            <li>Need Linux/Windows support</li>
+            <li>Need Linux support</li>
             <li>Work primarily over SSH</li>
           </ul>
         </div>
@@ -225,7 +221,7 @@ const comparisonPoints = [
             <li>Prefer visual interfaces</li>
             <li>Want AI-assisted troubleshooting</li>
             <li>Need to visualize cluster topology</li>
-            <li>Use macOS as your primary OS</li>
+            <li>Use macOS or Windows as your primary OS</li>
           </ul>
         </div>
       </div>
