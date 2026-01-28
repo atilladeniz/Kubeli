@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import type { LogEntry } from "@/lib/types";
 import { compileRegex, validateRegex, getLogLevel } from "../lib";
 
@@ -27,6 +27,8 @@ interface UseLogFilterReturn {
   searchRegex: RegExp | null;
   /** Filtered logs based on search and level */
   filteredLogs: LogEntry[];
+  /** Reset all filters to default */
+  resetFilters: () => void;
 }
 
 /**
@@ -71,6 +73,13 @@ export function useLogFilter({ logs }: UseLogFilterOptions): UseLogFilterReturn 
     return result;
   }, [logs, searchQuery, logLevel, useRegex, searchRegex]);
 
+  // Reset all filters to default
+  const resetFilters = useCallback(() => {
+    setSearchQuery("");
+    setUseRegex(false);
+    setLogLevel("all");
+  }, []);
+
   return {
     searchQuery,
     setSearchQuery,
@@ -81,5 +90,6 @@ export function useLogFilter({ logs }: UseLogFilterOptions): UseLogFilterReturn 
     regexError,
     searchRegex,
     filteredLogs,
+    resetFilters,
   };
 }

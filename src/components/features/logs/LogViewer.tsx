@@ -52,7 +52,13 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
     regexError,
     searchRegex,
     filteredLogs,
+    resetFilters,
   } = useLogFilter({ logs });
+
+  // Reset filters when pod changes
+  useEffect(() => {
+    resetFilters();
+  }, [namespace, podName, resetFilters]);
 
   // Auto-scroll hook - handles all scroll logic
   const { containerRef, endRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
