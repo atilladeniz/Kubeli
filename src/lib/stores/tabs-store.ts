@@ -18,6 +18,7 @@ interface TabsState {
   closeTabsToRight: (id: string) => void;
   setActiveTab: (id: string) => void;
   navigateCurrentTab: (type: ResourceType, title: string) => void;
+  reorderTabs: (activeId: string, overId: string) => void;
   restoreTabs: (clusterContext: string) => void;
   resetTabs: () => void;
 }
@@ -137,6 +138,18 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const newTabs = tabs.map((t) =>
       t.id === activeTabId ? { ...t, type, title } : t
     );
+    set({ tabs: newTabs });
+    persistTabs(newTabs, activeTabId);
+  },
+
+  reorderTabs: (activeId, overId) => {
+    const { tabs, activeTabId } = get();
+    const oldIndex = tabs.findIndex((t) => t.id === activeId);
+    const newIndex = tabs.findIndex((t) => t.id === overId);
+    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+    const newTabs = [...tabs];
+    const [moved] = newTabs.splice(oldIndex, 1);
+    newTabs.splice(newIndex, 0, moved);
     set({ tabs: newTabs });
     persistTabs(newTabs, activeTabId);
   },

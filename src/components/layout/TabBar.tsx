@@ -3,6 +3,20 @@
 import { useCallback, useRef } from "react";
 import { X, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { useTabsStore, type Tab } from "@/lib/stores/tabs-store";
 import { cn } from "@/lib/utils";
 import {
@@ -75,7 +89,6 @@ export function useTabTitle() {
       const keys = RESOURCE_I18N_KEYS[type];
       if (!keys) return type;
       const [sectionKey, itemKey] = keys;
-      // Some keys (e.g. flux) may not exist in navigation i18n — capitalize fallback
       const capitalize = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
       const section = tNav.has(sectionKey) ? tNav(sectionKey) : capitalize(sectionKey);
       const item = tNav.has(itemKey) ? tNav(itemKey) : capitalize(itemKey);
@@ -85,12 +98,122 @@ export function useTabTitle() {
   );
 }
 
+interface SortableTabProps {
+  tab: Tab;
+  isActive: boolean;
+  canClose: boolean;
+  onActivate: () => void;
+  onClose: () => void;
+  onCloseOthers: () => void;
+  onCloseToRight: () => void;
+  isLast: boolean;
+  onMiddleClick: (e: React.MouseEvent) => void;
+  title: string;
+  tClose: string;
+  tCloseOthers: string;
+  tCloseToRight: string;
+}
+
+function SortableTab({
+  tab,
+  isActive,
+  canClose,
+  onActivate,
+  onClose,
+  onCloseOthers,
+  onCloseToRight,
+  isLast,
+  onMiddleClick,
+  title,
+  tClose,
+  tCloseOthers,
+  tCloseToRight,
+}: SortableTabProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tab.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+    opacity: isDragging ? 0.8 : undefined,
+  };
+
+  return (
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <button
+          ref={setNodeRef}
+          style={style}
+          {...attributes}
+          {...listeners}
+          onClick={onActivate}
+          onMouseDown={onMiddleClick}
+          className={cn(
+            "group flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md shrink-0 max-w-[200px] border transition-colors select-none",
+            isActive
+              ? "bg-muted border-border text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50",
+            isDragging && "shadow-lg"
+          )}
+        >
+          <span className="truncate">{title}</span>
+          {canClose && (
+            <span
+              role="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onClose();
+              }}
+              className="shrink-0 rounded p-0.5 hover:bg-background/50 opacity-50 hover:opacity-100"
+            >
+              <X className="size-3" />
+            </span>
+          )}
+        </button>
+      </ContextMenuTrigger>
+      <ContextMenuContent>
+        <ContextMenuItem onClick={onClose} disabled={!canClose}>
+          {tClose}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={onCloseOthers} disabled={!canClose}>
+          {tCloseOthers}
+        </ContextMenuItem>
+        <ContextMenuItem onClick={onCloseToRight} disabled={isLast}>
+          {tCloseToRight}
+        </ContextMenuItem>
+      </ContextMenuContent>
+    </ContextMenu>
+  );
+}
+
 export function TabBar() {
-  const { tabs, activeTabId, setActiveTab, closeTab, closeOtherTabs, closeTabsToRight, openTab } =
+  const { tabs, activeTabId, setActiveTab, closeTab, closeOtherTabs, closeTabsToRight, openTab, reorderTabs } =
     useTabsStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("tabs");
   const getTabTitle = useTabTitle();
+
+  // Require 5px movement before drag starts — prevents accidental drags on click
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+  );
+
+  const handleDragEnd = useCallback(
+    (event: DragEndEvent) => {
+      const { active, over } = event;
+      if (over && active.id !== over.id) {
+        reorderTabs(active.id as string, over.id as string);
+      }
+    },
+    [reorderTabs]
+  );
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, tab: Tab) => {
@@ -111,67 +234,37 @@ export function TabBar() {
     openTab("cluster-overview", getTabTitle("cluster-overview"), { newTab: true });
   }, [openTab, isAtLimit, getTabTitle]);
 
+  const tabIds = tabs.map((t) => t.id);
+
   return (
     <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border bg-card/30">
-      <div
-        ref={scrollRef}
-        className="flex items-center gap-1.5 pr-2 flex-1 overflow-x-auto overflow-y-hidden hide-scrollbar"
-      >
-        {tabs.map((tab) => (
-          <ContextMenu key={tab.id}>
-            <ContextMenuTrigger asChild>
-              <button
-                onClick={() => setActiveTab(tab.id)}
-                onMouseDown={(e) => handleMouseDown(e, tab)}
-                className={cn(
-                  "group flex items-center gap-1 px-3 py-1.5 text-xs font-medium rounded-md shrink-0 max-w-[200px] border transition-colors",
-                  activeTabId === tab.id
-                    ? "bg-muted border-border text-foreground"
-                    : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50"
-                )}
-              >
-                <span className="truncate">
-                  {getTabTitle(tab.type)}
-                </span>
-                {tabs.length > 1 && (
-                  <span
-                    role="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      closeTab(tab.id);
-                    }}
-                    className="shrink-0 rounded p-0.5 hover:bg-background/50 opacity-50 hover:opacity-100"
-                  >
-                    <X className="size-3" />
-                  </span>
-                )}
-              </button>
-            </ContextMenuTrigger>
-            <ContextMenuContent>
-              <ContextMenuItem
-                onClick={() => closeTab(tab.id)}
-                disabled={tabs.length <= 1}
-              >
-                {t("close")}
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => closeOtherTabs(tab.id)}
-                disabled={tabs.length <= 1}
-              >
-                {t("closeOthers")}
-              </ContextMenuItem>
-              <ContextMenuItem
-                onClick={() => closeTabsToRight(tab.id)}
-                disabled={
-                  tabs.indexOf(tab) === tabs.length - 1
-                }
-              >
-                {t("closeToRight")}
-              </ContextMenuItem>
-            </ContextMenuContent>
-          </ContextMenu>
-        ))}
-      </div>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
+          <div
+            ref={scrollRef}
+            className="flex items-center gap-1.5 pr-2 flex-1 overflow-x-auto overflow-y-hidden hide-scrollbar"
+          >
+            {tabs.map((tab, index) => (
+              <SortableTab
+                key={tab.id}
+                tab={tab}
+                isActive={activeTabId === tab.id}
+                canClose={tabs.length > 1}
+                onActivate={() => setActiveTab(tab.id)}
+                onClose={() => closeTab(tab.id)}
+                onCloseOthers={() => closeOtherTabs(tab.id)}
+                onCloseToRight={() => closeTabsToRight(tab.id)}
+                isLast={index === tabs.length - 1}
+                onMiddleClick={(e) => handleMouseDown(e, tab)}
+                title={getTabTitle(tab.type)}
+                tClose={t("close")}
+                tCloseOthers={t("closeOthers")}
+                tCloseToRight={t("closeToRight")}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
