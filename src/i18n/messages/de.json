@@ -666,7 +666,8 @@
     "actionRequiresApproval": "Aktion erfordert Genehmigung",
     "actionBlockedByPermission": "Aktion wurde vom Berechtigungssystem blockiert",
     "unknownError": "Unbekannter Fehler",
-    "userRejectedAction": "Benutzer hat die Aktion abgelehnt"
+    "userRejectedAction": "Benutzer hat die Aktion abgelehnt",
+    "failedToSendMessage": "Nachricht konnte nicht gesendet werden"
   },
   "favorites": {
     "title": "Favoriten",

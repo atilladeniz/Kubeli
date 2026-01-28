@@ -17,7 +17,12 @@ import {
   NotConnectedState,
 } from "./components";
 import { ApprovalModal } from "./dialogs";
-import { useAIEvents, usePendingAnalysis, useThinkingMessage } from "./hooks";
+import {
+  useAIEvents,
+  useAISession,
+  usePendingAnalysis,
+  useThinkingMessage,
+} from "./hooks";
 import type { MessageRecord } from "@/lib/tauri/commands";
 
 export function AIAssistant() {
@@ -26,7 +31,6 @@ export function AIAssistant() {
   const [approvalModalOpen, setApprovalModalOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const {
     currentSessionId,
@@ -34,18 +38,22 @@ export function AIAssistant() {
     isThinking,
     isStreaming,
     error,
-    startSession,
-    sendMessage,
     interrupt,
     stopSession,
-    setError,
     clearError,
     getConversation,
     clearConversation,
     loadSavedSession,
   } = useAIStore();
 
-  const { currentCluster, isConnected, currentNamespace } = useClusterStore();
+  const { currentCluster, isConnected } = useClusterStore();
+
+  // Session management hook
+  const sessionOptions = useMemo(
+    () => ({ fallbackErrorMessage: t("ai.failedToSendMessage") }),
+    [t]
+  );
+  const { textareaRef, handleSend: sendMessage } = useAISession(sessionOptions);
   const { setPendingPodLogs, setAIAssistantOpen } = useUIStore();
 
   // Handle pending analysis from context menus
@@ -94,38 +102,11 @@ export function AIAssistant() {
 
   // Handle send message
   const handleSend = useCallback(async () => {
-    if (!input.trim() || isStreaming) return;
-
-    const message = input.trim();
-    setInput("");
-
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
+    const success = await sendMessage(input);
+    if (success) {
+      setInput("");
     }
-
-    if (!isSessionActive && currentCluster) {
-      try {
-        await startSession(currentCluster.context, currentNamespace || undefined);
-      } catch {
-        return;
-      }
-    }
-
-    try {
-      await sendMessage(message);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Failed to send message");
-    }
-  }, [
-    input,
-    isStreaming,
-    isSessionActive,
-    currentCluster,
-    currentNamespace,
-    startSession,
-    sendMessage,
-    setError,
-  ]);
+  }, [input, sendMessage]);
 
   // Handle kubeli:// link clicks
   const handleKubeliLink = useCallback(
@@ -156,10 +137,13 @@ export function AIAssistant() {
   }, [currentCluster, isSessionActive, stopSession, clearConversation]);
 
   // Handle quick prompt selection
-  const handleSelectPrompt = useCallback((prompt: string) => {
-    setInput(prompt);
-    textareaRef.current?.focus();
-  }, []);
+  const handleSelectPrompt = useCallback(
+    (prompt: string) => {
+      setInput(prompt);
+      textareaRef.current?.focus();
+    },
+    [textareaRef]
+  );
 
   // Handle close button
   const handleClose = useCallback(() => {

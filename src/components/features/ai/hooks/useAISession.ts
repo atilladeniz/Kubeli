@@ -6,6 +6,7 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 
 interface UseAISessionOptions {
   onError?: (error: string) => void;
+  fallbackErrorMessage?: string;
 }
 
 /**
@@ -50,7 +51,10 @@ export function useAISession(options: UseAISessionOptions = {}) {
         await sendMessage(message);
         return true;
       } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : "Failed to send message";
+        const errorMsg =
+          e instanceof Error
+            ? e.message
+            : options.fallbackErrorMessage || "Failed to send message";
         setError(errorMsg);
         options.onError?.(errorMsg);
         return false;

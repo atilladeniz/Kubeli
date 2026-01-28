@@ -629,6 +629,7 @@
     "actionBlockedByPermission": "Action was blocked by permission system",
     "unknownError": "Unknown error",
     "userRejectedAction": "User rejected the action",
+    "failedToSendMessage": "Failed to send message",
     "thinkingMessages": [
       "Analyzing request...",
       "Searching cluster...",
