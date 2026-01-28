@@ -73,7 +73,16 @@ export function AIAssistant() {
     }),
     []
   );
-  useAIEvents(currentSessionId, eventCallbacks);
+  const eventI18n = useMemo(
+    () => ({
+      actionApproved: t("ai.actionApproved"),
+      actionDenied: t("ai.actionDenied"),
+      blocked: t("ai.blocked"),
+      noPermission: t("ai.noPermission"),
+    }),
+    [t]
+  );
+  useAIEvents(currentSessionId, eventCallbacks, eventI18n);
 
   // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
@@ -153,10 +162,10 @@ export function AIAssistant() {
   const handleClose = useCallback(() => {
     if (isStreaming || isThinking) {
       interrupt();
-      toast.info("AI Session wurde beendet");
+      toast.info(t("ai.sessionEnded"));
     }
     setAIAssistantOpen(false);
-  }, [isStreaming, isThinking, interrupt, setAIAssistantOpen]);
+  }, [isStreaming, isThinking, interrupt, setAIAssistantOpen, t]);
 
   // Not connected state
   if (!isConnected || !currentCluster) {
@@ -178,7 +187,7 @@ export function AIAssistant() {
         onToggleHistory={() => setShowHistory(!showHistory)}
         onStopSession={stopSession}
         onClose={handleClose}
-        stopLabel="Beenden"
+        stopLabel={t("ai.stop")}
       />
 
       {error && <ErrorBanner error={error} onDismiss={clearError} />}

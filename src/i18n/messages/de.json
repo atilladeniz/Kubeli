@@ -653,7 +653,16 @@
     "deleteSessionDesc": "Diese Aktion kann nicht rückgängig gemacht werden. Die gesamte Konversation wird dauerhaft gelöscht.",
     "delete": "Löschen",
     "tool": "Tool",
-    "aiTryingAction": "Der KI-Assistent versucht, diese Aktion auszuführen. Möchten Sie fortfahren?"
+    "aiTryingAction": "Der KI-Assistent versucht, diese Aktion auszuführen. Möchten Sie fortfahren?",
+    "actionApproved": "Aktion genehmigt",
+    "actionDenied": "Aktion abgelehnt",
+    "blocked": "Blockiert",
+    "noPermission": "Keine Berechtigung",
+    "sessionEnded": "KI-Session beendet",
+    "stop": "Beenden",
+    "you": "Du",
+    "assistant": "KI-Assistent",
+    "copyFailed": "Kopieren fehlgeschlagen"
   },
   "favorites": {
     "title": "Favoriten",

@@ -11,16 +11,25 @@ interface AIEventsCallbacks {
   onApprovalResponse: (approved: boolean) => void;
 }
 
+interface AIEventsI18n {
+  actionApproved: string;
+  actionDenied: string;
+  blocked: string;
+  noPermission: string;
+}
+
 /**
  * Hook that subscribes to AI session events from the Tauri backend.
  * Handles message chunks, thinking state, tool execution, approvals, and errors.
  *
  * @param sessionId - Current AI session ID (null if no session active)
  * @param callbacks - Callbacks for UI state changes
+ * @param i18n - Translated strings for toast messages
  */
 export function useAIEvents(
   sessionId: string | null,
-  callbacks: AIEventsCallbacks
+  callbacks: AIEventsCallbacks,
+  i18n: AIEventsI18n
 ) {
   const {
     appendMessageChunk,
@@ -73,14 +82,14 @@ export function useAIEvents(
         case "ApprovalResponse":
           callbacks.onApprovalResponse(data.approved || false);
           if (data.approved) {
-            toast.success("Aktion genehmigt");
+            toast.success(i18n.actionApproved);
           } else {
-            toast.info("Aktion abgelehnt");
+            toast.info(i18n.actionDenied);
           }
           break;
 
         case "ToolBlocked":
-          toast.error(`Blockiert: ${data.reason || "Keine Berechtigung"}`);
+          toast.error(`${i18n.blocked}: ${data.reason || i18n.noPermission}`);
           addToolCall({
             name: data.tool_name || "blocked",
             status: "failed",
@@ -109,5 +118,6 @@ export function useAIEvents(
     addToolCall,
     setApprovalRequest,
     callbacks,
+    i18n,
   ]);
 }

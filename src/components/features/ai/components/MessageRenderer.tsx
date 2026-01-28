@@ -5,6 +5,7 @@ import { Sparkles, User, Copy, Check, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { ShimmeringText } from "@/components/ui/shimmering-text";
 import { cn } from "@/lib/utils";
@@ -23,8 +24,8 @@ interface MessageRendererProps {
 }
 
 /** Format timestamp to HH:MM */
-function formatTime(timestamp: number): string {
-  return new Date(timestamp).toLocaleTimeString("de-DE", {
+function formatTime(timestamp: number, locale: string): string {
+  return new Date(timestamp).toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -41,10 +42,15 @@ export const MessageRenderer = memo(function MessageRenderer({
   thinkingMessage,
   onKubeliLink,
 }: MessageRendererProps) {
+  const t = useTranslations("ai");
+  const tc = useTranslations("common");
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   const isUser = message.role === "user";
   const isCopied = copiedId === message.id;
+
+  // Get locale for date formatting (defaults to browser locale)
+  const locale = typeof navigator !== "undefined" ? navigator.language : "en";
 
   // Memoize markdown components to avoid recreation
   const markdownComponents = useMemo(
@@ -57,12 +63,12 @@ export const MessageRenderer = memo(function MessageRenderer({
     try {
       await navigator.clipboard.writeText(message.content);
       setCopiedId(message.id);
-      toast.success("Kopiert!");
+      toast.success(tc("copied"));
       setTimeout(() => setCopiedId(null), 2000);
     } catch {
-      toast.error("Kopieren fehlgeschlagen");
+      toast.error(t("copyFailed"));
     }
-  }, [message.content, message.id]);
+  }, [message.content, message.id, tc, t]);
 
   return (
     <div
@@ -89,10 +95,10 @@ export const MessageRenderer = memo(function MessageRenderer({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-xs font-medium text-muted-foreground">
-              {isUser ? "You" : "AI Assistant"}
+              {isUser ? t("you") : t("assistant")}
             </span>
             <span className="text-[10px] text-muted-foreground/60">
-              {formatTime(message.timestamp)}
+              {formatTime(message.timestamp, locale)}
             </span>
           </div>
 
