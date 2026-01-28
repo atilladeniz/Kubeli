@@ -53,6 +53,32 @@ export function useLogs(
   const pendingLogsRef = useRef<LogEntry[]>([]);
   const flushTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Reset state when pod changes
+  useEffect(() => {
+    // Stop any existing stream
+    if (streamIdRef.current) {
+      stopLogStream(streamIdRef.current).catch(console.error);
+      streamIdRef.current = null;
+    }
+    if (unlistenRef.current) {
+      unlistenRef.current();
+      unlistenRef.current = null;
+    }
+
+    // Clear logs and reset state
+    if (flushTimeoutRef.current) {
+      clearTimeout(flushTimeoutRef.current);
+      flushTimeoutRef.current = null;
+    }
+    pendingLogsRef.current = [];
+    logsRef.current = [];
+    setLogs([]);
+    setIsStreaming(false);
+    setError(null);
+    setSelectedContainer(null);
+    setContainers([]);
+  }, [namespace, podName]);
+
   // Fetch containers when namespace/pod changes
   useEffect(() => {
     if (!namespace || !podName) return;
@@ -61,8 +87,8 @@ export function useLogs(
       try {
         const containerList = await getPodContainers(namespace, podName);
         setContainers(containerList);
-        // Auto-select first container if none selected
-        if (containerList.length > 0 && !selectedContainer) {
+        // Auto-select first container
+        if (containerList.length > 0) {
           setSelectedContainer(containerList[0]);
         }
       } catch (e) {
@@ -71,7 +97,7 @@ export function useLogs(
     };
 
     fetchContainers();
-  }, [namespace, podName, selectedContainer]);
+  }, [namespace, podName]);
 
   const flushPendingLogs = useCallback(() => {
     if (flushTimeoutRef.current) {
