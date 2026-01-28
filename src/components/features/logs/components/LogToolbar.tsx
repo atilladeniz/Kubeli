@@ -41,97 +41,71 @@ import { cn } from "@/lib/utils";
 import type { DownloadFormat } from "../types";
 import { DOWNLOAD_FORMATS, LOG_FILTER_OPTIONS } from "../types";
 
-interface LogToolbarProps {
-  // Search
-  searchQuery: string;
-  onSearchChange: (query: string) => void;
+// Grouped prop interfaces for better organization
+
+export interface SearchProps {
+  query: string;
+  onChange: (query: string) => void;
   useRegex: boolean;
   onRegexToggle: () => void;
   regexError: string | null;
-  searchPlaceholder: string;
+  placeholder: string;
   enableRegexTooltip: string;
   disableRegexTooltip: string;
+}
 
-  // Log level filter
+export interface FilterProps {
   logLevel: string;
   onLogLevelChange: (level: string) => void;
-
-  // Toggles
   showTimestamps: boolean;
   onTimestampsToggle: (checked: boolean) => void;
   timestampsLabel: string;
+}
 
-  // Stream controls
+export interface StreamProps {
   isStreaming: boolean;
   isLoading: boolean;
-  onStartStream: () => void;
-  onStopStream: () => void;
-  onFetchLogs: () => void;
+  onStart: () => void;
+  onStop: () => void;
+  onFetch: () => void;
   followLabel: string;
   pausedLabel: string;
-  fetchLogsTooltip: string;
+  fetchTooltip: string;
+}
 
-  // Download
+export interface DownloadProps {
   isDownloading: boolean;
   logsCount: number;
   onDownload: (format: DownloadFormat) => void;
+}
 
-  // AI
-  isAIAvailable: boolean | null;
-  onAnalyzeWithAI: () => void;
-  aiTooltip: string;
-  aiUnavailableTooltip: string;
+export interface AIProps {
+  isAvailable: boolean | null;
+  onAnalyze: () => void;
+  tooltip: string;
+  unavailableTooltip: string;
+}
 
-  // Clear
+interface LogToolbarProps {
+  search: SearchProps;
+  filter: FilterProps;
+  stream: StreamProps;
+  download: DownloadProps;
+  ai: AIProps;
   onClear: () => void;
   clearLabel: string;
 }
 
 /**
  * Toolbar component with all log viewer controls.
+ * Props are grouped into logical categories for better organization.
  */
 export function LogToolbar({
-  // Search
-  searchQuery,
-  onSearchChange,
-  useRegex,
-  onRegexToggle,
-  regexError,
-  searchPlaceholder,
-  enableRegexTooltip,
-  disableRegexTooltip,
-
-  // Log level filter
-  logLevel,
-  onLogLevelChange,
-
-  // Toggles
-  showTimestamps,
-  onTimestampsToggle,
-  timestampsLabel,
-
-  // Stream controls
-  isStreaming,
-  isLoading,
-  onStartStream,
-  onStopStream,
-  onFetchLogs,
-  followLabel,
-  pausedLabel,
-  fetchLogsTooltip,
-
-  // Download
-  isDownloading,
-  logsCount,
-  onDownload,
-
-  // AI
-  isAIAvailable,
-  onAnalyzeWithAI,
-  aiTooltip,
-  aiUnavailableTooltip,
-
-  // Clear
+  search,
+  filter,
+  stream,
+  download,
+  ai,
   onClear,
   clearLabel,
 }: LogToolbarProps) {
@@ -139,25 +113,25 @@ export function LogToolbar({
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-2">
       {/* Search with regex toggle */}
       <SearchInput
-        value={searchQuery}
-        onChange={onSearchChange}
-        useRegex={useRegex}
-        onRegexToggle={onRegexToggle}
-        regexError={regexError}
-        placeholder={searchPlaceholder}
-        enableRegexTooltip={enableRegexTooltip}
-        disableRegexTooltip={disableRegexTooltip}
+        value={search.query}
+        onChange={search.onChange}
+        useRegex={search.useRegex}
+        onRegexToggle={search.onRegexToggle}
+        regexError={search.regexError}
+        placeholder={search.placeholder}
+        enableRegexTooltip={search.enableRegexTooltip}
+        disableRegexTooltip={search.disableRegexTooltip}
       />
 
       {/* Log level filter */}
-      <LogLevelFilter value={logLevel} onChange={onLogLevelChange} />
+      <LogLevelFilter value={filter.logLevel} onChange={filter.onLogLevelChange} />
 
       {/* Timestamp toggle */}
       <ToggleCheckbox
         id="timestamps"
-        checked={showTimestamps}
-        onCheckedChange={onTimestampsToggle}
-        label={timestampsLabel}
+        checked={filter.showTimestamps}
+        onCheckedChange={filter.onTimestampsToggle}
+        label={filter.timestampsLabel}
       />
 
       {/* Spacer */}
@@ -166,37 +140,37 @@ export function LogToolbar({
       {/* Actions */}
       <div className="flex items-center gap-0.5 shrink-0">
         <StreamButton
-          isStreaming={isStreaming}
-          isLoading={isLoading}
-          onStart={onStartStream}
-          onStop={onStopStream}
-          followLabel={followLabel}
-          pausedLabel={pausedLabel}
+          isStreaming={stream.isStreaming}
+          isLoading={stream.isLoading}
+          onStart={stream.onStart}
+          onStop={stream.onStop}
+          followLabel={stream.followLabel}
+          pausedLabel={stream.pausedLabel}
         />
 
         <TooltipProvider delayDuration={300}>
           <FetchButton
-            isLoading={isLoading}
-            isStreaming={isStreaming}
-            onFetch={onFetchLogs}
-            tooltip={fetchLogsTooltip}
+            isLoading={stream.isLoading}
+            isStreaming={stream.isStreaming}
+            onFetch={stream.onFetch}
+            tooltip={stream.fetchTooltip}
           />
 
           <DownloadButton
-            isDownloading={isDownloading}
-            disabled={logsCount === 0}
-            onDownload={onDownload}
+            isDownloading={download.isDownloading}
+            disabled={download.logsCount === 0}
+            onDownload={download.onDownload}
           />
 
           <AIButton
-            isAvailable={isAIAvailable}
-            disabled={logsCount === 0}
-            onClick={onAnalyzeWithAI}
-            tooltip={aiTooltip}
-            unavailableTooltip={aiUnavailableTooltip}
+            isAvailable={ai.isAvailable}
+            disabled={download.logsCount === 0}
+            onClick={ai.onAnalyze}
+            tooltip={ai.tooltip}
+            unavailableTooltip={ai.unavailableTooltip}
           />
 
-          <ClearButton disabled={logsCount === 0} onClick={onClear} tooltip={clearLabel} />
+          <ClearButton disabled={download.logsCount === 0} onClick={onClear} tooltip={clearLabel} />
         </TooltipProvider>
       </div>
     </div>
@@ -307,7 +281,10 @@ function ToggleCheckbox({
         onCheckedChange={(checked) => onCheckedChange(checked as boolean)}
         className="size-4"
       />
-      <Label htmlFor={id} className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1">
+      <Label
+        htmlFor={id}
+        className="text-xs text-muted-foreground cursor-pointer flex items-center gap-1"
+      >
         {icon}
         {label}
       </Label>

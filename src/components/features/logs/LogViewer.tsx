@@ -65,6 +65,7 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
     podName,
     container: selectedContainer,
     logs,
+    t,
   });
 
   // Download hook
@@ -98,44 +99,46 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
       />
 
       <LogToolbar
-        // Search
-        searchQuery={searchQuery}
-        onSearchChange={setSearchQuery}
-        useRegex={useRegex}
-        onRegexToggle={() => setUseRegex(!useRegex)}
-        regexError={regexError}
-        searchPlaceholder={`${t("common.search")}...`}
-        // Log level
-        logLevel={logLevel}
-        onLogLevelChange={setLogLevel}
-        // Toggles
-        showTimestamps={showTimestamps}
-        onTimestampsToggle={setShowTimestamps}
-        timestampsLabel={t("logs.timestamps")}
-        // Stream
-        isStreaming={isStreaming}
-        isLoading={isLoading}
-        onStartStream={() => startStream()}
-        onStopStream={stopStream}
-        onFetchLogs={() => fetchLogs({ tail_lines: LOG_DEFAULTS.FETCH_TAIL_LINES })}
-        followLabel={t("logs.follow")}
-        pausedLabel={t("logs.streamingPaused")}
-        fetchLogsTooltip={t("logs.fetchLogs")}
-        // Download
-        isDownloading={isDownloading}
-        logsCount={logs.length}
-        onDownload={downloadLogs}
-        // AI
-        isAIAvailable={isAICliAvailable}
-        onAnalyzeWithAI={analyzeWithAI}
-        aiTooltip={t("logs.analyzeWithAI")}
-        aiUnavailableTooltip={t("logs.aiUnavailable")}
-        // Clear
+        search={{
+          query: searchQuery,
+          onChange: setSearchQuery,
+          useRegex,
+          onRegexToggle: () => setUseRegex(!useRegex),
+          regexError,
+          placeholder: `${t("common.search")}...`,
+          enableRegexTooltip: t("logs.enableRegex"),
+          disableRegexTooltip: t("logs.disableRegex"),
+        }}
+        filter={{
+          logLevel,
+          onLogLevelChange: setLogLevel,
+          showTimestamps,
+          onTimestampsToggle: setShowTimestamps,
+          timestampsLabel: t("logs.timestamps"),
+        }}
+        stream={{
+          isStreaming,
+          isLoading,
+          onStart: () => startStream(),
+          onStop: stopStream,
+          onFetch: () => fetchLogs({ tail_lines: LOG_DEFAULTS.FETCH_TAIL_LINES }),
+          followLabel: t("logs.follow"),
+          pausedLabel: t("logs.streamingPaused"),
+          fetchTooltip: t("logs.fetchLogs"),
+        }}
+        download={{
+          isDownloading,
+          logsCount: logs.length,
+          onDownload: downloadLogs,
+        }}
+        ai={{
+          isAvailable: isAICliAvailable,
+          onAnalyze: analyzeWithAI,
+          tooltip: t("logs.analyzeWithAI"),
+          unavailableTooltip: t("logs.aiUnavailable"),
+        }}
         onClear={clearLogs}
         clearLabel={t("logs.clear")}
-        // Regex tooltips
-        enableRegexTooltip={t("logs.enableRegex")}
-        disableRegexTooltip={t("logs.disableRegex")}
       />
 
       {/* Error display */}

@@ -14,6 +14,7 @@ interface UseLogAnalysisOptions {
   podName: string;
   container: string | null;
   logs: LogEntry[];
+  t: (key: string, values?: Record<string, string | number>) => string;
 }
 
 interface UseLogAnalysisReturn {
@@ -32,6 +33,7 @@ export function useLogAnalysis({
   podName,
   container,
   logs,
+  t,
 }: UseLogAnalysisOptions): UseLogAnalysisReturn {
   const [isAICliAvailable, setIsAICliAvailable] = useState<boolean | null>(null);
 
@@ -75,21 +77,27 @@ export function useLogAnalysis({
       .map((log) => `${log.timestamp ? `[${formatTimestamp(log.timestamp)}] ` : ""}${log.message}`)
       .join("\n");
 
-    // Build the analysis request message
+    // Build the analysis request message using i18n
     const containerInfo = container ? ` (Container: ${container})` : "";
-    const message = `Analysiere die Logs des Pods ${namespace}/${podName}${containerInfo}:
+    const title = t("logs.aiPromptTitle", { namespace, podName, containerInfo });
+    const stats = t("logs.aiPromptStats", {
+      total: logs.length,
+      errors: errorCount,
+      warnings: warnCount,
+    });
+    const logsHeader = t("logs.aiPromptLogsHeader", { maxLines: LOG_DEFAULTS.AI_ANALYSIS_MAX_LINES });
+    const instructions = t("logs.aiPromptInstructions");
 
-**Log-Statistik**: ${logs.length} Zeilen gesamt, ${errorCount} Errors, ${warnCount} Warnings
+    const message = `${title}
 
-**Logs** (sortiert nach Relevanz, max. ${LOG_DEFAULTS.AI_ANALYSIS_MAX_LINES} Zeilen):
+${stats}
+
+${logsHeader}
 \`\`\`
 ${logsText}
 \`\`\`
 
-Bitte analysiere diese Logs und:
-1. Identifiziere kritische Fehler oder Probleme
-2. Erklaere was die Hauptursache sein koennte
-3. Fasse die wichtigsten Muster zusammen`;
+${instructions}`;
 
     // Set pending analysis and open AI panel
     setPendingAnalysis({
@@ -108,6 +116,7 @@ Bitte analysiere diese Logs und:
     currentNamespace,
     setPendingAnalysis,
     setAIAssistantOpen,
+    t,
   ]);
 
   return {
