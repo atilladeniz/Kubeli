@@ -44,12 +44,47 @@ export function escapeRegExp(string: string): string {
   return string.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** Maximum allowed regex pattern length to prevent ReDoS */
+const MAX_REGEX_LENGTH = 200;
+
 /**
- * Compiles a regex pattern with error handling.
- * Returns null if the pattern is invalid.
+ * Detects potentially dangerous regex patterns that could cause ReDoS.
+ * Checks for nested quantifiers like (a+)+, (a*)+, (a+)*, etc.
+ */
+function isReDoSVulnerable(pattern: string): boolean {
+  // Detect nested quantifiers: (group)+, (group)*, (group){n,}
+  // These patterns can cause catastrophic backtracking
+  const nestedQuantifierPattern = /\([^)]*[+*][^)]*\)[+*{]/;
+  const overlappingAlternation = /\([^|)]*\|[^|)]*\)[+*]/;
+
+  return nestedQuantifierPattern.test(pattern) || overlappingAlternation.test(pattern);
+}
+
+/**
+ * Validates regex pattern for safety (ReDoS prevention).
+ * Returns error message if unsafe, null if safe.
+ */
+function validateRegexSafety(pattern: string): string | null {
+  if (pattern.length > MAX_REGEX_LENGTH) {
+    return `Pattern too long (max ${MAX_REGEX_LENGTH} characters)`;
+  }
+  if (isReDoSVulnerable(pattern)) {
+    return "Pattern contains potentially unsafe nested quantifiers";
+  }
+  return null;
+}
+
+/**
+ * Compiles a regex pattern with error handling and ReDoS protection.
+ * Returns null if the pattern is invalid or unsafe.
  */
 export function compileRegex(pattern: string): RegExp | null {
   if (!pattern) return null;
+
+  // Check for ReDoS vulnerability first
+  const safetyError = validateRegexSafety(pattern);
+  if (safetyError) return null;
+
   try {
     return new RegExp(pattern, "gi");
   } catch {
@@ -58,11 +93,16 @@ export function compileRegex(pattern: string): RegExp | null {
 }
 
 /**
- * Validates if a regex pattern is valid.
- * Returns error message if invalid, null if valid.
+ * Validates if a regex pattern is valid and safe.
+ * Returns error message if invalid/unsafe, null if valid.
  */
 export function validateRegex(pattern: string): string | null {
   if (!pattern) return null;
+
+  // Check for ReDoS vulnerability first
+  const safetyError = validateRegexSafety(pattern);
+  if (safetyError) return safetyError;
+
   try {
     new RegExp(pattern);
     return null;

@@ -77,10 +77,21 @@ function highlightWithRegex(text: string, regex: RegExp): React.ReactNode {
   return result;
 }
 
+/** Maximum query length for highlighting to prevent performance issues */
+const MAX_HIGHLIGHT_QUERY_LENGTH = 200;
+
 /**
  * Highlights matches in text using simple string matching.
+ * Uses escapeRegExp to safely handle special characters in the query.
+ * Query is length-limited to prevent ReDoS attacks.
  */
 function highlightWithString(text: string, query: string): React.ReactNode {
+  // Prevent ReDoS by limiting query length
+  if (!query || query.length > MAX_HIGHLIGHT_QUERY_LENGTH) {
+    return text;
+  }
+
+  // escapeRegExp makes the pattern safe by escaping all special regex characters
   const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
   const parts = text.split(regex);
 
