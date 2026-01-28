@@ -113,7 +113,7 @@ function DashboardContent() {
     if (pendingPodLogs) {
       setActiveResource("pods");
     }
-  }, [pendingPodLogs]);
+  }, [pendingPodLogs, setActiveResource]);
 
   // Navigate to favorite by index
   const navigateToFavorite = useCallback((index: number) => {
@@ -121,7 +121,7 @@ function DashboardContent() {
       const fav = favorites[index];
       setActiveResource(fav.resourceType as ResourceType);
     }
-  }, [favorites]);
+  }, [favorites, setActiveResource]);
 
   // Keyboard shortcuts
   const shortcuts = useMemo(() => [
@@ -158,7 +158,7 @@ function DashboardContent() {
       const prevIdx = (idx - 1 + resourceTabs.length) % resourceTabs.length;
       setActiveTab(resourceTabs[prevIdx].id);
     }, description: "Previous tab", global: true },
-  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, closeTab, setActiveTab]);
+  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, closeTab, setActiveTab, setActiveResource]);
 
   useKeyboardShortcuts(shortcuts, { enabled: isConnected });
 
