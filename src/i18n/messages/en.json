@@ -300,7 +300,12 @@
     "noLogs": "No logs available",
     "lines": "{count} lines",
     "streamingPaused": "Streaming paused",
-    "streamingActive": "Streaming active"
+    "streamingActive": "Streaming active",
+    "fetchLogs": "Fetch logs",
+    "analyzeWithAI": "Analyze with AI",
+    "aiUnavailable": "AI CLI not installed",
+    "enableRegex": "Enable regex",
+    "disableRegex": "Disable regex"
   },
   "terminal": {
     "title": "Terminal",

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { AlertCircle } from "lucide-react";
 import { useLogs } from "@/lib/hooks/useLogs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -40,10 +40,6 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
 
   // Local UI state
   const [showTimestamps, setShowTimestamps] = useState(true);
-  const [previousContainer, setPreviousContainer] = useState(false);
-
-  // Ref for scroll end marker
-  const logsEndRef = useRef<HTMLDivElement>(null);
 
   // Filter hook
   const {
@@ -58,8 +54,8 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
     filteredLogs,
   } = useLogFilter({ logs });
 
-  // Auto-scroll hook
-  const { containerRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
+  // Auto-scroll hook - handles all scroll logic
+  const { containerRef, endRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
     dependencies: [logs],
   });
 
@@ -86,13 +82,6 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
       setSelectedContainer(initialContainer);
     }
   }, [initialContainer, containers, setSelectedContainer]);
-
-  // Auto-scroll to bottom when new logs arrive
-  useEffect(() => {
-    if (autoScroll && logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: "smooth" });
-    }
-  }, [logs, autoScroll]);
 
   return (
     <div className="relative flex h-full flex-col bg-background">
@@ -123,9 +112,6 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         showTimestamps={showTimestamps}
         onTimestampsToggle={setShowTimestamps}
         timestampsLabel={t("logs.timestamps")}
-        previousContainer={previousContainer}
-        onPreviousToggle={setPreviousContainer}
-        previousLabel={t("logs.previous")}
         // Stream
         isStreaming={isStreaming}
         isLoading={isLoading}
@@ -134,6 +120,7 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         onFetchLogs={() => fetchLogs({ tail_lines: LOG_DEFAULTS.FETCH_TAIL_LINES })}
         followLabel={t("logs.follow")}
         pausedLabel={t("logs.streamingPaused")}
+        fetchLogsTooltip={t("logs.fetchLogs")}
         // Download
         isDownloading={isDownloading}
         logsCount={logs.length}
@@ -141,11 +128,14 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         // AI
         isAIAvailable={isAICliAvailable}
         onAnalyzeWithAI={analyzeWithAI}
-        aiTooltip="Logs mit AI analysieren"
-        aiUnavailableTooltip="AI CLI not installed"
+        aiTooltip={t("logs.analyzeWithAI")}
+        aiUnavailableTooltip={t("logs.aiUnavailable")}
         // Clear
         onClear={clearLogs}
         clearLabel={t("logs.clear")}
+        // Regex tooltips
+        enableRegexTooltip={t("logs.enableRegex")}
+        disableRegexTooltip={t("logs.disableRegex")}
       />
 
       {/* Error display */}
@@ -175,8 +165,8 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         followText={t("logs.follow")}
       />
 
-      {/* Scroll end marker */}
-      <div ref={logsEndRef} />
+      {/* Scroll end marker - used by useAutoScroll */}
+      <div ref={endRef} />
 
       <LogFooter
         filteredCount={filteredLogs.length}

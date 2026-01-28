@@ -12,7 +12,6 @@ import {
   Regex,
   FileText,
   FileJson,
-  History,
   Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -50,6 +49,8 @@ interface LogToolbarProps {
   onRegexToggle: () => void;
   regexError: string | null;
   searchPlaceholder: string;
+  enableRegexTooltip: string;
+  disableRegexTooltip: string;
 
   // Log level filter
   logLevel: string;
@@ -59,9 +60,6 @@ interface LogToolbarProps {
   showTimestamps: boolean;
   onTimestampsToggle: (checked: boolean) => void;
   timestampsLabel: string;
-  previousContainer: boolean;
-  onPreviousToggle: (checked: boolean) => void;
-  previousLabel: string;
 
   // Stream controls
   isStreaming: boolean;
@@ -71,6 +69,7 @@ interface LogToolbarProps {
   onFetchLogs: () => void;
   followLabel: string;
   pausedLabel: string;
+  fetchLogsTooltip: string;
 
   // Download
   isDownloading: boolean;
@@ -99,6 +98,8 @@ export function LogToolbar({
   onRegexToggle,
   regexError,
   searchPlaceholder,
+  enableRegexTooltip,
+  disableRegexTooltip,
 
   // Log level filter
   logLevel,
@@ -108,9 +109,6 @@ export function LogToolbar({
   showTimestamps,
   onTimestampsToggle,
   timestampsLabel,
-  previousContainer,
-  onPreviousToggle,
-  previousLabel,
 
   // Stream controls
   isStreaming,
@@ -120,6 +118,7 @@ export function LogToolbar({
   onFetchLogs,
   followLabel,
   pausedLabel,
+  fetchLogsTooltip,
 
   // Download
   isDownloading,
@@ -146,6 +145,8 @@ export function LogToolbar({
         onRegexToggle={onRegexToggle}
         regexError={regexError}
         placeholder={searchPlaceholder}
+        enableRegexTooltip={enableRegexTooltip}
+        disableRegexTooltip={disableRegexTooltip}
       />
 
       {/* Log level filter */}
@@ -157,15 +158,6 @@ export function LogToolbar({
         checked={showTimestamps}
         onCheckedChange={onTimestampsToggle}
         label={timestampsLabel}
-      />
-
-      {/* Previous container toggle */}
-      <ToggleCheckbox
-        id="previous"
-        checked={previousContainer}
-        onCheckedChange={onPreviousToggle}
-        label={previousLabel}
-        icon={<History className="size-3" />}
       />
 
       {/* Spacer */}
@@ -183,7 +175,12 @@ export function LogToolbar({
         />
 
         <TooltipProvider delayDuration={300}>
-          <FetchButton isLoading={isLoading} isStreaming={isStreaming} onFetch={onFetchLogs} />
+          <FetchButton
+            isLoading={isLoading}
+            isStreaming={isStreaming}
+            onFetch={onFetchLogs}
+            tooltip={fetchLogsTooltip}
+          />
 
           <DownloadButton
             isDownloading={isDownloading}
@@ -215,6 +212,8 @@ function SearchInput({
   onRegexToggle,
   regexError,
   placeholder,
+  enableRegexTooltip,
+  disableRegexTooltip,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -222,6 +221,8 @@ function SearchInput({
   onRegexToggle: () => void;
   regexError: string | null;
   placeholder: string;
+  enableRegexTooltip: string;
+  disableRegexTooltip: string;
 }) {
   return (
     <div className="relative w-48 shrink-0">
@@ -247,7 +248,7 @@ function SearchInput({
               <Regex className="size-3.5" />
             </button>
           </TooltipTrigger>
-          <TooltipContent>{useRegex ? "Disable regex" : "Enable regex"}</TooltipContent>
+          <TooltipContent>{useRegex ? disableRegexTooltip : enableRegexTooltip}</TooltipContent>
         </Tooltip>
       </TooltipProvider>
     </div>
@@ -361,10 +362,12 @@ function FetchButton({
   isLoading,
   isStreaming,
   onFetch,
+  tooltip,
 }: {
   isLoading: boolean;
   isStreaming: boolean;
   onFetch: () => void;
+  tooltip: string;
 }) {
   return (
     <Tooltip>
@@ -383,7 +386,7 @@ function FetchButton({
           )}
         </Button>
       </TooltipTrigger>
-      <TooltipContent>Fetch logs</TooltipContent>
+      <TooltipContent>{tooltip}</TooltipContent>
     </Tooltip>
   );
 }

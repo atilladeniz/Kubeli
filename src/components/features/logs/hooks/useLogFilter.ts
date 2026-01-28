@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo } from "react";
 import type { LogEntry } from "@/lib/types";
-import { compileRegex, validateRegex } from "../lib";
+import { compileRegex, validateRegex, getLogLevel } from "../lib";
 
 interface UseLogFilterOptions {
   logs: LogEntry[];
@@ -63,55 +63,23 @@ export function useLogFilter({ logs }: UseLogFilterOptions): UseLogFilterReturn 
       }
     }
 
-    // Filter by log level
+    // Filter by log level - reuse getLogLevel from utils
     if (logLevel !== "all") {
-      result = result.filter((log) => matchesLogLevel(log.message, logLevel));
+      result = result.filter((log) => getLogLevel(log.message) === logLevel);
     }
 
     return result;
   }, [logs, searchQuery, logLevel, useRegex, searchRegex]);
 
-  const handleSetSearchQuery = useCallback((query: string) => {
-    setSearchQuery(query);
-  }, []);
-
-  const handleSetUseRegex = useCallback((enabled: boolean) => {
-    setUseRegex(enabled);
-  }, []);
-
-  const handleSetLogLevel = useCallback((level: string) => {
-    setLogLevel(level);
-  }, []);
-
   return {
     searchQuery,
-    setSearchQuery: handleSetSearchQuery,
+    setSearchQuery,
     useRegex,
-    setUseRegex: handleSetUseRegex,
+    setUseRegex,
     logLevel,
-    setLogLevel: handleSetLogLevel,
+    setLogLevel,
     regexError,
     searchRegex,
     filteredLogs,
   };
-}
-
-/**
- * Checks if a log message matches the specified log level.
- */
-function matchesLogLevel(message: string, level: string): boolean {
-  const msg = message.toLowerCase();
-
-  switch (level) {
-    case "error":
-      return msg.includes("error") || msg.includes("err") || msg.includes("fatal");
-    case "warn":
-      return msg.includes("warn") || msg.includes("warning");
-    case "info":
-      return msg.includes("info");
-    case "debug":
-      return msg.includes("debug") || msg.includes("trace");
-    default:
-      return true;
-  }
 }
