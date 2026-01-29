@@ -45,7 +45,7 @@ export function SettingsPanel() {
 
   return (
     <Dialog open={isSettingsOpen} onOpenChange={setSettingsOpen}>
-      <DialogContent className="sm:max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-4xl max-h-[85vh] min-h-[50vh] overflow-hidden flex flex-col">
         <DialogHeader className="shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-lg font-semibold">

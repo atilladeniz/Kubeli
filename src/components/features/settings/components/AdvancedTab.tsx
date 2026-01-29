@@ -46,7 +46,7 @@ export function AdvancedTab({ appVersion }: AdvancedTabProps) {
             updateSettings({ virtualScrollThreshold: parseInt(value) })
           }
         >
-          <SelectTrigger>
+          <SelectTrigger className="w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
