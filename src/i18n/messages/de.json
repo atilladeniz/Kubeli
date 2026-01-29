@@ -765,7 +765,7 @@
     "downloading": "Lade Update herunter...",
     "readyToInstall": "Bereit zur Installation",
     "restartRequired": "Neustart erforderlich",
-    "restartNow": "Jetzt neustarten",
+    "restartNow": "App neustarten",
     "restartLater": "Später",
     "whatsNew": "Was ist neu in v{version}",
     "checkingForUpdates": "Suche nach Updates...",
@@ -775,7 +775,7 @@
     "installUpdate": "Update installieren",
     "updateNow": "Jetzt aktualisieren",
     "updateReady": "Update bereit",
-    "updateReadyDesc": "Kubeli {version} wurde heruntergeladen und ist bereit zur Installation. Möchten Sie jetzt neustarten, um das Update anzuwenden?",
+    "updateReadyDesc": "Kubeli {version} wurde heruntergeladen und ist bereit zur Installation. Möchten Sie die App jetzt neustarten, um das Update anzuwenden?",
     "simulatedUpdateDesc": "Simuliertes Update ist bereit. In der Produktion würde dies die App neustarten."
   },
   "welcome": {
