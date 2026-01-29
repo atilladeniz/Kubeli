@@ -1,7 +1,7 @@
 "use client";
 
 import { useCRDs } from "@/lib/hooks/useK8sResources";
-import { crdColumns } from "../../../resources/ResourceList";
+import { crdColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { CRDInfo } from "@/lib/types";
 

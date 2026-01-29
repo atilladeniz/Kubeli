@@ -1,7 +1,7 @@
 "use client";
 
 import { usePDBs } from "@/lib/hooks/useK8sResources";
-import { pdbColumns } from "../../../resources/ResourceList";
+import { pdbColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { PDBInfo } from "@/lib/types";
 

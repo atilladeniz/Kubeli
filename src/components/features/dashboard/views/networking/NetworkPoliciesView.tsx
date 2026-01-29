@@ -1,7 +1,7 @@
 "use client";
 
 import { useNetworkPolicies } from "@/lib/hooks/useK8sResources";
-import { networkPolicyColumns } from "../../../resources/ResourceList";
+import { networkPolicyColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { NetworkPolicyInfo } from "@/lib/types";
 

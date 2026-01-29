@@ -1,7 +1,7 @@
 "use client";
 
 import { useServiceAccounts } from "@/lib/hooks/useK8sResources";
-import { serviceAccountColumns } from "../../../resources/ResourceList";
+import { serviceAccountColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { ServiceAccountInfo } from "@/lib/types";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useIngresses } from "@/lib/hooks/useK8sResources";
-import { ingressColumns } from "../../../resources/ResourceList";
+import { ingressColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { IngressInfo } from "@/lib/types";
 

@@ -5,14 +5,14 @@ import { useTranslations } from "next-intl";
 import { Copy, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useEvents } from "@/lib/hooks/useK8sResources";
+import { ResourceList } from "../../../resources/ResourceList";
 import {
-  ResourceList,
   eventColumns,
   translateColumns,
   type SortDirection,
   type FilterOption,
   type ContextMenuItemDef,
-} from "../../../resources/ResourceList";
+} from "../../../resources/columns";
 import type { EventInfo } from "@/lib/types";
 
 export function EventsView() {

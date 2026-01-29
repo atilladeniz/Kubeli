@@ -23,15 +23,15 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import { useTerminalTabs } from "../../../terminal";
 import { LogViewer } from "../../../logs/LogViewer";
+import { ResourceList } from "../../../resources/ResourceList";
 import {
-  ResourceList,
   podColumns,
   translateColumns,
   type SortDirection,
   type FilterOption,
   type BulkAction,
   type ContextMenuItemDef,
-} from "../../../resources/ResourceList";
+} from "../../../resources/columns";
 import { deleteResource } from "@/lib/tauri/commands";
 import { useResourceDetail } from "../../context";
 import type { PodInfo, ServiceInfo } from "@/lib/types";
