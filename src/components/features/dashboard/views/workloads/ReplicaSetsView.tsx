@@ -1,7 +1,7 @@
 "use client";
 
 import { useReplicaSets } from "@/lib/hooks/useK8sResources";
-import { replicaSetColumns } from "../../../resources/ResourceList";
+import { replicaSetColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { ReplicaSetInfo } from "@/lib/types";
 
