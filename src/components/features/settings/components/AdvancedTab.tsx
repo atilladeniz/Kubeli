@@ -46,7 +46,7 @@ export function AdvancedTab({ appVersion }: AdvancedTabProps) {
             updateSettings({ virtualScrollThreshold: parseInt(value) })
           }
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -73,7 +73,9 @@ export function AdvancedTab({ appVersion }: AdvancedTabProps) {
           </AlertDialogTrigger>
           <AlertDialogContent>
             <AlertDialogHeader>
-              <AlertDialogTitle>{t("advanced.resetConfirmTitle")}</AlertDialogTitle>
+              <AlertDialogTitle>
+                {t("advanced.resetConfirmTitle")}
+              </AlertDialogTitle>
               <AlertDialogDescription>
                 {t("advanced.resetConfirmDescription")}
               </AlertDialogDescription>
@@ -91,7 +93,9 @@ export function AdvancedTab({ appVersion }: AdvancedTabProps) {
       <Separator />
 
       <div className="flex items-center justify-between text-sm text-muted-foreground">
-        <span>{t("about.title")} {tc("version")}</span>
+        <span>
+          {t("about.title")} {tc("version")}
+        </span>
         <span className="font-mono">{appVersion}</span>
       </div>
 
