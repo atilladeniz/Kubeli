@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.12] - 2026-01-29
+
+- Refactored ResourceList and ResourceDetail into modular extracted components
+
 ## [0.3.11] - 2026-01-29
 
 - Fixed restart dialog text to clarify it refers to restarting the app, not the computer
