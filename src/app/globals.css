@@ -469,6 +469,16 @@ summary *,
   cursor: pointer !important;
 }
 
+/* Grab cursor for draggable elements */
+.cursor-grab,
+.cursor-grab * {
+  cursor: grab !important;
+}
+.cursor-grabbing,
+.cursor-grabbing * {
+  cursor: grabbing !important;
+}
+
 /* Disabled elements */
 [disabled],
 [disabled] *,
