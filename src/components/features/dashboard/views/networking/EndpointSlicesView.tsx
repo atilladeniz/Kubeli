@@ -1,7 +1,7 @@
 "use client";
 
 import { useEndpointSlices } from "@/lib/hooks/useK8sResources";
-import { endpointSliceColumns } from "../../../resources/columns";
+import { endpointSliceColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { EndpointSliceInfo } from "@/lib/types";
 

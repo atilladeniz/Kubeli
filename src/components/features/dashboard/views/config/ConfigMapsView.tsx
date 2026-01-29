@@ -1,7 +1,7 @@
 "use client";
 
 import { useConfigMaps } from "@/lib/hooks/useK8sResources";
-import { configMapColumns } from "../../../resources/columns";
+import { configMapColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { ConfigMapInfo } from "@/lib/types";
 

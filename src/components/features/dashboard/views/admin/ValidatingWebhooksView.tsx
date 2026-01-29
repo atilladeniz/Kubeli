@@ -1,7 +1,7 @@
 "use client";
 
 import { useValidatingWebhooks } from "@/lib/hooks/useK8sResources";
-import { validatingWebhookColumns } from "../../../resources/columns";
+import { validatingWebhookColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { ValidatingWebhookInfo } from "@/lib/types";
 

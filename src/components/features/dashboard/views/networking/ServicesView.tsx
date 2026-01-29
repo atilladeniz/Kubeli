@@ -11,13 +11,13 @@ import { usePortForward } from "@/lib/hooks/usePortForward";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
-import { ResourceList } from "../../../resources/ResourceList";
 import {
+  ResourceList,
   serviceColumns,
   translateColumns,
   type SortDirection,
   type ContextMenuItemDef,
-} from "../../../resources/columns";
+} from "../../../resources/ResourceList";
 import { useResourceDetail } from "../../context";
 import type { ServiceInfo } from "@/lib/types";
 

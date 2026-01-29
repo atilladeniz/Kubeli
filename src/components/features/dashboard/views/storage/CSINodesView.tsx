@@ -1,7 +1,7 @@
 "use client";
 
 import { useCSINodes } from "@/lib/hooks/useK8sResources";
-import { csiNodeColumns } from "../../../resources/columns";
+import { csiNodeColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { CSINodeInfo } from "@/lib/types";
 

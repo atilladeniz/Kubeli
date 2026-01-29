@@ -1,7 +1,7 @@
 "use client";
 
 import { usePriorityClasses } from "@/lib/hooks/useK8sResources";
-import { priorityClassColumns } from "../../../resources/columns";
+import { priorityClassColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { PriorityClassInfo } from "@/lib/types";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMutatingWebhooks } from "@/lib/hooks/useK8sResources";
-import { mutatingWebhookColumns } from "../../../resources/columns";
+import { mutatingWebhookColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { MutatingWebhookInfo } from "@/lib/types";
 

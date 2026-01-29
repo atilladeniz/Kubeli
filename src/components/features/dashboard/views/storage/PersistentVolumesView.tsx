@@ -1,7 +1,7 @@
 "use client";
 
 import { usePersistentVolumes } from "@/lib/hooks/useK8sResources";
-import { pvColumns } from "../../../resources/columns";
+import { pvColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { PVInfo } from "@/lib/types";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useClusterRoles } from "@/lib/hooks/useK8sResources";
-import { clusterRoleColumns } from "../../../resources/columns";
+import { clusterRoleColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { ClusterRoleInfo } from "@/lib/types";
 

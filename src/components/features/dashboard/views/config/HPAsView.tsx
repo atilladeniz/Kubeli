@@ -1,7 +1,7 @@
 "use client";
 
 import { useHPAs } from "@/lib/hooks/useK8sResources";
-import { hpaColumns } from "../../../resources/columns";
+import { hpaColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { HPAInfo } from "@/lib/types";
 

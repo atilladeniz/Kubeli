@@ -596,8 +596,6 @@
   "messages": {
     "confirmDelete": "Are you sure you want to delete \"{name}\"?",
     "confirmDeleteTitle": "Delete {type}?",
-    "confirmBulkDeleteTitle": "Delete {count} resource(s)?",
-    "confirmBulkDelete": "This action cannot be undone. Are you sure you want to delete {count} selected resource(s)?",
     "deleteSuccess": "{name} deleted successfully",
     "deleteError": "Failed to delete {name}",
     "saveSuccess": "Changes saved successfully",

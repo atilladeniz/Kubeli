@@ -1,7 +1,7 @@
 "use client";
 
 import { useCronJobs } from "@/lib/hooks/useK8sResources";
-import { cronJobColumns } from "../../../resources/columns";
+import { cronJobColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { CronJobInfo } from "@/lib/types";
 

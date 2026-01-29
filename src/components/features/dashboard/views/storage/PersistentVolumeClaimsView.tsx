@@ -1,7 +1,7 @@
 "use client";
 
 import { usePersistentVolumeClaims } from "@/lib/hooks/useK8sResources";
-import { pvcColumns } from "../../../resources/columns";
+import { pvcColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { PVCInfo } from "@/lib/types";
 

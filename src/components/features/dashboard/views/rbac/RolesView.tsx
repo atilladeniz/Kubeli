@@ -1,7 +1,7 @@
 "use client";
 
 import { useRoles } from "@/lib/hooks/useK8sResources";
-import { roleColumns } from "../../../resources/columns";
+import { roleColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { RoleInfo } from "@/lib/types";
 

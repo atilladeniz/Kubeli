@@ -1,7 +1,7 @@
 "use client";
 
 import { useLimitRanges } from "@/lib/hooks/useK8sResources";
-import { limitRangeColumns } from "../../../resources/columns";
+import { limitRangeColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { LimitRangeInfo } from "@/lib/types";
 

@@ -6,13 +6,13 @@ import { Copy, Trash2, Eye, RefreshCw, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useHelmReleases } from "@/lib/hooks/useK8sResources";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
-import { ResourceList } from "../../../resources/ResourceList";
 import {
+  ResourceList,
   helmReleaseColumns,
   translateColumns,
   type SortDirection,
   type ContextMenuItemDef,
-} from "../../../resources/columns";
+} from "../../../resources/ResourceList";
 import { useResourceDetail } from "../../context";
 import type { HelmReleaseInfo } from "@/lib/types";
 import {

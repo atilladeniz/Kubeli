@@ -1,7 +1,7 @@
 "use client";
 
 import { useNamespaces } from "@/lib/hooks/useK8sResources";
-import { namespaceColumns } from "../../../resources/columns";
+import { namespaceColumns } from "../../../resources/ResourceList";
 import { createResourceView } from "../_createResourceView";
 import type { NamespaceInfo } from "@/lib/types";
 

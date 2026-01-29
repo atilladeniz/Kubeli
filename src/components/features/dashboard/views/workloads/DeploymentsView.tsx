@@ -9,13 +9,13 @@ import { useDeployments } from "@/lib/hooks/useK8sResources";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
-import { ResourceList } from "../../../resources/ResourceList";
 import {
+  ResourceList,
   deploymentColumns,
   translateColumns,
   type SortDirection,
   type ContextMenuItemDef,
-} from "../../../resources/columns";
+} from "../../../resources/ResourceList";
 import { useResourceDetail } from "../../context";
 import type { DeploymentInfo } from "@/lib/types";
 
