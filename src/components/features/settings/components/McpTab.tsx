@@ -156,6 +156,26 @@ export function McpTab({ mcp }: McpTabProps) {
 
       <Separator />
 
+      {/* Example Prompts Button */}
+      <div className="flex items-center justify-between">
+        <div className="space-y-0.5">
+          <Label className="text-sm font-medium">{t("mcp.examplePrompts")}</Label>
+          <p className="text-xs text-muted-foreground">
+            {t("mcp.examplePromptsDescription")}
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setExamplesOpen(true)}
+        >
+          <MessageSquare className="size-4 mr-2" />
+          {t("mcp.showExamples")}
+        </Button>
+      </div>
+
+      <Separator />
+
       {/* How It Works Info */}
       <div className="text-sm text-muted-foreground bg-muted/50 rounded-md p-3 space-y-2">
         <div className="flex items-center gap-2">
@@ -176,26 +196,6 @@ export function McpTab({ mcp }: McpTabProps) {
           <li>{t("mcp.capabilityEvents")}</li>
           <li>{t("mcp.capabilityYaml")}</li>
         </ul>
-      </div>
-
-      <Separator />
-
-      {/* Example Prompts Button */}
-      <div className="flex items-center justify-between">
-        <div className="space-y-0.5">
-          <Label className="text-sm font-medium">{t("mcp.examplePrompts")}</Label>
-          <p className="text-xs text-muted-foreground">
-            {t("mcp.examplePromptsDescription")}
-          </p>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setExamplesOpen(true)}
-        >
-          <MessageSquare className="size-4 mr-2" />
-          {t("mcp.showExamples")}
-        </Button>
       </div>
 
       {/* Example Prompts Dialog */}
