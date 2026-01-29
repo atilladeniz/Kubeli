@@ -111,8 +111,16 @@ export function ResourceList<T>({
           const aBytes = parseQuantityToBytes(aValue as string);
           const bBytes = parseQuantityToBytes(bValue as string);
           comparison = aBytes - bBytes;
+        } else if (typeof aValue === "number" && typeof bValue === "number") {
+          comparison = aValue - bValue;
         } else {
-          comparison = String(aValue).localeCompare(String(bValue));
+          const aNum = Number(aValue);
+          const bNum = Number(bValue);
+          if (!isNaN(aNum) && !isNaN(bNum)) {
+            comparison = aNum - bNum;
+          } else {
+            comparison = String(aValue).localeCompare(String(bValue));
+          }
         }
 
         return sortDirection === "asc" ? comparison : -comparison;
