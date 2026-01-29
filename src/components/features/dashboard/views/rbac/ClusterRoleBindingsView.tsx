@@ -1,7 +1,7 @@
 "use client";
 
 import { useClusterRoleBindings } from "@/lib/hooks/useK8sResources";
-import { clusterRoleBindingColumns } from "../../../resources/ResourceList";
+import { clusterRoleBindingColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { ClusterRoleBindingInfo } from "@/lib/types";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCSIDrivers } from "@/lib/hooks/useK8sResources";
-import { csiDriverColumns } from "../../../resources/ResourceList";
+import { csiDriverColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { CSIDriverInfo } from "@/lib/types";
 

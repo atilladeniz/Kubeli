@@ -1,7 +1,7 @@
 "use client";
 
 import { useJobs } from "@/lib/hooks/useK8sResources";
-import { jobColumns } from "../../../resources/ResourceList";
+import { jobColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { JobInfo } from "@/lib/types";
 

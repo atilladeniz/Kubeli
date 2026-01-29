@@ -4,14 +4,14 @@ import { useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { Copy, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
+import { ResourceList } from "../../resources/ResourceList";
 import {
-  ResourceList,
   translateColumns,
   type SortDirection,
   type ContextMenuItemDef,
   type FilterOption,
   type Column,
-} from "../../resources/ResourceList";
+} from "../../resources/columns";
 import { useResourceDetail } from "../context";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 

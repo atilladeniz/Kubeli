@@ -5,13 +5,13 @@ import { useTranslations } from "next-intl";
 import { Copy } from "lucide-react";
 import { toast } from "sonner";
 import { useLeases } from "@/lib/hooks/useK8sResources";
+import { ResourceList } from "../../../resources/ResourceList";
 import {
-  ResourceList,
   leaseColumns,
   translateColumns,
   type SortDirection,
   type ContextMenuItemDef,
-} from "../../../resources/ResourceList";
+} from "../../../resources/columns";
 import type { LeaseInfo } from "@/lib/types";
 
 export function LeasesView() {

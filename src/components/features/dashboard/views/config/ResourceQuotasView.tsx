@@ -1,7 +1,7 @@
 "use client";
 
 import { useResourceQuotas } from "@/lib/hooks/useK8sResources";
-import { resourceQuotaColumns } from "../../../resources/ResourceList";
+import { resourceQuotaColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { ResourceQuotaInfo } from "@/lib/types";
 

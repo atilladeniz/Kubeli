@@ -1,7 +1,7 @@
 "use client";
 
 import { useStatefulSets } from "@/lib/hooks/useK8sResources";
-import { statefulSetColumns } from "../../../resources/ResourceList";
+import { statefulSetColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { StatefulSetInfo } from "@/lib/types";
 

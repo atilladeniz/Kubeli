@@ -5,13 +5,13 @@ import { useTranslations } from "next-intl";
 import { AlertCircle, Copy, Trash2, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { useNodes } from "@/lib/hooks/useK8sResources";
+import { ResourceList } from "../../../resources/ResourceList";
 import {
-  ResourceList,
   nodeColumns,
   translateColumns,
   type SortDirection,
   type ContextMenuItemDef,
-} from "../../../resources/ResourceList";
+} from "../../../resources/columns";
 import { useResourceDetail } from "../../context";
 import type { NodeInfo } from "@/lib/types";
 
