@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef } from "react";
+import { useCallback, useRef, useState } from "react";
 import { X, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
@@ -10,6 +10,7 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -161,7 +162,7 @@ function SortableTab({
             isActive
               ? "bg-muted border-border text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50",
-            isDragging && "shadow-lg"
+            isDragging ? "shadow-lg cursor-grabbing" : "cursor-grab"
           )}
         >
           <span className="truncate">{title}</span>
@@ -206,8 +207,15 @@ export function TabBar() {
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
   );
 
+  const [isDragging, setIsDragging] = useState(false);
+
+  const handleDragStart = useCallback(() => {
+    setIsDragging(true);
+  }, []);
+
   const handleDragEnd = useCallback(
     (event: DragEndEvent) => {
+      setIsDragging(false);
       const { active, over } = event;
       if (over && active.id !== over.id) {
         reorderTabs(active.id as string, over.id as string);
@@ -215,6 +223,12 @@ export function TabBar() {
     },
     [reorderTabs]
   );
+
+  const handleWheel = useCallback((e: React.WheelEvent) => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollLeft += e.deltaY;
+    }
+  }, []);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent, tab: Tab) => {
@@ -239,11 +253,15 @@ export function TabBar() {
 
   return (
     <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border bg-card/30">
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd} modifiers={[restrictToHorizontalAxis, restrictToParentElement]}>
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDragCancel={() => setIsDragging(false)} modifiers={[restrictToHorizontalAxis, restrictToParentElement]}>
         <SortableContext items={tabIds} strategy={horizontalListSortingStrategy}>
           <div
             ref={scrollRef}
-            className="flex items-center gap-1.5 pr-2 flex-1 overflow-x-auto overflow-y-hidden hide-scrollbar"
+            onWheel={handleWheel}
+            className={cn(
+              "flex items-center gap-1.5 pr-2 flex-1 overflow-x-auto overflow-y-hidden hide-scrollbar",
+              isDragging && "cursor-grabbing"
+            )}
           >
             {tabs.map((tab, index) => (
               <SortableTab
