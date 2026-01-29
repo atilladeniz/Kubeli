@@ -4,7 +4,7 @@ import type {
   ResourceQuotaInfo,
   PDBInfo,
 } from "@/lib/types";
-import type { Column } from "./types";
+import type { Column } from "../types";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { formatAge } from "../lib/utils";
 

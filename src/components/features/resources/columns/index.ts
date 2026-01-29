@@ -1,4 +1,4 @@
-export type { Column, FilterOption, BulkAction, ContextMenuItemDef, SortDirection, TranslateFunc } from "./types";
+export type { Column, FilterOption, BulkAction, ContextMenuItemDef, SortDirection, TranslateFunc } from "../types";
 export { translateColumns } from "./translate";
 
 // Workloads

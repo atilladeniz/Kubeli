@@ -596,6 +596,8 @@
   "messages": {
     "confirmDelete": "Möchten Sie \"{name}\" wirklich löschen?",
     "confirmDeleteTitle": "{type} löschen?",
+    "confirmBulkDeleteTitle": "{count} Ressource(n) löschen?",
+    "confirmBulkDelete": "Diese Aktion kann nicht rückgängig gemacht werden. Möchten Sie wirklich {count} ausgewählte Ressource(n) löschen?",
     "deleteSuccess": "{name} wurde erfolgreich gelöscht",
     "deleteError": "Fehler beim Löschen von {name}",
     "saveSuccess": "Änderungen wurden erfolgreich gespeichert",

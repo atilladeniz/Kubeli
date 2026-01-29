@@ -2,7 +2,7 @@ import type {
   HelmReleaseInfo,
   FluxKustomizationInfo,
 } from "@/lib/types";
-import type { Column, TranslateFunc } from "./types";
+import type { Column, TranslateFunc } from "../types";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { HelmStatusBadge } from "../components/badges/HelmStatusBadge";
 import { FluxKustomizationStatusBadge } from "../components/badges/FluxKustomizationStatusBadge";

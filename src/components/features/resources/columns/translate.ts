@@ -1,4 +1,4 @@
-import type { Column, TranslateFunc } from "./types";
+import type { Column, TranslateFunc } from "../types";
 
 // Column label to translation key mapping
 const columnLabelToKey: Record<string, string> = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRoleBindings } from "@/lib/hooks/useK8sResources";
-import { roleBindingColumns } from "../../../resources/ResourceList";
+import { roleBindingColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { RoleBindingInfo } from "@/lib/types";
 

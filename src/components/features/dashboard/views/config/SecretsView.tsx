@@ -1,7 +1,7 @@
 "use client";
 
 import { useSecrets } from "@/lib/hooks/useK8sResources";
-import { secretColumns } from "../../../resources/ResourceList";
+import { secretColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { SecretInfo } from "@/lib/types";
 

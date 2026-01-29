@@ -1,7 +1,7 @@
 "use client";
 
 import { useRuntimeClasses } from "@/lib/hooks/useK8sResources";
-import { runtimeClassColumns } from "../../../resources/ResourceList";
+import { runtimeClassColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { RuntimeClassInfo } from "@/lib/types";
 

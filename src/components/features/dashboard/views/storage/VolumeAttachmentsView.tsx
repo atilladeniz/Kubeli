@@ -1,7 +1,7 @@
 "use client";
 
 import { useVolumeAttachments } from "@/lib/hooks/useK8sResources";
-import { volumeAttachmentColumns } from "../../../resources/ResourceList";
+import { volumeAttachmentColumns } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
 import type { VolumeAttachmentInfo } from "@/lib/types";
 
