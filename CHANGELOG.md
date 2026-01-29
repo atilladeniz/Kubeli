@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.10] - 2026-01-29
+
+- Refactored Settings panel into modular components for improved maintainability
+
 ## [0.3.9] - 2026-01-29
 
 - Fixed mouse wheel horizontal scroll and grabbing cursor on tabs
