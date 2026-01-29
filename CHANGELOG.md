@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.9] - 2026-01-29
+
+- Fixed mouse wheel horizontal scroll and grabbing cursor on tabs
+
 ## [0.3.8] - 2026-01-28
 
 - Added tab navigation with drag and drop support
