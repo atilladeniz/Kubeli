@@ -16,9 +16,6 @@ import {
   Activity,
   Tag,
   FileText,
-  Eye,
-  EyeOff,
-  Key,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,48 +37,12 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { LogViewer } from "../logs/LogViewer";
+import { MetadataItem } from "./components/MetadataItem";
+import { SecretDataSection } from "./components/SecretDataSection";
 
-export interface ResourceDetailProps {
-  resource: ResourceData | null;
-  resourceType: string;
-  onClose: () => void;
-  onSave?: (yaml: string) => Promise<void>;
-  onDelete?: () => Promise<void>;
-  isLoading?: boolean;
-}
-
-export interface ResourceData {
-  name: string;
-  namespace?: string;
-  uid: string;
-  apiVersion?: string;
-  kind?: string;
-  createdAt?: string;
-  labels?: Record<string, string>;
-  annotations?: Record<string, string>;
-  yaml?: string;
-  status?: Record<string, unknown>;
-  spec?: Record<string, unknown>;
-  conditions?: Condition[];
-  events?: K8sEvent[];
-}
-
-interface Condition {
-  type: string;
-  status: string;
-  lastTransitionTime?: string;
-  reason?: string;
-  message?: string;
-}
-
-interface K8sEvent {
-  type: string;
-  reason: string;
-  message: string;
-  count: number;
-  lastTimestamp?: string;
-  firstTimestamp?: string;
-}
+// Re-export types for backward compatibility
+export type { ResourceDetailProps, ResourceData } from "./types";
+import type { ResourceData } from "./types";
 
 export function ResourceDetail({
   resource,
@@ -90,7 +51,14 @@ export function ResourceDetail({
   onSave,
   onDelete,
   isLoading = false,
-}: ResourceDetailProps) {
+}: {
+  resource: ResourceData | null;
+  resourceType: string;
+  onClose: () => void;
+  onSave?: (yaml: string) => Promise<void>;
+  onDelete?: () => Promise<void>;
+  isLoading?: boolean;
+}) {
   const t = useTranslations();
   const [activeTab, setActiveTab] = useState("overview");
   const [yamlContent, setYamlContent] = useState("");
@@ -628,249 +596,7 @@ export function ResourceDetail({
   );
 }
 
-function MetadataItem({
-  label,
-  value,
-  mono = false,
-}: {
-  label: string;
-  value: string;
-  mono?: boolean;
-}) {
-  return (
-    <div>
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className={cn("mt-0.5", mono && "font-mono text-xs")}>{value}</dd>
-    </div>
-  );
-}
-
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
   return date.toLocaleString();
-}
-
-interface SecretData {
-  type: string;
-  data: Record<string, string>;
-}
-
-function parseSecretFromYaml(yaml: string): SecretData | null {
-  try {
-    // Simple YAML parsing for secrets
-    const lines = yaml.split("\n");
-    let secretType = "Opaque";
-    const data: Record<string, string> = {};
-    let inDataSection = false;
-    let currentKey = "";
-    let currentValue = "";
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-
-      // Check for type field
-      if (trimmed.startsWith("type:")) {
-        secretType = trimmed.replace("type:", "").trim();
-        continue;
-      }
-
-      // Check for data section start
-      if (trimmed === "data:" || trimmed.startsWith("data:")) {
-        inDataSection = true;
-        // Check if data is on same line (e.g., "data: {}")
-        if (trimmed !== "data:") {
-          inDataSection = false;
-        }
-        continue;
-      }
-
-      // Check for stringData section (also valid for secrets)
-      if (trimmed === "stringData:" || trimmed.startsWith("stringData:")) {
-        inDataSection = true;
-        continue;
-      }
-
-      // Exit data section if we hit another top-level key
-      if (
-        inDataSection &&
-        !line.startsWith(" ") &&
-        !line.startsWith("\t") &&
-        trimmed !== ""
-      ) {
-        inDataSection = false;
-      }
-
-      // Parse data entries
-      if (inDataSection && trimmed !== "") {
-        const colonIndex = trimmed.indexOf(":");
-        if (colonIndex > 0) {
-          currentKey = trimmed.substring(0, colonIndex).trim();
-          currentValue = trimmed.substring(colonIndex + 1).trim();
-
-          // Remove quotes if present
-          if (
-            (currentValue.startsWith('"') && currentValue.endsWith('"')) ||
-            (currentValue.startsWith("'") && currentValue.endsWith("'"))
-          ) {
-            currentValue = currentValue.slice(1, -1);
-          }
-
-          if (currentKey && currentValue) {
-            data[currentKey] = currentValue;
-          }
-        }
-      }
-    }
-
-    return { type: secretType, data };
-  } catch {
-    return null;
-  }
-}
-
-function decodeBase64(value: string): string {
-  try {
-    return atob(value);
-  } catch {
-    return value; // Return original if not valid base64
-  }
-}
-
-function SecretDataSection({ yaml }: { yaml: string }) {
-  const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
-  const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [timeouts, setTimeouts] = useState<Map<string, NodeJS.Timeout>>(
-    new Map()
-  );
-
-  const secretData = parseSecretFromYaml(yaml);
-
-  if (!secretData || Object.keys(secretData.data).length === 0) {
-    return null;
-  }
-
-  const toggleReveal = (key: string) => {
-    setRevealedKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        // Hide: clear timeout if exists
-        const existingTimeout = timeouts.get(key);
-        if (existingTimeout) {
-          clearTimeout(existingTimeout);
-          setTimeouts((t) => {
-            const newTimeouts = new Map(t);
-            newTimeouts.delete(key);
-            return newTimeouts;
-          });
-        }
-        next.delete(key);
-      } else {
-        // Reveal: set auto-hide timeout
-        next.add(key);
-        const timeout = setTimeout(() => {
-          setRevealedKeys((current) => {
-            const updated = new Set(current);
-            updated.delete(key);
-            return updated;
-          });
-          setTimeouts((t) => {
-            const newTimeouts = new Map(t);
-            newTimeouts.delete(key);
-            return newTimeouts;
-          });
-        }, 10000);
-        setTimeouts((t) => {
-          const newTimeouts = new Map(t);
-          newTimeouts.set(key, timeout);
-          return newTimeouts;
-        });
-      }
-      return next;
-    });
-  };
-
-  const copyValue = async (key: string, value: string) => {
-    const decoded = decodeBase64(value);
-    await navigator.clipboard.writeText(decoded);
-    setCopiedKey(key);
-    toast.success("Value copied to clipboard");
-    setTimeout(() => setCopiedKey(null), 2000);
-  };
-
-  return (
-    <>
-      {/* Type Section */}
-      <section>
-        <h3 className="text-sm font-semibold mb-3 text-muted-foreground">
-          Type
-        </h3>
-        <p className="text-base font-medium">{secretData.type}</p>
-      </section>
-
-      {/* Data Section */}
-      <section>
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <Key className="size-4" />
-          Data
-        </h3>
-        <div className="space-y-4">
-          {Object.entries(secretData.data).map(([key, value]) => {
-            const isRevealed = revealedKeys.has(key);
-            const decodedValue = decodeBase64(value);
-            const isCopied = copiedKey === key;
-
-            return (
-              <div key={key} className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium text-muted-foreground">
-                    {key}
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => copyValue(key, value)}
-                      className="h-7 px-2"
-                    >
-                      {isCopied ? (
-                        <Check className="size-3.5 text-green-500" />
-                      ) : (
-                        <Copy className="size-3.5" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => toggleReveal(key)}
-                      className="h-7 px-2"
-                    >
-                      {isRevealed ? (
-                        <EyeOff className="size-3.5" />
-                      ) : (
-                        <Eye className="size-3.5" />
-                      )}
-                    </Button>
-                  </div>
-                </div>
-                <div
-                  className="bg-muted/50 rounded-lg px-3 py-2 text-sm font-mono cursor-pointer hover:bg-muted/70 transition-colors"
-                  onClick={() => toggleReveal(key)}
-                  style={{
-                    filter: isRevealed ? "blur(0px)" : "blur(2px)",
-                    transition: "filter 300ms ease-in-out",
-                    borderRadius: "12px",
-                    userSelect: isRevealed ? "text" : "none",
-                  }}
-                >
-                  <span className="break-all">
-                    {isRevealed ? decodedValue : "••••••••"}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
-    </>
-  );
 }
