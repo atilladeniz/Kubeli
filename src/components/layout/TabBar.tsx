@@ -162,7 +162,7 @@ function SortableTab({
             isActive
               ? "bg-muted border-border text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground hover:bg-muted/50",
-            isDragging ? "shadow-lg cursor-grabbing" : "cursor-grab"
+            isDragging && "shadow-lg cursor-grabbing"
           )}
         >
           <span className="truncate">{title}</span>

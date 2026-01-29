@@ -469,11 +469,7 @@ summary *,
   cursor: pointer !important;
 }
 
-/* Grab cursor for draggable elements */
-.cursor-grab,
-.cursor-grab * {
-  cursor: grab !important;
-}
+/* Grabbing cursor while actively dragging */
 .cursor-grabbing,
 .cursor-grabbing * {
   cursor: grabbing !important;
