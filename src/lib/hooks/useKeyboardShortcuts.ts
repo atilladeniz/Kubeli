@@ -67,7 +67,11 @@ export function useKeyboardShortcuts(
             event.key === shortcut.key;
           const matchesCtrl = shortcut.ctrl ? event.ctrlKey : !event.ctrlKey;
           const matchesMeta = shortcut.meta ? event.metaKey : !event.metaKey;
-          const matchesShift = shortcut.shift ? event.shiftKey : !event.shiftKey;
+          // For non-alphanumeric keys (e.g., "?", "/"), don't enforce shift state
+          // since different keyboard layouts may or may not require shift
+          const isSymbolKey = /[^a-zA-Z0-9]/.test(shortcut.key);
+          const matchesShift = shortcut.shift ? event.shiftKey :
+            isSymbolKey ? true : !event.shiftKey;
 
           if (matchesKey && matchesCtrl && matchesMeta && matchesShift) {
             event.preventDefault();
