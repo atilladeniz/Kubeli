@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.14] - 2026-01-30
+
+- Added adaptive plus button and Cmd+T shortcut to tab bar
+- Updated README with download badges for macOS and Windows
+
 ## [0.3.13] - 2026-01-30
 
 - Simplified ShortcutsHelpDialog component
