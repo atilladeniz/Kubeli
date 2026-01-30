@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { X, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import {
@@ -21,6 +21,8 @@ import { CSS } from "@dnd-kit/utilities";
 import { restrictToHorizontalAxis, restrictToParentElement } from "@dnd-kit/modifiers";
 import { useTabsStore, type Tab } from "@/lib/stores/tabs-store";
 import { cn } from "@/lib/utils";
+import { Kbd } from "@/components/ui/kbd";
+import { usePlatform } from "@/lib/hooks/usePlatform";
 import {
   ContextMenu,
   ContextMenuContent,
@@ -153,6 +155,7 @@ function SortableTab({
         <button
           ref={setNodeRef}
           style={style}
+          data-tab-id={tab.id}
           {...attributes}
           {...listeners}
           onClick={onActivate}
@@ -201,6 +204,7 @@ export function TabBar() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("tabs");
   const getTabTitle = useTabTitle();
+  const { modKeySymbol } = usePlatform();
 
   // Require 5px movement before drag starts — prevents accidental drags on click
   const sensors = useSensors(
@@ -243,6 +247,46 @@ export function TabBar() {
   );
 
   const isAtLimit = tabs.length >= 10;
+  const [isOverflowing, setIsOverflowing] = useState(false);
+
+  // Detect whether the tab container is overflowing
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+
+    const checkOverflow = () => {
+      setIsOverflowing(el.scrollWidth > el.clientWidth);
+    };
+
+    checkOverflow();
+
+    const observer = new ResizeObserver(checkOverflow);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [tabs.length]);
+
+  // Auto-scroll active tab fully into view (accounting for the fixed "+" button)
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !activeTabId) return;
+
+    // Delay to ensure new tab DOM element is rendered
+    requestAnimationFrame(() => {
+      const activeButton = el.querySelector(`[data-tab-id="${activeTabId}"]`) as HTMLElement | null;
+      if (!activeButton) return;
+
+      const containerRect = el.getBoundingClientRect();
+      const tabRect = activeButton.getBoundingClientRect();
+      const rightPadding = 8;
+
+      if (tabRect.right + rightPadding > containerRect.right) {
+        el.scrollLeft += tabRect.right - containerRect.right + rightPadding;
+      }
+      if (tabRect.left < containerRect.left) {
+        el.scrollLeft -= containerRect.left - tabRect.left + rightPadding;
+      }
+    });
+  }, [activeTabId, tabs.length]);
 
   const handleAddTab = useCallback(() => {
     if (isAtLimit) return;
@@ -250,6 +294,31 @@ export function TabBar() {
   }, [openTab, isAtLimit, getTabTitle]);
 
   const tabIds = tabs.map((t) => t.id);
+
+  const addButton = (
+    <TooltipProvider>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            onClick={handleAddTab}
+            disabled={isAtLimit}
+            className={cn(
+              "shrink-0 rounded-md p-1.5 transition-colors",
+              isAtLimit
+                ? "text-muted-foreground/30 cursor-not-allowed"
+                : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+            )}
+          >
+            <Plus className="size-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom" className="flex items-center gap-2">
+          <span>{isAtLimit ? t("limitReached") : t("newTab")}</span>
+          {!isAtLimit && <Kbd className="text-[10px]">{modKeySymbol}T</Kbd>}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
 
   return (
     <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-border bg-card/30">
@@ -259,7 +328,7 @@ export function TabBar() {
             ref={scrollRef}
             onWheel={handleWheel}
             className={cn(
-              "flex items-center gap-1.5 pr-2 flex-1 overflow-x-auto overflow-y-hidden hide-scrollbar",
+              "flex items-center gap-1.5 overflow-x-auto overflow-y-hidden hide-scrollbar min-w-0 flex-1",
               isDragging && "cursor-grabbing"
             )}
           >
@@ -281,30 +350,15 @@ export function TabBar() {
                 tCloseToRight={t("closeToRight")}
               />
             ))}
+            {!isOverflowing && addButton}
           </div>
         </SortableContext>
       </DndContext>
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={handleAddTab}
-              disabled={isAtLimit}
-              className={cn(
-                "shrink-0 rounded-md p-1.5 transition-colors",
-                isAtLimit
-                  ? "text-muted-foreground/30 cursor-not-allowed"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
-              )}
-            >
-              <Plus className="size-3.5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            <p>{isAtLimit ? t("limitReached") : t("newTab")}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      {isOverflowing && (
+        <div className="shrink-0 flex items-center pl-1 border-l border-border">
+          {addButton}
+        </div>
+      )}
     </div>
   );
 }
