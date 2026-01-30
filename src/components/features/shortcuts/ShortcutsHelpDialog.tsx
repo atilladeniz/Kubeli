@@ -54,6 +54,7 @@ function buildShortcutGroups(mod: string): ShortcutGroup[] {
     {
       titleKey: "tabs",
       shortcuts: [
+        { keys: [mod, "T"], combo: true, label: (t) => t("newTab") },
         { keys: [mod, "W"], combo: true, label: (t) => t("closeTab") },
       ],
     },
