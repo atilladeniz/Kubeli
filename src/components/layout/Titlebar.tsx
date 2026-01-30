@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Settings, Sparkles, Loader2 } from "lucide-react";
+import { Settings, Sparkles, Loader2, CircleHelp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import {
@@ -21,9 +21,10 @@ interface TitlebarProps {
   isAIDisabled?: boolean;
   onToggleAI?: () => void;
   onOpenSettings?: () => void;
+  onOpenShortcutsHelp?: () => void;
 }
 
-export function Titlebar({ isAIOpen, isAIProcessing, isAIDisabled, onToggleAI, onOpenSettings }: TitlebarProps) {
+export function Titlebar({ isAIOpen, isAIProcessing, isAIDisabled, onToggleAI, onOpenSettings, onOpenShortcutsHelp }: TitlebarProps) {
   const { modKeySymbol } = usePlatform();
   useEffect(() => {
     // Disable native context menu globally
@@ -83,6 +84,28 @@ export function Titlebar({ isAIOpen, isAIProcessing, isAIDisabled, onToggleAI, o
                   <Kbd className="text-[10px]">G I</Kbd>
                 </>
               )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+
+      {/* Shortcuts Help Button */}
+      {onOpenShortcutsHelp && (
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-6"
+                onClick={onOpenShortcutsHelp}
+              >
+                <CircleHelp className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="flex items-center gap-2">
+              <span>Keyboard Shortcuts</span>
+              <Kbd className="text-[10px]">?</Kbd>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

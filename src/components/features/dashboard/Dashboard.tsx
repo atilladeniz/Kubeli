@@ -276,6 +276,7 @@ function DashboardContent() {
               isAIProcessing={isAIProcessing}
               isAIDisabled={isAICliAvailable === false}
               onToggleAI={toggleAIAssistant}
+              onOpenShortcutsHelp={() => setShowShortcutsHelp(true)}
               onOpenSettings={() => setSettingsOpen(true)}
             />
             {isConnected && <TabBar />}
