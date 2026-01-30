@@ -1,6 +1,5 @@
 "use client";
 
-import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import {
   Dialog,
@@ -12,7 +11,7 @@ import { Kbd } from "@/components/ui/kbd";
 
 interface ShortcutItem {
   keys: string[];
-  descriptionKey: string;
+  label: (t: (key: string) => string, tn: (key: string) => string) => string;
 }
 
 interface ShortcutGroup {
@@ -20,31 +19,62 @@ interface ShortcutGroup {
   shortcuts: ShortcutItem[];
 }
 
+const goTo = (t: (k: string) => string, tn: (k: string) => string, navKey: string) =>
+  `${t("goTo")} ${tn(navKey)}`;
+
 const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     titleKey: "navigation",
     shortcuts: [
-      { keys: ["g", "o"], descriptionKey: "goToOverview" },
-      { keys: ["g", "r"], descriptionKey: "goToDiagram" },
-      { keys: ["g", "p"], descriptionKey: "goToPods" },
-      { keys: ["g", "d"], descriptionKey: "goToDeployments" },
-      { keys: ["g", "s"], descriptionKey: "goToServices" },
-      { keys: ["g", "n"], descriptionKey: "goToNodes" },
-      { keys: ["g", "c"], descriptionKey: "goToConfigMaps" },
-      { keys: ["g", "e"], descriptionKey: "goToSecrets" },
-      { keys: ["g", "a"], descriptionKey: "goToNamespaces" },
+      { keys: ["g", "o"], label: (t, tn) => goTo(t, tn, "overview") },
+      { keys: ["g", "r"], label: (t, tn) => goTo(t, tn, "resourceDiagram") },
+      { keys: ["g", "p"], label: (t, tn) => goTo(t, tn, "pods") },
+      { keys: ["g", "d"], label: (t, tn) => goTo(t, tn, "deployments") },
+      { keys: ["g", "s"], label: (t, tn) => goTo(t, tn, "services") },
+      { keys: ["g", "n"], label: (t, tn) => goTo(t, tn, "nodes") },
+      { keys: ["g", "c"], label: (t, tn) => goTo(t, tn, "configMaps") },
+      { keys: ["g", "e"], label: (t, tn) => goTo(t, tn, "secrets") },
+      { keys: ["g", "a"], label: (t, tn) => goTo(t, tn, "namespaces") },
     ],
   },
   {
     titleKey: "actions",
     shortcuts: [
-      { keys: ["/"], descriptionKey: "focusSearch" },
-      { keys: ["r"], descriptionKey: "refreshView" },
-      { keys: ["?"], descriptionKey: "showHelp" },
-      { keys: ["Esc"], descriptionKey: "closeEscape" },
+      { keys: ["/"], label: (t) => t("search") },
+      { keys: ["r"], label: (t) => t("refresh") },
+      { keys: ["?"], label: (t) => t("title") },
+      { keys: ["Esc"], label: (t) => t("escape") },
     ],
   },
 ];
+
+function KeyCombo({ keys }: { keys: string[] }) {
+  return (
+    <div className="flex items-center gap-1">
+      {keys.map((key, i) => (
+        <span key={i} className="flex items-center gap-1">
+          <Kbd>{key}</Kbd>
+          {i < keys.length - 1 && (
+            <span className="text-muted-foreground text-xs">→</span>
+          )}
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function ShortcutRow({ shortcut, t, tn }: {
+  shortcut: ShortcutItem;
+  t: (key: string) => string;
+  tn: (key: string) => string;
+}) {
+  return (
+    <div className="flex items-center justify-between">
+      <span className="text-sm">{shortcut.label(t, tn)}</span>
+      <KeyCombo keys={shortcut.keys} />
+    </div>
+  );
+}
 
 interface ShortcutsHelpDialogProps {
   open: boolean;
@@ -54,25 +84,6 @@ interface ShortcutsHelpDialogProps {
 export function ShortcutsHelpDialog({ open, onOpenChange }: ShortcutsHelpDialogProps) {
   const t = useTranslations("shortcuts");
   const tn = useTranslations("navigation");
-
-  const getDescription = useMemo(() => (key: string) => {
-    const descriptions: Record<string, string> = {
-      goToOverview: `${t("goTo")} ${tn("overview")}`,
-      goToDiagram: `${t("goTo")} ${tn("resourceDiagram")}`,
-      goToPods: `${t("goTo")} ${tn("pods")}`,
-      goToDeployments: `${t("goTo")} ${tn("deployments")}`,
-      goToServices: `${t("goTo")} ${tn("services")}`,
-      goToNodes: `${t("goTo")} ${tn("nodes")}`,
-      goToConfigMaps: `${t("goTo")} ${tn("configMaps")}`,
-      goToSecrets: `${t("goTo")} ${tn("secrets")}`,
-      goToNamespaces: `${t("goTo")} ${tn("namespaces")}`,
-      focusSearch: t("search"),
-      refreshView: t("refresh"),
-      showHelp: t("title"),
-      closeEscape: t("escape"),
-    };
-    return descriptions[key] || key;
-  }, [t, tn]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -87,23 +98,8 @@ export function ShortcutsHelpDialog({ open, onOpenChange }: ShortcutsHelpDialogP
                 {t(group.titleKey)}
               </h3>
               <div className="space-y-2">
-                {group.shortcuts.map((shortcut) => (
-                  <div
-                    key={shortcut.descriptionKey}
-                    className="flex items-center justify-between"
-                  >
-                    <span className="text-sm">{getDescription(shortcut.descriptionKey)}</span>
-                    <div className="flex items-center gap-1">
-                      {shortcut.keys.map((key, i) => (
-                        <span key={i} className="flex items-center gap-1">
-                          <Kbd>{key}</Kbd>
-                          {i < shortcut.keys.length - 1 && (
-                            <span className="text-muted-foreground text-xs">→</span>
-                          )}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                {group.shortcuts.map((shortcut, i) => (
+                  <ShortcutRow key={i} shortcut={shortcut} t={t} tn={tn} />
                 ))}
               </div>
             </div>
