@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.13] - 2026-01-30
+
+- Simplified ShortcutsHelpDialog component
+
 ## [0.3.12] - 2026-01-29
 
 - Refactored ResourceList and ResourceDetail into modular extracted components
