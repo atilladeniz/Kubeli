@@ -760,7 +760,11 @@
     "toggleAI": "Toggle AI panel",
     "refresh": "Refresh",
     "search": "Focus search",
-    "escape": "Close / Cancel"
+    "escape": "Close / Cancel",
+    "tabs": "Tabs",
+    "closeTab": "Close tab",
+    "nextTab": "Next tab",
+    "previousTab": "Previous tab"
   },
   "updates": {
     "available": "Update Available",

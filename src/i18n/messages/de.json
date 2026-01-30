@@ -760,7 +760,11 @@
     "toggleAI": "KI-Panel umschalten",
     "refresh": "Aktualisieren",
     "search": "Suche fokussieren",
-    "escape": "Schließen / Abbrechen"
+    "escape": "Schließen / Abbrechen",
+    "tabs": "Tabs",
+    "closeTab": "Tab schließen",
+    "nextTab": "Nächster Tab",
+    "previousTab": "Vorheriger Tab"
   },
   "updates": {
     "available": "Update verfügbar",
