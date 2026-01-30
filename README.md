@@ -15,6 +15,22 @@
 
 A modern, beautiful Kubernetes management desktop application with real-time monitoring, terminal access, and a polished user experience.
 
+<p align="center">
+  <a href="https://github.com/atilladeniz/Kubeli/releases/latest">
+    <img src="https://img.shields.io/badge/macOS-Download%20.dmg-0078D4?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS">
+  </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/atilladeniz/Kubeli/releases/latest">
+    <img src="https://img.shields.io/badge/Windows-Download%20.exe-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows">
+  </a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/macOS-Notarized%20%26%20Signed-success?logo=apple&logoColor=white" alt="macOS Notarized">
+  <img src="https://img.shields.io/badge/arch-Apple%20Silicon%20(arm64)-lightgrey?logo=apple" alt="Apple Silicon">
+  <img src="https://img.shields.io/badge/arch-x64-lightgrey?logo=windows" alt="x64">
+</p>
+
 ## Features
 
 - **Multi-Cluster Support** - Connect to multiple clusters, auto-detect provider type (Minikube, EKS, GKE, AKS)
@@ -46,15 +62,6 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 | Charts | Recharts |
 
 ## Installation
-
-### Download
-
-Download the latest release for your platform from the [Releases](https://github.com/atilladeniz/kubeli/releases) page:
-
-| Platform | File | Notes |
-|----------|------|-------|
-| **macOS** | `Kubeli_*_aarch64.dmg` | Apple Silicon (M1/M2/M3) |
-| **Windows** | `Kubeli_*_x64-setup.exe` | Windows 10/11 (64-bit) |
 
 ### Build from Source
 
