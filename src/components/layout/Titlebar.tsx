@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { Settings, Sparkles, Loader2, CircleHelp, Download } from "lucide-react";
+import { Settings, Sparkles, Loader2, CircleHelp } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
@@ -64,7 +64,6 @@ export function Titlebar({ isAIOpen, isAIProcessing, isAIDisabled, onToggleAI, o
           onClick={() => (readyToRestart || downloadComplete) ? restartNow() : downloadAndInstall()}
           disabled={downloading}
         >
-          <Download className="size-3 mr-1" />
           {downloading ? `${Math.round(progress)}%` : (readyToRestart || downloadComplete) ? tu("restartNow") : tu("updateNow")}
         </Button>
       )}
