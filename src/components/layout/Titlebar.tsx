@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect } from "react";
-import { Settings, Sparkles, Loader2 } from "lucide-react";
+import { Settings, Sparkles, Loader2, CircleHelp } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import { useUpdater } from "@/lib/hooks/useUpdater";
 import {
   Tooltip,
   TooltipContent,
@@ -21,10 +23,13 @@ interface TitlebarProps {
   isAIDisabled?: boolean;
   onToggleAI?: () => void;
   onOpenSettings?: () => void;
+  onOpenShortcutsHelp?: () => void;
 }
 
-export function Titlebar({ isAIOpen, isAIProcessing, isAIDisabled, onToggleAI, onOpenSettings }: TitlebarProps) {
+export function Titlebar({ isAIOpen, isAIProcessing, isAIDisabled, onToggleAI, onOpenSettings, onOpenShortcutsHelp }: TitlebarProps) {
   const { modKeySymbol } = usePlatform();
+  const tu = useTranslations("updates");
+  const { available, update, downloading, progress, readyToRestart, downloadComplete, downloadAndInstall, restartNow } = useUpdater();
   useEffect(() => {
     // Disable native context menu globally
     const handleContextMenu = (e: MouseEvent) => {
@@ -50,6 +55,19 @@ export function Titlebar({ isAIOpen, isAIProcessing, isAIDisabled, onToggleAI, o
 
   return (
     <div data-tauri-drag-region className="h-7 shrink-0 flex items-center justify-end px-2 gap-1">
+      {/* Update Button */}
+      {available && update && (
+        <Button
+          variant="default"
+          size="sm"
+          className="h-5 text-[10px] px-2 py-0"
+          onClick={() => (readyToRestart || downloadComplete) ? restartNow() : downloadAndInstall()}
+          disabled={downloading}
+        >
+          {downloading ? `${Math.round(progress)}%` : (readyToRestart || downloadComplete) ? tu("restartNow") : tu("updateNow")}
+        </Button>
+      )}
+
       {/* AI Assistant Button */}
       {onToggleAI && (
         <TooltipProvider delayDuration={300}>
@@ -83,6 +101,28 @@ export function Titlebar({ isAIOpen, isAIProcessing, isAIDisabled, onToggleAI, o
                   <Kbd className="text-[10px]">G I</Kbd>
                 </>
               )}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      )}
+
+      {/* Shortcuts Help Button */}
+      {onOpenShortcutsHelp && (
+        <TooltipProvider delayDuration={300}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-6"
+                onClick={onOpenShortcutsHelp}
+              >
+                <CircleHelp className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="flex items-center gap-2">
+              <span>Keyboard Shortcuts</span>
+              <Kbd className="text-[10px]">?</Kbd>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>

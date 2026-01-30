@@ -94,6 +94,10 @@ interface UIState {
   // Views can watch this to know when to refresh
   resourceDeleteTrigger: number;
 
+  // Keyboard shortcut triggers - incremented to signal actions to child components
+  refreshTrigger: number;
+  searchFocusTrigger: number;
+
   // Actions
   setTheme: (theme: Theme) => void;
   setLocale: (locale: Locale) => void;
@@ -107,6 +111,8 @@ interface UIState {
     pod: { namespace: string; podName: string } | null
   ) => void;
   triggerResourceDeleteRefresh: () => void;
+  triggerRefresh: () => void;
+  triggerSearchFocus: () => void;
 }
 
 // Helper to get valid vibrancy level
@@ -127,6 +133,8 @@ export const useUIStore = create<UIState>()(
       isAIAssistantOpen: false,
       pendingPodLogs: null,
       resourceDeleteTrigger: 0,
+      refreshTrigger: 0,
+      searchFocusTrigger: 0,
 
       setTheme: (theme) => {
         set((state) => ({
@@ -185,6 +193,12 @@ export const useUIStore = create<UIState>()(
 
       triggerResourceDeleteRefresh: () =>
         set((state) => ({ resourceDeleteTrigger: state.resourceDeleteTrigger + 1 })),
+
+      triggerRefresh: () =>
+        set((state) => ({ refreshTrigger: state.refreshTrigger + 1 })),
+
+      triggerSearchFocus: () =>
+        set((state) => ({ searchFocusTrigger: state.searchFocusTrigger + 1 })),
     }),
     {
       name: "kubeli-ui-settings",

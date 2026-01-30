@@ -1,11 +1,13 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import { RefreshCw, Search, Radio } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
+import { useUIStore } from "@/lib/stores/ui-store";
 import type { FilterOption } from "../types";
 
 interface ResourceListHeaderProps<T> {
@@ -40,6 +42,21 @@ export function ResourceListHeader<T>({
   onRefresh,
 }: ResourceListHeaderProps<T>) {
   const t = useTranslations();
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const searchFocusTrigger = useUIStore((s) => s.searchFocusTrigger);
+  const refreshTrigger = useUIStore((s) => s.refreshTrigger);
+
+  useEffect(() => {
+    if (searchFocusTrigger > 0) {
+      searchInputRef.current?.focus();
+    }
+  }, [searchFocusTrigger]);
+
+  useEffect(() => {
+    if (refreshTrigger > 0) {
+      onRefresh();
+    }
+  }, [refreshTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
@@ -108,6 +125,7 @@ export function ResourceListHeader<T>({
         <div className="relative">
           <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
+            ref={searchInputRef}
             type="text"
             placeholder={`${t("common.search")}...`}
             value={searchQuery}

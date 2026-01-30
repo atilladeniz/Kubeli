@@ -74,7 +74,7 @@ function DashboardContent() {
   const [scaleDialog, setScaleDialog] = useState<ScaleDialogState | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const { getFavorites } = useFavoritesStore();
-  const { setSettingsOpen, isAIAssistantOpen, toggleAIAssistant, pendingPodLogs } = useUIStore();
+  const { setSettingsOpen, isAIAssistantOpen, toggleAIAssistant, pendingPodLogs, triggerRefresh, triggerSearchFocus } = useUIStore();
   const { isThinking, isStreaming } = useAIStore();
   const isAIProcessing = isThinking || isStreaming;
 
@@ -134,6 +134,8 @@ function DashboardContent() {
     { key: NAVIGATION_SHORTCUTS.GOTO_CONFIGMAPS, handler: () => setActiveResource("configmaps"), description: "Go to ConfigMaps" },
     { key: NAVIGATION_SHORTCUTS.GOTO_SECRETS, handler: () => setActiveResource("secrets"), description: "Go to Secrets" },
     { key: NAVIGATION_SHORTCUTS.GOTO_NAMESPACES, handler: () => setActiveResource("namespaces"), description: "Go to Namespaces" },
+    { key: NAVIGATION_SHORTCUTS.FOCUS_SEARCH, handler: () => triggerSearchFocus(), description: "Focus search" },
+    { key: NAVIGATION_SHORTCUTS.REFRESH, handler: () => triggerRefresh(), description: "Refresh view" },
     { key: NAVIGATION_SHORTCUTS.HELP, handler: () => setShowShortcutsHelp(true), description: "Show shortcuts help" },
     { key: NAVIGATION_SHORTCUTS.TOGGLE_AI, handler: () => { if (isAICliAvailable !== false) toggleAIAssistant(); }, description: "Toggle AI Assistant" },
     // Favorite shortcuts (Cmd+1 through Cmd+9)
@@ -158,7 +160,7 @@ function DashboardContent() {
       const prevIdx = (idx - 1 + resourceTabs.length) % resourceTabs.length;
       setActiveTab(resourceTabs[prevIdx].id);
     }, description: "Previous tab", global: true },
-  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, closeTab, setActiveTab, setActiveResource]);
+  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, closeTab, setActiveTab, setActiveResource, triggerRefresh, triggerSearchFocus]);
 
   useKeyboardShortcuts(shortcuts, { enabled: isConnected });
 
@@ -274,6 +276,7 @@ function DashboardContent() {
               isAIProcessing={isAIProcessing}
               isAIDisabled={isAICliAvailable === false}
               onToggleAI={toggleAIAssistant}
+              onOpenShortcutsHelp={() => setShowShortcutsHelp(true)}
               onOpenSettings={() => setSettingsOpen(true)}
             />
             {isConnected && <TabBar />}
