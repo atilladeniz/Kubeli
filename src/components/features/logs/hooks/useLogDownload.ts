@@ -60,11 +60,11 @@ export function useLogDownload({
 
         if (filePath) {
           await writeTextFile(filePath, content);
-          toast.success(t("messages.saveSuccess"));
+          toast.success(t("logs.downloadSuccess"));
         }
       } catch (e) {
         console.error("Download failed:", e);
-        toast.error(t("messages.saveError"));
+        toast.error(t("logs.downloadError"));
       } finally {
         setIsDownloading(false);
       }

@@ -75,7 +75,7 @@ describe("useLogDownload", () => {
       filters: [{ name: "Log File", extensions: ["log"] }],
     });
     expect(mockWriteTextFile).toHaveBeenCalled();
-    expect(toast.success).toHaveBeenCalledWith("messages.saveSuccess");
+    expect(toast.success).toHaveBeenCalledWith("logs.downloadSuccess");
   });
 
   it("downloads logs as JSON format", async () => {
