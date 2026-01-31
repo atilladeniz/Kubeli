@@ -153,7 +153,7 @@ describe("useLogDownload", () => {
       await result.current.downloadLogs("text");
     });
 
-    expect(toast.error).toHaveBeenCalledWith("messages.saveError");
+    expect(toast.error).toHaveBeenCalledWith("logs.downloadError");
     expect(consoleSpy).toHaveBeenCalledWith("Download failed:", expect.any(Error));
 
     consoleSpy.mockRestore();
