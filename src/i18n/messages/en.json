@@ -314,7 +314,8 @@
     "levelError": "Error",
     "levelWarn": "Warning",
     "levelInfo": "Info",
-    "levelDebug": "Debug"
+    "levelDebug": "Debug",
+    "podDeleted": "This pod has been deleted. The logs shown below are from before deletion."
   },
   "terminal": {
     "title": "Terminal",

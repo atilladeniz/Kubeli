@@ -97,7 +97,7 @@ export function useLogs(
       } catch (e) {
         const msg = typeof e === "string" ? e : e instanceof Error ? e.message : "";
         if (msg.includes("NotFound") || msg.includes("not found")) {
-          onPodNotFoundRef.current?.();
+          if (logsRef.current.length === 0) onPodNotFoundRef.current?.();
         }
       }
     };
@@ -181,7 +181,7 @@ export function useLogs(
       } catch (e) {
         const errorMsg = e instanceof Error ? e.message : typeof e === "string" ? e : "Failed to fetch logs";
         if (errorMsg.includes("NotFound") || errorMsg.includes("not found")) {
-          onPodNotFoundRef.current?.();
+          if (logsRef.current.length === 0) onPodNotFoundRef.current?.();
         }
         setError(errorMsg);
       } finally {
@@ -223,7 +223,7 @@ export function useLogs(
             case "Error":
               flushPendingLogs();
               if (logEvent.data?.includes("NotFound") || logEvent.data?.includes("not found")) {
-                onPodNotFoundRef.current?.();
+                if (logsRef.current.length === 0) onPodNotFoundRef.current?.();
               }
               setError(logEvent.data);
               setIsStreaming(false);

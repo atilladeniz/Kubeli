@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { useEffect, useState, useMemo } from "react";
+import { AlertCircle, Info } from "lucide-react";
 import { useLogs } from "@/lib/hooks/useLogs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTranslations } from "next-intl";
@@ -38,6 +38,11 @@ export function LogViewer({ namespace, podName, initialContainer, onPodNotFound 
     stopStream,
     clearLogs,
   } = useLogs(namespace, podName, { onPodNotFound });
+
+  const isPodNotFound = useMemo(
+    () => !!error && (error.includes("NotFound") || error.includes("not found")),
+    [error]
+  );
 
   // Local UI state
   const [showTimestamps, setShowTimestamps] = useState(true);
@@ -156,11 +161,21 @@ export function LogViewer({ namespace, podName, initialContainer, onPodNotFound 
       />
 
       {/* Error display */}
-      {error && (
+      {error && !isPodNotFound && (
         <div className="px-4 py-2">
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {/* Pod deleted banner - shown when logs exist */}
+      {isPodNotFound && logs.length > 0 && (
+        <div className="px-4 py-2">
+          <Alert>
+            <Info className="size-4" />
+            <AlertDescription>{t("logs.podDeleted")}</AlertDescription>
           </Alert>
         </div>
       )}
