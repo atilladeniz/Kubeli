@@ -12,6 +12,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAiCli, useMcpIdes } from "./hooks";
 import {
+  KubeconfigTab,
   AppearanceTab,
   GeneralTab,
   NetworkTab,
@@ -62,6 +63,7 @@ export function SettingsPanel() {
             <TabsTrigger value="appearance">{t("tabs.appearance")}</TabsTrigger>
             <TabsTrigger value="general">{t("tabs.general")}</TabsTrigger>
             <TabsTrigger value="network">{t("tabs.network")}</TabsTrigger>
+            <TabsTrigger value="kubeconfig">{t("tabs.kubeconfig")}</TabsTrigger>
             <TabsTrigger value="mcp">{t("tabs.mcp")}</TabsTrigger>
             <TabsTrigger value="ai">{t("tabs.ai")}</TabsTrigger>
             <TabsTrigger value="logs">{t("tabs.logs")}</TabsTrigger>
@@ -80,6 +82,10 @@ export function SettingsPanel() {
 
             <TabsContent value="network" className="m-0">
               <NetworkTab />
+            </TabsContent>
+
+            <TabsContent value="kubeconfig" className="m-0">
+              <KubeconfigTab />
             </TabsContent>
 
             <TabsContent value="mcp" className="m-0">

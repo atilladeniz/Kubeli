@@ -2,6 +2,7 @@ export { SettingSection } from "./SettingSection";
 export { ThemeSelector } from "./ThemeSelector";
 export { CliStatusCard } from "./CliStatusCard";
 export { McpIdeCard } from "./McpIdeCard";
+export { KubeconfigTab } from "./KubeconfigTab";
 export { AppearanceTab } from "./AppearanceTab";
 export { GeneralTab } from "./GeneralTab";
 export { NetworkTab } from "./NetworkTab";

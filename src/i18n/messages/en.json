@@ -370,7 +370,34 @@
       "ai": "AI",
       "logs": "Logs",
       "advanced": "Advanced",
-      "about": "About"
+      "about": "About",
+      "kubeconfig": "Kubeconfig"
+    },
+    "kubeconfig": {
+      "sources": {
+        "title": "Kubeconfig Sources",
+        "description": "Configure where Kubeli looks for your kubeconfig files. By default, Kubeli uses the same location as kubectl.",
+        "addFile": "Add File",
+        "addFolder": "Add Folder",
+        "enterPath": "Enter Path",
+        "deleteTitle": "Remove Source",
+        "deleteDescription": "Are you sure you want to remove this kubeconfig source?",
+        "delete": "Remove",
+        "cancel": "Cancel",
+        "add": "Add",
+        "pathPlaceholder": "/path/to/kubeconfig",
+        "file": "file",
+        "files": "files",
+        "context": "context",
+        "contexts": "contexts",
+        "invalid": "Invalid"
+      },
+      "mergeMode": {
+        "title": "Merge Files",
+        "description": "Combine split kubeconfig files into one unified configuration.",
+        "helpTitle": "When do I need this?",
+        "helpDescription": "Enable this when your kubeconfig data is spread across multiple files — for example, contexts defined in one file and clusters or users in another. Kubeli will merge them so every context can find its matching cluster and credentials."
+      }
     },
     "theme": {
       "title": "Theme",
