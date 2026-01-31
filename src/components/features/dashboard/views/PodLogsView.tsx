@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
-import { FileX } from "lucide-react";
+import { FileX, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogViewer } from "../../logs/LogViewer";
 import { useTabsStore } from "@/lib/stores/tabs-store";
@@ -46,6 +46,7 @@ export function PodLogsView() {
           onClick={() => navigateCurrentTab("pods", t("navigation.pods"))}
         >
           {t("empty.goToPods")}
+          <ArrowRight className="size-4" />
         </Button>
       </div>
     );
