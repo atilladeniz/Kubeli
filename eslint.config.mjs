@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Generated artifacts
+    "coverage/**",
+    "web/dist/**",
     // Ignore Tauri Rust project (generated files)
     "src-tauri/**",
     // Tooling configs
