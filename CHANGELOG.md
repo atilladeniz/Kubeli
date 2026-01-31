@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.15] - 2026-01-31
+
+- Added kubeconfig sources management
+- Added DeepWiki badge to README for enhanced user support
+
 ## [0.3.14] - 2026-01-30
 
 - Added adaptive plus button and Cmd+T shortcut to tab bar
