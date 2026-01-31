@@ -168,7 +168,12 @@ function SortableTab({
             isDragging && "shadow-lg cursor-grabbing"
           )}
         >
-          <span className="truncate">{title}</span>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span className="truncate">{title}</span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{title}</TooltipContent>
+          </Tooltip>
           {canClose && (
             <span
               role="button"
