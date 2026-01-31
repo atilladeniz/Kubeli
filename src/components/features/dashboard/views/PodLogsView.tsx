@@ -56,6 +56,7 @@ export function PodLogsView() {
     <div className="flex h-full flex-col">
       <div className="flex-1 overflow-hidden min-h-0">
         <LogViewer
+          key={activeTab?.id}
           namespace={metadata.namespace}
           podName={metadata.podName}
           onPodNotFound={handlePodNotFound}
