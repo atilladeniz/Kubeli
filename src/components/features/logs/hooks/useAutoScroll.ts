@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
 import { LOG_DEFAULTS } from "../types";
 
 interface UseAutoScrollOptions {
@@ -39,18 +39,25 @@ export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onSc
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isMountedRef = useRef(false);
 
-  // Restore scroll position on mount
-  useEffect(() => {
-    if (initialScrollTop && initialScrollTop > 0 && containerRef.current) {
+  // Restore scroll position synchronously before paint to avoid flicker
+  useLayoutEffect(() => {
+    if (isResuming && initialScrollTop && initialScrollTop > 0 && containerRef.current) {
       containerRef.current.scrollTop = initialScrollTop;
     }
     // Only on mount
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Auto-scroll to bottom when dependencies change
+  // Mark mounted after first render
   useEffect(() => {
+    isMountedRef.current = true;
+  }, []);
+
+  // Auto-scroll to bottom when dependencies change (skip initial render when resuming)
+  useEffect(() => {
+    if (!isMountedRef.current && isResuming) return;
     if (autoScroll && endRef.current) {
       endRef.current.scrollIntoView({ behavior: "smooth" });
     }
