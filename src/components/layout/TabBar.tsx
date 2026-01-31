@@ -133,6 +133,8 @@ function SortableTab({
   tCloseOthers,
   tCloseToRight,
 }: SortableTabProps) {
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
   const {
     attributes,
     listeners,
@@ -168,9 +170,18 @@ function SortableTab({
             isDragging && "shadow-lg cursor-grabbing"
           )}
         >
-          <Tooltip>
+          <Tooltip open={isTruncated ? undefined : false}>
             <TooltipTrigger asChild>
-              <span className="truncate">{title}</span>
+              <span
+                ref={textRef}
+                className="truncate"
+                onPointerEnter={() => {
+                  const el = textRef.current;
+                  setIsTruncated(!!el && el.scrollWidth > el.clientWidth);
+                }}
+              >
+                {title}
+              </span>
             </TooltipTrigger>
             <TooltipContent side="bottom">{title}</TooltipContent>
           </Tooltip>
