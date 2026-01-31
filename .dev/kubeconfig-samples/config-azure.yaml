@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: Config
+current-context: aks-dev
+preferences: {}
+clusters:
+  - name: aks-dev
+    cluster:
+      server: https://aks-dev-dns-a1b2c3d4.hcp.eastus.azmk8s.io:443
+      certificate-authority-data: ZmFrZS1jYS1jZXJ0LWRhdGEtZm9yLWFrcy1kZXY=
+contexts:
+  - name: aks-dev
+    context:
+      cluster: aks-dev
+      user: aks-dev-user
+      namespace: development
+users:
+  - name: aks-dev-user
+    user:
+      exec:
+        apiVersion: client.authentication.k8s.io/v1beta1
+        command: kubelogin
+        args:
+          - get-token
+          - --login
+          - devicecode
+          - --server-id
+          - 6dae42f8-4368-4678-94ff-3960e28e3630
+          - --client-id
+          - 80faf920-1908-4b52-b5ef-a8e7bedfc67a
+          - --tenant-id
+          - 72f988bf-86f1-41af-91ab-2d7cd011db47
+          - --environment
+          - AzurePublicCloud
+        env: null
+        interactiveMode: IfAvailable
+        provideClusterInfo: false

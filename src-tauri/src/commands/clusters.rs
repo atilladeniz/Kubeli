@@ -2,7 +2,8 @@
 
 use crate::k8s::{AppState, AuthType, KubeConfig};
 use serde::{Deserialize, Serialize};
-use tauri::{command, State};
+use tauri::{command, AppHandle, State};
+use tauri_plugin_store::StoreExt;
 
 /// Cluster information returned to frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -15,6 +16,7 @@ pub struct ClusterInfo {
     pub user: String,
     pub auth_type: String,
     pub current: bool,
+    pub source_file: Option<String>,
 }
 
 /// Connection status
@@ -34,14 +36,47 @@ pub struct HealthCheckResult {
     pub error: Option<String>,
 }
 
+/// Load kubeconfig using configured sources (or default)
+async fn load_kubeconfig_from_sources(app: &AppHandle) -> Option<KubeConfig> {
+    // Try to load sources config from store
+    let sources_config = {
+        let store = app.store("kubeconfig-sources.json").ok()?;
+        match store.get("sources_config") {
+            Some(value) => {
+                serde_json::from_value::<crate::k8s::KubeconfigSourcesConfig>(value.clone()).ok()
+            }
+            None => None,
+        }
+    };
+
+    match sources_config {
+        Some(config) if !config.sources.is_empty() => {
+            match KubeConfig::load_from_sources(&config.sources, config.merge_mode).await {
+                Ok(cfg) => Some(cfg),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to load from sources: {}, falling back to default",
+                        e
+                    );
+                    KubeConfig::load().await.ok()
+                }
+            }
+        }
+        _ => KubeConfig::load().await.ok(),
+    }
+}
+
 /// List all available clusters from kubeconfig
 #[command]
-pub async fn list_clusters(_state: State<'_, AppState>) -> Result<Vec<ClusterInfo>, String> {
-    // Try to load kubeconfig
-    let kubeconfig = match KubeConfig::load().await {
-        Ok(config) => config,
-        Err(e) => {
-            tracing::warn!("Failed to load kubeconfig: {}", e);
+pub async fn list_clusters(
+    app: AppHandle,
+    _state: State<'_, AppState>,
+) -> Result<Vec<ClusterInfo>, String> {
+    // Try to load kubeconfig from configured sources
+    let kubeconfig = match load_kubeconfig_from_sources(&app).await {
+        Some(config) => config,
+        None => {
+            tracing::warn!("No kubeconfig available");
             return Ok(vec![]);
         }
     };
@@ -72,6 +107,7 @@ pub async fn list_clusters(_state: State<'_, AppState>) -> Result<Vec<ClusterInf
                 user: ctx.user.clone(),
                 auth_type: auth_type_str.to_string(),
                 current: current_context == Some(ctx.name.as_str()),
+                source_file: ctx.source_file.clone(),
             })
         })
         .collect();

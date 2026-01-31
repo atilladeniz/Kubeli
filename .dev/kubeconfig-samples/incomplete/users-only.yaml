@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Config
+preferences: {}
+clusters: []
+contexts: []
+users:
+  - name: merged-user
+    user:
+      token: ZmFrZS1iZWFyZXItdG9rZW4tZm9yLW1lcmdlZC11c2Vy

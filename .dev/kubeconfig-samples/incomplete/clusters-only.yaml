@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Config
+preferences: {}
+clusters:
+  - name: merged-cluster
+    cluster:
+      server: https://10.0.0.50:6443
+      certificate-authority-data: ZmFrZS1jYS1jZXJ0LWRhdGEtZm9yLW1lcmdlZC1jbHVzdGVy
+contexts: []
+users: []

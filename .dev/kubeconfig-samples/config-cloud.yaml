@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Config
+current-context: aws-staging
+preferences: {}
+clusters:
+  - name: aws-staging
+    cluster:
+      server: https://ABCDEF1234567890.gr7.us-east-1.eks.amazonaws.com
+      certificate-authority-data: ZmFrZS1jYS1jZXJ0LWRhdGEtZm9yLWF3cy1zdGFnaW5n
+  - name: aws-production
+    cluster:
+      server: https://FEDCBA0987654321.gr7.us-west-2.eks.amazonaws.com
+      certificate-authority-data: ZmFrZS1jYS1jZXJ0LWRhdGEtZm9yLWF3cy1wcm9kdWN0aW9u
+contexts:
+  - name: aws-staging
+    context:
+      cluster: aws-staging
+      user: aws-staging-user
+      namespace: staging
+  - name: aws-production
+    context:
+      cluster: aws-production
+      user: aws-production-user
+      namespace: production
+users:
+  - name: aws-staging-user
+    user:
+      exec:
+        apiVersion: client.authentication.k8s.io/v1beta1
+        command: aws
+        args:
+          - eks
+          - get-token
+          - --cluster-name
+          - my-staging-cluster
+          - --region
+          - us-east-1
+        env:
+          - name: AWS_PROFILE
+            value: staging
+        interactiveMode: IfAvailable
+        provideClusterInfo: false
+  - name: aws-production-user
+    user:
+      exec:
+        apiVersion: client.authentication.k8s.io/v1beta1
+        command: aws
+        args:
+          - eks
+          - get-token
+          - --cluster-name
+          - my-production-cluster
+          - --region
+          - us-west-2
+        env:
+          - name: AWS_PROFILE
+            value: production
+        interactiveMode: IfAvailable
+        provideClusterInfo: false

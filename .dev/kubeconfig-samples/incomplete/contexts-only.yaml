@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Config
+current-context: merged-test
+preferences: {}
+clusters: []
+contexts:
+  - name: merged-test
+    context:
+      cluster: merged-cluster
+      user: merged-user
+      namespace: test-ns
+users: []

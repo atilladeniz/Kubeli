@@ -182,6 +182,14 @@ fn main() {
             commands::clusters::get_connection_status,
             commands::clusters::check_connection_health,
             commands::clusters::has_kubeconfig,
+            // Kubeconfig source commands
+            commands::kubeconfig::get_kubeconfig_sources,
+            commands::kubeconfig::set_kubeconfig_sources,
+            commands::kubeconfig::add_kubeconfig_source,
+            commands::kubeconfig::remove_kubeconfig_source,
+            commands::kubeconfig::list_kubeconfig_sources,
+            commands::kubeconfig::validate_kubeconfig_path,
+            commands::kubeconfig::set_kubeconfig_merge_mode,
             // Debug commands
             commands::debug::export_debug_info,
             commands::debug::generate_debug_log,

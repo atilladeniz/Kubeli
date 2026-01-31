@@ -370,7 +370,34 @@
       "ai": "KI",
       "logs": "Logs",
       "advanced": "Erweitert",
-      "about": "Über"
+      "about": "Über",
+      "kubeconfig": "Kubeconfig"
+    },
+    "kubeconfig": {
+      "sources": {
+        "title": "Kubeconfig-Quellen",
+        "description": "Konfigurieren Sie, wo Kubeli nach Ihren Kubeconfig-Dateien sucht. Standardmäßig verwendet Kubeli denselben Speicherort wie kubectl.",
+        "addFile": "Datei hinzufügen",
+        "addFolder": "Ordner hinzufügen",
+        "enterPath": "Pfad eingeben",
+        "deleteTitle": "Quelle entfernen",
+        "deleteDescription": "Möchtest du diese Kubeconfig-Quelle wirklich entfernen?",
+        "delete": "Entfernen",
+        "cancel": "Abbrechen",
+        "add": "Hinzufügen",
+        "pathPlaceholder": "/pfad/zur/kubeconfig",
+        "file": "Datei",
+        "files": "Dateien",
+        "context": "Kontext",
+        "contexts": "Kontexte",
+        "invalid": "Ungültig"
+      },
+      "mergeMode": {
+        "title": "Dateien zusammenführen",
+        "description": "Aufgeteilte Kubeconfig-Dateien zu einer Konfiguration vereinen.",
+        "helpTitle": "Wann brauche ich das?",
+        "helpDescription": "Aktiviere dies, wenn deine Kubeconfig-Daten auf mehrere Dateien verteilt sind — z.B. Kontexte in einer Datei und Cluster oder Benutzer in einer anderen. Kubeli führt sie zusammen, damit jeder Kontext sein passendes Cluster und Zugangsdaten findet."
+      }
     },
     "theme": {
       "title": "Design",
