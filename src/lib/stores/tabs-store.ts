@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { ResourceType } from "@/components/layout/Sidebar";
+import { useLogStore } from "./log-store";
 
 export interface TabMetadata {
   namespace?: string;
@@ -97,6 +98,7 @@ export const useTabsStore = create<TabsState>((set, get) => ({
     const { tabs, activeTabId } = get();
     if (tabs.length <= 1) return; // Can't close last tab
 
+    const closedTab = tabs.find((t) => t.id === id);
     const idx = tabs.findIndex((t) => t.id === id);
     const newTabs = tabs.filter((t) => t.id !== id);
     let newActiveId = activeTabId;
@@ -109,26 +111,45 @@ export const useTabsStore = create<TabsState>((set, get) => ({
 
     set({ tabs: newTabs, activeTabId: newActiveId });
     persistTabs(newTabs, newActiveId);
+
+    if (closedTab?.type === "pod-logs") {
+      useLogStore.getState().cleanupLogTab(id);
+    }
   },
 
   closeOtherTabs: (id) => {
     const { tabs } = get();
     const tab = tabs.find((t) => t.id === id);
     if (!tab) return;
+
+    const removedTabs = tabs.filter((t) => t.id !== id);
     const newTabs = [tab];
     set({ tabs: newTabs, activeTabId: id });
     persistTabs(newTabs, id);
+
+    for (const t of removedTabs) {
+      if (t.type === "pod-logs") {
+        useLogStore.getState().cleanupLogTab(t.id);
+      }
+    }
   },
 
   closeTabsToRight: (id) => {
     const { tabs, activeTabId } = get();
     const idx = tabs.findIndex((t) => t.id === id);
     const newTabs = tabs.slice(0, idx + 1);
+    const removedTabs = tabs.slice(idx + 1);
     const newActiveId = newTabs.find((t) => t.id === activeTabId)
       ? activeTabId
       : id;
     set({ tabs: newTabs, activeTabId: newActiveId });
     persistTabs(newTabs, newActiveId);
+
+    for (const t of removedTabs) {
+      if (t.type === "pod-logs") {
+        useLogStore.getState().cleanupLogTab(t.id);
+      }
+    }
   },
 
   setActiveTab: (id) => {
@@ -183,12 +204,19 @@ export const useTabsStore = create<TabsState>((set, get) => ({
   },
 
   resetTabs: () => {
+    const { tabs } = get();
     set({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id });
     try {
       const ctx = getClusterContext();
       if (ctx) localStorage.removeItem(`kubeli:tabs:${ctx}`);
     } catch {
       // ignore
+    }
+
+    for (const t of tabs) {
+      if (t.type === "pod-logs") {
+        useLogStore.getState().cleanupLogTab(t.id);
+      }
     }
   },
 }));
