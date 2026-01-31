@@ -327,7 +327,8 @@ impl KubeConfig {
     }
 
     /// Load multiple kubeconfig files and merge into one KubeConfig
-    async fn load_and_merge(files: &[PathBuf], merge_mode: bool) -> Result<Self> {
+    #[cfg_attr(test, allow(dead_code))]
+    pub(crate) async fn load_and_merge(files: &[PathBuf], merge_mode: bool) -> Result<Self> {
         let mut all_contexts: Vec<ContextInfo> = Vec::new();
         let mut all_clusters: Vec<ClusterInfo> = Vec::new();
         let mut all_users: Vec<UserInfo> = Vec::new();
@@ -604,5 +605,264 @@ users:
         assert!(matches!(exec_user.auth_type, AuthType::ExecPlugin));
         let oidc_user = config.users.iter().find(|u| u.name == "oidc-user").unwrap();
         assert!(matches!(oidc_user.auth_type, AuthType::Oidc));
+    }
+
+    // --- Kubeconfig sources tests ---
+
+    #[test]
+    fn test_is_default_source() {
+        let default_path = KubeConfig::default_path().display().to_string();
+        assert!(KubeConfig::is_default_source(&default_path));
+        assert!(!KubeConfig::is_default_source("/some/other/path"));
+        assert!(!KubeConfig::is_default_source(""));
+    }
+
+    #[test]
+    fn test_default_sources_config() {
+        let config = KubeConfig::default_sources_config();
+        assert_eq!(config.sources.len(), 1);
+        assert!(!config.merge_mode);
+        assert!(matches!(
+            config.sources[0].source_type,
+            KubeconfigSourceType::File
+        ));
+        assert!(KubeConfig::is_default_source(&config.sources[0].path));
+    }
+
+    #[test]
+    fn test_parse_contexts_with_source_tracking() {
+        let config: serde_yaml::Value = serde_yaml::from_str(SAMPLE_KUBECONFIG).unwrap();
+        let contexts = KubeConfig::parse_contexts_with_source(&config, Some("/my/kubeconfig.yaml"));
+        assert_eq!(contexts.len(), 2);
+        for ctx in &contexts {
+            assert_eq!(ctx.source_file.as_deref(), Some("/my/kubeconfig.yaml"));
+        }
+    }
+
+    #[test]
+    fn test_parse_contexts_without_source_tracking() {
+        let config: serde_yaml::Value = serde_yaml::from_str(SAMPLE_KUBECONFIG).unwrap();
+        let contexts = KubeConfig::parse_contexts_with_source(&config, None);
+        assert_eq!(contexts.len(), 2);
+        for ctx in &contexts {
+            assert!(ctx.source_file.is_none());
+        }
+    }
+
+    // Sample kubeconfigs for merge testing — contexts-only file
+    const CONTEXTS_ONLY: &str = r#"
+apiVersion: v1
+kind: Config
+contexts:
+- name: ctx-a
+  context:
+    cluster: cluster-a
+    user: user-a
+"#;
+
+    // Clusters-only file
+    const CLUSTERS_ONLY: &str = r#"
+apiVersion: v1
+kind: Config
+clusters:
+- name: cluster-a
+  cluster:
+    server: https://10.0.0.1:6443
+"#;
+
+    // Users-only file
+    const USERS_ONLY: &str = r#"
+apiVersion: v1
+kind: Config
+users:
+- name: user-a
+  user:
+    token: test-token
+"#;
+
+    // Complete file (context + cluster + user all present)
+    const COMPLETE_FILE: &str = r#"
+apiVersion: v1
+kind: Config
+current-context: complete-ctx
+contexts:
+- name: complete-ctx
+  context:
+    cluster: complete-cluster
+    user: complete-user
+clusters:
+- name: complete-cluster
+  cluster:
+    server: https://complete.example.com:6443
+users:
+- name: complete-user
+  user:
+    token: complete-token
+"#;
+
+    /// Helper: write content to a temp file and return its path
+    fn write_temp_kubeconfig(dir: &std::path::Path, name: &str, content: &str) -> PathBuf {
+        let path = dir.join(name);
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    #[tokio::test]
+    async fn test_load_and_merge_with_merge_mode() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_temp_kubeconfig(dir.path(), "contexts.yaml", CONTEXTS_ONLY);
+        let f2 = write_temp_kubeconfig(dir.path(), "clusters.yaml", CLUSTERS_ONLY);
+        let f3 = write_temp_kubeconfig(dir.path(), "users.yaml", USERS_ONLY);
+
+        let result = KubeConfig::load_and_merge(&[f1, f2, f3], true)
+            .await
+            .unwrap();
+        // Merge mode: context should be kept even though cluster/user are in other files
+        assert_eq!(result.contexts.len(), 1);
+        assert_eq!(result.contexts[0].name, "ctx-a");
+        assert_eq!(result.clusters.len(), 1);
+        assert_eq!(result.users.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_load_and_merge_without_merge_mode_filters_cross_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_temp_kubeconfig(dir.path(), "contexts.yaml", CONTEXTS_ONLY);
+        let f2 = write_temp_kubeconfig(dir.path(), "clusters.yaml", CLUSTERS_ONLY);
+        let f3 = write_temp_kubeconfig(dir.path(), "users.yaml", USERS_ONLY);
+
+        let result = KubeConfig::load_and_merge(&[f1, f2, f3], false)
+            .await
+            .unwrap();
+        // Non-merge mode: ctx-a references cluster-a and user-a from different files → filtered
+        assert_eq!(result.contexts.len(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_load_and_merge_complete_file_kept_in_non_merge() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_temp_kubeconfig(dir.path(), "complete.yaml", COMPLETE_FILE);
+
+        let result = KubeConfig::load_and_merge(&[f1], false).await.unwrap();
+        // Complete file has context + cluster + user in same file → kept
+        assert_eq!(result.contexts.len(), 1);
+        assert_eq!(result.contexts[0].name, "complete-ctx");
+    }
+
+    #[tokio::test]
+    async fn test_load_and_merge_duplicate_contexts_first_wins() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_temp_kubeconfig(dir.path(), "first.yaml", COMPLETE_FILE);
+        // Second file has same context name but different cluster
+        let second = r#"
+apiVersion: v1
+kind: Config
+contexts:
+- name: complete-ctx
+  context:
+    cluster: other-cluster
+    user: other-user
+clusters:
+- name: other-cluster
+  cluster:
+    server: https://other.example.com:6443
+users:
+- name: other-user
+  user:
+    token: other-token
+"#;
+        let f2 = write_temp_kubeconfig(dir.path(), "second.yaml", second);
+
+        let result = KubeConfig::load_and_merge(&[f1, f2], true).await.unwrap();
+        assert_eq!(result.contexts.len(), 1);
+        assert_eq!(result.contexts[0].cluster, "complete-cluster"); // first wins
+    }
+
+    #[tokio::test]
+    async fn test_load_and_merge_current_context_from_first_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_temp_kubeconfig(dir.path(), "complete.yaml", COMPLETE_FILE);
+        let f2 = write_temp_kubeconfig(dir.path(), "sample.yaml", SAMPLE_KUBECONFIG);
+
+        let result = KubeConfig::load_and_merge(&[f1, f2], true).await.unwrap();
+        assert_eq!(result.current_context, Some("complete-ctx".to_string()));
+    }
+
+    #[tokio::test]
+    async fn test_load_and_merge_skips_invalid_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_temp_kubeconfig(dir.path(), "bad.yaml", "not: valid: yaml: [[[");
+        let f2 = write_temp_kubeconfig(dir.path(), "good.yaml", COMPLETE_FILE);
+
+        let result = KubeConfig::load_and_merge(&[f1, f2], true).await.unwrap();
+        assert_eq!(result.contexts.len(), 1);
+        assert_eq!(result.contexts[0].name, "complete-ctx");
+    }
+
+    #[tokio::test]
+    async fn test_scan_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        write_temp_kubeconfig(dir.path(), "a.yaml", COMPLETE_FILE);
+        write_temp_kubeconfig(dir.path(), "b.yml", SAMPLE_KUBECONFIG);
+        write_temp_kubeconfig(dir.path(), "config", CONTEXTS_ONLY);
+        write_temp_kubeconfig(dir.path(), "readme.txt", "not a kubeconfig");
+
+        let files = KubeConfig::scan_folder(&dir.path().to_path_buf())
+            .await
+            .unwrap();
+        assert_eq!(files.len(), 3); // a.yaml, b.yml, config — not readme.txt
+    }
+
+    #[tokio::test]
+    async fn test_validate_path_valid_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = write_temp_kubeconfig(dir.path(), "valid.yaml", SAMPLE_KUBECONFIG);
+
+        let info = KubeConfig::validate_path(f.to_str().unwrap())
+            .await
+            .unwrap();
+        assert!(info.valid);
+        assert_eq!(info.file_count, 1);
+        assert_eq!(info.context_count, 2);
+        assert!(matches!(info.source_type, KubeconfigSourceType::File));
+        assert!(!info.is_default);
+    }
+
+    #[tokio::test]
+    async fn test_validate_path_valid_folder() {
+        let dir = tempfile::tempdir().unwrap();
+        write_temp_kubeconfig(dir.path(), "a.yaml", COMPLETE_FILE);
+        write_temp_kubeconfig(dir.path(), "b.yaml", SAMPLE_KUBECONFIG);
+
+        let info = KubeConfig::validate_path(dir.path().to_str().unwrap())
+            .await
+            .unwrap();
+        assert!(info.valid);
+        assert_eq!(info.file_count, 2);
+        assert_eq!(info.context_count, 3); // 1 from complete + 2 from sample
+        assert!(matches!(info.source_type, KubeconfigSourceType::Folder));
+    }
+
+    #[tokio::test]
+    async fn test_validate_path_nonexistent() {
+        let info = KubeConfig::validate_path("/nonexistent/path/kubeconfig")
+            .await
+            .unwrap();
+        assert!(!info.valid);
+        assert_eq!(info.file_count, 0);
+        assert!(info.error.is_some());
+    }
+
+    #[tokio::test]
+    async fn test_validate_path_invalid_yaml() {
+        let dir = tempfile::tempdir().unwrap();
+        // Valid YAML but missing required kubeconfig fields (no contexts)
+        let f = write_temp_kubeconfig(dir.path(), "empty.yaml", "apiVersion: v1\nkind: Config\n");
+
+        let info = KubeConfig::validate_path(f.to_str().unwrap())
+            .await
+            .unwrap();
+        assert!(info.valid); // parses fine, just 0 contexts
+        assert_eq!(info.context_count, 0);
     }
 }
