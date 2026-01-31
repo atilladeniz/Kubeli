@@ -974,7 +974,10 @@
     "mutatingwebhooks": "Keine Mutating Webhooks gefunden",
     "validatingwebhooks": "Keine Validating Webhooks gefunden",
     "helmreleases": "Keine Helm Releases gefunden",
-    "noPodSelected": "Kein Pod ausgewählt"
+    "noPodSelected": "Kein Pod ausgewählt",
+    "podNotFound": "Pod nicht gefunden",
+    "podNotFoundDescription": "Der Pod \"{podName}\" im Namespace \"{namespace}\" existiert nicht mehr.",
+    "goToPods": "Zu Pods wechseln"
   },
   "watch": {
     "watching": "Beobachte",
