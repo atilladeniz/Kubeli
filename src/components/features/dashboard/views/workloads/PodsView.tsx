@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import {
   FileText,
@@ -44,10 +44,22 @@ export function PodsView() {
   });
   const { data: services } = useServices({ autoRefresh: true, refreshInterval: 30000 });
   const { forwards, startForward, stopForward } = usePortForward();
-  const [selectedPod, setSelectedPod] = useState<PodInfo | null>(null);
   const { addTab } = useTerminalTabs();
   const { openResourceDetail, handleDeleteFromContext, closeResourceDetail } = useResourceDetail();
   const openTabStore = useTabsStore((s) => s.openTab);
+  const tabCount = useTabsStore((s) => s.tabs.length);
+  const pendingLogsHandled = useRef(false);
+
+  const openLogsTab = (podName: string, namespace: string) => {
+    if (tabCount >= 10) {
+      toast.warning(t("tabs.limitToast"));
+      return;
+    }
+    openTabStore("pod-logs", `Logs: ${podName} (${namespace})`, {
+      newTab: true,
+      metadata: { namespace, podName },
+    });
+  };
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const { currentCluster } = useClusterStore();
@@ -60,21 +72,17 @@ export function PodsView() {
 
   // Watch for pending pod logs from AI assistant link clicks
   useEffect(() => {
-    if (pendingPodLogs && data) {
-      const matchingPod = data.find(
-        (pod) => pod.namespace === pendingPodLogs.namespace && pod.name === pendingPodLogs.podName
-      );
-      setPendingPodLogs(null);
-      if (matchingPod) {
-        queueMicrotask(() =>
-          openTabStore("pod-logs", `Logs: ${matchingPod.name}`, {
-            newTab: true,
-            metadata: { namespace: matchingPod.namespace, podName: matchingPod.name },
-          })
-        );
-      }
+    if (!pendingPodLogs || !data || pendingLogsHandled.current) return;
+    const matchingPod = data.find(
+      (pod) => pod.namespace === pendingPodLogs.namespace && pod.name === pendingPodLogs.podName
+    );
+    pendingLogsHandled.current = true;
+    setPendingPodLogs(null);
+    if (matchingPod) {
+      queueMicrotask(() => openLogsTab(matchingPod.name, matchingPod.namespace));
     }
-  }, [pendingPodLogs, data, setPendingPodLogs, openTabStore]);
+    return () => { pendingLogsHandled.current = false; };
+  }, [pendingPodLogs, data, setPendingPodLogs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pod status filters
   const podFilters: FilterOption<PodInfo>[] = useMemo(() => [
@@ -183,10 +191,7 @@ export function PodsView() {
               onClick={(e) => {
                 e.stopPropagation();
                 closeResourceDetail();
-                openTabStore("pod-logs", `Logs: ${pod.name}`, {
-                  newTab: true,
-                  metadata: { namespace: pod.namespace, podName: pod.name },
-                });
+                openLogsTab(pod.name, pod.namespace);
               }}
               className="h-7 px-2 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
             >
@@ -251,7 +256,6 @@ export function PodsView() {
         label: "View Details",
         icon: <Eye className="size-4" />,
         onClick: () => {
-          setSelectedPod(null);
           openResourceDetail("pod", pod.name, pod.namespace);
         },
       },
@@ -260,10 +264,7 @@ export function PodsView() {
         icon: <FileText className="size-4" />,
         onClick: () => {
           closeResourceDetail();
-          openTabStore("pod-logs", `Logs: ${pod.name}`, {
-            newTab: true,
-            metadata: { namespace: pod.namespace, podName: pod.name },
-          });
+          openLogsTab(pod.name, pod.namespace);
         },
         disabled: isTerminating,
       },
@@ -346,7 +347,6 @@ export function PodsView() {
       onStartWatch={startWatch}
       onStopWatch={stopWatchFn}
       onRowClick={(pod) => {
-        setSelectedPod(null);
         openResourceDetail("pod", pod.name, pod.namespace);
       }}
       getRowKey={(pod) => pod.uid}

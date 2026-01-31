@@ -1,9 +1,11 @@
 "use client";
 
+import { useTranslations } from "next-intl";
 import { LogViewer } from "../../logs/LogViewer";
 import { useTabsStore } from "@/lib/stores/tabs-store";
 
 export function PodLogsView() {
+  const t = useTranslations();
   const activeTabId = useTabsStore((s) => s.activeTabId);
   const tabs = useTabsStore((s) => s.tabs);
   const activeTab = tabs.find((t) => t.id === activeTabId);
@@ -12,7 +14,7 @@ export function PodLogsView() {
   if (!metadata?.namespace || !metadata?.podName) {
     return (
       <div className="flex h-full items-center justify-center text-muted-foreground">
-        No pod selected
+        {t("empty.noPodSelected")}
       </div>
     );
   }

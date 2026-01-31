@@ -973,7 +973,8 @@
     "runtimeclasses": "No runtime classes found",
     "mutatingwebhooks": "No mutating webhooks found",
     "validatingwebhooks": "No validating webhooks found",
-    "helmreleases": "No Helm releases found"
+    "helmreleases": "No Helm releases found",
+    "noPodSelected": "No pod selected"
   },
   "watch": {
     "watching": "Watching",
