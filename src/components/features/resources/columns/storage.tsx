@@ -7,7 +7,6 @@ import type {
   VolumeAttachmentInfo,
 } from "@/lib/types";
 import type { Column } from "../types";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { PVStatusBadge } from "../components/badges/PVStatusBadge";

@@ -1,5 +1,5 @@
 import { act } from "@testing-library/react";
-import { useDiagramStore, type DiagramNode, type LODLevel } from "../diagram-store";
+import { useDiagramStore, type LODLevel } from "../diagram-store";
 
 // Mock Tauri commands
 const mockGenerateResourceGraph = jest.fn();

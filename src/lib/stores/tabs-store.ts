@@ -1,10 +1,17 @@
 import { create } from "zustand";
 import type { ResourceType } from "@/components/layout/Sidebar";
+import { useLogStore } from "./log-store";
+
+export interface TabMetadata {
+  namespace?: string;
+  podName?: string;
+}
 
 export interface Tab {
   id: string;
   type: ResourceType;
   title: string;
+  metadata?: TabMetadata;
 }
 
 interface TabsState {
@@ -12,7 +19,7 @@ interface TabsState {
   activeTabId: string;
 
   // Actions
-  openTab: (type: ResourceType, title: string, opts?: { newTab?: boolean }) => void;
+  openTab: (type: ResourceType, title: string, opts?: { newTab?: boolean; metadata?: TabMetadata }) => void;
   closeTab: (id: string) => void;
   closeOtherTabs: (id: string) => void;
   closeTabsToRight: (id: string) => void;
@@ -62,127 +69,170 @@ function getClusterContext(): string | null {
   }
 }
 
-export const useTabsStore = create<TabsState>((set, get) => ({
-  tabs: [DEFAULT_TAB],
-  activeTabId: DEFAULT_TAB.id,
+function syncActiveTabId(activeTabId: string) {
+  useLogStore.getState().setActiveTabId(activeTabId);
+}
 
-  openTab: (type, title, opts) => {
-    const { tabs } = get();
+export const useTabsStore = create<TabsState>((set, get) => {
+  syncActiveTabId(DEFAULT_TAB.id);
 
-    // If not forcing new tab, navigate current tab
-    if (!opts?.newTab) {
-      get().navigateCurrentTab(type, title);
-      return;
-    }
+  return {
+    tabs: [DEFAULT_TAB],
+    activeTabId: DEFAULT_TAB.id,
 
-    // Reject if at max
-    if (tabs.length >= MAX_TABS) {
-      return;
-    }
+    openTab: (type, title, opts) => {
+      const { tabs } = get();
 
-    const newTab: Tab = { id: generateId(), type, title };
-    const newTabs = [...tabs, newTab];
+      // If not forcing new tab, navigate current tab
+      if (!opts?.newTab) {
+        get().navigateCurrentTab(type, title);
+        return;
+      }
 
-    set({ tabs: newTabs, activeTabId: newTab.id });
-    persistTabs(newTabs, newTab.id);
-  },
+      // Reject if at max
+      if (tabs.length >= MAX_TABS) {
+        return;
+      }
 
-  closeTab: (id) => {
-    const { tabs, activeTabId } = get();
-    if (tabs.length <= 1) return; // Can't close last tab
+      const newTab: Tab = { id: generateId(), type, title, ...(opts?.metadata && { metadata: opts.metadata }) };
+      const newTabs = [...tabs, newTab];
 
-    const idx = tabs.findIndex((t) => t.id === id);
-    const newTabs = tabs.filter((t) => t.id !== id);
-    let newActiveId = activeTabId;
+      set({ tabs: newTabs, activeTabId: newTab.id });
+      persistTabs(newTabs, newTab.id);
+      syncActiveTabId(newTab.id);
+    },
 
-    if (activeTabId === id) {
-      // Switch to adjacent tab
-      const newIdx = Math.min(idx, newTabs.length - 1);
-      newActiveId = newTabs[newIdx].id;
-    }
+    closeTab: (id) => {
+      const { tabs, activeTabId } = get();
+      if (tabs.length <= 1) return; // Can't close last tab
 
-    set({ tabs: newTabs, activeTabId: newActiveId });
-    persistTabs(newTabs, newActiveId);
-  },
+      const closedTab = tabs.find((t) => t.id === id);
+      const idx = tabs.findIndex((t) => t.id === id);
+      const newTabs = tabs.filter((t) => t.id !== id);
+      let newActiveId = activeTabId;
 
-  closeOtherTabs: (id) => {
-    const { tabs } = get();
-    const tab = tabs.find((t) => t.id === id);
-    if (!tab) return;
-    const newTabs = [tab];
-    set({ tabs: newTabs, activeTabId: id });
-    persistTabs(newTabs, id);
-  },
+      if (activeTabId === id) {
+        // Switch to adjacent tab
+        const newIdx = Math.min(idx, newTabs.length - 1);
+        newActiveId = newTabs[newIdx].id;
+      }
 
-  closeTabsToRight: (id) => {
-    const { tabs, activeTabId } = get();
-    const idx = tabs.findIndex((t) => t.id === id);
-    const newTabs = tabs.slice(0, idx + 1);
-    const newActiveId = newTabs.find((t) => t.id === activeTabId)
-      ? activeTabId
-      : id;
-    set({ tabs: newTabs, activeTabId: newActiveId });
-    persistTabs(newTabs, newActiveId);
-  },
+      set({ tabs: newTabs, activeTabId: newActiveId });
+      persistTabs(newTabs, newActiveId);
+      syncActiveTabId(newActiveId);
 
-  setActiveTab: (id) => {
-    const { tabs } = get();
-    if (tabs.find((t) => t.id === id)) {
-      set({ activeTabId: id });
-      persistTabs(tabs, id);
-    }
-  },
+      if (closedTab?.type === "pod-logs") {
+        useLogStore.getState().cleanupLogTab(id);
+      }
+    },
 
-  navigateCurrentTab: (type, title) => {
-    const { tabs, activeTabId } = get();
-    const newTabs = tabs.map((t) =>
-      t.id === activeTabId ? { ...t, type, title } : t
-    );
-    set({ tabs: newTabs });
-    persistTabs(newTabs, activeTabId);
-  },
+    closeOtherTabs: (id) => {
+      const { tabs } = get();
+      const tab = tabs.find((t) => t.id === id);
+      if (!tab) return;
 
-  reorderTabs: (activeId, overId) => {
-    const { tabs, activeTabId } = get();
-    const oldIndex = tabs.findIndex((t) => t.id === activeId);
-    const newIndex = tabs.findIndex((t) => t.id === overId);
-    if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
-    const newTabs = [...tabs];
-    const [moved] = newTabs.splice(oldIndex, 1);
-    newTabs.splice(newIndex, 0, moved);
-    set({ tabs: newTabs });
-    persistTabs(newTabs, activeTabId);
-  },
+      const removedTabs = tabs.filter((t) => t.id !== id);
+      const newTabs = [tab];
+      set({ tabs: newTabs, activeTabId: id });
+      persistTabs(newTabs, id);
+      syncActiveTabId(id);
 
-  restoreTabs: (clusterContext: string) => {
-    try {
-      // Save context for persistence
-      localStorage.setItem(
-        "kubeli:last-cluster-context",
-        JSON.stringify(clusterContext)
-      );
-
-      const stored = localStorage.getItem(`kubeli:tabs:${clusterContext}`);
-      if (stored) {
-        const { tabs, activeTabId } = JSON.parse(stored);
-        if (Array.isArray(tabs) && tabs.length > 0) {
-          set({ tabs, activeTabId });
-          return;
+      for (const t of removedTabs) {
+        if (t.type === "pod-logs") {
+          useLogStore.getState().cleanupLogTab(t.id);
         }
       }
-    } catch {
-      // Fall through to default
-    }
-    set({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id });
-  },
+    },
 
-  resetTabs: () => {
-    set({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id });
-    try {
-      const ctx = getClusterContext();
-      if (ctx) localStorage.removeItem(`kubeli:tabs:${ctx}`);
-    } catch {
-      // ignore
-    }
-  },
-}));
+    closeTabsToRight: (id) => {
+      const { tabs, activeTabId } = get();
+      const idx = tabs.findIndex((t) => t.id === id);
+      const newTabs = tabs.slice(0, idx + 1);
+      const removedTabs = tabs.slice(idx + 1);
+      const newActiveId = newTabs.find((t) => t.id === activeTabId)
+        ? activeTabId
+        : id;
+      set({ tabs: newTabs, activeTabId: newActiveId });
+      persistTabs(newTabs, newActiveId);
+      syncActiveTabId(newActiveId);
+
+      for (const t of removedTabs) {
+        if (t.type === "pod-logs") {
+          useLogStore.getState().cleanupLogTab(t.id);
+        }
+      }
+    },
+
+    setActiveTab: (id) => {
+      const { tabs } = get();
+      if (tabs.find((t) => t.id === id)) {
+        set({ activeTabId: id });
+        persistTabs(tabs, id);
+        syncActiveTabId(id);
+      }
+    },
+
+    navigateCurrentTab: (type, title) => {
+      const { tabs, activeTabId } = get();
+      const newTabs = tabs.map((t) =>
+        t.id === activeTabId ? { ...t, type, title } : t
+      );
+      set({ tabs: newTabs });
+      persistTabs(newTabs, activeTabId);
+    },
+
+    reorderTabs: (activeId, overId) => {
+      const { tabs, activeTabId } = get();
+      const oldIndex = tabs.findIndex((t) => t.id === activeId);
+      const newIndex = tabs.findIndex((t) => t.id === overId);
+      if (oldIndex === -1 || newIndex === -1 || oldIndex === newIndex) return;
+      const newTabs = [...tabs];
+      const [moved] = newTabs.splice(oldIndex, 1);
+      newTabs.splice(newIndex, 0, moved);
+      set({ tabs: newTabs });
+      persistTabs(newTabs, activeTabId);
+    },
+
+    restoreTabs: (clusterContext: string) => {
+      try {
+        // Save context for persistence
+        localStorage.setItem(
+          "kubeli:last-cluster-context",
+          JSON.stringify(clusterContext)
+        );
+
+        const stored = localStorage.getItem(`kubeli:tabs:${clusterContext}`);
+        if (stored) {
+          const { tabs, activeTabId } = JSON.parse(stored);
+          if (Array.isArray(tabs) && tabs.length > 0) {
+            set({ tabs, activeTabId });
+            syncActiveTabId(activeTabId);
+            return;
+          }
+        }
+      } catch {
+        // Fall through to default
+      }
+      set({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id });
+      syncActiveTabId(DEFAULT_TAB.id);
+    },
+
+    resetTabs: () => {
+      const { tabs } = get();
+      set({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id });
+      syncActiveTabId(DEFAULT_TAB.id);
+      try {
+        const ctx = getClusterContext();
+        if (ctx) localStorage.removeItem(`kubeli:tabs:${ctx}`);
+      } catch {
+        // ignore
+      }
+
+      for (const t of tabs) {
+        if (t.type === "pod-logs") {
+          useLogStore.getState().cleanupLogTab(t.id);
+        }
+      }
+    },
+  };
+});

@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import {
   FileText,
-  X,
   Terminal as TerminalIcon,
   ArrowRightLeft,
   Copy,
@@ -22,7 +21,6 @@ import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import { useTerminalTabs } from "../../../terminal";
-import { LogViewer } from "../../../logs/LogViewer";
 import { ResourceList } from "../../../resources/ResourceList";
 import {
   podColumns,
@@ -34,6 +32,7 @@ import {
 } from "../../../resources/columns";
 import { deleteResource } from "@/lib/tauri/commands";
 import { useResourceDetail } from "../../context";
+import { useTabsStore } from "@/lib/stores/tabs-store";
 import type { PodInfo, ServiceInfo } from "@/lib/types";
 
 export function PodsView() {
@@ -45,9 +44,22 @@ export function PodsView() {
   });
   const { data: services } = useServices({ autoRefresh: true, refreshInterval: 30000 });
   const { forwards, startForward, stopForward } = usePortForward();
-  const [selectedPod, setSelectedPod] = useState<PodInfo | null>(null);
   const { addTab } = useTerminalTabs();
   const { openResourceDetail, handleDeleteFromContext, closeResourceDetail } = useResourceDetail();
+  const openTabStore = useTabsStore((s) => s.openTab);
+  const tabCount = useTabsStore((s) => s.tabs.length);
+  const pendingLogsHandled = useRef<{ namespace: string; podName: string } | null>(null);
+
+  const openLogsTab = (podName: string, namespace: string) => {
+    if (tabCount >= 10) {
+      toast.warning(t("tabs.limitToast"));
+      return;
+    }
+    openTabStore("pod-logs", `Logs: ${podName} (${namespace})`, {
+      newTab: true,
+      metadata: { namespace, podName },
+    });
+  };
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const { currentCluster } = useClusterStore();
@@ -60,18 +72,17 @@ export function PodsView() {
 
   // Watch for pending pod logs from AI assistant link clicks
   useEffect(() => {
-    if (pendingPodLogs && data) {
-      const matchingPod = data.find(
-        (pod) => pod.namespace === pendingPodLogs.namespace && pod.name === pendingPodLogs.podName
-      );
-      // Clear pending state first
-      setPendingPodLogs(null);
-      // Defer state update to avoid cascading renders
-      if (matchingPod) {
-        queueMicrotask(() => setSelectedPod(matchingPod));
-      }
+    if (!pendingPodLogs || !data) return;
+    if (pendingLogsHandled.current === pendingPodLogs) return;
+    const matchingPod = data.find(
+      (pod) => pod.namespace === pendingPodLogs.namespace && pod.name === pendingPodLogs.podName
+    );
+    pendingLogsHandled.current = pendingPodLogs;
+    setPendingPodLogs(null);
+    if (matchingPod) {
+      queueMicrotask(() => openLogsTab(matchingPod.name, matchingPod.namespace));
     }
-  }, [pendingPodLogs, data, setPendingPodLogs]);
+  }, [pendingPodLogs, data, setPendingPodLogs]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pod status filters
   const podFilters: FilterOption<PodInfo>[] = useMemo(() => [
@@ -180,7 +191,7 @@ export function PodsView() {
               onClick={(e) => {
                 e.stopPropagation();
                 closeResourceDetail();
-                setSelectedPod(pod);
+                openLogsTab(pod.name, pod.namespace);
               }}
               className="h-7 px-2 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
             >
@@ -245,7 +256,6 @@ export function PodsView() {
         label: "View Details",
         icon: <Eye className="size-4" />,
         onClick: () => {
-          setSelectedPod(null);
           openResourceDetail("pod", pod.name, pod.namespace);
         },
       },
@@ -254,7 +264,7 @@ export function PodsView() {
         icon: <FileText className="size-4" />,
         onClick: () => {
           closeResourceDetail();
-          setSelectedPod(pod);
+          openLogsTab(pod.name, pod.namespace);
         },
         disabled: isTerminating,
       },
@@ -325,31 +335,6 @@ export function PodsView() {
     ];
   };
 
-  if (selectedPod) {
-    return (
-      <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between border-b border-border px-4 py-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedPod(null)}
-            className="gap-2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="size-4" />
-            Back to Pods
-          </Button>
-        </div>
-        <div className="flex-1 overflow-hidden min-h-0">
-          <LogViewer
-            namespace={selectedPod.namespace}
-            podName={selectedPod.name}
-            onClose={() => setSelectedPod(null)}
-          />
-        </div>
-      </div>
-    );
-  }
-
   return (
     <ResourceList
       title={t("navigation.pods")}
@@ -362,7 +347,6 @@ export function PodsView() {
       onStartWatch={startWatch}
       onStopWatch={stopWatchFn}
       onRowClick={(pod) => {
-        setSelectedPod(null);
         openResourceDetail("pod", pod.name, pod.namespace);
       }}
       getRowKey={(pod) => pod.uid}

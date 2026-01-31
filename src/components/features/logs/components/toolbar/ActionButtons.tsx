@@ -17,11 +17,12 @@ import { DOWNLOAD_FORMATS } from "../../types";
 interface FetchButtonProps {
   isLoading: boolean;
   isStreaming: boolean;
+  disabled?: boolean;
   onFetch: () => void;
   tooltip: string;
 }
 
-export function FetchButton({ isLoading, isStreaming, onFetch, tooltip }: FetchButtonProps) {
+export function FetchButton({ isLoading, isStreaming, disabled, onFetch, tooltip }: FetchButtonProps) {
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -29,7 +30,7 @@ export function FetchButton({ isLoading, isStreaming, onFetch, tooltip }: FetchB
           variant="ghost"
           size="icon"
           onClick={onFetch}
-          disabled={isLoading || isStreaming}
+          disabled={isLoading || isStreaming || disabled}
           className="size-7"
         >
           {isLoading ? (

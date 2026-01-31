@@ -119,7 +119,9 @@ export type ResourceType =
   | "priority-classes"
   | "runtime-classes"
   | "mutating-webhooks"
-  | "validating-webhooks";
+  | "validating-webhooks"
+  // Special views
+  | "pod-logs";
 
 interface NavItem {
   id: ResourceType;

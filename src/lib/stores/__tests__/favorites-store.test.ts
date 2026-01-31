@@ -1,5 +1,5 @@
 import { act } from "@testing-library/react";
-import { useFavoritesStore, type FavoriteResource } from "../favorites-store";
+import { useFavoritesStore } from "../favorites-store";
 
 // Mock localStorage
 const localStorageMock = (() => {

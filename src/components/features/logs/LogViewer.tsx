@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { AlertCircle } from "lucide-react";
+import { useEffect, useState, useMemo, useCallback } from "react";
+import { AlertCircle, Info } from "lucide-react";
 import { useLogs } from "@/lib/hooks/useLogs";
+import { useLogStore } from "@/lib/stores/log-store";
+import { useTabsStore } from "@/lib/stores/tabs-store";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTranslations } from "next-intl";
 import { LogHeader, LogToolbar, LogContent, LogFooter } from "./components";
@@ -38,6 +40,11 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
     clearLogs,
   } = useLogs(namespace, podName);
 
+  const isPodNotFound = useMemo(
+    () => !!error && (error.includes("NotFound") || error.includes("not found")),
+    [error]
+  );
+
   // Local UI state
   const [showTimestamps, setShowTimestamps] = useState(true);
 
@@ -60,9 +67,28 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
     resetFilters();
   }, [namespace, podName, resetFilters]);
 
+  // Scroll position persistence
+  const tabId = useTabsStore((s) => s.activeTabId);
+  const storedScrollTop = useLogStore((s) => s.logTabs[tabId]?.scrollTop ?? 0);
+  const storedAutoScroll = useLogStore((s) => s.logTabs[tabId]?.autoScroll ?? true);
+  const onScrollTopChange = useCallback(
+    (scrollTop: number) => useLogStore.getState().setScrollTop(tabId, scrollTop),
+    [tabId]
+  );
+  const onAutoScrollChange = useCallback(
+    (value: boolean) => useLogStore.getState().setAutoScroll(tabId, value),
+    [tabId]
+  );
+
   // Auto-scroll hook - handles all scroll logic
+  const isResuming = logs.length > 0;
   const { containerRef, endRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
     dependencies: [logs],
+    initialScrollTop: storedScrollTop,
+    initialAutoScroll: isResuming ? storedAutoScroll : true,
+    isResuming,
+    onScrollTopChange,
+    onAutoScrollChange,
   });
 
   // AI analysis hook
@@ -132,6 +158,7 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         stream={{
           isStreaming,
           isLoading,
+          disabled: isPodNotFound,
           onStart: () => startStream(),
           onStop: stopStream,
           onFetch: () => fetchLogs({ tail_lines: LOG_DEFAULTS.FETCH_TAIL_LINES }),
@@ -152,14 +179,25 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         }}
         onClear={clearLogs}
         clearLabel={t("logs.clear")}
+        hideClear={isPodNotFound}
       />
 
       {/* Error display */}
-      {error && (
+      {error && !isPodNotFound && (
         <div className="px-4 py-2">
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
             <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {/* Pod deleted banner - shown when logs exist */}
+      {isPodNotFound && logs.length > 0 && (
+        <div className="px-4 py-2">
+          <Alert variant="info">
+            <Info className="size-4" />
+            <AlertDescription>{t("logs.podDeleted")}</AlertDescription>
           </Alert>
         </div>
       )}

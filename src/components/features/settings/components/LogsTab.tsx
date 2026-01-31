@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { useUIStore, type LogCloseConfirmation } from "@/lib/stores/ui-store";
 import { SettingSection } from "./SettingSection";
 
 export function LogsTab() {
@@ -91,6 +91,28 @@ export function LogsTab() {
             updateSettings({ editorWordWrap: checked })
           }
         />
+      </SettingSection>
+
+      <Separator />
+
+      <SettingSection
+        title={t("logs.closeConfirmation")}
+        description={t("logs.closeConfirmationDescription")}
+      >
+        <Select
+          value={settings.logCloseConfirmation || "ask"}
+          onValueChange={(value) =>
+            updateSettings({ logCloseConfirmation: value as LogCloseConfirmation })
+          }
+        >
+          <SelectTrigger className="w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="ask">{t("logs.closeConfirmationAsk")}</SelectItem>
+            <SelectItem value="never">{t("logs.closeConfirmationNever")}</SelectItem>
+          </SelectContent>
+        </Select>
       </SettingSection>
     </div>
   );

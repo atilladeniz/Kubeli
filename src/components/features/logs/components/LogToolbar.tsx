@@ -38,6 +38,7 @@ export interface FilterProps {
 export interface StreamProps {
   isStreaming: boolean;
   isLoading: boolean;
+  disabled?: boolean;
   onStart: () => void;
   onStop: () => void;
   onFetch: () => void;
@@ -67,6 +68,7 @@ interface LogToolbarProps {
   ai: AIProps;
   onClear: () => void;
   clearLabel: string;
+  hideClear?: boolean;
 }
 
 /**
@@ -81,6 +83,7 @@ export function LogToolbar({
   ai,
   onClear,
   clearLabel,
+  hideClear,
 }: LogToolbarProps) {
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-2">
@@ -115,6 +118,7 @@ export function LogToolbar({
         <StreamButton
           isStreaming={stream.isStreaming}
           isLoading={stream.isLoading}
+          disabled={stream.disabled}
           onStart={stream.onStart}
           onStop={stream.onStop}
           followLabel={stream.followLabel}
@@ -125,6 +129,7 @@ export function LogToolbar({
           <FetchButton
             isLoading={stream.isLoading}
             isStreaming={stream.isStreaming}
+            disabled={!!stream.disabled}
             onFetch={stream.onFetch}
             tooltip={stream.fetchTooltip}
           />
@@ -143,7 +148,7 @@ export function LogToolbar({
             unavailableTooltip={ai.unavailableTooltip}
           />
 
-          <ClearButton disabled={download.logsCount === 0} onClick={onClear} tooltip={clearLabel} />
+          <ClearButton disabled={download.logsCount === 0 || !!hideClear} onClick={onClear} tooltip={clearLabel} />
         </TooltipProvider>
       </div>
     </div>

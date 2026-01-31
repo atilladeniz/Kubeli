@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 interface StreamButtonProps {
   isStreaming: boolean;
   isLoading: boolean;
+  disabled?: boolean;
   onStart: () => void;
   onStop: () => void;
   followLabel: string;
@@ -15,6 +16,7 @@ interface StreamButtonProps {
 export function StreamButton({
   isStreaming,
   isLoading,
+  disabled,
   onStart,
   onStop,
   followLabel,
@@ -39,7 +41,7 @@ export function StreamButton({
       variant="outline"
       size="sm"
       onClick={onStart}
-      disabled={isLoading}
+      disabled={isLoading || disabled}
       className="h-7 text-xs text-green-500 hover:text-green-600"
     >
       <Play className="size-3.5" />

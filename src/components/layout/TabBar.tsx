@@ -10,7 +10,6 @@ import {
   useSensor,
   useSensors,
   type DragEndEvent,
-  type DragStartEvent,
 } from "@dnd-kit/core";
 import {
   SortableContext,
@@ -35,6 +34,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useLogStore } from "@/lib/stores/log-store";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 // Map resource type → [sectionKey, itemKey] for i18n lookup
 const RESOURCE_I18N_KEYS: Record<string, [string, string]> = {
@@ -133,6 +146,8 @@ function SortableTab({
   tCloseOthers,
   tCloseToRight,
 }: SortableTabProps) {
+  const textRef = useRef<HTMLSpanElement>(null);
+  const [isTruncated, setIsTruncated] = useState(false);
   const {
     attributes,
     listeners,
@@ -168,7 +183,21 @@ function SortableTab({
             isDragging && "shadow-lg cursor-grabbing"
           )}
         >
-          <span className="truncate">{title}</span>
+          <Tooltip open={isTruncated ? undefined : false}>
+            <TooltipTrigger asChild>
+              <span
+                ref={textRef}
+                className="truncate"
+                onPointerEnter={() => {
+                  const el = textRef.current;
+                  setIsTruncated(!!el && el.scrollWidth > el.clientWidth);
+                }}
+              >
+                {title}
+              </span>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">{title}</TooltipContent>
+          </Tooltip>
           {canClose && (
             <span
               role="button"
@@ -199,12 +228,79 @@ function SortableTab({
 }
 
 export function TabBar() {
-  const { tabs, activeTabId, setActiveTab, closeTab, closeOtherTabs, closeTabsToRight, openTab, reorderTabs } =
+  const { tabs, activeTabId, setActiveTab, closeTab, openTab, reorderTabs } =
     useTabsStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("tabs");
   const getTabTitle = useTabTitle();
   const { modKeySymbol } = usePlatform();
+
+  // Confirmation dialog state for closing log tabs
+  const [pendingClose, setPendingClose] = useState<{ tabIds: string[] } | null>(null);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
+
+  const isPodGoneWithLogs = useCallback((tabId: string) => {
+    const tab = useLogStore.getState().logTabs[tabId];
+    if (!tab || tab.logs.length === 0) return false;
+    const err = tab.error;
+    return !!err && (err.includes("NotFound") || err.includes("not found"));
+  }, []);
+
+  const closeTabsWithConfirmation = useCallback(
+    (tabIds: string[]) => {
+      const confirmation = useUIStore.getState().settings.logCloseConfirmation;
+      const needsConfirmation = confirmation !== "never" &&
+        tabIds.some((id) => {
+          const tab = tabs.find((t) => t.id === id);
+          return tab?.type === "pod-logs" && isPodGoneWithLogs(id);
+        });
+
+      if (needsConfirmation) {
+        setPendingClose({ tabIds });
+        setDontAskAgain(false);
+      } else {
+        tabIds.forEach((id) => closeTab(id));
+      }
+    },
+    [tabs, closeTab, isPodGoneWithLogs]
+  );
+
+  const requestCloseTab = useCallback(
+    (tab: Tab) => {
+      closeTabsWithConfirmation([tab.id]);
+    },
+    [closeTabsWithConfirmation]
+  );
+
+  const requestCloseOtherTabs = useCallback(
+    (keepTabId: string) => {
+      const toClose = tabs.filter((t) => t.id !== keepTabId).map((t) => t.id);
+      if (toClose.length === 0) return;
+      closeTabsWithConfirmation(toClose);
+    },
+    [tabs, closeTabsWithConfirmation]
+  );
+
+  const requestCloseTabsToRight = useCallback(
+    (tabId: string) => {
+      const idx = tabs.findIndex((t) => t.id === tabId);
+      if (idx === -1) return;
+      const toClose = tabs.slice(idx + 1).map((t) => t.id);
+      if (toClose.length === 0) return;
+      closeTabsWithConfirmation(toClose);
+    },
+    [tabs, closeTabsWithConfirmation]
+  );
+
+  const confirmClose = useCallback(() => {
+    if (pendingClose) {
+      if (dontAskAgain) {
+        useUIStore.getState().updateSettings({ logCloseConfirmation: "never" });
+      }
+      pendingClose.tabIds.forEach((id) => closeTab(id));
+      setPendingClose(null);
+    }
+  }, [pendingClose, dontAskAgain, closeTab]);
 
   // Require 5px movement before drag starts — prevents accidental drags on click
   const sensors = useSensors(
@@ -239,11 +335,11 @@ export function TabBar() {
       if (e.button === 1) {
         e.preventDefault();
         if (tabs.length > 1) {
-          closeTab(tab.id);
+          requestCloseTab(tab);
         }
       }
     },
-    [tabs.length, closeTab]
+    [tabs.length, requestCloseTab]
   );
 
   const isAtLimit = tabs.length >= 10;
@@ -339,12 +435,12 @@ export function TabBar() {
                 isActive={activeTabId === tab.id}
                 canClose={tabs.length > 1}
                 onActivate={() => setActiveTab(tab.id)}
-                onClose={() => closeTab(tab.id)}
-                onCloseOthers={() => closeOtherTabs(tab.id)}
-                onCloseToRight={() => closeTabsToRight(tab.id)}
+                onClose={() => requestCloseTab(tab)}
+                onCloseOthers={() => requestCloseOtherTabs(tab.id)}
+                onCloseToRight={() => requestCloseTabsToRight(tab.id)}
                 isLast={index === tabs.length - 1}
                 onMiddleClick={(e) => handleMouseDown(e, tab)}
-                title={getTabTitle(tab.type)}
+                title={tab.type === "pod-logs" ? tab.title : getTabTitle(tab.type)}
                 tClose={t("close")}
                 tCloseOthers={t("closeOthers")}
                 tCloseToRight={t("closeToRight")}
@@ -359,6 +455,28 @@ export function TabBar() {
           {addButton}
         </div>
       )}
+      <AlertDialog open={!!pendingClose} onOpenChange={(open) => !open && setPendingClose(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("closeLogTab")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("closeLogTabDescription")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center gap-2 px-1">
+            <Checkbox
+              id="dont-ask-again"
+              checked={dontAskAgain}
+              onCheckedChange={(checked) => setDontAskAgain(checked === true)}
+            />
+            <Label htmlFor="dont-ask-again" className="text-sm text-muted-foreground cursor-pointer">
+              {t("dontAskAgain")}
+            </Label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClose}>{t("closeConfirm")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
