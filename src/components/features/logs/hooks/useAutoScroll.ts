@@ -41,18 +41,24 @@ export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onSc
   const containerNodeRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const hasRestoredRef = useRef(false);
+  // Guard: ignore scroll events caused by programmatic scroll restoration
+  const suppressScrollHandlerRef = useRef(false);
 
   // Callback ref: fires synchronously during commit when DOM node is attached.
   // Restores scroll position before the browser paints — no flicker.
   const containerRef = useCallback(
     (node: HTMLDivElement | null) => {
       containerNodeRef.current = node;
-      if (node && isResuming && !hasRestoredRef.current) {
-        hasRestoredRef.current = true;
+      if (node && isResuming) {
+        // Suppress scroll events triggered by the restoration
+        suppressScrollHandlerRef.current = true;
         if (initialScrollTop && initialScrollTop > 0) {
           node.scrollTop = initialScrollTop;
         }
+        // Allow scroll handler again after the browser processes the scroll
+        requestAnimationFrame(() => {
+          suppressScrollHandlerRef.current = false;
+        });
       }
     },
     // Stable across renders — only needs initial values
@@ -76,6 +82,7 @@ export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onSc
   // Handle scroll to detect if user scrolled up
   const handleScroll = useCallback(() => {
     if (!containerNodeRef.current) return;
+    if (suppressScrollHandlerRef.current) return;
 
     const { scrollTop, scrollHeight, clientHeight } = containerNodeRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < LOG_DEFAULTS.SCROLL_THRESHOLD;
