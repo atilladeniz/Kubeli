@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.16] - 2026-01-31
+
+- Added ability to open pod logs in a new tab
+
 ## [0.3.15] - 2026-01-31
 
 - Added kubeconfig sources management
