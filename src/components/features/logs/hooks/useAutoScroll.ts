@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useLayoutEffect, useCallback } from "react";
+import { useState, useRef, useEffect, useCallback } from "react";
 import { LOG_DEFAULTS } from "../types";
 
 interface UseAutoScrollOptions {
@@ -15,8 +15,10 @@ interface UseAutoScrollOptions {
 }
 
 interface UseAutoScrollReturn {
-  /** Ref for the scrollable container */
-  containerRef: React.RefObject<HTMLDivElement | null>;
+  /** Ref callback for the scrollable container */
+  containerRef: (node: HTMLDivElement | null) => void;
+  /** Ref for accessing the container DOM node */
+  containerNode: HTMLDivElement | null;
   /** Ref for the scroll target element (bottom marker) */
   endRef: React.RefObject<HTMLDivElement | null>;
   /** Whether auto-scroll is enabled */
@@ -36,28 +38,35 @@ interface UseAutoScrollReturn {
  */
 export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onScrollTopChange }: UseAutoScrollOptions): UseAutoScrollReturn {
   const [autoScroll, setAutoScroll] = useState(!isResuming);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const containerNodeRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isMountedRef = useRef(false);
+  const hasRestoredRef = useRef(false);
 
-  // Restore scroll position synchronously before paint to avoid flicker
-  useLayoutEffect(() => {
-    if (isResuming && initialScrollTop && initialScrollTop > 0 && containerRef.current) {
-      containerRef.current.scrollTop = initialScrollTop;
-    }
-    // Only on mount
+  // Callback ref: fires synchronously during commit when DOM node is attached.
+  // Restores scroll position before the browser paints — no flicker.
+  const containerRef = useCallback(
+    (node: HTMLDivElement | null) => {
+      containerNodeRef.current = node;
+      if (node && isResuming && !hasRestoredRef.current) {
+        hasRestoredRef.current = true;
+        if (initialScrollTop && initialScrollTop > 0) {
+          node.scrollTop = initialScrollTop;
+        }
+      }
+    },
+    // Stable across renders — only needs initial values
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    []
+  );
 
-  // Mark mounted after first render
+  // Auto-scroll to bottom when dependencies change (skip first render when resuming)
+  const skipNextScrollRef = useRef(isResuming);
   useEffect(() => {
-    isMountedRef.current = true;
-  }, []);
-
-  // Auto-scroll to bottom when dependencies change (skip initial render when resuming)
-  useEffect(() => {
-    if (!isMountedRef.current && isResuming) return;
+    if (skipNextScrollRef.current) {
+      skipNextScrollRef.current = false;
+      return;
+    }
     if (autoScroll && endRef.current) {
       endRef.current.scrollIntoView({ behavior: "smooth" });
     }
@@ -66,9 +75,9 @@ export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onSc
 
   // Handle scroll to detect if user scrolled up
   const handleScroll = useCallback(() => {
-    if (!containerRef.current) return;
+    if (!containerNodeRef.current) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+    const { scrollTop, scrollHeight, clientHeight } = containerNodeRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < LOG_DEFAULTS.SCROLL_THRESHOLD;
     setAutoScroll(isAtBottom);
 
@@ -102,6 +111,7 @@ export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onSc
 
   return {
     containerRef,
+    containerNode: containerNodeRef.current,
     endRef,
     autoScroll,
     setAutoScroll,
