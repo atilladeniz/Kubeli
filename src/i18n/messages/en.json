@@ -315,7 +315,9 @@
     "levelWarn": "Warning",
     "levelInfo": "Info",
     "levelDebug": "Debug",
-    "podDeleted": "This pod has been deleted. The logs shown below are from before deletion."
+    "podDeleted": "This pod has been deleted. The logs shown below are from before deletion.",
+    "downloadSuccess": "Logs saved successfully",
+    "downloadError": "Failed to save logs"
   },
   "terminal": {
     "title": "Terminal",
@@ -561,7 +563,11 @@
       "fontSize": "Editor Font Size",
       "fontSizeDescription": "Font size for YAML editor and log viewer",
       "wordWrap": "Word Wrap",
-      "wordWrapDescription": "Enable word wrap in YAML editor"
+      "wordWrapDescription": "Enable word wrap in YAML editor",
+      "closeConfirmation": "Close Confirmation",
+      "closeConfirmationDescription": "Show confirmation dialog when closing log tabs",
+      "closeConfirmationAsk": "Ask",
+      "closeConfirmationNever": "Never"
     },
     "advanced": {
       "virtualScroll": "Virtual Scroll Threshold",
@@ -990,6 +996,11 @@
     "limitToast": "You already have 10 tabs open. Please close a tab to open a new one.",
     "close": "Close",
     "closeOthers": "Close Others",
-    "closeToRight": "Close to Right"
+    "closeToRight": "Close to Right",
+    "closeLogTab": "Close log tab?",
+    "closeLogTabDescription": "This pod may no longer exist. The displayed logs are from before deletion. Closing this tab will permanently discard all collected logs. Do you want to continue?",
+    "cancel": "Cancel",
+    "closeConfirm": "Close",
+    "dontAskAgain": "Don't ask again"
   }
 }

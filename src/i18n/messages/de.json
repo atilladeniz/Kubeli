@@ -315,7 +315,9 @@
     "levelWarn": "Warnung",
     "levelInfo": "Info",
     "levelDebug": "Debug",
-    "podDeleted": "Dieser Pod wurde gelöscht. Die unten angezeigten Logs stammen von vor der Löschung."
+    "podDeleted": "Dieser Pod wurde gelöscht. Die unten angezeigten Logs stammen von vor der Löschung.",
+    "downloadSuccess": "Logs wurden gespeichert",
+    "downloadError": "Fehler beim Speichern der Logs"
   },
   "terminal": {
     "title": "Terminal",
@@ -561,7 +563,11 @@
       "fontSize": "Editor-Schriftgröße",
       "fontSizeDescription": "Schriftgröße für YAML-Editor und Log-Viewer",
       "wordWrap": "Zeilenumbruch",
-      "wordWrapDescription": "Zeilenumbruch im YAML-Editor aktivieren"
+      "wordWrapDescription": "Zeilenumbruch im YAML-Editor aktivieren",
+      "closeConfirmation": "Bestätigung beim Schließen",
+      "closeConfirmationDescription": "Bestätigungsdialog beim Schließen von Log-Tabs anzeigen",
+      "closeConfirmationAsk": "Fragen",
+      "closeConfirmationNever": "Nie"
     },
     "advanced": {
       "virtualScroll": "Virtuelles Scrollen Schwellenwert",
@@ -990,6 +996,11 @@
     "limitToast": "Sie haben bereits 10 Tabs offen. Bitte schließen Sie einen Tab, um einen neuen zu öffnen.",
     "close": "Schließen",
     "closeOthers": "Andere schließen",
-    "closeToRight": "Rechts schließen"
+    "closeToRight": "Rechts schließen",
+    "closeLogTab": "Log-Tab schließen?",
+    "closeLogTabDescription": "Dieser Pod existiert möglicherweise nicht mehr. Die angezeigten Logs stammen von vor der Löschung. Wenn Sie diesen Tab schließen, gehen alle gesammelten Logs unwiderruflich verloren. Möchten Sie fortfahren?",
+    "cancel": "Abbrechen",
+    "closeConfirm": "Schließen",
+    "dontAskAgain": "Nicht mehr fragen"
   }
 }
