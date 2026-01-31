@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect } from "react";
 import { useTranslations } from "next-intl";
 import {
   FileText,
-  X,
   Terminal as TerminalIcon,
   ArrowRightLeft,
   Copy,
@@ -22,7 +21,6 @@ import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import { useTerminalTabs } from "../../../terminal";
-import { LogViewer } from "../../../logs/LogViewer";
 import { ResourceList } from "../../../resources/ResourceList";
 import {
   podColumns,
@@ -34,6 +32,7 @@ import {
 } from "../../../resources/columns";
 import { deleteResource } from "@/lib/tauri/commands";
 import { useResourceDetail } from "../../context";
+import { useTabsStore } from "@/lib/stores/tabs-store";
 import type { PodInfo, ServiceInfo } from "@/lib/types";
 
 export function PodsView() {
@@ -48,6 +47,7 @@ export function PodsView() {
   const [selectedPod, setSelectedPod] = useState<PodInfo | null>(null);
   const { addTab } = useTerminalTabs();
   const { openResourceDetail, handleDeleteFromContext, closeResourceDetail } = useResourceDetail();
+  const openTabStore = useTabsStore((s) => s.openTab);
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const { currentCluster } = useClusterStore();
@@ -64,14 +64,17 @@ export function PodsView() {
       const matchingPod = data.find(
         (pod) => pod.namespace === pendingPodLogs.namespace && pod.name === pendingPodLogs.podName
       );
-      // Clear pending state first
       setPendingPodLogs(null);
-      // Defer state update to avoid cascading renders
       if (matchingPod) {
-        queueMicrotask(() => setSelectedPod(matchingPod));
+        queueMicrotask(() =>
+          openTabStore("pod-logs", `Logs: ${matchingPod.name}`, {
+            newTab: true,
+            metadata: { namespace: matchingPod.namespace, podName: matchingPod.name },
+          })
+        );
       }
     }
-  }, [pendingPodLogs, data, setPendingPodLogs]);
+  }, [pendingPodLogs, data, setPendingPodLogs, openTabStore]);
 
   // Pod status filters
   const podFilters: FilterOption<PodInfo>[] = useMemo(() => [
@@ -180,7 +183,10 @@ export function PodsView() {
               onClick={(e) => {
                 e.stopPropagation();
                 closeResourceDetail();
-                setSelectedPod(pod);
+                openTabStore("pod-logs", `Logs: ${pod.name}`, {
+                  newTab: true,
+                  metadata: { namespace: pod.namespace, podName: pod.name },
+                });
               }}
               className="h-7 px-2 text-blue-500 hover:text-blue-600 hover:bg-blue-500/10"
             >
@@ -254,7 +260,10 @@ export function PodsView() {
         icon: <FileText className="size-4" />,
         onClick: () => {
           closeResourceDetail();
-          setSelectedPod(pod);
+          openTabStore("pod-logs", `Logs: ${pod.name}`, {
+            newTab: true,
+            metadata: { namespace: pod.namespace, podName: pod.name },
+          });
         },
         disabled: isTerminating,
       },
@@ -324,31 +333,6 @@ export function PodsView() {
       },
     ];
   };
-
-  if (selectedPod) {
-    return (
-      <div className="flex h-full flex-col">
-        <div className="flex items-center justify-between border-b border-border px-4 py-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setSelectedPod(null)}
-            className="gap-2 text-muted-foreground hover:text-foreground"
-          >
-            <X className="size-4" />
-            Back to Pods
-          </Button>
-        </div>
-        <div className="flex-1 overflow-hidden min-h-0">
-          <LogViewer
-            namespace={selectedPod.namespace}
-            podName={selectedPod.name}
-            onClose={() => setSelectedPod(null)}
-          />
-        </div>
-      </div>
-    );
-  }
 
   return (
     <ResourceList

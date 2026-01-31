@@ -10,6 +10,7 @@ import { WorkloadsOverview } from "./WorkloadsOverview";
 
 // Utility views
 import { PortForwardsView } from "./PortForwardsView";
+import { PodLogsView } from "./PodLogsView";
 
 // Cluster views
 import {
@@ -194,6 +195,10 @@ export function ResourceView({ activeResource }: ResourceViewProps) {
       return <HelmReleasesView />;
     case "flux-kustomizations":
       return <FluxKustomizationsView />;
+
+    // Special views
+    case "pod-logs":
+      return <PodLogsView />;
 
     default:
       return <ComingSoon resource={activeResource} />;

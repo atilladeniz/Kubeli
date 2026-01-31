@@ -1,10 +1,16 @@
 import { create } from "zustand";
 import type { ResourceType } from "@/components/layout/Sidebar";
 
+export interface TabMetadata {
+  namespace?: string;
+  podName?: string;
+}
+
 export interface Tab {
   id: string;
   type: ResourceType;
   title: string;
+  metadata?: TabMetadata;
 }
 
 interface TabsState {
@@ -12,7 +18,7 @@ interface TabsState {
   activeTabId: string;
 
   // Actions
-  openTab: (type: ResourceType, title: string, opts?: { newTab?: boolean }) => void;
+  openTab: (type: ResourceType, title: string, opts?: { newTab?: boolean; metadata?: TabMetadata }) => void;
   closeTab: (id: string) => void;
   closeOtherTabs: (id: string) => void;
   closeTabsToRight: (id: string) => void;
@@ -80,7 +86,7 @@ export const useTabsStore = create<TabsState>((set, get) => ({
       return;
     }
 
-    const newTab: Tab = { id: generateId(), type, title };
+    const newTab: Tab = { id: generateId(), type, title, ...(opts?.metadata && { metadata: opts.metadata }) };
     const newTabs = [...tabs, newTab];
 
     set({ tabs: newTabs, activeTabId: newTab.id });
