@@ -10,7 +10,6 @@ import {
 } from "../tauri/commands";
 import type { LogEntry, LogOptions, LogEvent } from "../types";
 import { useUIStore } from "./ui-store";
-import { useTabsStore } from "./tabs-store";
 
 export interface LogTabState {
   logs: LogEntry[];
@@ -39,8 +38,10 @@ function defaultLogTabState(): LogTabState {
 }
 
 interface LogStoreState {
+  activeTabId: string | null;
   logTabs: Record<string, LogTabState>;
 
+  setActiveTabId(tabId: string | null): void;
   initLogTab(tabId: string, ns: string, pod: string): Promise<void>;
   startStream(
     tabId: string,
@@ -87,8 +88,8 @@ function startPodWatcher(tabId: string, ns: string, pod: string, set: (fn: (s: L
     if (!tab || tab.error) return;
 
     // Skip API call for inactive tabs to reduce unnecessary polling
-    const activeTabId = useTabsStore.getState().activeTabId;
-    if (tabId !== activeTabId) return;
+    const activeTabId = get().activeTabId;
+    if (activeTabId && tabId !== activeTabId) return;
 
     try {
       await getPodContainers(ns, pod);
@@ -166,7 +167,12 @@ function scheduleFlush(tabId: string, set: (fn: (s: LogStoreState) => Partial<Lo
 }
 
 export const useLogStore = create<LogStoreState>((set, get) => ({
+  activeTabId: null,
   logTabs: {},
+
+  setActiveTabId(tabId) {
+    set({ activeTabId: tabId });
+  },
 
   async initLogTab(tabId, ns, pod) {
     // No-op if tab already exists (re-mount)

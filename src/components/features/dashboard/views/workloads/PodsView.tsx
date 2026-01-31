@@ -48,7 +48,7 @@ export function PodsView() {
   const { openResourceDetail, handleDeleteFromContext, closeResourceDetail } = useResourceDetail();
   const openTabStore = useTabsStore((s) => s.openTab);
   const tabCount = useTabsStore((s) => s.tabs.length);
-  const pendingLogsHandled = useRef<string | null>(null);
+  const pendingLogsHandled = useRef<{ namespace: string; podName: string } | null>(null);
 
   const openLogsTab = (podName: string, namespace: string) => {
     if (tabCount >= 10) {
@@ -73,12 +73,11 @@ export function PodsView() {
   // Watch for pending pod logs from AI assistant link clicks
   useEffect(() => {
     if (!pendingPodLogs || !data) return;
-    const key = `${pendingPodLogs.namespace}/${pendingPodLogs.podName}`;
-    if (pendingLogsHandled.current === key) return;
+    if (pendingLogsHandled.current === pendingPodLogs) return;
     const matchingPod = data.find(
       (pod) => pod.namespace === pendingPodLogs.namespace && pod.name === pendingPodLogs.podName
     );
-    pendingLogsHandled.current = key;
+    pendingLogsHandled.current = pendingPodLogs;
     setPendingPodLogs(null);
     if (matchingPod) {
       queueMicrotask(() => openLogsTab(matchingPod.name, matchingPod.namespace));

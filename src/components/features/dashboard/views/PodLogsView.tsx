@@ -20,6 +20,7 @@ export function PodLogsView() {
     const err = logTab?.error;
     return !!err && (err.includes("NotFound") || err.includes("not found"));
   }, [logTab?.error]);
+  const hasLogs = (logTab?.logs?.length ?? 0) > 0;
 
   if (!metadata?.namespace || !metadata?.podName) {
     return (
@@ -29,7 +30,7 @@ export function PodLogsView() {
     );
   }
 
-  if (podGone) {
+  if (podGone && !hasLogs) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-4">
         <div className="rounded-2xl bg-muted p-6">
