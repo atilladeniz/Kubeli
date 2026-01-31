@@ -71,17 +71,25 @@ export function LogViewer({ namespace, podName, initialContainer, onPodNotFound 
   // Scroll position persistence
   const tabId = useTabsStore((s) => s.activeTabId);
   const storedScrollTop = useLogStore((s) => s.logTabs[tabId]?.scrollTop ?? 0);
+  const storedAutoScroll = useLogStore((s) => s.logTabs[tabId]?.autoScroll ?? true);
   const onScrollTopChange = useCallback(
     (scrollTop: number) => useLogStore.getState().setScrollTop(tabId, scrollTop),
     [tabId]
   );
+  const onAutoScrollChange = useCallback(
+    (value: boolean) => useLogStore.getState().setAutoScroll(tabId, value),
+    [tabId]
+  );
 
   // Auto-scroll hook - handles all scroll logic
+  const isResuming = logs.length > 0;
   const { containerRef, endRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
     dependencies: [logs],
     initialScrollTop: storedScrollTop,
-    isResuming: logs.length > 0,
+    initialAutoScroll: isResuming ? storedAutoScroll : true,
+    isResuming,
     onScrollTopChange,
+    onAutoScrollChange,
   });
 
   // AI analysis hook

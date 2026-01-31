@@ -20,6 +20,7 @@ export interface LogTabState {
   selectedContainer: string | null;
   streamId: string | null;
   scrollTop: number;
+  autoScroll: boolean;
 }
 
 function defaultLogTabState(): LogTabState {
@@ -32,6 +33,7 @@ function defaultLogTabState(): LogTabState {
     selectedContainer: null,
     streamId: null,
     scrollTop: 0,
+    autoScroll: true,
   };
 }
 
@@ -57,6 +59,7 @@ interface LogStoreState {
   clearLogs(tabId: string): void;
   setSelectedContainer(tabId: string, container: string | null): void;
   setScrollTop(tabId: string, scrollTop: number): void;
+  setAutoScroll(tabId: string, autoScroll: boolean): void;
 }
 
 // External state not in Zustand (no re-renders needed)
@@ -459,6 +462,19 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
         logTabs: {
           ...s.logTabs,
           [tabId]: { ...tab, scrollTop },
+        },
+      };
+    });
+  },
+
+  setAutoScroll(tabId, autoScroll) {
+    set((s) => {
+      const tab = s.logTabs[tabId];
+      if (!tab) return {};
+      return {
+        logTabs: {
+          ...s.logTabs,
+          [tabId]: { ...tab, autoScroll },
         },
       };
     });

@@ -8,17 +8,19 @@ interface UseAutoScrollOptions {
   dependencies: unknown[];
   /** Initial scroll position to restore */
   initialScrollTop?: number;
+  /** Initial autoScroll state (persisted from previous session) */
+  initialAutoScroll?: boolean;
   /** Whether the view already has logs from a previous session (skip initial auto-scroll) */
   isResuming?: boolean;
   /** Callback when scroll position changes (debounced) */
   onScrollTopChange?: (scrollTop: number) => void;
+  /** Callback when autoScroll state changes */
+  onAutoScrollChange?: (autoScroll: boolean) => void;
 }
 
 interface UseAutoScrollReturn {
   /** Ref callback for the scrollable container */
   containerRef: (node: HTMLDivElement | null) => void;
-  /** Ref for accessing the container DOM node */
-  containerNode: HTMLDivElement | null;
   /** Ref for the scroll target element (bottom marker) */
   endRef: React.RefObject<HTMLDivElement | null>;
   /** Whether auto-scroll is enabled */
@@ -36,13 +38,20 @@ interface UseAutoScrollReturn {
  * Automatically scrolls to bottom when new content arrives,
  * but pauses when user scrolls up.
  */
-export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onScrollTopChange }: UseAutoScrollOptions): UseAutoScrollReturn {
-  const [autoScroll, setAutoScroll] = useState(!isResuming);
+export function useAutoScroll({ dependencies, initialScrollTop, initialAutoScroll = true, isResuming, onScrollTopChange, onAutoScrollChange }: UseAutoScrollOptions): UseAutoScrollReturn {
+  const [autoScroll, setAutoScrollState] = useState(initialAutoScroll);
   const containerNodeRef = useRef<HTMLDivElement | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   // Guard: ignore scroll events caused by programmatic scroll restoration
   const suppressScrollHandlerRef = useRef(false);
+
+  // Wrap setAutoScroll to also persist to store
+  const setAutoScroll = useCallback((value: boolean) => {
+    setAutoScrollState(value);
+    onAutoScrollChange?.(value);
+  }, [onAutoScrollChange]);
 
   // Callback ref: fires synchronously during commit when DOM node is attached.
   // Restores scroll position before the browser paints — no flicker.
@@ -50,24 +59,12 @@ export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onSc
     (node: HTMLDivElement | null) => {
       containerNodeRef.current = node;
       if (node && isResuming) {
-        // Suppress scroll events triggered by the restoration
         suppressScrollHandlerRef.current = true;
         if (initialScrollTop && initialScrollTop > 0) {
           node.scrollTop = initialScrollTop;
         }
-        // Allow scroll handler again after the browser processes the scroll,
-        // then check actual position to set autoScroll correctly
         requestAnimationFrame(() => {
           suppressScrollHandlerRef.current = false;
-          if (containerNodeRef.current) {
-            const { scrollTop, scrollHeight, clientHeight } = containerNodeRef.current;
-            const isAtBottom = scrollHeight - scrollTop - clientHeight < LOG_DEFAULTS.SCROLL_THRESHOLD;
-            if (isAtBottom) {
-              // User was at bottom — enable autoScroll without triggering scrollIntoView
-              skipNextScrollRef.current = true;
-              setAutoScroll(true);
-            }
-          }
         });
       }
     },
@@ -104,7 +101,7 @@ export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onSc
         onScrollTopChange(scrollTop);
       }, 300);
     }
-  }, [onScrollTopChange]);
+  }, [onScrollTopChange, setAutoScroll]);
 
   // Cleanup debounce timer
   useEffect(() => {
@@ -124,11 +121,10 @@ export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onSc
     setTimeout(() => {
       setAutoScroll(true);
     }, 300);
-  }, []);
+  }, [setAutoScroll]);
 
   return {
     containerRef,
-    containerNode: containerNodeRef.current,
     endRef,
     autoScroll,
     setAutoScroll,
