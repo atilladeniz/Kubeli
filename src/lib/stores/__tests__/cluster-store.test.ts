@@ -29,6 +29,7 @@ const mockClusters = [
     namespace: "default",
     user: "test-user",
     auth_type: "certificate" as const,
+    source_file: null,
   },
   {
     id: "2",
@@ -39,6 +40,7 @@ const mockClusters = [
     namespace: "default",
     user: "prod-user",
     auth_type: "certificate" as const,
+    source_file: null,
   },
 ];
 

@@ -7,6 +7,7 @@ export interface Cluster {
   user: string;
   auth_type: AuthType;
   current: boolean;
+  source_file: string | null;
 }
 
 export type AuthType = "certificate" | "token" | "exec" | "oidc" | "unknown";
