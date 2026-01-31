@@ -16,14 +16,13 @@ interface LogViewerProps {
   podName: string;
   initialContainer?: string;
   onClose?: () => void;
-  onPodNotFound?: () => void;
 }
 
 /**
  * Log viewer component for Kubernetes pods.
  * Supports streaming, filtering, searching, and AI analysis.
  */
-export function LogViewer({ namespace, podName, initialContainer, onPodNotFound }: LogViewerProps) {
+export function LogViewer({ namespace, podName, initialContainer }: LogViewerProps) {
   const t = useTranslations();
 
   // Core log state from hook
@@ -39,7 +38,7 @@ export function LogViewer({ namespace, podName, initialContainer, onPodNotFound 
     startStream,
     stopStream,
     clearLogs,
-  } = useLogs(namespace, podName, { onPodNotFound });
+  } = useLogs(namespace, podName);
 
   const isPodNotFound = useMemo(
     () => !!error && (error.includes("NotFound") || error.includes("not found")),

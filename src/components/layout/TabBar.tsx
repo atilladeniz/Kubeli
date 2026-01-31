@@ -228,7 +228,7 @@ function SortableTab({
 }
 
 export function TabBar() {
-  const { tabs, activeTabId, setActiveTab, closeTab, closeOtherTabs, closeTabsToRight, openTab, reorderTabs } =
+  const { tabs, activeTabId, setActiveTab, closeTab, openTab, reorderTabs } =
     useTabsStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("tabs");
@@ -236,7 +236,7 @@ export function TabBar() {
   const { modKeySymbol } = usePlatform();
 
   // Confirmation dialog state for closing log tabs
-  const [pendingClose, setPendingClose] = useState<{ tabId: string } | null>(null);
+  const [pendingClose, setPendingClose] = useState<{ tabIds: string[] } | null>(null);
   const [dontAskAgain, setDontAskAgain] = useState(false);
 
   const isPodGoneWithLogs = useCallback((tabId: string) => {
@@ -246,21 +246,50 @@ export function TabBar() {
     return !!err && (err.includes("NotFound") || err.includes("not found"));
   }, []);
 
-  const requestCloseTab = useCallback(
-    (tab: Tab) => {
-      if (tab.type === "pod-logs" && isPodGoneWithLogs(tab.id)) {
-        const confirmation = useUIStore.getState().settings.logCloseConfirmation;
-        if (confirmation === "never") {
-          closeTab(tab.id);
-          return;
-        }
-        setPendingClose({ tabId: tab.id });
+  const closeTabsWithConfirmation = useCallback(
+    (tabIds: string[]) => {
+      const confirmation = useUIStore.getState().settings.logCloseConfirmation;
+      const needsConfirmation = confirmation !== "never" &&
+        tabIds.some((id) => {
+          const tab = tabs.find((t) => t.id === id);
+          return tab?.type === "pod-logs" && isPodGoneWithLogs(id);
+        });
+
+      if (needsConfirmation) {
+        setPendingClose({ tabIds });
         setDontAskAgain(false);
       } else {
-        closeTab(tab.id);
+        tabIds.forEach((id) => closeTab(id));
       }
     },
-    [closeTab, isPodGoneWithLogs]
+    [tabs, closeTab, isPodGoneWithLogs]
+  );
+
+  const requestCloseTab = useCallback(
+    (tab: Tab) => {
+      closeTabsWithConfirmation([tab.id]);
+    },
+    [closeTabsWithConfirmation]
+  );
+
+  const requestCloseOtherTabs = useCallback(
+    (keepTabId: string) => {
+      const toClose = tabs.filter((t) => t.id !== keepTabId).map((t) => t.id);
+      if (toClose.length === 0) return;
+      closeTabsWithConfirmation(toClose);
+    },
+    [tabs, closeTabsWithConfirmation]
+  );
+
+  const requestCloseTabsToRight = useCallback(
+    (tabId: string) => {
+      const idx = tabs.findIndex((t) => t.id === tabId);
+      if (idx === -1) return;
+      const toClose = tabs.slice(idx + 1).map((t) => t.id);
+      if (toClose.length === 0) return;
+      closeTabsWithConfirmation(toClose);
+    },
+    [tabs, closeTabsWithConfirmation]
   );
 
   const confirmClose = useCallback(() => {
@@ -268,7 +297,7 @@ export function TabBar() {
       if (dontAskAgain) {
         useUIStore.getState().updateSettings({ logCloseConfirmation: "never" });
       }
-      closeTab(pendingClose.tabId);
+      pendingClose.tabIds.forEach((id) => closeTab(id));
       setPendingClose(null);
     }
   }, [pendingClose, dontAskAgain, closeTab]);
@@ -407,8 +436,8 @@ export function TabBar() {
                 canClose={tabs.length > 1}
                 onActivate={() => setActiveTab(tab.id)}
                 onClose={() => requestCloseTab(tab)}
-                onCloseOthers={() => closeOtherTabs(tab.id)}
-                onCloseToRight={() => closeTabsToRight(tab.id)}
+                onCloseOthers={() => requestCloseOtherTabs(tab.id)}
+                onCloseToRight={() => requestCloseTabsToRight(tab.id)}
                 isLast={index === tabs.length - 1}
                 onMiddleClick={(e) => handleMouseDown(e, tab)}
                 title={tab.type === "pod-logs" ? tab.title : getTabTitle(tab.type)}

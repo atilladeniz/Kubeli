@@ -10,6 +10,7 @@ import {
 } from "../tauri/commands";
 import type { LogEntry, LogOptions, LogEvent } from "../types";
 import { useUIStore } from "./ui-store";
+import { useTabsStore } from "./tabs-store";
 
 export interface LogTabState {
   logs: LogEntry[];
@@ -84,6 +85,10 @@ function startPodWatcher(tabId: string, ns: string, pod: string, set: (fn: (s: L
   const check = async () => {
     const tab = get().logTabs[tabId];
     if (!tab || tab.error) return;
+
+    // Skip API call for inactive tabs to reduce unnecessary polling
+    const activeTabId = useTabsStore.getState().activeTabId;
+    if (tabId !== activeTabId) return;
 
     try {
       await getPodContainers(ns, pod);

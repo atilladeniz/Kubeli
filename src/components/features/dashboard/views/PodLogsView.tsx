@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
 import { FileX, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogViewer } from "../../logs/LogViewer";
 import { useTabsStore } from "@/lib/stores/tabs-store";
+import { useLogStore } from "@/lib/stores/log-store";
 
 export function PodLogsView() {
   const t = useTranslations();
@@ -14,11 +15,11 @@ export function PodLogsView() {
   const navigateCurrentTab = useTabsStore((s) => s.navigateCurrentTab);
   const activeTab = tabs.find((t) => t.id === activeTabId);
   const metadata = activeTab?.metadata;
-  const [podGone, setPodGone] = useState(false);
-
-  const handlePodNotFound = useCallback(() => {
-    setPodGone(true);
-  }, []);
+  const logTab = useLogStore((s) => activeTabId ? s.logTabs[activeTabId] : undefined);
+  const podGone = useMemo(() => {
+    const err = logTab?.error;
+    return !!err && (err.includes("NotFound") || err.includes("not found"));
+  }, [logTab?.error]);
 
   if (!metadata?.namespace || !metadata?.podName) {
     return (
@@ -59,7 +60,6 @@ export function PodLogsView() {
           key={activeTab?.id}
           namespace={metadata.namespace}
           podName={metadata.podName}
-          onPodNotFound={handlePodNotFound}
         />
       </div>
     </div>

@@ -1,16 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useLogStore } from "../stores/log-store";
 import { useTabsStore } from "../stores/tabs-store";
 import { downloadPodLogs } from "../tauri/commands";
 import type { LogEntry, LogOptions } from "../types";
-
-export interface UseLogsOptions {
-  maxLines?: number;
-  autoScroll?: boolean;
-  onPodNotFound?: () => void;
-}
 
 export interface UseLogsReturn {
   logs: LogEntry[];
@@ -31,14 +25,7 @@ export interface UseLogsReturn {
 export function useLogs(
   namespace: string,
   podName: string,
-  options: UseLogsOptions = {}
 ): UseLogsReturn {
-  const { onPodNotFound } = options;
-  const onPodNotFoundRef = useRef(onPodNotFound);
-  useEffect(() => {
-    onPodNotFoundRef.current = onPodNotFound;
-  });
-
   const tabId = useTabsStore((s) => s.activeTabId);
   const tab = useLogStore((s) => s.logTabs[tabId]);
   const store = useLogStore.getState;
@@ -54,16 +41,7 @@ export function useLogs(
     };
   }, [tabId, namespace, podName, store]);
 
-  // Watch error for pod-not-found
   const error = tab?.error ?? null;
-  const logsLength = tab?.logs?.length ?? 0;
-  useEffect(() => {
-    if (error && (error.includes("NotFound") || error.includes("not found"))) {
-      if (logsLength === 0) {
-        onPodNotFoundRef.current?.();
-      }
-    }
-  }, [error, logsLength]);
 
   const selectedContainer = tab?.selectedContainer ?? null;
 
