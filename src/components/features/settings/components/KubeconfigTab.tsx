@@ -42,7 +42,6 @@ import {
   type KubeconfigSourceInfo,
 } from "@/lib/tauri/commands";
 import { useClusterStore } from "@/lib/stores/cluster-store";
-import { SettingSection } from "./SettingSection";
 
 export function KubeconfigTab() {
   const t = useTranslations("settings");
