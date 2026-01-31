@@ -1,5 +1,5 @@
 import { act } from "@testing-library/react";
-import { useUIStore, defaultSettings, type Theme, type AppSettings } from "../ui-store";
+import { useUIStore, defaultSettings } from "../ui-store";
 
 // Mock localStorage
 const localStorageMock = (() => {
