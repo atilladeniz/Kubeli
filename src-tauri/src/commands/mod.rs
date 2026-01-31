@@ -3,6 +3,7 @@ pub mod debug;
 pub mod flux;
 pub mod graph;
 pub mod helm;
+pub mod kubeconfig;
 pub mod logs;
 pub mod mcp;
 pub mod metrics;
