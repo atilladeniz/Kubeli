@@ -1,12 +1,11 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useCallback, useState } from "react";
 import { useTranslations } from "next-intl";
 import { FileX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { LogViewer } from "../../logs/LogViewer";
 import { useTabsStore } from "@/lib/stores/tabs-store";
-import { listPods } from "@/lib/tauri/commands";
 
 export function PodLogsView() {
   const t = useTranslations();
@@ -17,23 +16,9 @@ export function PodLogsView() {
   const metadata = activeTab?.metadata;
   const [podGone, setPodGone] = useState(false);
 
-  const checkPodExists = useCallback(async () => {
-    if (!metadata?.namespace || !metadata?.podName) return;
-    try {
-      const pods = await listPods({ namespace: metadata.namespace });
-      const exists = pods.some((p) => p.name === metadata.podName);
-      if (!exists) setPodGone(true);
-    } catch {
-      // Ignore fetch errors - don't mark as gone on network issues
-    }
-  }, [metadata]);
-
-  // Check periodically if pod still exists
-  useEffect(() => {
-    if (!metadata?.namespace || !metadata?.podName) return;
-    const interval = setInterval(checkPodExists, 15000);
-    return () => clearInterval(interval);
-  }, [metadata, checkPodExists]);
+  const handlePodNotFound = useCallback(() => {
+    setPodGone(true);
+  }, []);
 
   if (!metadata?.namespace || !metadata?.podName) {
     return (
@@ -72,6 +57,7 @@ export function PodLogsView() {
         <LogViewer
           namespace={metadata.namespace}
           podName={metadata.podName}
+          onPodNotFound={handlePodNotFound}
         />
       </div>
     </div>

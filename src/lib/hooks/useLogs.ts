@@ -14,6 +14,7 @@ import type { LogEntry, LogOptions, LogEvent } from "../types";
 export interface UseLogsOptions {
   maxLines?: number;
   autoScroll?: boolean;
+  onPodNotFound?: () => void;
 }
 
 export interface UseLogsReturn {
@@ -37,7 +38,9 @@ export function useLogs(
   podName: string,
   options: UseLogsOptions = {}
 ): UseLogsReturn {
-  const { maxLines = 10000 } = options;
+  const { maxLines = 10000, onPodNotFound } = options;
+  const onPodNotFoundRef = useRef(onPodNotFound);
+  onPodNotFoundRef.current = onPodNotFound;
   const flushIntervalMs = 150;
 
   const [logs, setLogs] = useState<LogEntry[]>([]);
@@ -92,7 +95,10 @@ export function useLogs(
           setSelectedContainer(containerList[0]);
         }
       } catch (e) {
-        console.error("Failed to fetch containers:", e);
+        const msg = typeof e === "string" ? e : e instanceof Error ? e.message : "";
+        if (msg.includes("NotFound") || msg.includes("not found")) {
+          onPodNotFoundRef.current?.();
+        }
       }
     };
 
@@ -173,7 +179,10 @@ export function useLogs(
         logsRef.current = nextLogs;
         setLogs([...nextLogs]);
       } catch (e) {
-        const errorMsg = e instanceof Error ? e.message : "Failed to fetch logs";
+        const errorMsg = e instanceof Error ? e.message : typeof e === "string" ? e : "Failed to fetch logs";
+        if (errorMsg.includes("NotFound") || errorMsg.includes("not found")) {
+          onPodNotFoundRef.current?.();
+        }
         setError(errorMsg);
       } finally {
         setIsLoading(false);
@@ -213,6 +222,9 @@ export function useLogs(
               break;
             case "Error":
               flushPendingLogs();
+              if (logEvent.data?.includes("NotFound") || logEvent.data?.includes("not found")) {
+                onPodNotFoundRef.current?.();
+              }
               setError(logEvent.data);
               setIsStreaming(false);
               break;
