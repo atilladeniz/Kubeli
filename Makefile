@@ -588,6 +588,28 @@ minikube-clean-scale: ## Remove all scale-test pods
 	@kubectl delete namespace kubeli-scale-test --ignore-not-found=true 2>/dev/null || true
 	@echo "$(GREEN)✓ Scale-test resources removed$(RESET)"
 
+kubeconfig-setup-samples: ## Copy sample kubeconfig files to ~/.kube/kubeli-samples/ for testing
+	@echo "$(CYAN)Setting up sample kubeconfig sources...$(RESET)"
+	@mkdir -p ~/.kube/kubeli-samples/incomplete
+	@cp .dev/kubeconfig-samples/config-minikube.yaml ~/.kube/kubeli-samples/
+	@cp .dev/kubeconfig-samples/config-cloud.yaml ~/.kube/kubeli-samples/
+	@cp .dev/kubeconfig-samples/config-azure.yaml ~/.kube/kubeli-samples/
+	@cp .dev/kubeconfig-samples/incomplete/*.yaml ~/.kube/kubeli-samples/incomplete/
+	@echo "$(GREEN)✓ Sample kubeconfigs copied to ~/.kube/kubeli-samples/$(RESET)"
+	@echo ""
+	@echo "$(CYAN)Files:$(RESET)"
+	@echo "  ~/.kube/kubeli-samples/config-minikube.yaml  (1 context: minikube)"
+	@echo "  ~/.kube/kubeli-samples/config-cloud.yaml     (2 contexts: aws-staging, aws-production)"
+	@echo "  ~/.kube/kubeli-samples/config-azure.yaml     (1 context: aks-dev)"
+	@echo "  ~/.kube/kubeli-samples/incomplete/            (3 files for merge mode testing)"
+	@echo ""
+	@echo "$(YELLOW)Add these as sources in Kubeli Settings > Kubeconfig tab$(RESET)"
+
+kubeconfig-clean-samples: ## Remove sample kubeconfig files from ~/.kube/kubeli-samples/
+	@echo "$(CYAN)Removing sample kubeconfig sources...$(RESET)"
+	@rm -rf ~/.kube/kubeli-samples
+	@echo "$(GREEN)✓ Sample kubeconfigs removed$(RESET)"
+
 kubeconfig-fake-eks: ## Create fake EKS context pointing to local cluster
 	@./scripts/kubeconfig-sim.sh create-eks
 
