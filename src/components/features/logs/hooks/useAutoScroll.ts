@@ -55,9 +55,19 @@ export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onSc
         if (initialScrollTop && initialScrollTop > 0) {
           node.scrollTop = initialScrollTop;
         }
-        // Allow scroll handler again after the browser processes the scroll
+        // Allow scroll handler again after the browser processes the scroll,
+        // then check actual position to set autoScroll correctly
         requestAnimationFrame(() => {
           suppressScrollHandlerRef.current = false;
+          if (containerNodeRef.current) {
+            const { scrollTop, scrollHeight, clientHeight } = containerNodeRef.current;
+            const isAtBottom = scrollHeight - scrollTop - clientHeight < LOG_DEFAULTS.SCROLL_THRESHOLD;
+            if (isAtBottom) {
+              // User was at bottom — enable autoScroll without triggering scrollIntoView
+              skipNextScrollRef.current = true;
+              setAutoScroll(true);
+            }
+          }
         });
       }
     },
