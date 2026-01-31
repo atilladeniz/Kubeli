@@ -8,6 +8,8 @@ interface UseAutoScrollOptions {
   dependencies: unknown[];
   /** Initial scroll position to restore */
   initialScrollTop?: number;
+  /** Whether the view already has logs from a previous session (skip initial auto-scroll) */
+  isResuming?: boolean;
   /** Callback when scroll position changes (debounced) */
   onScrollTopChange?: (scrollTop: number) => void;
 }
@@ -32,8 +34,8 @@ interface UseAutoScrollReturn {
  * Automatically scrolls to bottom when new content arrives,
  * but pauses when user scrolls up.
  */
-export function useAutoScroll({ dependencies, initialScrollTop, onScrollTopChange }: UseAutoScrollOptions): UseAutoScrollReturn {
-  const [autoScroll, setAutoScroll] = useState(initialScrollTop == null || initialScrollTop === 0);
+export function useAutoScroll({ dependencies, initialScrollTop, isResuming, onScrollTopChange }: UseAutoScrollOptions): UseAutoScrollReturn {
+  const [autoScroll, setAutoScroll] = useState(!isResuming);
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);

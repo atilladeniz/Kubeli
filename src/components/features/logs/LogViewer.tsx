@@ -80,6 +80,7 @@ export function LogViewer({ namespace, podName, initialContainer, onPodNotFound 
   const { containerRef, endRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
     dependencies: [logs],
     initialScrollTop: storedScrollTop,
+    isResuming: logs.length > 0,
     onScrollTopChange,
   });
 
