@@ -6,6 +6,10 @@ import { LOG_DEFAULTS } from "../types";
 interface UseAutoScrollOptions {
   /** Dependency array that triggers scroll (e.g., logs array) */
   dependencies: unknown[];
+  /** Initial scroll position to restore */
+  initialScrollTop?: number;
+  /** Callback when scroll position changes (debounced) */
+  onScrollTopChange?: (scrollTop: number) => void;
 }
 
 interface UseAutoScrollReturn {
@@ -28,10 +32,20 @@ interface UseAutoScrollReturn {
  * Automatically scrolls to bottom when new content arrives,
  * but pauses when user scrolls up.
  */
-export function useAutoScroll({ dependencies }: UseAutoScrollOptions): UseAutoScrollReturn {
-  const [autoScroll, setAutoScroll] = useState(true);
+export function useAutoScroll({ dependencies, initialScrollTop, onScrollTopChange }: UseAutoScrollOptions): UseAutoScrollReturn {
+  const [autoScroll, setAutoScroll] = useState(initialScrollTop == null || initialScrollTop === 0);
   const containerRef = useRef<HTMLDivElement>(null);
   const endRef = useRef<HTMLDivElement>(null);
+  const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Restore scroll position on mount
+  useEffect(() => {
+    if (initialScrollTop && initialScrollTop > 0 && containerRef.current) {
+      containerRef.current.scrollTop = initialScrollTop;
+    }
+    // Only on mount
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Auto-scroll to bottom when dependencies change
   useEffect(() => {
@@ -48,6 +62,20 @@ export function useAutoScroll({ dependencies }: UseAutoScrollOptions): UseAutoSc
     const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
     const isAtBottom = scrollHeight - scrollTop - clientHeight < LOG_DEFAULTS.SCROLL_THRESHOLD;
     setAutoScroll(isAtBottom);
+
+    if (onScrollTopChange) {
+      if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
+      scrollDebounceRef.current = setTimeout(() => {
+        onScrollTopChange(scrollTop);
+      }, 300);
+    }
+  }, [onScrollTopChange]);
+
+  // Cleanup debounce timer
+  useEffect(() => {
+    return () => {
+      if (scrollDebounceRef.current) clearTimeout(scrollDebounceRef.current);
+    };
   }, []);
 
   // Scroll to bottom and re-enable auto-scroll after animation completes
