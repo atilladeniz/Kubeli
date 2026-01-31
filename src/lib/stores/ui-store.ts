@@ -13,6 +13,8 @@ export type ProxyType = "none" | "system" | "http" | "socks5";
 
 export type AiCliProvider = "claude" | "codex";
 
+export type LogCloseConfirmation = "ask" | "never";
+
 export interface AppSettings {
   // Appearance
   theme: Theme;
@@ -32,6 +34,7 @@ export interface AppSettings {
   // Logs
   logRetentionLines: number;
   logShowTimestamps: boolean;
+  logCloseConfirmation: LogCloseConfirmation;
 
   // Editor
   editorFontSize: number;
@@ -62,6 +65,7 @@ export const defaultSettings: AppSettings = {
   autoInstallUpdates: false,
   logRetentionLines: 5000,
   logShowTimestamps: true,
+  logCloseConfirmation: "ask",
   editorFontSize: 13,
   editorWordWrap: false,
   enableAnimations: true,

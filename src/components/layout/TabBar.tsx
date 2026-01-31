@@ -35,6 +35,20 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useLogStore } from "@/lib/stores/log-store";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 
 // Map resource type → [sectionKey, itemKey] for i18n lookup
 const RESOURCE_I18N_KEYS: Record<string, [string, string]> = {
@@ -222,6 +236,44 @@ export function TabBar() {
   const getTabTitle = useTabTitle();
   const { modKeySymbol } = usePlatform();
 
+  // Confirmation dialog state for closing log tabs
+  const [pendingClose, setPendingClose] = useState<{ tabId: string } | null>(null);
+  const [dontAskAgain, setDontAskAgain] = useState(false);
+
+  const isPodGoneWithLogs = useCallback((tabId: string) => {
+    const tab = useLogStore.getState().logTabs[tabId];
+    if (!tab || tab.logs.length === 0) return false;
+    const err = tab.error;
+    return !!err && (err.includes("NotFound") || err.includes("not found"));
+  }, []);
+
+  const requestCloseTab = useCallback(
+    (tab: Tab) => {
+      if (tab.type === "pod-logs" && isPodGoneWithLogs(tab.id)) {
+        const confirmation = useUIStore.getState().settings.logCloseConfirmation;
+        if (confirmation === "never") {
+          closeTab(tab.id);
+          return;
+        }
+        setPendingClose({ tabId: tab.id });
+        setDontAskAgain(false);
+      } else {
+        closeTab(tab.id);
+      }
+    },
+    [closeTab, isPodGoneWithLogs]
+  );
+
+  const confirmClose = useCallback(() => {
+    if (pendingClose) {
+      if (dontAskAgain) {
+        useUIStore.getState().updateSettings({ logCloseConfirmation: "never" });
+      }
+      closeTab(pendingClose.tabId);
+      setPendingClose(null);
+    }
+  }, [pendingClose, dontAskAgain, closeTab]);
+
   // Require 5px movement before drag starts — prevents accidental drags on click
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
@@ -255,11 +307,11 @@ export function TabBar() {
       if (e.button === 1) {
         e.preventDefault();
         if (tabs.length > 1) {
-          closeTab(tab.id);
+          requestCloseTab(tab);
         }
       }
     },
-    [tabs.length, closeTab]
+    [tabs.length, requestCloseTab]
   );
 
   const isAtLimit = tabs.length >= 10;
@@ -355,7 +407,7 @@ export function TabBar() {
                 isActive={activeTabId === tab.id}
                 canClose={tabs.length > 1}
                 onActivate={() => setActiveTab(tab.id)}
-                onClose={() => closeTab(tab.id)}
+                onClose={() => requestCloseTab(tab)}
                 onCloseOthers={() => closeOtherTabs(tab.id)}
                 onCloseToRight={() => closeTabsToRight(tab.id)}
                 isLast={index === tabs.length - 1}
@@ -375,6 +427,28 @@ export function TabBar() {
           {addButton}
         </div>
       )}
+      <AlertDialog open={!!pendingClose} onOpenChange={(open) => !open && setPendingClose(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("closeLogTab")}</AlertDialogTitle>
+            <AlertDialogDescription>{t("closeLogTabDescription")}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="flex items-center gap-2 px-1">
+            <Checkbox
+              id="dont-ask-again"
+              checked={dontAskAgain}
+              onCheckedChange={(checked) => setDontAskAgain(checked === true)}
+            />
+            <Label htmlFor="dont-ask-again" className="text-sm text-muted-foreground cursor-pointer">
+              {t("dontAskAgain")}
+            </Label>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("cancel")}</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClose}>{t("closeConfirm")}</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
