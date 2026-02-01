@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -159,6 +159,22 @@ export default function Home() {
 
     initialize();
   }, [fetchClusters]);
+
+  // Listen for deep-link auto-connect events (kubeli://connect/<context>)
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen<{ context: string }>("auto-connect", async (event) => {
+        const ctx = event.payload.context;
+        if (ctx) {
+          await fetchClusters();
+          await connect(ctx);
+        }
+      }).then((fn) => { unlisten = fn; });
+    });
+    return () => { unlisten?.(); };
+  }, [isTauri, fetchClusters, connect]);
 
   // Disable native context menu globally
   useEffect(() => {

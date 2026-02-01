@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
+.PHONY: dev build build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -722,6 +722,26 @@ deps: ## Show outdated dependencies
 update-deps: ## Update all dependencies
 	npm update
 	cd src-tauri && cargo update
+
+## Screenshots
+
+SCREENSHOT_DIR := docs/screenshots
+
+screenshot-setup: ## Install GetWindowID for screenshot capture (macOS)
+	@which GetWindowID > /dev/null 2>&1 || (echo "$(CYAN)Installing GetWindowID...$(RESET)" && brew install smokris/getwindowid/getwindowid)
+
+screenshot-build: ## Build debug app bundle for screenshots (deep links require debug build)
+	@echo "$(CYAN)Building debug bundle for screenshots...$(RESET)"
+	TAURI_SIGNING_PRIVATE_KEY="" npm run tauri:build -- --debug --bundles app 2>&1 || \
+		([ -d "src-tauri/target/debug/bundle/macos/Kubeli.app" ] && echo "$(GREEN)✓ Debug bundle created (signing skipped)$(RESET)" || exit 1)
+	@echo "$(GREEN)✓ Debug bundle ready$(RESET)"
+
+screenshots: screenshot-setup ## Capture screenshots of all views via deep links (debug build)
+	@if [ ! -d "src-tauri/target/debug/bundle/macos/Kubeli.app" ]; then \
+		echo "$(YELLOW)Debug bundle not found. Building...$(RESET)"; \
+		$(MAKE) screenshot-build; \
+	fi
+	@./scripts/capture-screenshots.sh $(SCREENSHOT_DIR)
 
 ## Help
 
