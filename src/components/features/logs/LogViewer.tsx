@@ -47,6 +47,7 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
 
   // Local UI state
   const [showTimestamps, setShowTimestamps] = useState(true);
+  const [showPreviousLogs, setShowPreviousLogs] = useState(false);
 
   // Filter hook
   const {
@@ -154,14 +155,18 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
           showTimestamps,
           onTimestampsToggle: setShowTimestamps,
           timestampsLabel: t("logs.timestamps"),
+          showPreviousLogs,
+          onPreviousLogsToggle: setShowPreviousLogs,
+          previousLogsLabel: t("podDetail.previousLogs"),
+          isStreaming,
         }}
         stream={{
           isStreaming,
           isLoading,
-          disabled: isPodNotFound,
+          disabled: isPodNotFound || (showPreviousLogs && isStreaming),
           onStart: () => startStream(),
           onStop: stopStream,
-          onFetch: () => fetchLogs({ tail_lines: LOG_DEFAULTS.FETCH_TAIL_LINES }),
+          onFetch: () => fetchLogs({ tail_lines: LOG_DEFAULTS.FETCH_TAIL_LINES, previous: showPreviousLogs }),
           followLabel: t("logs.follow"),
           pausedLabel: t("logs.streamingPaused"),
           fetchTooltip: t("logs.fetchLogs"),
