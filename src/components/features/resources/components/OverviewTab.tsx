@@ -1,12 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Info, Tag, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTranslations } from "next-intl";
 import { MetadataItem } from "./MetadataItem";
 import { SecretDataSection } from "./SecretDataSection";
+import { ContainerStatusSection } from "./ContainerStatusSection";
+import { getPod } from "@/lib/tauri/commands";
 import type { ResourceData } from "../types";
+import type { ContainerInfo } from "@/lib/types";
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -20,6 +24,19 @@ interface OverviewTabProps {
 
 export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
   const t = useTranslations();
+  const [initContainers, setInitContainers] = useState<ContainerInfo[]>([]);
+  const [containers, setContainers] = useState<ContainerInfo[]>([]);
+
+  useEffect(() => {
+    if (resourceType === "pod" && resource.namespace) {
+      getPod(resource.name, resource.namespace)
+        .then((podInfo) => {
+          setInitContainers(podInfo.init_containers);
+          setContainers(podInfo.containers);
+        })
+        .catch((err) => console.error("Failed to load pod containers:", err));
+    }
+  }, [resourceType, resource.name, resource.namespace]);
 
   return (
     <ScrollArea className="h-full">
@@ -56,6 +73,11 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
             )}
           </div>
         </section>
+
+        {/* Container Status Section (for Pods only) */}
+        {resourceType === "pod" && (initContainers.length > 0 || containers.length > 0) && (
+          <ContainerStatusSection initContainers={initContainers} containers={containers} />
+        )}
 
         {/* Labels Section */}
         {resource.labels && Object.keys(resource.labels).length > 0 && (
