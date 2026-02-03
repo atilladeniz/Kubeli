@@ -15,6 +15,8 @@ interface LogContentProps {
   searchRegex: RegExp | null;
   onScroll: () => void;
   onStartStream: () => void;
+  /** Disables the Follow button in empty state (e.g., when viewing previous logs) */
+  streamDisabled?: boolean;
   /** Ref for scroll-to-bottom target (placed at end of logs) */
   endRef?: React.RefObject<HTMLDivElement | null>;
   // i18n
@@ -39,6 +41,7 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
       searchRegex,
       onScroll,
       onStartStream,
+      streamDisabled,
       endRef,
       loadingText,
       searchingText,
@@ -61,9 +64,11 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
             ) : (
               <>
                 <p>{noLogsText}</p>
-                <Button variant="link" onClick={onStartStream} className="text-primary">
-                  {followText}
-                </Button>
+                {!streamDisabled && (
+                  <Button variant="link" onClick={onStartStream} className="text-primary">
+                    {followText}
+                  </Button>
+                )}
               </>
             )}
           </div>

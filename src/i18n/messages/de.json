@@ -50,7 +50,9 @@
     "age": "Alter",
     "type": "Typ",
     "labels": "Labels",
-    "annotations": "Annotationen"
+    "annotations": "Annotationen",
+    "ready": "Bereit",
+    "reason": "Grund"
   },
   "navigation": {
     "cluster": "Cluster",
@@ -167,6 +169,7 @@
     "jobStatus": "Job-Status",
     "running": "Läuft",
     "pending": "Ausstehend",
+    "unhealthy": "Ungesund",
     "failed": "Fehlgeschlagen",
     "succeeded": "Erfolgreich",
     "healthy": "Gesund",
@@ -191,6 +194,7 @@
     "pending": "Ausstehend",
     "succeeded": "Erfolgreich",
     "failed": "Fehlgeschlagen",
+    "unhealthy": "Ungesund",
     "unknown": "Unbekannt",
     "containerReady": "Container bereit",
     "podReady": "Pod bereit",
@@ -317,7 +321,8 @@
     "levelDebug": "Debug",
     "podDeleted": "Dieser Pod wurde gelöscht. Die unten angezeigten Logs stammen von vor der Löschung.",
     "downloadSuccess": "Logs wurden gespeichert",
-    "downloadError": "Fehler beim Speichern der Logs"
+    "downloadError": "Fehler beim Speichern der Logs",
+    "previousLogsNoStream": "Streaming für vorherige Logs nicht verfügbar"
   },
   "terminal": {
     "title": "Terminal",
@@ -783,6 +788,25 @@
     "deleteResource": "{type} \"{name}\" löschen",
     "uninstallResource": "Helm Release \"{name}\" deinstallieren",
     "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden."
+  },
+  "podDetail": {
+    "initContainers": "Init-Container",
+    "containers": "Container",
+    "lastTermination": "Letzte Beendigung",
+    "exitCode": "Exit-Code",
+    "terminatedAt": "Beendet am",
+    "previousLogs": "Vorherige Logs",
+    "notReady": "Nicht bereit",
+    "exitCodeSuccess": "Erfolgreich",
+    "exitCodeError": "Fehler",
+    "exitCodeOomKilled": "OOMKilled (SIGKILL)",
+    "exitCodeSigterm": "SIGTERM",
+    "exitCodeSegfault": "Speicherzugriffsfehler",
+    "exitCodePermissionDenied": "Zugriff verweigert",
+    "exitCodeCommandNotFound": "Befehl nicht gefunden",
+    "exitCodeSigint": "SIGINT (Strg+C)",
+    "exitCodeSignal": "Signal {signal}",
+    "exitCodeGeneric": "Exit {code}"
   },
   "shortcuts": {
     "title": "Tastenkürzel",

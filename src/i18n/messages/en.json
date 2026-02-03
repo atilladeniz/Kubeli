@@ -50,7 +50,9 @@
     "age": "Age",
     "type": "Type",
     "labels": "Labels",
-    "annotations": "Annotations"
+    "annotations": "Annotations",
+    "ready": "Ready",
+    "reason": "Reason"
   },
   "navigation": {
     "cluster": "Cluster",
@@ -167,6 +169,7 @@
     "jobStatus": "Job Status",
     "running": "Running",
     "pending": "Pending",
+    "unhealthy": "Unhealthy",
     "failed": "Failed",
     "succeeded": "Succeeded",
     "healthy": "Healthy",
@@ -191,6 +194,7 @@
     "pending": "Pending",
     "succeeded": "Succeeded",
     "failed": "Failed",
+    "unhealthy": "Unhealthy",
     "unknown": "Unknown",
     "containerReady": "Container Ready",
     "podReady": "Pod Ready",
@@ -317,7 +321,8 @@
     "levelDebug": "Debug",
     "podDeleted": "This pod has been deleted. The logs shown below are from before deletion.",
     "downloadSuccess": "Logs saved successfully",
-    "downloadError": "Failed to save logs"
+    "downloadError": "Failed to save logs",
+    "previousLogsNoStream": "Streaming not available for previous logs"
   },
   "terminal": {
     "title": "Terminal",
@@ -783,6 +788,25 @@
     "deleteResource": "Delete {type} \"{name}\"",
     "uninstallResource": "Uninstall Helm release \"{name}\"",
     "deleteWarning": "This action cannot be undone."
+  },
+  "podDetail": {
+    "initContainers": "Init Containers",
+    "containers": "Containers",
+    "lastTermination": "Last Termination",
+    "exitCode": "Exit Code",
+    "terminatedAt": "Terminated At",
+    "previousLogs": "Previous Logs",
+    "notReady": "Not Ready",
+    "exitCodeSuccess": "Success",
+    "exitCodeError": "Error",
+    "exitCodeOomKilled": "OOMKilled (SIGKILL)",
+    "exitCodeSigterm": "SIGTERM",
+    "exitCodeSegfault": "Segmentation Fault",
+    "exitCodePermissionDenied": "Permission Denied",
+    "exitCodeCommandNotFound": "Command Not Found",
+    "exitCodeSigint": "SIGINT (Ctrl+C)",
+    "exitCodeSignal": "Signal {signal}",
+    "exitCodeGeneric": "Exit {code}"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",

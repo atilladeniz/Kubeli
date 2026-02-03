@@ -14,6 +14,10 @@ import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { PodPhaseBadge } from "../components/badges/PodPhaseBadge";
 import { JobStatusBadge } from "../components/badges/JobStatusBadge";
 import { formatAge, formatDuration } from "../lib/utils";
+import { getEffectivePodStatus } from "@/lib/utils/pod-status";
+
+// Re-export for backwards compatibility
+export { getEffectivePodStatus } from "@/lib/utils/pod-status";
 
 // Pod columns
 export const podColumns: Column<PodInfo>[] = [
@@ -54,11 +58,7 @@ export const podColumns: Column<PodInfo>[] = [
     key: "phase",
     label: "STATUS",
     sortable: true,
-    render: (pod) => (
-      <PodPhaseBadge
-        phase={pod.deletion_timestamp ? "Terminating" : pod.phase}
-      />
-    ),
+    render: (pod) => <PodPhaseBadge phase={getEffectivePodStatus(pod)} />,
   },
   {
     key: "restart_count",

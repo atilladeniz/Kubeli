@@ -47,6 +47,14 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
 
   // Local UI state
   const [showTimestamps, setShowTimestamps] = useState(true);
+  const [showPreviousLogs, setShowPreviousLogs] = useState(false);
+
+  // Stop streaming when switching to previous logs (previous logs are static)
+  useEffect(() => {
+    if (showPreviousLogs && isStreaming) {
+      stopStream();
+    }
+  }, [showPreviousLogs, isStreaming, stopStream]);
 
   // Filter hook
   const {
@@ -154,17 +162,21 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
           showTimestamps,
           onTimestampsToggle: setShowTimestamps,
           timestampsLabel: t("logs.timestamps"),
+          showPreviousLogs,
+          onPreviousLogsToggle: setShowPreviousLogs,
+          previousLogsLabel: t("podDetail.previousLogs"),
+          isStreaming,
         }}
         stream={{
           isStreaming,
           isLoading,
-          disabled: isPodNotFound,
+          disabled: isPodNotFound || showPreviousLogs,
           onStart: () => startStream(),
           onStop: stopStream,
-          onFetch: () => fetchLogs({ tail_lines: LOG_DEFAULTS.FETCH_TAIL_LINES }),
+          onFetch: () => fetchLogs({ tail_lines: LOG_DEFAULTS.FETCH_TAIL_LINES, previous: showPreviousLogs }),
           followLabel: t("logs.follow"),
           pausedLabel: t("logs.streamingPaused"),
-          fetchTooltip: t("logs.fetchLogs"),
+          fetchTooltip: showPreviousLogs ? t("logs.previousLogsNoStream") : t("logs.fetchLogs"),
         }}
         download={{
           isDownloading,
@@ -213,6 +225,7 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         searchRegex={searchRegex}
         onScroll={handleScroll}
         onStartStream={() => startStream()}
+        streamDisabled={showPreviousLogs}
         endRef={endRef}
         loadingText={t("common.loading")}
         searchingText={t("logs.searching")}

@@ -10,6 +10,7 @@ import {
   useServices,
   useNodes,
 } from "@/lib/hooks/useK8sResources";
+import { getEffectivePodStatus } from "../../resources/columns";
 import { useClusterMetrics } from "@/lib/hooks/useMetrics";
 import { SummaryCard } from "../components/SummaryCard";
 import { StatusRow } from "../components/StatusRow";
@@ -27,8 +28,9 @@ export function ClusterOverview() {
     refreshInterval: 15000,
   });
 
-  const runningPods = pods.filter((p) => p.phase === "Running").length;
+  const runningPods = pods.filter((p) => getEffectivePodStatus(p) === "Running").length;
   const pendingPods = pods.filter((p) => p.phase === "Pending").length;
+  const unhealthyPods = pods.filter((p) => p.phase === "Running" && getEffectivePodStatus(p) !== "Running").length;
   const failedPods = pods.filter((p) => p.phase === "Failed").length;
 
   const readyNodes = nodes.filter((n) => n.status === "Ready").length;
@@ -52,7 +54,7 @@ export function ClusterOverview() {
           title={t("navigation.pods")}
           value={pods.length}
           subtitle={`${runningPods} ${t("pods.running").toLowerCase()}`}
-          status={failedPods > 0 ? "error" : pendingPods > 0 ? "warning" : "healthy"}
+          status={failedPods > 0 || unhealthyPods > 0 ? "error" : pendingPods > 0 ? "warning" : "healthy"}
         />
         <SummaryCard
           title={t("navigation.deployments")}
@@ -128,6 +130,7 @@ export function ClusterOverview() {
           <CardContent className="space-y-2">
             <StatusRow label={t("pods.running")} value={runningPods} color="green" />
             <StatusRow label={t("pods.pending")} value={pendingPods} color="yellow" />
+            <StatusRow label={t("pods.unhealthy")} value={unhealthyPods} color="red" />
             <StatusRow label={t("pods.failed")} value={failedPods} color="red" />
             <StatusRow
               label={t("pods.succeeded")}

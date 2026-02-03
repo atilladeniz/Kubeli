@@ -33,6 +33,10 @@ export interface FilterProps {
   showTimestamps: boolean;
   onTimestampsToggle: (checked: boolean) => void;
   timestampsLabel: string;
+  showPreviousLogs: boolean;
+  onPreviousLogsToggle: (checked: boolean) => void;
+  previousLogsLabel: string;
+  isStreaming?: boolean;
 }
 
 export interface StreamProps {
@@ -108,6 +112,15 @@ export function LogToolbar({
         checked={filter.showTimestamps}
         onCheckedChange={filter.onTimestampsToggle}
         label={filter.timestampsLabel}
+      />
+
+      {/* Previous logs toggle (disabled during streaming) */}
+      <ToggleCheckbox
+        id="previous-logs"
+        checked={filter.showPreviousLogs}
+        onCheckedChange={filter.onPreviousLogsToggle}
+        label={filter.previousLogsLabel}
+        disabled={filter.isStreaming}
       />
 
       {/* Spacer */}

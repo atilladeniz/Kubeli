@@ -1,4 +1,4 @@
-use crate::commands::resources::{ContainerInfo, PodInfo};
+use crate::commands::resources::{extract_container_info, ContainerInfo, PodInfo};
 use crate::k8s::AppState;
 use futures::StreamExt;
 use k8s_openapi::api::core::v1::Pod;
@@ -73,54 +73,33 @@ fn btree_to_hashmap(
     btree.map(|b| b.into_iter().collect()).unwrap_or_default()
 }
 
-// Convert Pod to PodInfo
 fn pod_to_info(pod: Pod) -> PodInfo {
     let metadata = pod.metadata;
     let spec = pod.spec.unwrap_or_default();
     let status = pod.status.unwrap_or_default();
 
+    let init_containers: Vec<ContainerInfo> = spec
+        .init_containers
+        .unwrap_or_default()
+        .iter()
+        .map(|c| {
+            let cs = status
+                .init_container_statuses
+                .as_ref()
+                .and_then(|statuses| statuses.iter().find(|s| s.name == c.name));
+            extract_container_info(c, cs, false)
+        })
+        .collect();
+
     let containers: Vec<ContainerInfo> = spec
         .containers
         .iter()
         .map(|c| {
-            let container_status = status
+            let cs = status
                 .container_statuses
                 .as_ref()
                 .and_then(|statuses| statuses.iter().find(|s| s.name == c.name));
-
-            let (ready, restart_count, state, state_reason) = if let Some(cs) = container_status {
-                let (state_str, reason) = if let Some(s) = &cs.state {
-                    if s.running.is_some() {
-                        ("Running".to_string(), None)
-                    } else if let Some(w) = &s.waiting {
-                        (
-                            "Waiting".to_string(),
-                            Some(w.reason.clone().unwrap_or_default()),
-                        )
-                    } else if let Some(t) = &s.terminated {
-                        (
-                            "Terminated".to_string(),
-                            Some(t.reason.clone().unwrap_or_default()),
-                        )
-                    } else {
-                        ("Unknown".to_string(), None)
-                    }
-                } else {
-                    ("Unknown".to_string(), None)
-                };
-                (cs.ready, cs.restart_count, state_str, reason)
-            } else {
-                (false, 0, "Unknown".to_string(), None)
-            };
-
-            ContainerInfo {
-                name: c.name.clone(),
-                image: c.image.clone().unwrap_or_default(),
-                ready,
-                restart_count,
-                state,
-                state_reason,
-            }
+            extract_container_info(c, cs, false)
         })
         .collect();
 
@@ -136,6 +115,7 @@ fn pod_to_info(pod: Pod) -> PodInfo {
         node_name: spec.node_name,
         pod_ip: status.pod_ip,
         host_ip: status.host_ip,
+        init_containers,
         containers,
         created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
         deletion_timestamp: metadata.deletion_timestamp.map(|t| t.0.to_string()),

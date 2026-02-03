@@ -1,12 +1,16 @@
 "use client";
 
+import { useEffect, useState, useCallback } from "react";
 import { Info, Tag, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTranslations } from "next-intl";
 import { MetadataItem } from "./MetadataItem";
 import { SecretDataSection } from "./SecretDataSection";
+import { ContainerStatusSection } from "./ContainerStatusSection";
+import { getPod } from "@/lib/tauri/commands";
 import type { ResourceData } from "../types";
+import type { ContainerInfo } from "@/lib/types";
 
 function formatDate(dateString: string): string {
   const date = new Date(dateString);
@@ -20,6 +24,45 @@ interface OverviewTabProps {
 
 export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
   const t = useTranslations();
+  const resourceKey = `${resourceType}-${resource.name}-${resource.namespace}`;
+
+  const [containerData, setContainerData] = useState<{
+    key: string;
+    initContainers: ContainerInfo[];
+    containers: ContainerInfo[];
+  }>({ key: "", initContainers: [], containers: [] });
+
+  const fetchContainers = useCallback(async (name: string, namespace: string, key: string) => {
+    try {
+      const podInfo = await getPod(name, namespace);
+      return { key, initContainers: podInfo.init_containers, containers: podInfo.containers };
+    } catch (err) {
+      console.error("Failed to load pod containers:", err);
+      return { key, initContainers: [] as ContainerInfo[], containers: [] as ContainerInfo[] };
+    }
+  }, []);
+
+  useEffect(() => {
+    if (resourceType !== "pod" || !resource.namespace) {
+      return;
+    }
+
+    let cancelled = false;
+
+    fetchContainers(resource.name, resource.namespace, resourceKey).then((data) => {
+      if (!cancelled) {
+        setContainerData(data);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resourceType, resource.name, resource.namespace, resourceKey, fetchContainers]);
+
+  // Only show containers if they match the current resource (prevents stale data)
+  const initContainers = containerData.key === resourceKey ? containerData.initContainers : [];
+  const containers = containerData.key === resourceKey ? containerData.containers : [];
 
   return (
     <ScrollArea className="h-full">
@@ -56,6 +99,11 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
             )}
           </div>
         </section>
+
+        {/* Container Status Section (for Pods only) */}
+        {resourceType === "pod" && (initContainers.length > 0 || containers.length > 0) && (
+          <ContainerStatusSection initContainers={initContainers} containers={containers} />
+        )}
 
         {/* Labels Section */}
         {resource.labels && Object.keys(resource.labels).length > 0 && (
