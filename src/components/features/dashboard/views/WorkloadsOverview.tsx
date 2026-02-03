@@ -12,6 +12,7 @@ import {
   useJobs,
   useCronJobs,
 } from "@/lib/hooks/useK8sResources";
+import { getEffectivePodStatus } from "../../resources/columns";
 import { SummaryCard } from "../components/SummaryCard";
 import { StatusRow } from "../components/StatusRow";
 
@@ -26,9 +27,10 @@ export function WorkloadsOverview() {
   const { data: jobs } = useJobs();
   const { data: cronJobs } = useCronJobs();
 
-  // Pod statistics
-  const runningPods = pods.filter((p) => p.phase === "Running").length;
+  // Pod statistics - use effective status for accurate health reporting
+  const runningPods = pods.filter((p) => getEffectivePodStatus(p) === "Running").length;
   const pendingPods = pods.filter((p) => p.phase === "Pending").length;
+  const unhealthyPods = pods.filter((p) => p.phase === "Running" && getEffectivePodStatus(p) !== "Running").length;
   const failedPods = pods.filter((p) => p.phase === "Failed").length;
   const succeededPods = pods.filter((p) => p.phase === "Succeeded").length;
 
@@ -67,7 +69,7 @@ export function WorkloadsOverview() {
           title={t("pods")}
           value={pods.length}
           subtitle={t("countRunning", { count: runningPods })}
-          status={failedPods > 0 ? "error" : pendingPods > 0 ? "warning" : "healthy"}
+          status={failedPods > 0 || unhealthyPods > 0 ? "error" : pendingPods > 0 ? "warning" : "healthy"}
         />
         <SummaryCard
           title={t("deployments")}
@@ -99,6 +101,7 @@ export function WorkloadsOverview() {
           <CardContent className="space-y-2">
             <StatusRow label={t("running")} value={runningPods} color="green" />
             <StatusRow label={t("pending")} value={pendingPods} color="yellow" />
+            <StatusRow label={t("unhealthy")} value={unhealthyPods} color="red" />
             <StatusRow label={t("failed")} value={failedPods} color="red" />
             <StatusRow label={t("succeeded")} value={succeededPods} color="blue" />
           </CardContent>
