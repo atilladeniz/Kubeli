@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.17] - 2026-02-03
+
+- Added container health details to pod status display for better visibility
+- Added automated screenshot capture for all views
+
 ## [0.3.16] - 2026-01-31
 
 - Added ability to open pod logs in a new tab
