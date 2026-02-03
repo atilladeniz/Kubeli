@@ -37,6 +37,107 @@ fn btree_to_hashmap(
     btree.map(|b| b.into_iter().collect()).unwrap_or_default()
 }
 
+pub fn extract_container_info(
+    container: &k8s_openapi::api::core::v1::Container,
+    status: Option<&k8s_openapi::api::core::v1::ContainerStatus>,
+    include_last_state: bool,
+) -> ContainerInfo {
+    let (
+        ready,
+        restart_count,
+        state,
+        state_reason,
+        last_state,
+        last_state_reason,
+        last_exit_code,
+        last_finished_at,
+    ) = if let Some(cs) = status {
+        let (state_str, reason) = extract_state(&cs.state);
+
+        let (ls, lsr, lec, lfa) = if include_last_state {
+            extract_last_state(&cs.last_state)
+        } else {
+            (None, None, None, None)
+        };
+
+        (
+            cs.ready,
+            cs.restart_count,
+            state_str,
+            reason,
+            ls,
+            lsr,
+            lec,
+            lfa,
+        )
+    } else {
+        (
+            false,
+            0,
+            "Unknown".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+    };
+
+    ContainerInfo {
+        name: container.name.clone(),
+        image: container.image.clone().unwrap_or_default(),
+        ready,
+        restart_count,
+        state,
+        state_reason,
+        last_state,
+        last_state_reason,
+        last_exit_code,
+        last_finished_at,
+    }
+}
+
+fn extract_state(
+    state: &Option<k8s_openapi::api::core::v1::ContainerState>,
+) -> (String, Option<String>) {
+    if let Some(s) = state {
+        if s.running.is_some() {
+            ("Running".to_string(), None)
+        } else if let Some(w) = &s.waiting {
+            ("Waiting".to_string(), w.reason.clone())
+        } else if let Some(t) = &s.terminated {
+            ("Terminated".to_string(), t.reason.clone())
+        } else {
+            ("Unknown".to_string(), None)
+        }
+    } else {
+        ("Unknown".to_string(), None)
+    }
+}
+
+fn extract_last_state(
+    last_state: &Option<k8s_openapi::api::core::v1::ContainerState>,
+) -> (Option<String>, Option<String>, Option<i32>, Option<String>) {
+    if let Some(ls) = last_state {
+        if ls.running.is_some() {
+            (Some("Running".to_string()), None, None, None)
+        } else if let Some(w) = &ls.waiting {
+            (Some("Waiting".to_string()), w.reason.clone(), None, None)
+        } else if let Some(t) = &ls.terminated {
+            (
+                Some("Terminated".to_string()),
+                t.reason.clone(),
+                Some(t.exit_code),
+                t.finished_at.as_ref().map(|ts| ts.0.to_string()),
+            )
+        } else {
+            (None, None, None, None)
+        }
+    } else {
+        (None, None, None, None)
+    }
+}
+
 /// Pod-specific information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PodInfo {
@@ -47,6 +148,7 @@ pub struct PodInfo {
     pub node_name: Option<String>,
     pub pod_ip: Option<String>,
     pub host_ip: Option<String>,
+    pub init_containers: Vec<ContainerInfo>,
     pub containers: Vec<ContainerInfo>,
     pub created_at: Option<String>,
     pub deletion_timestamp: Option<String>,
@@ -63,6 +165,10 @@ pub struct ContainerInfo {
     pub restart_count: i32,
     pub state: String,
     pub state_reason: Option<String>,
+    pub last_state: Option<String>,
+    pub last_state_reason: Option<String>,
+    pub last_exit_code: Option<i32>,
+    pub last_finished_at: Option<String>,
 }
 
 /// Deployment-specific information
@@ -194,49 +300,28 @@ pub async fn list_pods(
             let spec = pod.spec.unwrap_or_default();
             let status = pod.status.unwrap_or_default();
 
+            let init_containers: Vec<ContainerInfo> = spec
+                .init_containers
+                .unwrap_or_default()
+                .iter()
+                .map(|c| {
+                    let cs = status
+                        .init_container_statuses
+                        .as_ref()
+                        .and_then(|statuses| statuses.iter().find(|s| s.name == c.name));
+                    extract_container_info(c, cs, false)
+                })
+                .collect();
+
             let containers: Vec<ContainerInfo> = spec
                 .containers
                 .iter()
                 .map(|c| {
-                    let container_status = status
+                    let cs = status
                         .container_statuses
                         .as_ref()
                         .and_then(|statuses| statuses.iter().find(|s| s.name == c.name));
-
-                    let (ready, restart_count, state, state_reason) =
-                        if let Some(cs) = container_status {
-                            let (state_str, reason) = if let Some(s) = &cs.state {
-                                if s.running.is_some() {
-                                    ("Running".to_string(), None)
-                                } else if let Some(w) = &s.waiting {
-                                    (
-                                        "Waiting".to_string(),
-                                        Some(w.reason.clone().unwrap_or_default()),
-                                    )
-                                } else if let Some(t) = &s.terminated {
-                                    (
-                                        "Terminated".to_string(),
-                                        Some(t.reason.clone().unwrap_or_default()),
-                                    )
-                                } else {
-                                    ("Unknown".to_string(), None)
-                                }
-                            } else {
-                                ("Unknown".to_string(), None)
-                            };
-                            (cs.ready, cs.restart_count, state_str, reason)
-                        } else {
-                            (false, 0, "Unknown".to_string(), None)
-                        };
-
-                    ContainerInfo {
-                        name: c.name.clone(),
-                        image: c.image.clone().unwrap_or_default(),
-                        ready,
-                        restart_count,
-                        state,
-                        state_reason,
-                    }
+                    extract_container_info(c, cs, false)
                 })
                 .collect();
 
@@ -252,6 +337,7 @@ pub async fn list_pods(
                 node_name: spec.node_name,
                 pod_ip: status.pod_ip,
                 host_ip: status.host_ip,
+                init_containers,
                 containers,
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 deletion_timestamp: metadata.deletion_timestamp.map(|t| t.0.to_string()),
@@ -621,48 +707,28 @@ pub async fn get_pod(
     let spec = pod.spec.unwrap_or_default();
     let status = pod.status.unwrap_or_default();
 
+    let init_containers: Vec<ContainerInfo> = spec
+        .init_containers
+        .unwrap_or_default()
+        .iter()
+        .map(|c| {
+            let cs = status
+                .init_container_statuses
+                .as_ref()
+                .and_then(|statuses| statuses.iter().find(|s| s.name == c.name));
+            extract_container_info(c, cs, true)
+        })
+        .collect();
+
     let containers: Vec<ContainerInfo> = spec
         .containers
         .iter()
         .map(|c| {
-            let container_status = status
+            let cs = status
                 .container_statuses
                 .as_ref()
                 .and_then(|statuses| statuses.iter().find(|s| s.name == c.name));
-
-            let (ready, restart_count, state, state_reason) = if let Some(cs) = container_status {
-                let (state_str, reason) = if let Some(s) = &cs.state {
-                    if s.running.is_some() {
-                        ("Running".to_string(), None)
-                    } else if let Some(w) = &s.waiting {
-                        (
-                            "Waiting".to_string(),
-                            Some(w.reason.clone().unwrap_or_default()),
-                        )
-                    } else if let Some(t) = &s.terminated {
-                        (
-                            "Terminated".to_string(),
-                            Some(t.reason.clone().unwrap_or_default()),
-                        )
-                    } else {
-                        ("Unknown".to_string(), None)
-                    }
-                } else {
-                    ("Unknown".to_string(), None)
-                };
-                (cs.ready, cs.restart_count, state_str, reason)
-            } else {
-                (false, 0, "Unknown".to_string(), None)
-            };
-
-            ContainerInfo {
-                name: c.name.clone(),
-                image: c.image.clone().unwrap_or_default(),
-                ready,
-                restart_count,
-                state,
-                state_reason,
-            }
+            extract_container_info(c, cs, true)
         })
         .collect();
 
@@ -678,6 +744,7 @@ pub async fn get_pod(
         node_name: spec.node_name,
         pod_ip: status.pod_ip,
         host_ip: status.host_ip,
+        init_containers,
         containers,
         created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
         deletion_timestamp: metadata.deletion_timestamp.map(|t| t.0.to_string()),

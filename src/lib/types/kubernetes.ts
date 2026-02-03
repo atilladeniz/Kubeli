@@ -210,6 +210,7 @@ export interface PodInfo {
   node_name: string | null;
   pod_ip: string | null;
   host_ip: string | null;
+  init_containers: ContainerInfo[];
   containers: ContainerInfo[];
   created_at: string | null;
   deletion_timestamp: string | null;
@@ -225,6 +226,10 @@ export interface ContainerInfo {
   restart_count: number;
   state: string;
   state_reason: string | null;
+  last_state: string | null;
+  last_state_reason: string | null;
+  last_exit_code: number | null;
+  last_finished_at: string | null;
 }
 
 export interface DeploymentInfo {
