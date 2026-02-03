@@ -15,7 +15,7 @@ import { PodPhaseBadge } from "../components/badges/PodPhaseBadge";
 import { JobStatusBadge } from "../components/badges/JobStatusBadge";
 import { formatAge, formatDuration } from "../lib/utils";
 
-function getEffectivePodStatus(pod: PodInfo): string {
+export function getEffectivePodStatus(pod: PodInfo): string {
   if (pod.deletion_timestamp) return "Terminating";
 
   const initWaiting = pod.init_containers?.find(

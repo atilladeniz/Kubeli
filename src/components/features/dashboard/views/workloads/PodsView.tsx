@@ -25,6 +25,7 @@ import { ResourceList } from "../../../resources/ResourceList";
 import {
   podColumns,
   translateColumns,
+  getEffectivePodStatus,
   type SortDirection,
   type FilterOption,
   type BulkAction,
@@ -84,10 +85,14 @@ export function PodsView() {
     }
   }, [pendingPodLogs, data, setPendingPodLogs]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Pod status filters
+  // Pod status filters - use effective status for accurate counting
   const podFilters: FilterOption<PodInfo>[] = useMemo(() => [
-    { key: "running", label: "Running", predicate: (p) => p.phase === "Running", color: "green" },
+    { key: "running", label: "Running", predicate: (p) => getEffectivePodStatus(p) === "Running", color: "green" },
     { key: "pending", label: "Pending", predicate: (p) => p.phase === "Pending", color: "yellow" },
+    { key: "unhealthy", label: "Unhealthy", predicate: (p) => {
+      const status = getEffectivePodStatus(p);
+      return p.phase === "Running" && status !== "Running";
+    }, color: "red" },
     { key: "failed", label: "Failed", predicate: (p) => p.phase === "Failed", color: "red" },
     { key: "succeeded", label: "Succeeded", predicate: (p) => p.phase === "Succeeded", color: "blue" },
   ], []);

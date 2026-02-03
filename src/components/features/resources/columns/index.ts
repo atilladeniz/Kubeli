@@ -2,7 +2,7 @@ export type { Column, FilterOption, BulkAction, ContextMenuItemDef, SortDirectio
 export { translateColumns } from "./translate";
 
 // Workloads
-export { podColumns, getPodColumns, deploymentColumns, getDeploymentColumns, replicaSetColumns, daemonSetColumns, statefulSetColumns, jobColumns, cronJobColumns } from "./workloads";
+export { podColumns, getPodColumns, getEffectivePodStatus, deploymentColumns, getDeploymentColumns, replicaSetColumns, daemonSetColumns, statefulSetColumns, jobColumns, cronJobColumns } from "./workloads";
 
 // Networking
 export { serviceColumns, getServiceColumns, ingressColumns, endpointSliceColumns, networkPolicyColumns, ingressClassColumns } from "./networking";
