@@ -225,6 +225,7 @@ export function LogViewer({ namespace, podName, initialContainer }: LogViewerPro
         searchRegex={searchRegex}
         onScroll={handleScroll}
         onStartStream={() => startStream()}
+        streamDisabled={showPreviousLogs}
         endRef={endRef}
         loadingText={t("common.loading")}
         searchingText={t("logs.searching")}
