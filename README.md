@@ -112,6 +112,27 @@ make format
 make check
 ```
 
+### Debug Bundle vs Dev Mode
+
+- `make dev` runs the live Tauri dev server with hot reload (uses the dev URL).
+- `make screenshot-build` creates a **bundled debug app** (`Kubeli.app`) used for deep-link screenshot automation. This is not the same as dev mode.
+
+For automated screenshots (deep links are debug-only):
+
+```bash
+# Build bundled debug app for screenshots
+make screenshot-build
+
+# Capture all screenshots
+make screenshots
+```
+
+You can override the target context:
+
+```bash
+SCREENSHOT_CONTEXT="minikube (dev)" make screenshots
+```
+
 ## Testing
 
 ```bash
