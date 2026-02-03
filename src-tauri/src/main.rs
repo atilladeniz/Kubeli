@@ -31,7 +31,7 @@ struct Args {
 #[cfg(target_os = "macos")]
 use tauri::menu::{AboutMetadataBuilder, MenuBuilder, SubmenuBuilder};
 #[allow(unused_imports)]
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 
 fn extend_path_with_common_cli_dirs() {
     use std::path::PathBuf;
@@ -92,18 +92,26 @@ fn main() {
         .install_default()
         .expect("Failed to install rustls crypto provider");
 
-    tauri::Builder::default()
+    #[allow(unused_mut)]
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_store::Builder::default().build())
         .plugin(tauri_plugin_window_state::Builder::default().build())
-        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_log::Builder::default().build())
         .plugin(tauri_plugin_os::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
-        .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_process::init());
+
+    // Deep-link plugin only in debug builds (screenshot automation)
+    #[cfg(debug_assertions)]
+    {
+        builder = builder.plugin(tauri_plugin_deep_link::init());
+    }
+
+    builder
         .manage(AppState::new())
         .manage(Arc::new(WatchManager::new()))
         .manage(Arc::new(LogStreamManager::new()))
@@ -166,6 +174,34 @@ fn main() {
                     .build()?;
 
                 app.set_menu(menu)?;
+            }
+
+            // Deep links for screenshot automation (debug builds only)
+            #[cfg(all(desktop, debug_assertions))]
+            {
+                use percent_encoding::percent_decode_str;
+                use tauri_plugin_deep_link::DeepLinkExt;
+                let app_handle = app.handle().clone();
+                app.deep_link().on_open_url(move |event| {
+                    let urls = event.urls();
+                    if let Some(url) = urls.first() {
+                        let host = url.host_str().unwrap_or_default();
+                        let path = percent_decode_str(url.path().trim_start_matches('/'))
+                            .decode_utf8_lossy()
+                            .to_string();
+                        match host {
+                            // kubeli://view/<resource-type>
+                            "view" if !path.is_empty() => {
+                                let _ = app_handle.emit("navigate", serde_json::json!({ "view": path }));
+                            }
+                            // kubeli://connect/<context-name>
+                            "connect" if !path.is_empty() => {
+                                let _ = app_handle.emit("auto-connect", serde_json::json!({ "context": path }));
+                            }
+                            _ => {}
+                        }
+                    }
+                });
             }
 
             Ok(())

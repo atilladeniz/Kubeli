@@ -21,6 +21,7 @@ import { useTabsStore } from "@/lib/stores/tabs-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAIStore } from "@/lib/stores/ai-store";
 import { useKeyboardShortcuts, NAVIGATION_SHORTCUTS } from "@/lib/hooks/useKeyboardShortcuts";
+import { useDeepLinkNavigation } from "@/lib/hooks/useDeepLinkNavigation";
 import { toast } from "sonner";
 import {
   getResourceYaml,
@@ -54,6 +55,7 @@ export function Dashboard() {
 }
 
 function DashboardContent() {
+  useDeepLinkNavigation();
   const t = useTranslations();
   const { tabs: resourceTabs, activeTabId, navigateCurrentTab, openTab, closeTab, setActiveTab, restoreTabs } = useTabsStore();
   const getTabTitle = useTabTitle();
