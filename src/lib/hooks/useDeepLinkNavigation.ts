@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
+import { useTabTitle } from "@/components/layout/TabBar";
 import { useTabsStore } from "@/lib/stores/tabs-store";
 import type { ResourceType } from "@/components/layout/Sidebar";
 
@@ -8,21 +9,18 @@ import type { ResourceType } from "@/components/layout/Sidebar";
  * emitted by the Tauri backend, and navigates the current tab accordingly.
  */
 export function useDeepLinkNavigation() {
+  const getTabTitle = useTabTitle();
+
   useEffect(() => {
     const unlisten = listen<{ view: string }>("navigate", (event) => {
       const view = event.payload.view as ResourceType;
       if (view) {
-        // Format title from slug: "pods" -> "Pods", "cluster-overview" -> "Cluster Overview"
-        const title = view
-          .split("-")
-          .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1))
-          .join(" ");
-        useTabsStore.getState().navigateCurrentTab(view, title);
+        useTabsStore.getState().navigateCurrentTab(view, getTabTitle(view));
       }
     });
 
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, []);
+  }, [getTabTitle]);
 }

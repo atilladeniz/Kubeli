@@ -63,7 +63,7 @@ VIEWS=(
 mkdir -p "$DIR"
 
 if [ ! -d "$APP" ]; then
-  echo "Error: App not found at $APP. Run 'make build' first."
+  echo "Error: App not found at $APP. Run 'make screenshot-build' (or 'make screenshots') first."
   exit 1
 fi
 
