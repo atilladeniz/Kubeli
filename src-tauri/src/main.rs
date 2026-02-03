@@ -179,8 +179,8 @@ fn main() {
             // Deep links for screenshot automation (debug builds only)
             #[cfg(all(desktop, debug_assertions))]
             {
+                use percent_encoding::percent_decode_str;
                 use tauri_plugin_deep_link::DeepLinkExt;
-                use url::percent_encoding::percent_decode_str;
                 let app_handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
                     let urls = event.urls();

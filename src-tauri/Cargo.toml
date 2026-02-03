@@ -69,6 +69,7 @@ flate2 = "1.1"
 url = "2.5"
 uuid = { version = "1.19", features = ["v4"] }
 regex = "1.12"
+percent-encoding = "2.3"
 
 # SQLite for AI session persistence
 rusqlite = { version = "0.38", features = ["bundled"] }
