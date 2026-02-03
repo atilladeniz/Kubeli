@@ -732,7 +732,7 @@ screenshot-setup: ## Install GetWindowID for screenshot capture (macOS)
 
 screenshot-build: ## Build debug app bundle for screenshots (deep links require debug build)
 	@echo "$(CYAN)Building debug bundle for screenshots...$(RESET)"
-	TAURI_SIGNING_PRIVATE_KEY="" npm run tauri:build -- --debug --bundles app 2>&1 || \
+	TAURI_SIGNING_PRIVATE_KEY="" npm run tauri:build -- --debug --bundles app --config src-tauri/tauri.conf.debug.json 2>&1 || \
 		([ -d "src-tauri/target/debug/bundle/macos/Kubeli.app" ] && echo "$(GREEN)✓ Debug bundle created (signing skipped)$(RESET)" || exit 1)
 	@echo "$(GREEN)✓ Debug bundle ready$(RESET)"
 

@@ -13,6 +13,10 @@ CONTEXT="${SCREENSHOT_CONTEXT:-minikube}"
 # Deep links only work in debug builds (gated by #[cfg(debug_assertions)])
 APP="src-tauri/target/debug/bundle/macos/Kubeli.app"
 
+urlencode() {
+  node -e 'console.log(encodeURIComponent(process.argv[1]))' "$1"
+}
+
 VIEWS=(
   cluster-overview
   resource-diagram
@@ -85,13 +89,15 @@ echo "Window ID: $WINDOW_ID"
 
 # Auto-connect to cluster
 echo "Connecting to cluster: $CONTEXT..."
-open "kubeli://connect/$CONTEXT"
+ENCODED_CONTEXT=$(urlencode "$CONTEXT")
+open "kubeli://connect/$ENCODED_CONTEXT"
 sleep "$CONNECT_DELAY"
 
 # Capture all views
 for view in "${VIEWS[@]}"; do
   echo "  Capturing: $view"
-  open "kubeli://view/$view"
+  ENCODED_VIEW=$(urlencode "$view")
+  open "kubeli://view/$ENCODED_VIEW"
   sleep "$DELAY"
   screencapture -o -x -l"$WINDOW_ID" "$DIR/$view.png"
 done

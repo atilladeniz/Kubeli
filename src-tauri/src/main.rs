@@ -180,12 +180,15 @@ fn main() {
             #[cfg(all(desktop, debug_assertions))]
             {
                 use tauri_plugin_deep_link::DeepLinkExt;
+                use url::percent_encoding::percent_decode_str;
                 let app_handle = app.handle().clone();
                 app.deep_link().on_open_url(move |event| {
                     let urls = event.urls();
                     if let Some(url) = urls.first() {
                         let host = url.host_str().unwrap_or_default();
-                        let path = url.path().trim_start_matches('/').to_string();
+                        let path = percent_decode_str(url.path().trim_start_matches('/'))
+                            .decode_utf8_lossy()
+                            .to_string();
                         match host {
                             // kubeli://view/<resource-type>
                             "view" if !path.is_empty() => {

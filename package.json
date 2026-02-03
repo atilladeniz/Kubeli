@@ -16,7 +16,7 @@
     "test:coverage": "jest --coverage",
     "test:e2e": "dotenvx run -f config/e2e.env -e NEXT_FONT_GOOGLE_MOCKED_RESPONSES=$(pwd)/config/font-mocks.cjs -- next build --webpack && playwright test",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
+    "tauri:dev": "tauri dev --config src-tauri/tauri.conf.debug.json",
     "tauri:build": "tauri build",
     "prepare": "husky"
   },
