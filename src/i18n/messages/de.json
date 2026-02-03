@@ -50,7 +50,9 @@
     "age": "Alter",
     "type": "Typ",
     "labels": "Labels",
-    "annotations": "Annotationen"
+    "annotations": "Annotationen",
+    "ready": "Bereit",
+    "reason": "Grund"
   },
   "navigation": {
     "cluster": "Cluster",
@@ -783,6 +785,14 @@
     "deleteResource": "{type} \"{name}\" löschen",
     "uninstallResource": "Helm Release \"{name}\" deinstallieren",
     "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden."
+  },
+  "podDetail": {
+    "initContainers": "Init-Container",
+    "containers": "Container",
+    "lastTermination": "Letzte Beendigung",
+    "exitCode": "Exit-Code",
+    "terminatedAt": "Beendet am",
+    "previousLogs": "Vorherige Logs"
   },
   "shortcuts": {
     "title": "Tastenkürzel",

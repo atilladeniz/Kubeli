@@ -50,7 +50,9 @@
     "age": "Age",
     "type": "Type",
     "labels": "Labels",
-    "annotations": "Annotations"
+    "annotations": "Annotations",
+    "ready": "Ready",
+    "reason": "Reason"
   },
   "navigation": {
     "cluster": "Cluster",
@@ -783,6 +785,14 @@
     "deleteResource": "Delete {type} \"{name}\"",
     "uninstallResource": "Uninstall Helm release \"{name}\"",
     "deleteWarning": "This action cannot be undone."
+  },
+  "podDetail": {
+    "initContainers": "Init Containers",
+    "containers": "Containers",
+    "lastTermination": "Last Termination",
+    "exitCode": "Exit Code",
+    "terminatedAt": "Terminated At",
+    "previousLogs": "Previous Logs"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",
