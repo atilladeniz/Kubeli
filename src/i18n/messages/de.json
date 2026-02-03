@@ -321,7 +321,8 @@
     "levelDebug": "Debug",
     "podDeleted": "Dieser Pod wurde gelöscht. Die unten angezeigten Logs stammen von vor der Löschung.",
     "downloadSuccess": "Logs wurden gespeichert",
-    "downloadError": "Fehler beim Speichern der Logs"
+    "downloadError": "Fehler beim Speichern der Logs",
+    "previousLogsNoStream": "Streaming für vorherige Logs nicht verfügbar"
   },
   "terminal": {
     "title": "Terminal",
@@ -794,7 +795,18 @@
     "lastTermination": "Letzte Beendigung",
     "exitCode": "Exit-Code",
     "terminatedAt": "Beendet am",
-    "previousLogs": "Vorherige Logs"
+    "previousLogs": "Vorherige Logs",
+    "notReady": "Nicht bereit",
+    "exitCodeSuccess": "Erfolgreich",
+    "exitCodeError": "Fehler",
+    "exitCodeOomKilled": "OOMKilled (SIGKILL)",
+    "exitCodeSigterm": "SIGTERM",
+    "exitCodeSegfault": "Speicherzugriffsfehler",
+    "exitCodePermissionDenied": "Zugriff verweigert",
+    "exitCodeCommandNotFound": "Befehl nicht gefunden",
+    "exitCodeSigint": "SIGINT (Strg+C)",
+    "exitCodeSignal": "Signal {signal}",
+    "exitCodeGeneric": "Exit {code}"
   },
   "shortcuts": {
     "title": "Tastenkürzel",

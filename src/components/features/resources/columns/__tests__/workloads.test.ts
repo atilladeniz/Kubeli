@@ -1,4 +1,4 @@
-import { getEffectivePodStatus } from "../workloads";
+import { getEffectivePodStatus } from "@/lib/utils/pod-status";
 import type { PodInfo, ContainerInfo } from "@/lib/types";
 
 const createMockContainer = (overrides: Partial<ContainerInfo> = {}): ContainerInfo => ({

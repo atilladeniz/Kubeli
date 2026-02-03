@@ -321,7 +321,8 @@
     "levelDebug": "Debug",
     "podDeleted": "This pod has been deleted. The logs shown below are from before deletion.",
     "downloadSuccess": "Logs saved successfully",
-    "downloadError": "Failed to save logs"
+    "downloadError": "Failed to save logs",
+    "previousLogsNoStream": "Streaming not available for previous logs"
   },
   "terminal": {
     "title": "Terminal",
@@ -794,7 +795,18 @@
     "lastTermination": "Last Termination",
     "exitCode": "Exit Code",
     "terminatedAt": "Terminated At",
-    "previousLogs": "Previous Logs"
+    "previousLogs": "Previous Logs",
+    "notReady": "Not Ready",
+    "exitCodeSuccess": "Success",
+    "exitCodeError": "Error",
+    "exitCodeOomKilled": "OOMKilled (SIGKILL)",
+    "exitCodeSigterm": "SIGTERM",
+    "exitCodeSegfault": "Segmentation Fault",
+    "exitCodePermissionDenied": "Permission Denied",
+    "exitCodeCommandNotFound": "Command Not Found",
+    "exitCodeSigint": "SIGINT (Ctrl+C)",
+    "exitCodeSignal": "Signal {signal}",
+    "exitCodeGeneric": "Exit {code}"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",

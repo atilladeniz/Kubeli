@@ -14,26 +14,10 @@ import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { PodPhaseBadge } from "../components/badges/PodPhaseBadge";
 import { JobStatusBadge } from "../components/badges/JobStatusBadge";
 import { formatAge, formatDuration } from "../lib/utils";
+import { getEffectivePodStatus } from "@/lib/utils/pod-status";
 
-export function getEffectivePodStatus(pod: PodInfo): string {
-  if (pod.deletion_timestamp) return "Terminating";
-
-  const initWaiting = pod.init_containers?.find(
-    (c) => c.state === "Waiting" && c.state_reason
-  );
-  if (initWaiting?.state_reason) {
-    return `Init:${initWaiting.state_reason}`;
-  }
-
-  const containerWaiting = pod.containers?.find(
-    (c) => c.state === "Waiting" && c.state_reason
-  );
-  if (containerWaiting?.state_reason) {
-    return containerWaiting.state_reason;
-  }
-
-  return pod.phase;
-}
+// Re-export for backwards compatibility
+export { getEffectivePodStatus } from "@/lib/utils/pod-status";
 
 // Pod columns
 export const podColumns: Column<PodInfo>[] = [

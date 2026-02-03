@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Info, Tag, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -24,19 +24,45 @@ interface OverviewTabProps {
 
 export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
   const t = useTranslations();
-  const [initContainers, setInitContainers] = useState<ContainerInfo[]>([]);
-  const [containers, setContainers] = useState<ContainerInfo[]>([]);
+  const resourceKey = `${resourceType}-${resource.name}-${resource.namespace}`;
+
+  const [containerData, setContainerData] = useState<{
+    key: string;
+    initContainers: ContainerInfo[];
+    containers: ContainerInfo[];
+  }>({ key: "", initContainers: [], containers: [] });
+
+  const fetchContainers = useCallback(async (name: string, namespace: string, key: string) => {
+    try {
+      const podInfo = await getPod(name, namespace);
+      return { key, initContainers: podInfo.init_containers, containers: podInfo.containers };
+    } catch (err) {
+      console.error("Failed to load pod containers:", err);
+      return { key, initContainers: [] as ContainerInfo[], containers: [] as ContainerInfo[] };
+    }
+  }, []);
 
   useEffect(() => {
-    if (resourceType === "pod" && resource.namespace) {
-      getPod(resource.name, resource.namespace)
-        .then((podInfo) => {
-          setInitContainers(podInfo.init_containers);
-          setContainers(podInfo.containers);
-        })
-        .catch((err) => console.error("Failed to load pod containers:", err));
+    if (resourceType !== "pod" || !resource.namespace) {
+      return;
     }
-  }, [resourceType, resource.name, resource.namespace]);
+
+    let cancelled = false;
+
+    fetchContainers(resource.name, resource.namespace, resourceKey).then((data) => {
+      if (!cancelled) {
+        setContainerData(data);
+      }
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [resourceType, resource.name, resource.namespace, resourceKey, fetchContainers]);
+
+  // Only show containers if they match the current resource (prevents stale data)
+  const initContainers = containerData.key === resourceKey ? containerData.initContainers : [];
+  const containers = containerData.key === resourceKey ? containerData.containers : [];
 
   return (
     <ScrollArea className="h-full">

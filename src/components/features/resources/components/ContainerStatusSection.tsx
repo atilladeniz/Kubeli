@@ -17,26 +17,28 @@ function formatTimestamp(timestamp: string | null): string {
   return date.toLocaleString();
 }
 
-function getExitCodeDescription(code: number): string {
+function getExitCodeKey(code: number): { key: string; params?: Record<string, number> } {
   switch (code) {
     case 0:
-      return "Success";
+      return { key: "podDetail.exitCodeSuccess" };
     case 1:
-      return "Error";
+      return { key: "podDetail.exitCodeError" };
     case 137:
-      return "OOMKilled (SIGKILL)";
+      return { key: "podDetail.exitCodeOomKilled" };
     case 143:
-      return "SIGTERM";
+      return { key: "podDetail.exitCodeSigterm" };
     case 139:
-      return "Segmentation Fault";
+      return { key: "podDetail.exitCodeSegfault" };
     case 126:
-      return "Permission Denied";
+      return { key: "podDetail.exitCodePermissionDenied" };
     case 127:
-      return "Command Not Found";
+      return { key: "podDetail.exitCodeCommandNotFound" };
     case 130:
-      return "SIGINT (Ctrl+C)";
+      return { key: "podDetail.exitCodeSigint" };
     default:
-      return code > 128 ? `Signal ${code - 128}` : `Exit ${code}`;
+      return code > 128
+        ? { key: "podDetail.exitCodeSignal", params: { signal: code - 128 } }
+        : { key: "podDetail.exitCodeGeneric", params: { code } };
   }
 }
 
@@ -86,7 +88,7 @@ function ContainerCard({
           <span className="font-medium">{container.name}</span>
           {!container.ready && container.state === "Running" && (
             <Badge variant="outline" className="text-yellow-500 border-yellow-500/50">
-              Not Ready
+              {t("podDetail.notReady")}
             </Badge>
           )}
         </div>
@@ -140,7 +142,10 @@ function ContainerCard({
               <div>
                 <span className="text-muted-foreground">{t("podDetail.exitCode")}: </span>
                 <span className="font-mono">
-                  {container.last_exit_code} ({getExitCodeDescription(container.last_exit_code)})
+                  {container.last_exit_code} ({(() => {
+                    const { key, params } = getExitCodeKey(container.last_exit_code);
+                    return t(key, params);
+                  })()})
                 </span>
               </div>
             )}
