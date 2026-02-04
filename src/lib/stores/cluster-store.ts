@@ -227,6 +227,11 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         lastHealthCheck: new Date(),
       });
 
+      // Refresh namespaces periodically when healthy
+      if (result.healthy) {
+        get().fetchNamespaces();
+      }
+
       // If connection was healthy and is now unhealthy, trigger auto-reconnect
       if (wasConnected && wasHealthy && !result.healthy) {
         console.warn("Connection health check failed, connection lost");
