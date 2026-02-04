@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.19] - 2026-02-04
+
+- Fixed namespace selector not refreshing for newly created namespaces
+
 ## [0.3.18] - 2026-02-04
 
 - Fixed filter labels to use proper translation keys for i18n support
