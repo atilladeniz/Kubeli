@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.18] - 2026-02-04
+
+- Fixed filter labels to use proper translation keys for i18n support
+- Refactored Kubernetes resource hooks with factory pattern for better maintainability
+
 ## [0.3.17] - 2026-02-03
 
 - Added container health details to pod status display for better visibility
