@@ -27,17 +27,17 @@ export function EventsView() {
   const filterOptions: FilterOption<EventInfo>[] = useMemo(() => [
     {
       key: "warning",
-      label: "Warnings",
+      label: t("common.warnings"),
       predicate: (event) => event.event_type === "Warning",
       color: "yellow",
     },
     {
       key: "normal",
-      label: "Normal",
+      label: t("common.normal"),
       predicate: (event) => event.event_type === "Normal",
       color: "blue",
     },
-  ], []);
+  ], [t]);
 
   const getEventContextMenu = (event: EventInfo): ContextMenuItemDef[] => [
     {

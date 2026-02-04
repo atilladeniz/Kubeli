@@ -87,15 +87,15 @@ export function PodsView() {
 
   // Pod status filters - use effective status for accurate counting
   const podFilters: FilterOption<PodInfo>[] = useMemo(() => [
-    { key: "running", label: "Running", predicate: (p) => getEffectivePodStatus(p) === "Running", color: "green" },
-    { key: "pending", label: "Pending", predicate: (p) => p.phase === "Pending", color: "yellow" },
-    { key: "unhealthy", label: "Unhealthy", predicate: (p) => {
+    { key: "running", label: t("workloads.running"), predicate: (p) => getEffectivePodStatus(p) === "Running", color: "green" },
+    { key: "pending", label: t("workloads.pending"), predicate: (p) => p.phase === "Pending", color: "yellow" },
+    { key: "unhealthy", label: t("workloads.unhealthy"), predicate: (p) => {
       const status = getEffectivePodStatus(p);
       return p.phase === "Running" && status !== "Running";
     }, color: "red" },
-    { key: "failed", label: "Failed", predicate: (p) => p.phase === "Failed", color: "red" },
-    { key: "succeeded", label: "Succeeded", predicate: (p) => p.phase === "Succeeded", color: "blue" },
-  ], []);
+    { key: "failed", label: t("workloads.failed"), predicate: (p) => p.phase === "Failed", color: "red" },
+    { key: "succeeded", label: t("workloads.succeeded"), predicate: (p) => p.phase === "Succeeded", color: "blue" },
+  ], [t]);
 
   // Bulk actions for pods
   const podBulkActions: BulkAction<PodInfo>[] = useMemo(() => [

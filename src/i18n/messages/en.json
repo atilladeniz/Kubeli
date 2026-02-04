@@ -47,6 +47,8 @@
     "details": "Details",
     "info": "Info",
     "warning": "Warning",
+    "warnings": "Warnings",
+    "normal": "Normal",
     "age": "Age",
     "type": "Type",
     "labels": "Labels",

@@ -14,19 +14,19 @@ export const JobsView = createResourceView<JobInfo>({
   filterOptions: [
     {
       key: "complete",
-      label: "Complete",
+      label: "workloads.complete",
       predicate: (job) => job.status === "Complete",
       color: "green",
     },
     {
       key: "running",
-      label: "Running",
+      label: "workloads.running",
       predicate: (job) => job.status === "Running",
       color: "blue",
     },
     {
       key: "failed",
-      label: "Failed",
+      label: "workloads.failed",
       predicate: (job) => job.status === "Failed",
       color: "red",
     },
