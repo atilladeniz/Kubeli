@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Cluster, ConnectionStatus, HealthCheckResult } from "../types";
+import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import {
   listClusters,
   connectCluster,
@@ -7,7 +8,10 @@ import {
   getConnectionStatus,
   getNamespaces,
   checkConnectionHealth,
+  watchNamespaces,
+  stopWatch,
 } from "../tauri/commands";
+import type { WatchEvent } from "../types";
 
 // Debug logger - only logs in development
 const isDev = process.env.NODE_ENV === "development";
@@ -32,6 +36,10 @@ interface ClusterState {
   isHealthy: boolean;
   healthCheckInterval: ReturnType<typeof setInterval> | null;
 
+  // Namespace watch
+  namespaceWatchId: string | null;
+  namespaceWatchUnlisten: UnlistenFn | null;
+
   // Auto-reconnect
   reconnectAttempts: number;
   isReconnecting: boolean;
@@ -47,6 +55,10 @@ interface ClusterState {
   fetchNamespaces: () => Promise<void>;
   setCurrentNamespace: (namespace: string) => void;
   setError: (error: string | null) => void;
+
+  // Namespace watch actions
+  startNamespaceWatch: () => Promise<void>;
+  stopNamespaceWatch: () => Promise<void>;
 
   // Health & Reconnect actions
   checkHealth: () => Promise<HealthCheckResult>;
@@ -81,6 +93,10 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   lastHealthCheck: null,
   isHealthy: false,
   healthCheckInterval: null,
+
+  // Namespace watch initial state
+  namespaceWatchId: null,
+  namespaceWatchUnlisten: null,
 
   // Auto-reconnect initial state
   reconnectAttempts: 0,
@@ -133,8 +149,9 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
           lastConnectionErrorContext: null,
           lastConnectionErrorMessage: null,
         });
-        // Fetch namespaces after connecting
+        // Fetch namespaces after connecting, then start watch for live updates
         get().fetchNamespaces();
+        get().startNamespaceWatch();
         // Start health monitoring
         get().startHealthMonitoring();
       } else {
@@ -164,8 +181,9 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   },
 
   disconnect: async () => {
-    // Stop health monitoring before disconnecting
+    // Stop health monitoring and namespace watch before disconnecting
     get().stopHealthMonitoring();
+    get().stopNamespaceWatch();
     try {
       await disconnectCluster();
       // Keep currentCluster so port forward badge still shows on the correct cluster card
@@ -214,6 +232,65 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       lastConnectionErrorMessage: error ? state.lastConnectionErrorMessage : null,
     })),
 
+  startNamespaceWatch: async () => {
+    // Stop any existing watch first
+    await get().stopNamespaceWatch();
+
+    const id = `namespaces-${Date.now()}`;
+    try {
+      await watchNamespaces(id);
+      set({ namespaceWatchId: id });
+
+      const unlisten = await listen<WatchEvent<{ name: string }>>(
+        `namespaces-watch-${id}`,
+        (event) => {
+          const watchEvent = event.payload;
+          const { namespaces } = get();
+
+          switch (watchEvent.type) {
+            case "Added":
+            case "Modified": {
+              const name = (watchEvent.data as { name: string }).name;
+              if (!namespaces.includes(name)) {
+                set({ namespaces: [...namespaces, name].sort() });
+              }
+              break;
+            }
+            case "Deleted": {
+              const name = (watchEvent.data as { name: string }).name;
+              set({ namespaces: namespaces.filter((ns) => ns !== name) });
+              break;
+            }
+            case "Error": {
+              debug("Namespace watch error:", watchEvent.data);
+              break;
+            }
+          }
+        }
+      );
+
+      set({ namespaceWatchUnlisten: unlisten });
+      debug("Started namespace watch:", id);
+    } catch (e) {
+      console.error("Failed to start namespace watch:", e);
+    }
+  },
+
+  stopNamespaceWatch: async () => {
+    const { namespaceWatchId, namespaceWatchUnlisten } = get();
+    if (namespaceWatchUnlisten) {
+      namespaceWatchUnlisten();
+    }
+    if (namespaceWatchId) {
+      try {
+        await stopWatch(namespaceWatchId);
+      } catch {
+        // Watch may already be stopped
+      }
+    }
+    set({ namespaceWatchId: null, namespaceWatchUnlisten: null });
+  },
+
   // Health check action
   checkHealth: async () => {
     try {
@@ -226,11 +303,6 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         latencyMs: result.latency_ms,
         lastHealthCheck: new Date(),
       });
-
-      // Refresh namespaces periodically when healthy
-      if (result.healthy) {
-        get().fetchNamespaces();
-      }
 
       // If connection was healthy and is now unhealthy, trigger auto-reconnect
       if (wasConnected && wasHealthy && !result.healthy) {
@@ -325,8 +397,9 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
           lastHealthCheck: new Date(),
           isHealthy: true,
         });
-        // Refetch namespaces
+        // Refetch namespaces and restart watch
         get().fetchNamespaces();
+        get().startNamespaceWatch();
         debug("Reconnected successfully");
         return true;
       } else {

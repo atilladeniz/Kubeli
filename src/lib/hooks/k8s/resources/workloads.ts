@@ -8,6 +8,7 @@ import {
   listStatefulsets,
   listJobs,
   listCronjobs,
+  watchPods,
 } from "../../../tauri/commands";
 import type {
   PodInfo,
@@ -28,6 +29,8 @@ export const usePods = createNamespacedHook<PodInfo>({
   displayName: "Pods",
   listFn: listPods,
   supportsWatch: true,
+  watchFn: watchPods,
+  watchEventPrefix: "pods",
 });
 
 /**

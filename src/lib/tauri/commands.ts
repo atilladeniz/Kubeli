@@ -348,6 +348,10 @@ export async function watchPods(
   return invoke("watch_pods", { watchId, namespace });
 }
 
+export async function watchNamespaces(watchId: string): Promise<void> {
+  return invoke("watch_namespaces", { watchId });
+}
+
 export async function stopWatch(watchId: string): Promise<void> {
   return invoke("stop_watch", { watchId });
 }
