@@ -258,7 +258,14 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
             }
             case "Deleted": {
               const name = (watchEvent.data as { name: string }).name;
-              set({ namespaces: namespaces.filter((ns) => ns !== name) });
+              const updates: Partial<ClusterState> = {
+                namespaces: namespaces.filter((ns) => ns !== name),
+              };
+              // Reset to "All Namespaces" if the active namespace was deleted
+              if (get().currentNamespace === name) {
+                updates.currentNamespace = "";
+              }
+              set(updates);
               break;
             }
             case "Error": {

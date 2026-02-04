@@ -405,6 +405,60 @@ describe("ClusterStore", () => {
       expect(useClusterStore.getState().namespaces).toEqual(["default", "kube-system"]);
     });
 
+    it("should reset to All Namespaces when active namespace is deleted", async () => {
+      let eventCallback: (event: { payload: unknown }) => void = () => {};
+      (listen as jest.Mock).mockImplementation((_channel: string, cb: typeof eventCallback) => {
+        eventCallback = cb;
+        return Promise.resolve(jest.fn());
+      });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      useClusterStore.setState({
+        namespaces: ["default", "kube-system", "active-ns"],
+        currentNamespace: "active-ns",
+      });
+
+      await act(async () => {
+        await useClusterStore.getState().startNamespaceWatch();
+      });
+
+      act(() => {
+        eventCallback({
+          payload: { type: "Deleted", data: { name: "active-ns" } },
+        });
+      });
+
+      expect(useClusterStore.getState().namespaces).toEqual(["default", "kube-system"]);
+      expect(useClusterStore.getState().currentNamespace).toBe("");
+    });
+
+    it("should not reset namespace when a different namespace is deleted", async () => {
+      let eventCallback: (event: { payload: unknown }) => void = () => {};
+      (listen as jest.Mock).mockImplementation((_channel: string, cb: typeof eventCallback) => {
+        eventCallback = cb;
+        return Promise.resolve(jest.fn());
+      });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      useClusterStore.setState({
+        namespaces: ["default", "kube-system", "other-ns"],
+        currentNamespace: "default",
+      });
+
+      await act(async () => {
+        await useClusterStore.getState().startNamespaceWatch();
+      });
+
+      act(() => {
+        eventCallback({
+          payload: { type: "Deleted", data: { name: "other-ns" } },
+        });
+      });
+
+      expect(useClusterStore.getState().namespaces).toEqual(["default", "kube-system"]);
+      expect(useClusterStore.getState().currentNamespace).toBe("default");
+    });
+
     it("should sort namespaces on Added event", async () => {
       let eventCallback: (event: { payload: unknown }) => void = () => {};
       (listen as jest.Mock).mockImplementation((_channel: string, cb: typeof eventCallback) => {
