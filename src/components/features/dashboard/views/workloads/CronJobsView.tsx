@@ -14,13 +14,13 @@ export const CronJobsView = createResourceView<CronJobInfo>({
   filterOptions: [
     {
       key: "active",
-      label: "Active",
+      label: "workloads.active",
       predicate: (cj) => !cj.suspend,
       color: "green",
     },
     {
       key: "suspended",
-      label: "Suspended",
+      label: "workloads.suspended",
       predicate: (cj) => cj.suspend,
       color: "yellow",
     },
