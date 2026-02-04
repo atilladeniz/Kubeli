@@ -1,4 +1,5 @@
 import { act } from "@testing-library/react";
+import { listen } from "@tauri-apps/api/event";
 import { useClusterStore } from "../cluster-store";
 
 // Mock Tauri commands
@@ -8,6 +9,8 @@ const mockDisconnectCluster = jest.fn();
 const mockGetConnectionStatus = jest.fn();
 const mockGetNamespaces = jest.fn();
 const mockCheckConnectionHealth = jest.fn();
+const mockWatchNamespaces = jest.fn();
+const mockStopWatch = jest.fn();
 
 jest.mock("../../tauri/commands", () => ({
   listClusters: () => mockListClusters(),
@@ -16,6 +19,8 @@ jest.mock("../../tauri/commands", () => ({
   getConnectionStatus: () => mockGetConnectionStatus(),
   getNamespaces: () => mockGetNamespaces(),
   checkConnectionHealth: () => mockCheckConnectionHealth(),
+  watchNamespaces: (watchId: string) => mockWatchNamespaces(watchId),
+  stopWatch: (watchId: string) => mockStopWatch(watchId),
 }));
 
 // Test data
@@ -44,31 +49,32 @@ const mockClusters = [
   },
 ];
 
+const defaultState = {
+  clusters: [],
+  currentCluster: null,
+  currentNamespace: "",
+  namespaces: [],
+  isConnected: false,
+  isLoading: false,
+  error: null,
+  lastConnectionErrorContext: null,
+  lastConnectionErrorMessage: null,
+  latencyMs: null,
+  lastHealthCheck: null,
+  isHealthy: false,
+  healthCheckInterval: null,
+  namespaceWatchId: null,
+  namespaceWatchUnlisten: null,
+  reconnectAttempts: 0,
+  isReconnecting: false,
+  autoReconnectEnabled: true,
+  lastConnectedContext: null,
+  maxReconnectAttempts: 5,
+};
+
 describe("ClusterStore", () => {
   beforeEach(() => {
-    // Reset store state before each test
-    useClusterStore.setState({
-      clusters: [],
-      currentCluster: null,
-      currentNamespace: "",
-      namespaces: [],
-      isConnected: false,
-      isLoading: false,
-      error: null,
-      lastConnectionErrorContext: null,
-      lastConnectionErrorMessage: null,
-      latencyMs: null,
-      lastHealthCheck: null,
-      isHealthy: false,
-      healthCheckInterval: null,
-      reconnectAttempts: 0,
-      isReconnecting: false,
-      autoReconnectEnabled: true,
-      lastConnectedContext: null,
-      maxReconnectAttempts: 5,
-    });
-
-    // Reset all mocks
+    useClusterStore.setState(defaultState);
     jest.clearAllMocks();
   });
 
@@ -120,7 +126,6 @@ describe("ClusterStore", () => {
 
   describe("connect", () => {
     beforeEach(() => {
-      // Set up clusters first
       useClusterStore.setState({ clusters: mockClusters });
     });
 
@@ -132,6 +137,7 @@ describe("ClusterStore", () => {
       });
       mockGetNamespaces.mockResolvedValue(["default", "kube-system"]);
       mockCheckConnectionHealth.mockResolvedValue({ healthy: true, latency_ms: 50 });
+      mockWatchNamespaces.mockResolvedValue(undefined);
 
       await act(async () => {
         await useClusterStore.getState().connect("test-context");
@@ -144,6 +150,24 @@ describe("ClusterStore", () => {
       expect(state.isHealthy).toBe(true);
       expect(state.error).toBeNull();
       expect(mockConnectCluster).toHaveBeenCalledWith("test-context");
+    });
+
+    it("should start namespace watch on successful connect", async () => {
+      mockConnectCluster.mockResolvedValue({
+        connected: true,
+        context: "test-context",
+        latency_ms: 50,
+      });
+      mockGetNamespaces.mockResolvedValue(["default"]);
+      mockCheckConnectionHealth.mockResolvedValue({ healthy: true, latency_ms: 50 });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await useClusterStore.getState().connect("test-context");
+      });
+
+      expect(mockWatchNamespaces).toHaveBeenCalled();
+      expect(useClusterStore.getState().namespaceWatchId).not.toBeNull();
     });
 
     it("should handle connection failure", async () => {
@@ -199,6 +223,25 @@ describe("ClusterStore", () => {
       expect(state.namespaces).toEqual([]);
       expect(state.lastConnectedContext).toBeNull();
       expect(state.error).toBeNull();
+    });
+
+    it("should stop namespace watch on disconnect", async () => {
+      const mockUnlisten = jest.fn();
+      useClusterStore.setState({
+        namespaceWatchId: "ns-watch-123",
+        namespaceWatchUnlisten: mockUnlisten,
+      });
+      mockDisconnectCluster.mockResolvedValue(undefined);
+      mockStopWatch.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await useClusterStore.getState().disconnect();
+      });
+
+      expect(mockUnlisten).toHaveBeenCalled();
+      expect(mockStopWatch).toHaveBeenCalledWith("ns-watch-123");
+      expect(useClusterStore.getState().namespaceWatchId).toBeNull();
+      expect(useClusterStore.getState().namespaceWatchUnlisten).toBeNull();
     });
 
     it("should handle disconnect error", async () => {
@@ -267,6 +310,192 @@ describe("ClusterStore", () => {
       });
 
       expect(mockGetNamespaces).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("namespace watch", () => {
+    it("should start namespace watch and set watchId", async () => {
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await useClusterStore.getState().startNamespaceWatch();
+      });
+
+      const state = useClusterStore.getState();
+      expect(state.namespaceWatchId).toMatch(/^namespaces-\d+$/);
+      expect(mockWatchNamespaces).toHaveBeenCalledWith(state.namespaceWatchId);
+      expect(listen).toHaveBeenCalledWith(
+        `namespaces-watch-${state.namespaceWatchId}`,
+        expect.any(Function)
+      );
+    });
+
+    it("should add namespace on Added event", async () => {
+      // Capture the event callback from listen
+      let eventCallback: (event: { payload: unknown }) => void = () => {};
+      (listen as jest.Mock).mockImplementation((_channel: string, cb: typeof eventCallback) => {
+        eventCallback = cb;
+        return Promise.resolve(jest.fn());
+      });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      useClusterStore.setState({ namespaces: ["default", "kube-system"] });
+
+      await act(async () => {
+        await useClusterStore.getState().startNamespaceWatch();
+      });
+
+      // Simulate a namespace Added event
+      act(() => {
+        eventCallback({
+          payload: { type: "Added", data: { name: "new-namespace" } },
+        });
+      });
+
+      expect(useClusterStore.getState().namespaces).toEqual([
+        "default",
+        "kube-system",
+        "new-namespace",
+      ]);
+    });
+
+    it("should not duplicate namespace on Added event for existing namespace", async () => {
+      let eventCallback: (event: { payload: unknown }) => void = () => {};
+      (listen as jest.Mock).mockImplementation((_channel: string, cb: typeof eventCallback) => {
+        eventCallback = cb;
+        return Promise.resolve(jest.fn());
+      });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      useClusterStore.setState({ namespaces: ["default", "kube-system"] });
+
+      await act(async () => {
+        await useClusterStore.getState().startNamespaceWatch();
+      });
+
+      act(() => {
+        eventCallback({
+          payload: { type: "Added", data: { name: "default" } },
+        });
+      });
+
+      expect(useClusterStore.getState().namespaces).toEqual(["default", "kube-system"]);
+    });
+
+    it("should remove namespace on Deleted event", async () => {
+      let eventCallback: (event: { payload: unknown }) => void = () => {};
+      (listen as jest.Mock).mockImplementation((_channel: string, cb: typeof eventCallback) => {
+        eventCallback = cb;
+        return Promise.resolve(jest.fn());
+      });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      useClusterStore.setState({ namespaces: ["default", "kube-system", "to-delete"] });
+
+      await act(async () => {
+        await useClusterStore.getState().startNamespaceWatch();
+      });
+
+      act(() => {
+        eventCallback({
+          payload: { type: "Deleted", data: { name: "to-delete" } },
+        });
+      });
+
+      expect(useClusterStore.getState().namespaces).toEqual(["default", "kube-system"]);
+    });
+
+    it("should sort namespaces on Added event", async () => {
+      let eventCallback: (event: { payload: unknown }) => void = () => {};
+      (listen as jest.Mock).mockImplementation((_channel: string, cb: typeof eventCallback) => {
+        eventCallback = cb;
+        return Promise.resolve(jest.fn());
+      });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      useClusterStore.setState({ namespaces: ["default", "monitoring"] });
+
+      await act(async () => {
+        await useClusterStore.getState().startNamespaceWatch();
+      });
+
+      act(() => {
+        eventCallback({
+          payload: { type: "Added", data: { name: "beta-ns" } },
+        });
+      });
+
+      expect(useClusterStore.getState().namespaces).toEqual([
+        "beta-ns",
+        "default",
+        "monitoring",
+      ]);
+    });
+
+    it("should stop existing watch before starting new one", async () => {
+      const mockUnlisten = jest.fn();
+      useClusterStore.setState({
+        namespaceWatchId: "old-watch",
+        namespaceWatchUnlisten: mockUnlisten,
+      });
+      mockStopWatch.mockResolvedValue(undefined);
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await useClusterStore.getState().startNamespaceWatch();
+      });
+
+      expect(mockUnlisten).toHaveBeenCalled();
+      expect(mockStopWatch).toHaveBeenCalledWith("old-watch");
+    });
+
+    it("should stop namespace watch cleanly", async () => {
+      const mockUnlisten = jest.fn();
+      useClusterStore.setState({
+        namespaceWatchId: "test-watch",
+        namespaceWatchUnlisten: mockUnlisten,
+      });
+      mockStopWatch.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await useClusterStore.getState().stopNamespaceWatch();
+      });
+
+      expect(mockUnlisten).toHaveBeenCalled();
+      expect(mockStopWatch).toHaveBeenCalledWith("test-watch");
+      expect(useClusterStore.getState().namespaceWatchId).toBeNull();
+      expect(useClusterStore.getState().namespaceWatchUnlisten).toBeNull();
+    });
+
+    it("should handle stopWatch failure gracefully", async () => {
+      useClusterStore.setState({
+        namespaceWatchId: "test-watch",
+        namespaceWatchUnlisten: jest.fn(),
+      });
+      mockStopWatch.mockRejectedValue(new Error("Watch not found"));
+
+      await act(async () => {
+        await useClusterStore.getState().stopNamespaceWatch();
+      });
+
+      // Should still clean up state despite error
+      expect(useClusterStore.getState().namespaceWatchId).toBeNull();
+      expect(useClusterStore.getState().namespaceWatchUnlisten).toBeNull();
+    });
+
+    it("should handle watch start failure", async () => {
+      const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      mockWatchNamespaces.mockRejectedValue(new Error("Watch failed"));
+
+      await act(async () => {
+        await useClusterStore.getState().startNamespaceWatch();
+      });
+
+      expect(errorSpy).toHaveBeenCalledWith(
+        "Failed to start namespace watch:",
+        expect.any(Error)
+      );
+      errorSpy.mockRestore();
     });
   });
 
