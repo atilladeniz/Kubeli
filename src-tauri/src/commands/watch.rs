@@ -1,7 +1,7 @@
-use crate::commands::resources::{extract_container_info, ContainerInfo, PodInfo};
+use crate::commands::resources::{extract_container_info, ContainerInfo, NamespaceInfo, PodInfo};
 use crate::k8s::AppState;
 use futures::StreamExt;
-use k8s_openapi::api::core::v1::Pod;
+use k8s_openapi::api::core::v1::{Namespace, Pod};
 use kube::api::Api;
 use kube::runtime::watcher::{watcher, Config, Event};
 use serde::{Deserialize, Serialize};
@@ -197,6 +197,88 @@ pub async fn watch_pods(
     });
 
     tracing::info!("Started pods watch: {}", watch_id);
+    Ok(())
+}
+
+fn namespace_to_info(ns: Namespace) -> NamespaceInfo {
+    let metadata = ns.metadata;
+    let status = ns
+        .status
+        .as_ref()
+        .and_then(|s| s.phase.as_ref())
+        .cloned()
+        .unwrap_or_else(|| "Unknown".to_string());
+
+    NamespaceInfo {
+        name: metadata.name.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        status,
+        created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
+        labels: btree_to_hashmap(metadata.labels),
+        annotations: btree_to_hashmap(metadata.annotations),
+    }
+}
+
+/// Start watching namespaces
+#[command]
+pub async fn watch_namespaces(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    watch_manager: State<'_, Arc<WatchManager>>,
+    watch_id: String,
+) -> Result<(), String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let manager = Arc::clone(watch_manager.inner());
+
+    let stop_flag = Arc::new(AtomicBool::new(false));
+    manager
+        .add_session(watch_id.clone(), stop_flag.clone())
+        .await;
+
+    let namespaces: Api<Namespace> = Api::all(client);
+
+    let watcher_config = Config::default();
+    let watch_id_clone = watch_id.clone();
+
+    tokio::spawn(async move {
+        let mut stream = watcher(namespaces, watcher_config).boxed();
+
+        while let Some(event) = stream.next().await {
+            if stop_flag.load(Ordering::SeqCst) {
+                tracing::info!("Watch {} stopped by user", watch_id_clone);
+                break;
+            }
+
+            let watch_event = match event {
+                Ok(Event::Apply(ns)) => {
+                    let info = namespace_to_info(ns);
+                    WatchEvent::Modified(info)
+                }
+                Ok(Event::Delete(ns)) => {
+                    let info = namespace_to_info(ns);
+                    WatchEvent::Deleted(info)
+                }
+                Ok(Event::Init) => continue,
+                Ok(Event::InitApply(ns)) => {
+                    let info = namespace_to_info(ns);
+                    WatchEvent::Added(info)
+                }
+                Ok(Event::InitDone) => continue,
+                Err(e) => WatchEvent::Error(e.to_string()),
+            };
+
+            let event_name = format!("namespaces-watch-{}", watch_id_clone);
+            if let Err(e) = app.emit(&event_name, &watch_event) {
+                tracing::error!("Failed to emit namespace watch event: {}", e);
+                break;
+            }
+        }
+
+        manager.remove_session(&watch_id_clone).await;
+        tracing::info!("Namespace watch {} ended", watch_id_clone);
+    });
+
+    tracing::info!("Started namespaces watch: {}", watch_id);
     Ok(())
 }
 

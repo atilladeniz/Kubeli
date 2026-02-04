@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { useClusterStore } from "../../stores/cluster-store";
-import { watchPods, stopWatch } from "../../tauri/commands";
+import { stopWatch } from "../../tauri/commands";
 import type { ListOptions, WatchEvent } from "../../types";
 import type { UseK8sResourcesOptions, UseK8sResourcesReturn, ResourceHookConfig } from "./types";
 
@@ -62,7 +62,7 @@ export function useK8sResource<T>(
     setError(null);
 
     try {
-      await watchPods(id, namespace || undefined);
+      await config.watchFn!(id, namespace || undefined);
       setIsWatching(true);
       watchRetryUntilRef.current = null;
     } catch (e) {
@@ -71,7 +71,7 @@ export function useK8sResource<T>(
       setWatchId(null);
       watchRetryUntilRef.current = Date.now() + 5000;
     }
-  }, [isConnected, watchId, namespace, config.displayName, config.supportsWatch]);
+  }, [isConnected, watchId, namespace, config.displayName, config.supportsWatch, config.watchFn]);
 
   const stopWatchFn = useCallback(async () => {
     if (!watchId) return;
@@ -85,11 +85,12 @@ export function useK8sResource<T>(
     }
   }, [watchId]);
 
-  // Listen for watch events (pods only)
+  // Listen for watch events
   useEffect(() => {
     if (!watchId || !config.supportsWatch) return;
 
     let unlisten: UnlistenFn;
+    const prefix = config.watchEventPrefix || "pods";
 
     // Helper to safely get uid from an item (only used for watchable resources)
     const getUid = (item: T): string | undefined => {
@@ -97,7 +98,7 @@ export function useK8sResource<T>(
     };
 
     const setupListener = async () => {
-      unlisten = await listen<WatchEvent<T>>(`pods-watch-${watchId}`, (event) => {
+      unlisten = await listen<WatchEvent<T>>(`${prefix}-watch-${watchId}`, (event) => {
         const watchEvent = event.payload;
 
         setData((prev) => {
@@ -152,7 +153,7 @@ export function useK8sResource<T>(
     return () => {
       if (unlisten) unlisten();
     };
-  }, [watchId, config.supportsWatch]);
+  }, [watchId, config.supportsWatch, config.watchEventPrefix]);
 
   // Initial fetch
   useEffect(() => {

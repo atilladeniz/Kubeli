@@ -50,6 +50,10 @@ export interface ResourceHookConfig<T> {
   defaultRefreshInterval?: number;
   /** Whether this resource supports watching (requires uid field) */
   supportsWatch?: boolean;
+  /** Watch function to invoke (e.g., watchPods, watchNamespaces) */
+  watchFn?: (watchId: string, namespace?: string) => Promise<void>;
+  /** Event channel prefix for watch events (e.g., "pods", "namespaces") */
+  watchEventPrefix?: string;
   /** Post-processing function for data */
   postProcess?: (data: T[]) => T[];
 }

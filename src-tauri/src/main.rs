@@ -281,6 +281,7 @@ fn main() {
             commands::resources::scale_deployment,
             // Watch commands
             commands::watch::watch_pods,
+            commands::watch::watch_namespaces,
             commands::watch::stop_watch,
             // Log commands
             commands::logs::get_pod_logs,
