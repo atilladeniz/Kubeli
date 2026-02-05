@@ -1,13 +1,22 @@
 "use client";
 
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
+import { useLocale } from "@/components/providers/I18nProvider";
 import type { K8sEvent } from "../types";
 
-function formatDate(dateString: string): string {
+function formatDate(dateString: string, locale: string): string {
   const date = new Date(dateString);
-  return date.toLocaleString();
+  const resolvedLocale = locale === "system" ? undefined : locale;
+  return date.toLocaleString(resolvedLocale, {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
 
 interface EventsTabProps {
@@ -15,8 +24,11 @@ interface EventsTabProps {
 }
 
 export function EventsTab({ events }: EventsTabProps) {
+  const t = useTranslations();
+  const locale = useLocale();
+
   return (
-    <ScrollArea className="h-full">
+    <div className="h-full overflow-y-auto">
       <div className="p-4 space-y-3">
         {events.map((event, idx) => (
           <div
@@ -48,12 +60,12 @@ export function EventsTab({ events }: EventsTabProps) {
             <p className="text-sm">{event.message}</p>
             {event.lastTimestamp && (
               <p className="text-xs text-muted-foreground mt-2">
-                Last seen: {formatDate(event.lastTimestamp)}
+                {t("resourceDetail.lastSeen")}: {formatDate(event.lastTimestamp, locale)}
               </p>
             )}
           </div>
         ))}
       </div>
-    </ScrollArea>
+    </div>
   );
 }

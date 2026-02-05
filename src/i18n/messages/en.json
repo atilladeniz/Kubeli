@@ -789,7 +789,8 @@
     "dangerZone": "Danger Zone",
     "deleteResource": "Delete {type} \"{name}\"",
     "uninstallResource": "Uninstall Helm release \"{name}\"",
-    "deleteWarning": "This action cannot be undone."
+    "deleteWarning": "This action cannot be undone.",
+    "lastSeen": "Last seen"
   },
   "podDetail": {
     "initContainers": "Init Containers",
