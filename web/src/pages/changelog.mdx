@@ -3,6 +3,11 @@ layout: ../layouts/ChangelogLayout.astro
 title: Changelog
 ---
 
+## v0.3.20 <span class="text-sm font-normal text-neutral-400 ml-2">2026-02-05</span>
+
+- Fixed cluster connection to use configured kubeconfig sources instead of defaults
+- Fixed cross-namespace pod leaking by restarting watch when namespace changes
+
 ## v0.3.19 <span class="text-sm font-normal text-neutral-400 ml-2">2026-02-04</span>
 
 - Fixed namespace selector not refreshing for newly created namespaces

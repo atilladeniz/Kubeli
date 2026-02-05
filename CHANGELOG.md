@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.20] - 2026-02-05
+
+- Fixed cluster connection to use configured kubeconfig sources instead of defaults
+- Fixed cross-namespace pod leaking by restarting watch when namespace changes
+
 ## [0.3.19] - 2026-02-04
 
 - Fixed namespace selector not refreshing for newly created namespaces
