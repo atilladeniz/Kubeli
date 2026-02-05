@@ -209,10 +209,18 @@ async fn build_kubeconfig_for_connect(app: &AppHandle) -> Result<Kubeconfig, Str
         return Kubeconfig::read().map_err(|e| format!("Failed to read kubeconfig: {}", e));
     }
 
+    merge_kubeconfig_files(&all_files).or_else(|_| {
+        Kubeconfig::read().map_err(|e| format!("No valid kubeconfig files found: {}", e))
+    })
+}
+
+/// Read and merge multiple kubeconfig files into a single kube-rs Kubeconfig.
+/// Returns Err if no valid files could be parsed.
+fn merge_kubeconfig_files(files: &[std::path::PathBuf]) -> Result<Kubeconfig, String> {
     let mut merged = Kubeconfig::default();
     let mut found_any = false;
 
-    for file in &all_files {
+    for file in files {
         let content = match std::fs::read_to_string(file) {
             Ok(c) => c,
             Err(e) => {
@@ -240,7 +248,7 @@ async fn build_kubeconfig_for_connect(app: &AppHandle) -> Result<Kubeconfig, Str
     }
 
     if !found_any {
-        return Kubeconfig::read().map_err(|e| format!("No valid kubeconfig files found: {}", e));
+        return Err("No valid kubeconfig files could be parsed".to_string());
     }
 
     Ok(merged)
@@ -374,4 +382,165 @@ pub async fn remove_cluster(context: String) -> Result<(), String> {
 #[command]
 pub async fn has_kubeconfig() -> Result<bool, String> {
     Ok(KubeConfig::exists().await)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    fn write_kubeconfig(dir: &std::path::Path, name: &str, content: &str) -> PathBuf {
+        let path = dir.join(name);
+        std::fs::write(&path, content).unwrap();
+        path
+    }
+
+    const KUBECONFIG_A: &str = r#"
+apiVersion: v1
+kind: Config
+current-context: ctx-a
+clusters:
+- name: cluster-a
+  cluster:
+    server: https://cluster-a:6443
+contexts:
+- name: ctx-a
+  context:
+    cluster: cluster-a
+    user: user-a
+users:
+- name: user-a
+  user:
+    token: token-a
+"#;
+
+    const KUBECONFIG_B: &str = r#"
+apiVersion: v1
+kind: Config
+current-context: ctx-b
+clusters:
+- name: cluster-b
+  cluster:
+    server: https://cluster-b:6443
+contexts:
+- name: ctx-b
+  context:
+    cluster: cluster-b
+    user: user-b
+users:
+- name: user-b
+  user:
+    token: token-b
+"#;
+
+    #[test]
+    fn test_merge_single_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = write_kubeconfig(dir.path(), "config.yaml", KUBECONFIG_A);
+
+        let result = merge_kubeconfig_files(&[f]).unwrap();
+        assert_eq!(result.contexts.len(), 1);
+        assert_eq!(result.contexts[0].name, "ctx-a");
+        assert_eq!(result.clusters.len(), 1);
+        assert_eq!(result.auth_infos.len(), 1);
+        assert_eq!(result.current_context, Some("ctx-a".to_string()));
+    }
+
+    #[test]
+    fn test_merge_multiple_files_all_contexts_accessible() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_kubeconfig(dir.path(), "cluster-a.yaml", KUBECONFIG_A);
+        let f2 = write_kubeconfig(dir.path(), "cluster-b.yaml", KUBECONFIG_B);
+
+        let result = merge_kubeconfig_files(&[f1, f2]).unwrap();
+
+        // Both contexts must be present (this was the bug — only default file was read)
+        assert_eq!(result.contexts.len(), 2);
+        let ctx_names: Vec<&str> = result.contexts.iter().map(|c| c.name.as_str()).collect();
+        assert!(ctx_names.contains(&"ctx-a"));
+        assert!(ctx_names.contains(&"ctx-b"));
+
+        // Both clusters and auth_infos merged
+        assert_eq!(result.clusters.len(), 2);
+        assert_eq!(result.auth_infos.len(), 2);
+    }
+
+    #[test]
+    fn test_merge_current_context_from_first_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_kubeconfig(dir.path(), "first.yaml", KUBECONFIG_A);
+        let f2 = write_kubeconfig(dir.path(), "second.yaml", KUBECONFIG_B);
+
+        let result = merge_kubeconfig_files(&[f1, f2]).unwrap();
+        assert_eq!(result.current_context, Some("ctx-a".to_string()));
+
+        // Reverse order: ctx-b should be current
+        let dir2 = tempfile::tempdir().unwrap();
+        let f3 = write_kubeconfig(dir2.path(), "first.yaml", KUBECONFIG_B);
+        let f4 = write_kubeconfig(dir2.path(), "second.yaml", KUBECONFIG_A);
+
+        let result2 = merge_kubeconfig_files(&[f3, f4]).unwrap();
+        assert_eq!(result2.current_context, Some("ctx-b".to_string()));
+    }
+
+    #[test]
+    fn test_merge_skips_invalid_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let bad = write_kubeconfig(dir.path(), "bad.yaml", "not: valid: yaml: [[[");
+        let good = write_kubeconfig(dir.path(), "good.yaml", KUBECONFIG_A);
+
+        let result = merge_kubeconfig_files(&[bad, good]).unwrap();
+        assert_eq!(result.contexts.len(), 1);
+        assert_eq!(result.contexts[0].name, "ctx-a");
+    }
+
+    #[test]
+    fn test_merge_skips_nonexistent_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("nonexistent.yaml");
+        let good = write_kubeconfig(dir.path(), "good.yaml", KUBECONFIG_B);
+
+        let result = merge_kubeconfig_files(&[missing, good]).unwrap();
+        assert_eq!(result.contexts.len(), 1);
+        assert_eq!(result.contexts[0].name, "ctx-b");
+    }
+
+    #[test]
+    fn test_merge_no_valid_files_returns_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let bad = write_kubeconfig(dir.path(), "bad.yaml", "garbage content");
+
+        let result = merge_kubeconfig_files(&[bad]);
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .contains("No valid kubeconfig files could be parsed"));
+    }
+
+    #[test]
+    fn test_merge_empty_file_list_returns_error() {
+        let result = merge_kubeconfig_files(&[]);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_merge_context_can_be_found_by_name() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_kubeconfig(dir.path(), "a.yaml", KUBECONFIG_A);
+        let f2 = write_kubeconfig(dir.path(), "b.yaml", KUBECONFIG_B);
+
+        let merged = merge_kubeconfig_files(&[f1, f2]).unwrap();
+
+        // Simulate what init_with_context does: find context by name
+        let found_a = merged.contexts.iter().find(|c| c.name == "ctx-a");
+        let found_b = merged.contexts.iter().find(|c| c.name == "ctx-b");
+        assert!(found_a.is_some(), "ctx-a must be findable in merged config");
+        assert!(found_b.is_some(), "ctx-b must be findable in merged config");
+
+        // Verify auth_infos are also accessible (needed for client creation)
+        let user_a = merged.auth_infos.iter().find(|u| u.name == "user-a");
+        let user_b = merged.auth_infos.iter().find(|u| u.name == "user-b");
+        assert!(user_a.is_some(), "user-a must be findable");
+        assert!(user_b.is_some(), "user-b must be findable");
+    }
 }
