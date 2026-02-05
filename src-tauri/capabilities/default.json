@@ -23,9 +23,11 @@
     "updater:default",
     "dialog:default",
     "fs:default",
+    "fs:allow-watch",
     "fs:allow-download-write-recursive",
     "fs:allow-desktop-write-recursive",
     "fs:allow-document-write-recursive",
-    "fs:allow-home-write-recursive"
+    "fs:allow-home-write-recursive",
+    "fs:allow-home-read-recursive"
   ]
 }

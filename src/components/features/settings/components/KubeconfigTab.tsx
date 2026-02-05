@@ -71,6 +71,8 @@ export function KubeconfigTab() {
   const reloadSourcesAndClusters = useCallback(async () => {
     await loadSources();
     await fetchClusters();
+    // Notify watcher to restart with updated source paths
+    window.dispatchEvent(new Event("kubeconfig-sources-changed"));
   }, [loadSources, fetchClusters]);
 
   useEffect(() => {
