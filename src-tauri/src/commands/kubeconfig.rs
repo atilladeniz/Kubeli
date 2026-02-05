@@ -11,7 +11,7 @@ const STORE_FILENAME: &str = "kubeconfig-sources.json";
 const STORE_KEY: &str = "sources_config";
 
 /// Load sources config from Tauri store
-fn load_sources_config(app: &AppHandle) -> KubeconfigSourcesConfig {
+pub(crate) fn load_sources_config(app: &AppHandle) -> KubeconfigSourcesConfig {
     let store = match app.store(STORE_FILENAME) {
         Ok(s) => s,
         Err(_) => return KubeConfig::default_sources_config(),

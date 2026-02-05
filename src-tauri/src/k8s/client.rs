@@ -119,8 +119,12 @@ impl KubeClientManager {
         Ok(())
     }
 
-    /// Initialize from a specific context
-    pub async fn init_with_context(&self, context_name: &str) -> Result<()> {
+    /// Initialize from a specific context using a pre-loaded kubeconfig
+    pub async fn init_with_context(
+        &self,
+        context_name: &str,
+        kubeconfig: Kubeconfig,
+    ) -> Result<()> {
         tracing::info!("Attempting to connect to context: {}", context_name);
         let attempt_start = Instant::now();
         let mut steps = vec![format!(
@@ -128,25 +132,7 @@ impl KubeClientManager {
             context_name
         )];
 
-        let kubeconfig = match Kubeconfig::read() {
-            Ok(cfg) => {
-                steps.push("Kubeconfig file loaded".into());
-                cfg
-            }
-            Err(e) => {
-                let err_msg = format!("Failed to read kubeconfig file: {}", e);
-                tracing::error!("{}", err_msg);
-                steps.push(err_msg.clone());
-                self.persist_connection_log(
-                    context_name,
-                    steps,
-                    Some(err_msg.clone()),
-                    Some(attempt_start.elapsed().as_millis()),
-                )
-                .await;
-                return Err(anyhow::anyhow!(err_msg));
-            }
-        };
+        steps.push("Kubeconfig loaded from configured sources".into());
 
         let context_entry = match kubeconfig.contexts.iter().find(|c| c.name == context_name) {
             Some(ctx) => ctx,
@@ -266,27 +252,6 @@ impl KubeClientManager {
             }
         };
 
-        let parsed_config = match ParsedKubeConfig::load().await {
-            Ok(cfg) => {
-                steps.push("Parsed kubeconfig cache loaded".into());
-                cfg
-            }
-            Err(e) => {
-                let err_msg = format!("Failed to load parsed kubeconfig: {}", e);
-                tracing::error!("{}", err_msg);
-                steps.push(err_msg.clone());
-                self.persist_connection_log(
-                    context_name,
-                    steps,
-                    Some(err_msg.clone()),
-                    Some(attempt_start.elapsed().as_millis()),
-                )
-                .await;
-                return Err(e);
-            }
-        };
-
-        *self.kubeconfig.write().await = Some(parsed_config);
         *self.client.write().await = Some(client);
         *self.current_context.write().await = Some(context_name.to_string());
 
@@ -309,8 +274,8 @@ impl KubeClientManager {
 
     /// Switch to a different context
     #[allow(dead_code)] // May be used in future features (e.g., Resource Detail Views)
-    pub async fn switch_context(&self, context_name: &str) -> Result<()> {
-        self.init_with_context(context_name).await
+    pub async fn switch_context(&self, context_name: &str, kubeconfig: Kubeconfig) -> Result<()> {
+        self.init_with_context(context_name, kubeconfig).await
     }
 
     /// Get the current client

@@ -1,6 +1,7 @@
 #![allow(unused_variables)] // Some state parameters may be unused but are required by Tauri command signatures
 
-use crate::k8s::{AppState, AuthType, KubeConfig};
+use crate::k8s::{AppState, AuthType, KubeConfig, KubeconfigSourceType};
+use kube::config::Kubeconfig;
 use serde::{Deserialize, Serialize};
 use tauri::{command, AppHandle, State};
 use tauri_plugin_store::StoreExt;
@@ -170,15 +171,94 @@ pub async fn check_connection_health(
     }
 }
 
+/// Build a merged kube-rs Kubeconfig from all configured sources for client connection
+async fn build_kubeconfig_for_connect(app: &AppHandle) -> Result<Kubeconfig, String> {
+    let sources_config = super::kubeconfig::load_sources_config(app);
+
+    if sources_config.sources.is_empty() {
+        return Kubeconfig::read().map_err(|e| format!("Failed to read kubeconfig: {}", e));
+    }
+
+    let mut all_files: Vec<std::path::PathBuf> = Vec::new();
+    for source in &sources_config.sources {
+        let path = std::path::PathBuf::from(&source.path);
+        match source.source_type {
+            KubeconfigSourceType::File => {
+                if path.exists() {
+                    all_files.push(path);
+                }
+            }
+            KubeconfigSourceType::Folder => {
+                if let Ok(entries) = KubeConfig::scan_folder(&path).await {
+                    all_files.extend(entries);
+                }
+            }
+        }
+    }
+
+    // Also respect KUBECONFIG env var
+    if let Ok(env_val) = std::env::var("KUBECONFIG") {
+        for path in std::env::split_paths(&env_val) {
+            if path.exists() && !all_files.iter().any(|f| f == &path) {
+                all_files.push(path);
+            }
+        }
+    }
+
+    if all_files.is_empty() {
+        return Kubeconfig::read().map_err(|e| format!("Failed to read kubeconfig: {}", e));
+    }
+
+    let mut merged = Kubeconfig::default();
+    let mut found_any = false;
+
+    for file in &all_files {
+        let content = match std::fs::read_to_string(file) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("Skipping kubeconfig {:?}: {}", file, e);
+                continue;
+            }
+        };
+
+        let cfg: Kubeconfig = match serde_yaml::from_str(&content) {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::warn!("Skipping invalid kubeconfig {:?}: {}", file, e);
+                continue;
+            }
+        };
+
+        if !found_any {
+            merged.current_context = cfg.current_context;
+            found_any = true;
+        }
+
+        merged.clusters.extend(cfg.clusters);
+        merged.auth_infos.extend(cfg.auth_infos);
+        merged.contexts.extend(cfg.contexts);
+    }
+
+    if !found_any {
+        return Kubeconfig::read().map_err(|e| format!("No valid kubeconfig files found: {}", e));
+    }
+
+    Ok(merged)
+}
+
 /// Connect to a cluster using a specific context
 #[command]
 pub async fn connect_cluster(
+    app: AppHandle,
     state: State<'_, AppState>,
     context: String,
 ) -> Result<ConnectionStatus, String> {
     tracing::info!("Connecting to cluster with context: {}", context);
 
-    match state.k8s.init_with_context(&context).await {
+    // Build merged kubeconfig from all configured sources
+    let kubeconfig = build_kubeconfig_for_connect(&app).await?;
+
+    match state.k8s.init_with_context(&context, kubeconfig).await {
         Ok(_) => {
             // Test the connection with latency measurement
             let start = std::time::Instant::now();
@@ -233,10 +313,11 @@ pub async fn connect_cluster(
 /// Switch to a different context
 #[command]
 pub async fn switch_context(
+    app: AppHandle,
     state: State<'_, AppState>,
     context: String,
 ) -> Result<ConnectionStatus, String> {
-    connect_cluster(state, context).await
+    connect_cluster(app, state, context).await
 }
 
 /// Disconnect from current cluster
