@@ -99,6 +99,7 @@ export function DeploymentsView() {
       getRowNamespace={(dep) => dep.namespace}
       emptyMessage={t("empty.deployments")}
       contextMenuItems={getDeploymentContextMenu}
+      onRowClick={(dep) => openResourceDetail("deployment", dep.name, dep.namespace)}
       sortKey={sortKey}
       sortDirection={sortDirection}
       onSortChange={(key, dir) => { setSortKey(key); setSortDirection(dir); }}

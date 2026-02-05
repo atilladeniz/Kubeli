@@ -193,6 +193,11 @@ export function createResourceView<T extends BaseResource>(
         getRowNamespace={namespaced ? (r) => r.namespace || "" : undefined}
         emptyMessage={t(emptyMessageKey)}
         contextMenuItems={getContextMenu}
+        onRowClick={(resource) => openResourceDetail(
+          resourceType,
+          resource.name,
+          namespaced ? resource.namespace : undefined
+        )}
         filterOptions={translatedFilterOptions}
         sortKey={sortKey}
         sortDirection={sortDirection}
