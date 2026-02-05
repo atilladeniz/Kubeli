@@ -282,7 +282,7 @@ pub async fn watch_namespaces(
     Ok(())
 }
 
-/// Stop watching resources
+/// Stop watching resources (idempotent — returns Ok even if already stopped)
 #[command]
 pub async fn stop_watch(
     watch_manager: State<'_, Arc<WatchManager>>,
@@ -291,8 +291,8 @@ pub async fn stop_watch(
     if watch_manager.stop_session(&watch_id).await {
         watch_manager.remove_session(&watch_id).await;
         tracing::info!("Stopped watch: {}", watch_id);
-        Ok(())
     } else {
-        Err(format!("Watch {} not found", watch_id))
+        tracing::debug!("Watch {} already stopped or not found", watch_id);
     }
+    Ok(())
 }

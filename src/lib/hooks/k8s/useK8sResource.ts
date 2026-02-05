@@ -21,6 +21,7 @@ export function useK8sResource<T>(
   const [isWatching, setIsWatching] = useState(false);
   const [watchId, setWatchId] = useState<string | null>(null);
   const watchRetryUntilRef = useRef<number | null>(null);
+  const watchNamespaceRef = useRef<string | undefined>(undefined);
 
   const { isConnected, currentNamespace } = useClusterStore();
   const namespace = options.namespace ?? currentNamespace;
@@ -63,6 +64,7 @@ export function useK8sResource<T>(
 
     try {
       await config.watchFn!(id, namespace || undefined);
+      watchNamespaceRef.current = namespace || undefined;
       setIsWatching(true);
       watchRetryUntilRef.current = null;
     } catch (e) {
@@ -178,6 +180,31 @@ export function useK8sResource<T>(
     isWatching,
     config.defaultRefreshInterval,
   ]);
+
+  // Restart watch when namespace changes
+  useEffect(() => {
+    if (!isWatching || !watchId || !config.supportsWatch) return;
+
+    const currentWatchNs = watchNamespaceRef.current;
+    const targetNs = namespace || undefined;
+
+    // If namespace hasn't changed, nothing to do
+    if (currentWatchNs === targetNs) return;
+
+    // Namespace changed while watching — stop the current watch.
+    // The auto-watch effect will restart it with the new namespace.
+    const restart = async () => {
+      try {
+        await stopWatch(watchId);
+      } catch {
+        // Watch may already be stopped
+      }
+      setIsWatching(false);
+      setWatchId(null);
+    };
+
+    restart();
+  }, [namespace, isWatching, watchId, config.supportsWatch]);
 
   // Auto-start watch if enabled
   useEffect(() => {
