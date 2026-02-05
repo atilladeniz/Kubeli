@@ -234,7 +234,7 @@ export function ResourceDetail({
 
         {resourceType === "pod" && resource.namespace && (
           <TabsContent value="logs" className="flex-1 overflow-hidden m-0">
-            <LogViewer namespace={resource.namespace} podName={resource.name} />
+            <LogViewer namespace={resource.namespace} podName={resource.name} logTabId={`detail-${resource.namespace}-${resource.name}`} />
           </TabsContent>
         )}
 
