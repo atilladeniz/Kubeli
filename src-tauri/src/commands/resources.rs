@@ -796,340 +796,126 @@ pub async fn get_resource_yaml(
 ) -> Result<ResourceYaml, String> {
     let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
 
-    match resource_type.to_lowercase().as_str() {
-        "pod" | "pods" => {
-            let ns = namespace.ok_or("Namespace required for pods")?;
-            let api: Api<Pod> = Api::namespaced(client, &ns);
-            let resource = api
-                .get(&name)
-                .await
-                .map_err(|e| format!("Failed to get pod: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&resource)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "v1".to_string(),
-                kind: "Pod".to_string(),
-                name: resource.name_any(),
-                namespace: resource.namespace(),
-                uid: resource.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(resource.metadata.labels),
-                annotations: btree_to_hashmap(resource.metadata.annotations),
-                created_at: resource
-                    .metadata
-                    .creation_timestamp
-                    .map(|t| t.0.to_string()),
-            })
-        }
-        "deployment" | "deployments" => {
-            let ns = namespace.ok_or("Namespace required for deployments")?;
-            let api: Api<Deployment> = Api::namespaced(client, &ns);
-            let resource = api
-                .get(&name)
-                .await
-                .map_err(|e| format!("Failed to get deployment: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&resource)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "apps/v1".to_string(),
-                kind: "Deployment".to_string(),
-                name: resource.name_any(),
-                namespace: resource.namespace(),
-                uid: resource.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(resource.metadata.labels),
-                annotations: btree_to_hashmap(resource.metadata.annotations),
-                created_at: resource
-                    .metadata
-                    .creation_timestamp
-                    .map(|t| t.0.to_string()),
-            })
-        }
-        "service" | "services" => {
-            let ns = namespace.ok_or("Namespace required for services")?;
-            let api: Api<Service> = Api::namespaced(client, &ns);
-            let resource = api
-                .get(&name)
-                .await
-                .map_err(|e| format!("Failed to get service: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&resource)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "v1".to_string(),
-                kind: "Service".to_string(),
-                name: resource.name_any(),
-                namespace: resource.namespace(),
-                uid: resource.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(resource.metadata.labels),
-                annotations: btree_to_hashmap(resource.metadata.annotations),
-                created_at: resource
-                    .metadata
-                    .creation_timestamp
-                    .map(|t| t.0.to_string()),
-            })
-        }
-        "configmap" | "configmaps" => {
-            let ns = namespace.ok_or("Namespace required for configmaps")?;
-            let api: Api<ConfigMap> = Api::namespaced(client, &ns);
-            let resource = api
-                .get(&name)
-                .await
-                .map_err(|e| format!("Failed to get configmap: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&resource)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "v1".to_string(),
-                kind: "ConfigMap".to_string(),
-                name: resource.name_any(),
-                namespace: resource.namespace(),
-                uid: resource.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(resource.metadata.labels),
-                annotations: btree_to_hashmap(resource.metadata.annotations),
-                created_at: resource
-                    .metadata
-                    .creation_timestamp
-                    .map(|t| t.0.to_string()),
-            })
-        }
-        "secret" | "secrets" => {
-            let ns = namespace.ok_or("Namespace required for secrets")?;
-            let api: Api<Secret> = Api::namespaced(client, &ns);
-            let resource = api
-                .get(&name)
-                .await
-                .map_err(|e| format!("Failed to get secret: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&resource)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "v1".to_string(),
-                kind: "Secret".to_string(),
-                name: resource.name_any(),
-                namespace: resource.namespace(),
-                uid: resource.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(resource.metadata.labels),
-                annotations: btree_to_hashmap(resource.metadata.annotations),
-                created_at: resource
-                    .metadata
-                    .creation_timestamp
-                    .map(|t| t.0.to_string()),
-            })
-        }
-        "node" | "nodes" => {
-            let api: Api<Node> = Api::all(client);
-            let resource = api
-                .get(&name)
-                .await
-                .map_err(|e| format!("Failed to get node: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&resource)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "v1".to_string(),
-                kind: "Node".to_string(),
-                name: resource.name_any(),
-                namespace: None,
-                uid: resource.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(resource.metadata.labels),
-                annotations: btree_to_hashmap(resource.metadata.annotations),
-                created_at: resource
-                    .metadata
-                    .creation_timestamp
-                    .map(|t| t.0.to_string()),
-            })
-        }
-        "networkpolicy" | "networkpolicies" => {
-            let ns = namespace.ok_or("Namespace required for network policies")?;
-            let api: Api<NetworkPolicy> = Api::namespaced(client, &ns);
-            let resource = api
-                .get(&name)
-                .await
-                .map_err(|e| format!("Failed to get network policy: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&resource)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "networking.k8s.io/v1".to_string(),
-                kind: "NetworkPolicy".to_string(),
-                name: resource.name_any(),
-                namespace: resource.namespace(),
-                uid: resource.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(resource.metadata.labels),
-                annotations: btree_to_hashmap(resource.metadata.annotations),
-                created_at: resource
-                    .metadata
-                    .creation_timestamp
-                    .map(|t| t.0.to_string()),
-            })
-        }
-        "kustomization" | "kustomizations" => {
-            let ns = namespace.ok_or("Namespace required for kustomizations")?;
-            let gvk = kube::api::GroupVersionKind::gvk(
-                "kustomize.toolkit.fluxcd.io",
-                "v1",
-                "Kustomization",
-            );
-            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
-            let api: Api<kube::api::DynamicObject> =
-                Api::namespaced_with(client, &ns, &api_resource);
-            let resource = api
-                .get(&name)
-                .await
-                .map_err(|e| format!("Failed to get kustomization: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&resource)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "kustomize.toolkit.fluxcd.io/v1".to_string(),
-                kind: "Kustomization".to_string(),
-                name: resource.name_any(),
-                namespace: resource.namespace(),
-                uid: resource.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(resource.metadata.labels),
-                annotations: btree_to_hashmap(resource.metadata.annotations),
-                created_at: resource
-                    .metadata
-                    .creation_timestamp
-                    .map(|t| t.0.to_string()),
-            })
-        }
-        "helmrelease" | "helmreleases" => {
-            let ns = namespace.ok_or("Namespace required for helm releases")?;
-            let gvk =
-                kube::api::GroupVersionKind::gvk("helm.toolkit.fluxcd.io", "v2", "HelmRelease");
-            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
-            let api: Api<kube::api::DynamicObject> =
-                Api::namespaced_with(client, &ns, &api_resource);
-            let resource = api
-                .get(&name)
-                .await
-                .map_err(|e| format!("Failed to get helm release: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&resource)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "helm.toolkit.fluxcd.io/v2".to_string(),
-                kind: "HelmRelease".to_string(),
-                name: resource.name_any(),
-                namespace: resource.namespace(),
-                uid: resource.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(resource.metadata.labels),
-                annotations: btree_to_hashmap(resource.metadata.annotations),
-                created_at: resource
-                    .metadata
-                    .creation_timestamp
-                    .map(|t| t.0.to_string()),
-            })
-        }
-        "helm-release" => {
-            // Native Helm release (stored in secrets)
-            let ns = namespace.ok_or("Namespace required for helm releases")?;
-            let api: Api<Secret> = Api::namespaced(client, &ns);
-            let lp = ListParams::default().labels("owner=helm");
-            let secrets: Vec<Secret> = api
-                .list(&lp)
-                .await
-                .map_err(|e| format!("Failed to list secrets: {}", e))?
-                .items;
-
-            // Find the latest revision for this release
-            let prefix = format!("sh.helm.release.v1.{}.v", name);
-            let latest_rev = secrets
-                .iter()
-                .filter_map(|s| {
-                    let secret_name = s.metadata.name.as_ref()?;
-                    if secret_name.starts_with(&prefix) {
-                        secret_name.strip_prefix(&prefix)?.parse::<i32>().ok()
-                    } else {
-                        None
-                    }
-                })
-                .max()
-                .ok_or_else(|| format!("Helm release '{}' not found", name))?;
-
-            let secret_name = format!("sh.helm.release.v1.{}.v{}", name, latest_rev);
-            let secret = api
-                .get(&secret_name)
-                .await
-                .map_err(|e| format!("Failed to get helm secret: {}", e))?;
-
-            let data = secret
-                .data
-                .as_ref()
-                .and_then(|d| d.get("release"))
-                .ok_or("Release data not found in secret")?;
-
-            // Decode: base64 -> (maybe base64) -> gzip -> json
-            let data_str = String::from_utf8_lossy(&data.0);
-            let decoded1 = BASE64
-                .decode(data_str.as_ref())
-                .map_err(|e| format!("Failed to decode base64: {}", e))?;
-
-            // Check if we need second decode or if already gzip
-            let gzip_data = if decoded1.len() >= 2 && decoded1[0] == 0x1f && decoded1[1] == 0x8b {
-                decoded1
-            } else {
-                BASE64
-                    .decode(&decoded1)
-                    .map_err(|e| format!("Failed to decode base64 (2nd): {}", e))?
-            };
-
-            let mut decoder = GzDecoder::new(&gzip_data[..]);
-            let mut decompressed = String::new();
-            decoder
-                .read_to_string(&mut decompressed)
-                .map_err(|e| format!("Failed to decompress: {}", e))?;
-
-            // Parse and convert to YAML
-            let release_data: Value = serde_json::from_str(&decompressed)
-                .map_err(|e| format!("Failed to parse JSON: {}", e))?;
-
-            let yaml = serde_yaml::to_string(&release_data)
-                .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
-
-            Ok(ResourceYaml {
-                yaml,
-                api_version: "helm.sh/v3".to_string(),
-                kind: "Release".to_string(),
-                name: name.clone(),
-                namespace: Some(ns),
-                uid: secret.metadata.uid.unwrap_or_default(),
-                labels: btree_to_hashmap(secret.metadata.labels),
-                annotations: btree_to_hashmap(secret.metadata.annotations),
-                created_at: secret.metadata.creation_timestamp.map(|t| t.0.to_string()),
-            })
-        }
-        _ => {
-            // Dynamic fallback: use discovery to resolve any resource type
-            get_resource_yaml_dynamic(client, &resource_type, &name, namespace.as_deref()).await
-        }
+    // Only helm-release needs special handling (secret decoding).
+    // Everything else goes through the generic dynamic API.
+    if resource_type.to_lowercase() == "helm-release" {
+        return get_helm_release_yaml(client, &name, namespace).await;
     }
+
+    get_resource_yaml_dynamic(client, &resource_type, &name, namespace.as_deref()).await
+}
+
+/// Fetch native Helm release data from secrets (base64 + gzip encoded)
+async fn get_helm_release_yaml(
+    client: kube::Client,
+    name: &str,
+    namespace: Option<String>,
+) -> Result<ResourceYaml, String> {
+    let ns = namespace.ok_or("Namespace required for helm releases")?;
+    let api: Api<Secret> = Api::namespaced(client, &ns);
+    let lp = ListParams::default().labels("owner=helm");
+    let secrets: Vec<Secret> = api
+        .list(&lp)
+        .await
+        .map_err(|e| format!("Failed to list secrets: {}", e))?
+        .items;
+
+    let prefix = format!("sh.helm.release.v1.{}.v", name);
+    let latest_rev = secrets
+        .iter()
+        .filter_map(|s| {
+            let secret_name = s.metadata.name.as_ref()?;
+            if secret_name.starts_with(&prefix) {
+                secret_name.strip_prefix(&prefix)?.parse::<i32>().ok()
+            } else {
+                None
+            }
+        })
+        .max()
+        .ok_or_else(|| format!("Helm release '{}' not found", name))?;
+
+    let secret_name = format!("sh.helm.release.v1.{}.v{}", name, latest_rev);
+    let secret = api
+        .get(&secret_name)
+        .await
+        .map_err(|e| format!("Failed to get helm secret: {}", e))?;
+
+    let data = secret
+        .data
+        .as_ref()
+        .and_then(|d| d.get("release"))
+        .ok_or("Release data not found in secret")?;
+
+    // Decode: base64 -> (maybe base64) -> gzip -> json
+    let data_str = String::from_utf8_lossy(&data.0);
+    let decoded1 = BASE64
+        .decode(data_str.as_ref())
+        .map_err(|e| format!("Failed to decode base64: {}", e))?;
+
+    let gzip_data = if decoded1.len() >= 2 && decoded1[0] == 0x1f && decoded1[1] == 0x8b {
+        decoded1
+    } else {
+        BASE64
+            .decode(&decoded1)
+            .map_err(|e| format!("Failed to decode base64 (2nd): {}", e))?
+    };
+
+    let mut decoder = GzDecoder::new(&gzip_data[..]);
+    let mut decompressed = String::new();
+    decoder
+        .read_to_string(&mut decompressed)
+        .map_err(|e| format!("Failed to decompress: {}", e))?;
+
+    let release_data: Value =
+        serde_json::from_str(&decompressed).map_err(|e| format!("Failed to parse JSON: {}", e))?;
+
+    let yaml = serde_yaml::to_string(&release_data)
+        .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+
+    Ok(ResourceYaml {
+        yaml,
+        api_version: "helm.sh/v3".to_string(),
+        kind: "Release".to_string(),
+        name: name.to_string(),
+        namespace: Some(ns),
+        uid: secret.metadata.uid.unwrap_or_default(),
+        labels: btree_to_hashmap(secret.metadata.labels),
+        annotations: btree_to_hashmap(secret.metadata.annotations),
+        created_at: secret.metadata.creation_timestamp.map(|t| t.0.to_string()),
+    })
 }
 
 /// Resolve a resource type string to (group, version, kind, plural, namespaced)
 fn resolve_resource_type(resource_type: &str) -> Option<(&str, &str, &str, &str, bool)> {
     // (api_group, version, kind, plural, namespaced)
     match resource_type.to_lowercase().as_str() {
+        // Core v1
+        "pod" | "pods" => Some(("", "v1", "Pod", "pods", true)),
+        "service" | "services" => Some(("", "v1", "Service", "services", true)),
+        "configmap" | "configmaps" => Some(("", "v1", "ConfigMap", "configmaps", true)),
+        "secret" | "secrets" => Some(("", "v1", "Secret", "secrets", true)),
+        "node" | "nodes" => Some(("", "v1", "Node", "nodes", false)),
+        "namespace" | "namespaces" => Some(("", "v1", "Namespace", "namespaces", false)),
+        "event" | "events" => Some(("", "v1", "Event", "events", true)),
+        "serviceaccount" | "serviceaccounts" => {
+            Some(("", "v1", "ServiceAccount", "serviceaccounts", true))
+        }
+        "persistentvolume" | "persistentvolumes" | "pv" => {
+            Some(("", "v1", "PersistentVolume", "persistentvolumes", false))
+        }
+        "persistentvolumeclaim" | "persistentvolumeclaims" | "pvc" => Some((
+            "",
+            "v1",
+            "PersistentVolumeClaim",
+            "persistentvolumeclaims",
+            true,
+        )),
+        "resourcequota" | "resourcequotas" => {
+            Some(("", "v1", "ResourceQuota", "resourcequotas", true))
+        }
+        "limitrange" | "limitranges" => Some(("", "v1", "LimitRange", "limitranges", true)),
+        // Apps v1
+        "deployment" | "deployments" => Some(("apps", "v1", "Deployment", "deployments", true)),
         "replicaset" | "replicasets" => Some(("apps", "v1", "ReplicaSet", "replicasets", true)),
         "statefulset" | "statefulsets" => Some(("apps", "v1", "StatefulSet", "statefulsets", true)),
         "daemonset" | "daemonsets" => Some(("apps", "v1", "DaemonSet", "daemonsets", true)),
@@ -1150,12 +936,7 @@ fn resolve_resource_type(resource_type: &str) -> Option<(&str, &str, &str, &str,
             "endpointslices",
             true,
         )),
-        "namespace" | "namespaces" => Some(("", "v1", "Namespace", "namespaces", false)),
-        "event" | "events" => Some(("", "v1", "Event", "events", true)),
         "lease" | "leases" => Some(("coordination.k8s.io", "v1", "Lease", "leases", true)),
-        "serviceaccount" | "serviceaccounts" => {
-            Some(("", "v1", "ServiceAccount", "serviceaccounts", true))
-        }
         "hpa" | "horizontalpodautoscaler" | "horizontalpodautoscalers" => Some((
             "autoscaling",
             "v2",
@@ -1168,16 +949,6 @@ fn resolve_resource_type(resource_type: &str) -> Option<(&str, &str, &str, &str,
             "v1",
             "PodDisruptionBudget",
             "poddisruptionbudgets",
-            true,
-        )),
-        "persistentvolume" | "persistentvolumes" | "pv" => {
-            Some(("", "v1", "PersistentVolume", "persistentvolumes", false))
-        }
-        "persistentvolumeclaim" | "persistentvolumeclaims" | "pvc" => Some((
-            "",
-            "v1",
-            "PersistentVolumeClaim",
-            "persistentvolumeclaims",
             true,
         )),
         "storageclass" | "storageclasses" => Some((
@@ -1220,10 +991,6 @@ fn resolve_resource_type(resource_type: &str) -> Option<(&str, &str, &str, &str,
             "clusterrolebindings",
             false,
         )),
-        "resourcequota" | "resourcequotas" => {
-            Some(("", "v1", "ResourceQuota", "resourcequotas", true))
-        }
-        "limitrange" | "limitranges" => Some(("", "v1", "LimitRange", "limitranges", true)),
         "runtimeclass" | "runtimeclasses" => {
             Some(("node.k8s.io", "v1", "RuntimeClass", "runtimeclasses", false))
         }
@@ -1254,6 +1021,21 @@ fn resolve_resource_type(resource_type: &str) -> Option<(&str, &str, &str, &str,
             "MutatingWebhookConfiguration",
             "mutatingwebhookconfigurations",
             false,
+        )),
+        // Flux CRDs
+        "kustomization" | "kustomizations" => Some((
+            "kustomize.toolkit.fluxcd.io",
+            "v1",
+            "Kustomization",
+            "kustomizations",
+            true,
+        )),
+        "helmrelease" | "helmreleases" => Some((
+            "helm.toolkit.fluxcd.io",
+            "v2",
+            "HelmRelease",
+            "helmreleases",
+            true,
         )),
         _ => None,
     }
@@ -1382,101 +1164,33 @@ pub async fn delete_resource(
 ) -> Result<(), String> {
     let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
 
-    let dp = DeleteParams::default();
+    let (group, version, kind, plural, namespaced) = resolve_resource_type(&resource_type)
+        .ok_or_else(|| format!("Unsupported resource type: {}", resource_type))?;
 
-    match resource_type.to_lowercase().as_str() {
-        "pod" | "pods" => {
-            let ns = namespace.ok_or("Namespace required for pods")?;
-            let api: Api<Pod> = Api::namespaced(client, &ns);
-            api.delete(&name, &dp)
-                .await
-                .map_err(|e| format!("Failed to delete pod: {}", e))?;
-        }
-        "deployment" | "deployments" => {
-            let ns = namespace.ok_or("Namespace required for deployments")?;
-            let api: Api<Deployment> = Api::namespaced(client, &ns);
-            api.delete(&name, &dp)
-                .await
-                .map_err(|e| format!("Failed to delete deployment: {}", e))?;
-        }
-        "service" | "services" => {
-            let ns = namespace.ok_or("Namespace required for services")?;
-            let api: Api<Service> = Api::namespaced(client, &ns);
-            api.delete(&name, &dp)
-                .await
-                .map_err(|e| format!("Failed to delete service: {}", e))?;
-        }
-        "configmap" | "configmaps" => {
-            let ns = namespace.ok_or("Namespace required for configmaps")?;
-            let api: Api<ConfigMap> = Api::namespaced(client, &ns);
-            api.delete(&name, &dp)
-                .await
-                .map_err(|e| format!("Failed to delete configmap: {}", e))?;
-        }
-        "secret" | "secrets" => {
-            let ns = namespace.ok_or("Namespace required for secrets")?;
-            let api: Api<Secret> = Api::namespaced(client, &ns);
-            api.delete(&name, &dp)
-                .await
-                .map_err(|e| format!("Failed to delete secret: {}", e))?;
-        }
-        "kustomization" | "kustomizations" => {
-            let ns = namespace.ok_or("Namespace required for kustomizations")?;
-            let gvk = kube::api::GroupVersionKind::gvk(
-                "kustomize.toolkit.fluxcd.io",
-                "v1",
-                "Kustomization",
-            );
-            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
-            let api: Api<kube::api::DynamicObject> =
-                Api::namespaced_with(client, &ns, &api_resource);
-            api.delete(&name, &dp)
-                .await
-                .map_err(|e| format!("Failed to delete kustomization: {}", e))?;
-        }
-        "helmrelease" | "helmreleases" => {
-            let ns = namespace.ok_or("Namespace required for helm releases")?;
-            let gvk =
-                kube::api::GroupVersionKind::gvk("helm.toolkit.fluxcd.io", "v2", "HelmRelease");
-            let api_resource = kube::discovery::ApiResource::from_gvk(&gvk);
-            let api: Api<kube::api::DynamicObject> =
-                Api::namespaced_with(client, &ns, &api_resource);
-            api.delete(&name, &dp)
-                .await
-                .map_err(|e| format!("Failed to delete helm release: {}", e))?;
-        }
-        _ => {
-            // Dynamic fallback for delete
-            let (group, version, kind, plural, namespaced) = resolve_resource_type(&resource_type)
-                .ok_or_else(|| format!("Unsupported resource type: {}", resource_type))?;
+    let api_version = if group.is_empty() {
+        version.to_string()
+    } else {
+        format!("{}/{}", group, version)
+    };
 
-            let api_version = if group.is_empty() {
-                version.to_string()
-            } else {
-                format!("{}/{}", group, version)
-            };
+    let ar = ApiResource {
+        group: group.to_string(),
+        version: version.to_string(),
+        kind: kind.to_string(),
+        plural: plural.to_string(),
+        api_version,
+    };
 
-            let ar = ApiResource {
-                group: group.to_string(),
-                version: version.to_string(),
-                kind: kind.to_string(),
-                plural: plural.to_string(),
-                api_version,
-            };
+    let api: Api<DynamicObject> = if namespaced {
+        let ns = namespace.ok_or_else(|| format!("Namespace required for {}", resource_type))?;
+        Api::namespaced_with(client, &ns, &ar)
+    } else {
+        Api::all_with(client, &ar)
+    };
 
-            let api: Api<DynamicObject> = if namespaced {
-                let ns =
-                    namespace.ok_or_else(|| format!("Namespace required for {}", resource_type))?;
-                Api::namespaced_with(client, &ns, &ar)
-            } else {
-                Api::all_with(client, &ar)
-            };
-
-            api.delete(&name, &dp)
-                .await
-                .map_err(|e| format!("Failed to delete {}: {}", resource_type, e))?;
-        }
-    }
+    api.delete(&name, &DeleteParams::default())
+        .await
+        .map_err(|e| format!("Failed to delete {}: {}", resource_type, e))?;
 
     tracing::info!("Deleted {} {}", resource_type, name);
     Ok(())
