@@ -18,6 +18,7 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { useUpdater } from "@/lib/hooks/useUpdater";
+import { useKubeconfigWatcher } from "@/lib/hooks/useKubeconfigWatcher";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 import { Dashboard } from "@/components/features/dashboard";
 import { SettingsPanel } from "@/components/features/settings/SettingsPanel";
@@ -58,6 +59,9 @@ export default function Home() {
   const initialFetchDone = useRef(false);
   const { isWindows } = usePlatform();
   const kubeconfigPath = isWindows ? "C:\\Users\\<username>\\.kube\\config" : "~/.kube/config";
+
+  // Watch kubeconfig source paths for filesystem changes (new/modified/deleted files)
+  const { restartWatcher } = useKubeconfigWatcher();
 
   const {
     clusters,
