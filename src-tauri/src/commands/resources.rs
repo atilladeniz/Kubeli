@@ -1119,8 +1119,199 @@ pub async fn get_resource_yaml(
                 created_at: secret.metadata.creation_timestamp.map(|t| t.0.to_string()),
             })
         }
-        _ => Err(format!("Unsupported resource type: {}", resource_type)),
+        _ => {
+            // Dynamic fallback: use discovery to resolve any resource type
+            get_resource_yaml_dynamic(client, &resource_type, &name, namespace.as_deref()).await
+        }
     }
+}
+
+/// Resolve a resource type string to (group, version, kind, plural, namespaced)
+fn resolve_resource_type(resource_type: &str) -> Option<(&str, &str, &str, &str, bool)> {
+    // (api_group, version, kind, plural, namespaced)
+    match resource_type.to_lowercase().as_str() {
+        "replicaset" | "replicasets" => Some(("apps", "v1", "ReplicaSet", "replicasets", true)),
+        "statefulset" | "statefulsets" => Some(("apps", "v1", "StatefulSet", "statefulsets", true)),
+        "daemonset" | "daemonsets" => Some(("apps", "v1", "DaemonSet", "daemonsets", true)),
+        "job" | "jobs" => Some(("batch", "v1", "Job", "jobs", true)),
+        "cronjob" | "cronjobs" => Some(("batch", "v1", "CronJob", "cronjobs", true)),
+        "ingress" | "ingresses" => Some(("networking.k8s.io", "v1", "Ingress", "ingresses", true)),
+        "ingressclass" | "ingressclasses" => Some((
+            "networking.k8s.io",
+            "v1",
+            "IngressClass",
+            "ingressclasses",
+            false,
+        )),
+        "endpointslice" | "endpointslices" => Some((
+            "discovery.k8s.io",
+            "v1",
+            "EndpointSlice",
+            "endpointslices",
+            true,
+        )),
+        "namespace" | "namespaces" => Some(("", "v1", "Namespace", "namespaces", false)),
+        "event" | "events" => Some(("", "v1", "Event", "events", true)),
+        "lease" | "leases" => Some(("coordination.k8s.io", "v1", "Lease", "leases", true)),
+        "serviceaccount" | "serviceaccounts" => {
+            Some(("", "v1", "ServiceAccount", "serviceaccounts", true))
+        }
+        "hpa" | "horizontalpodautoscaler" | "horizontalpodautoscalers" => Some((
+            "autoscaling",
+            "v2",
+            "HorizontalPodAutoscaler",
+            "horizontalpodautoscalers",
+            true,
+        )),
+        "pdb" | "poddisruptionbudget" | "poddisruptionbudgets" => Some((
+            "policy",
+            "v1",
+            "PodDisruptionBudget",
+            "poddisruptionbudgets",
+            true,
+        )),
+        "persistentvolume" | "persistentvolumes" | "pv" => {
+            Some(("", "v1", "PersistentVolume", "persistentvolumes", false))
+        }
+        "persistentvolumeclaim" | "persistentvolumeclaims" | "pvc" => Some((
+            "",
+            "v1",
+            "PersistentVolumeClaim",
+            "persistentvolumeclaims",
+            true,
+        )),
+        "storageclass" | "storageclasses" => Some((
+            "storage.k8s.io",
+            "v1",
+            "StorageClass",
+            "storageclasses",
+            false,
+        )),
+        "csidriver" | "csidrivers" => {
+            Some(("storage.k8s.io", "v1", "CSIDriver", "csidrivers", false))
+        }
+        "csinode" | "csinodes" => Some(("storage.k8s.io", "v1", "CSINode", "csinodes", false)),
+        "volumeattachment" | "volumeattachments" => Some((
+            "storage.k8s.io",
+            "v1",
+            "VolumeAttachment",
+            "volumeattachments",
+            false,
+        )),
+        "role" | "roles" => Some(("rbac.authorization.k8s.io", "v1", "Role", "roles", true)),
+        "rolebinding" | "rolebindings" => Some((
+            "rbac.authorization.k8s.io",
+            "v1",
+            "RoleBinding",
+            "rolebindings",
+            true,
+        )),
+        "clusterrole" | "clusterroles" => Some((
+            "rbac.authorization.k8s.io",
+            "v1",
+            "ClusterRole",
+            "clusterroles",
+            false,
+        )),
+        "clusterrolebinding" | "clusterrolebindings" => Some((
+            "rbac.authorization.k8s.io",
+            "v1",
+            "ClusterRoleBinding",
+            "clusterrolebindings",
+            false,
+        )),
+        "resourcequota" | "resourcequotas" => {
+            Some(("", "v1", "ResourceQuota", "resourcequotas", true))
+        }
+        "limitrange" | "limitranges" => Some(("", "v1", "LimitRange", "limitranges", true)),
+        "runtimeclass" | "runtimeclasses" => {
+            Some(("node.k8s.io", "v1", "RuntimeClass", "runtimeclasses", false))
+        }
+        "priorityclass" | "priorityclasses" => Some((
+            "scheduling.k8s.io",
+            "v1",
+            "PriorityClass",
+            "priorityclasses",
+            false,
+        )),
+        "customresourcedefinition" | "customresourcedefinitions" | "crd" => Some((
+            "apiextensions.k8s.io",
+            "v1",
+            "CustomResourceDefinition",
+            "customresourcedefinitions",
+            false,
+        )),
+        "validatingwebhookconfiguration" | "validatingwebhookconfigurations" => Some((
+            "admissionregistration.k8s.io",
+            "v1",
+            "ValidatingWebhookConfiguration",
+            "validatingwebhookconfigurations",
+            false,
+        )),
+        "mutatingwebhookconfiguration" | "mutatingwebhookconfigurations" => Some((
+            "admissionregistration.k8s.io",
+            "v1",
+            "MutatingWebhookConfiguration",
+            "mutatingwebhookconfigurations",
+            false,
+        )),
+        _ => None,
+    }
+}
+
+/// Fetch any resource type dynamically using kube discovery
+async fn get_resource_yaml_dynamic(
+    client: kube::Client,
+    resource_type: &str,
+    name: &str,
+    namespace: Option<&str>,
+) -> Result<ResourceYaml, String> {
+    let (group, version, kind, plural, namespaced) = resolve_resource_type(resource_type)
+        .ok_or_else(|| format!("Unsupported resource type: {}", resource_type))?;
+
+    let api_version = if group.is_empty() {
+        version.to_string()
+    } else {
+        format!("{}/{}", group, version)
+    };
+
+    let ar = ApiResource {
+        group: group.to_string(),
+        version: version.to_string(),
+        kind: kind.to_string(),
+        plural: plural.to_string(),
+        api_version: api_version.clone(),
+    };
+
+    let api: Api<DynamicObject> = if namespaced {
+        let ns = namespace.ok_or_else(|| format!("Namespace required for {}", resource_type))?;
+        Api::namespaced_with(client, ns, &ar)
+    } else {
+        Api::all_with(client, &ar)
+    };
+
+    let resource = api
+        .get(name)
+        .await
+        .map_err(|e| format!("Failed to get {}: {}", resource_type, e))?;
+
+    let yaml = serde_yaml::to_string(&resource)
+        .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+
+    Ok(ResourceYaml {
+        yaml,
+        api_version,
+        kind: kind.to_string(),
+        name: resource.name_any(),
+        namespace: resource.namespace(),
+        uid: resource.metadata.uid.unwrap_or_default(),
+        labels: btree_to_hashmap(resource.metadata.labels),
+        annotations: btree_to_hashmap(resource.metadata.annotations),
+        created_at: resource
+            .metadata
+            .creation_timestamp
+            .map(|t| t.0.to_string()),
+    })
 }
 
 /// Apply/update a resource from YAML
@@ -1254,7 +1445,37 @@ pub async fn delete_resource(
                 .await
                 .map_err(|e| format!("Failed to delete helm release: {}", e))?;
         }
-        _ => return Err(format!("Unsupported resource type: {}", resource_type)),
+        _ => {
+            // Dynamic fallback for delete
+            let (group, version, kind, plural, namespaced) = resolve_resource_type(&resource_type)
+                .ok_or_else(|| format!("Unsupported resource type: {}", resource_type))?;
+
+            let api_version = if group.is_empty() {
+                version.to_string()
+            } else {
+                format!("{}/{}", group, version)
+            };
+
+            let ar = ApiResource {
+                group: group.to_string(),
+                version: version.to_string(),
+                kind: kind.to_string(),
+                plural: plural.to_string(),
+                api_version,
+            };
+
+            let api: Api<DynamicObject> = if namespaced {
+                let ns =
+                    namespace.ok_or_else(|| format!("Namespace required for {}", resource_type))?;
+                Api::namespaced_with(client, &ns, &ar)
+            } else {
+                Api::all_with(client, &ar)
+            };
+
+            api.delete(&name, &dp)
+                .await
+                .map_err(|e| format!("Failed to delete {}: {}", resource_type, e))?;
+        }
     }
 
     tracing::info!("Deleted {} {}", resource_type, name);
