@@ -789,7 +789,8 @@
     "dangerZone": "Gefahrenzone",
     "deleteResource": "{type} \"{name}\" löschen",
     "uninstallResource": "Helm Release \"{name}\" deinstallieren",
-    "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden."
+    "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden.",
+    "lastSeen": "Zuletzt gesehen"
   },
   "podDetail": {
     "initContainers": "Init-Container",

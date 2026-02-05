@@ -1,20 +1,23 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+
 import { Info, Tag, Activity } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useTranslations } from "next-intl";
+import { useLocale } from "@/components/providers/I18nProvider";
 import { MetadataItem } from "./MetadataItem";
 import { SecretDataSection } from "./SecretDataSection";
 import { ContainerStatusSection } from "./ContainerStatusSection";
+import { AnnotationsSection } from "./AnnotationsSection";
 import { getPod } from "@/lib/tauri/commands";
 import type { ResourceData } from "../types";
 import type { ContainerInfo } from "@/lib/types";
 
-function formatDate(dateString: string): string {
+function formatDate(dateString: string, locale: string): string {
   const date = new Date(dateString);
-  return date.toLocaleString();
+  const resolvedLocale = locale === "system" ? undefined : locale;
+  return date.toLocaleString(resolvedLocale);
 }
 
 interface OverviewTabProps {
@@ -24,6 +27,7 @@ interface OverviewTabProps {
 
 export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
   const t = useTranslations();
+  const locale = useLocale();
   const resourceKey = `${resourceType}-${resource.name}-${resource.namespace}`;
 
   const [containerData, setContainerData] = useState<{
@@ -65,7 +69,7 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
   const containers = containerData.key === resourceKey ? containerData.containers : [];
 
   return (
-    <ScrollArea className="h-full">
+    <div className="h-full overflow-y-auto">
       <div className="p-4 space-y-6">
         {/* Metadata Section */}
         <section>
@@ -85,7 +89,7 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
             {resource.createdAt && (
               <MetadataItem
                 label={t("common.age")}
-                value={formatDate(resource.createdAt)}
+                value={formatDate(resource.createdAt, locale)}
               />
             )}
             {resource.apiVersion && (
@@ -112,12 +116,13 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
               <Tag className="size-4" />
               {t("common.labels")}
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 min-w-0">
               {Object.entries(resource.labels).map(([key, value]) => (
                 <Badge
                   key={key}
                   variant="secondary"
-                  className="font-mono text-xs"
+                  className="font-mono text-xs max-w-full shrink truncate"
+                  title={`${key}=${value}`}
                 >
                   {key}={value}
                 </Badge>
@@ -129,21 +134,11 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
         {/* Annotations Section */}
         {resource.annotations &&
           Object.keys(resource.annotations).length > 0 && (
-            <section>
-              <h3 className="text-sm font-semibold mb-3">{t("common.annotations")}</h3>
-              <div className="space-y-2">
-                {Object.entries(resource.annotations).map(
-                  ([key, value]) => (
-                    <div key={key} className="text-sm">
-                      <span className="font-mono text-muted-foreground">
-                        {key}
-                      </span>
-                      <p className="mt-0.5 break-all">{value}</p>
-                    </div>
-                  )
-                )}
-              </div>
-            </section>
+            <AnnotationsSection
+              annotations={resource.annotations}
+              label={t("common.annotations")}
+              copyToastMessage={t("messages.copySuccess")}
+            />
           )}
 
         {/* Status Section */}
@@ -174,6 +169,7 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
           <SecretDataSection yaml={resource.yaml} />
         )}
       </div>
-    </ScrollArea>
+    </div>
   );
 }
+

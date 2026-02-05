@@ -27,6 +27,7 @@ import {
   getResourceYaml,
   applyResourceYaml,
   deleteResource,
+  listEvents,
   aiCheckCliAvailable,
   aiCheckCodexCliAvailable,
 } from "@/lib/tauri/commands";
@@ -170,7 +171,15 @@ function DashboardContent() {
   const openResourceDetail = async (resourceType: string, name: string, namespace?: string) => {
     setIsLoadingDetail(true);
     try {
-      const yamlData = await getResourceYaml(resourceType, name, namespace);
+      const [yamlData, events] = await Promise.all([
+        getResourceYaml(resourceType, name, namespace),
+        namespace
+          ? listEvents({
+              namespace,
+              field_selector: `involvedObject.name=${name}`,
+            }).catch(() => [])
+          : Promise.resolve([]),
+      ]);
       setSelectedResource({
         type: resourceType,
         data: {
@@ -183,6 +192,14 @@ function DashboardContent() {
           labels: yamlData.labels,
           annotations: yamlData.annotations,
           yaml: yamlData.yaml,
+          events: events.map((e) => ({
+            type: e.event_type,
+            reason: e.reason,
+            message: e.message,
+            count: e.count,
+            lastTimestamp: e.last_timestamp ?? undefined,
+            firstTimestamp: e.first_timestamp ?? undefined,
+          })),
         },
       });
     } catch (err) {

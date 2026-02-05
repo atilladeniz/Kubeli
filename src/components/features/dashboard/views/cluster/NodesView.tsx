@@ -65,6 +65,7 @@ export function NodesView() {
       getRowKey={(node) => node.uid}
       emptyMessage={t("empty.nodes")}
       contextMenuItems={getNodeContextMenu}
+      onRowClick={(node) => openResourceDetail("node", node.name)}
       sortKey={sortKey}
       sortDirection={sortDirection}
       onSortChange={(key, dir) => { setSortKey(key); setSortDirection(dir); }}

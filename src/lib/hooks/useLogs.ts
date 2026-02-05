@@ -25,8 +25,10 @@ export interface UseLogsReturn {
 export function useLogs(
   namespace: string,
   podName: string,
+  overrideTabId?: string,
 ): UseLogsReturn {
-  const tabId = useTabsStore((s) => s.activeTabId);
+  const storeTabId = useTabsStore((s) => s.activeTabId);
+  const tabId = overrideTabId ?? storeTabId;
   const tab = useLogStore((s) => s.logTabs[tabId]);
   const store = useLogStore.getState;
 
@@ -36,10 +38,15 @@ export function useLogs(
     store().initLogTab(tabId, namespace, podName);
 
     return () => {
-      // Stop streaming when tab becomes inactive, but keep logs in store
-      store().stopStream(tabId);
+      if (overrideTabId) {
+        // Detail pane: full cleanup since tab ID is ephemeral
+        store().cleanupLogTab(tabId);
+      } else {
+        // Regular tab: keep logs in store, just stop streaming
+        store().stopStream(tabId);
+      }
     };
-  }, [tabId, namespace, podName, store]);
+  }, [tabId, namespace, podName, store, overrideTabId]);
 
   const error = tab?.error ?? null;
 

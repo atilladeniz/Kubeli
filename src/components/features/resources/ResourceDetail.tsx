@@ -117,7 +117,7 @@ export function ResourceDetail({
   if (!resource) return null;
 
   return (
-    <div className="flex h-full flex-col bg-background">
+    <div className="flex h-full flex-col bg-background min-w-0 overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex items-center gap-3">
@@ -234,7 +234,7 @@ export function ResourceDetail({
 
         {resourceType === "pod" && resource.namespace && (
           <TabsContent value="logs" className="flex-1 overflow-hidden m-0">
-            <LogViewer namespace={resource.namespace} podName={resource.name} />
+            <LogViewer namespace={resource.namespace} podName={resource.name} logTabId={`detail-${resource.namespace}-${resource.name}`} />
           </TabsContent>
         )}
 
