@@ -47,7 +47,7 @@ export interface StreamProps {
   onStop: () => void;
   onFetch: () => void;
   followLabel: string;
-  pausedLabel: string;
+  pauseLabel: string;
   fetchTooltip: string;
 }
 
@@ -135,7 +135,7 @@ export function LogToolbar({
           onStart={stream.onStart}
           onStop={stream.onStop}
           followLabel={stream.followLabel}
-          pausedLabel={stream.pausedLabel}
+          pauseLabel={stream.pauseLabel}
         />
 
         <TooltipProvider delayDuration={300}>

@@ -294,6 +294,7 @@
     "title": "Logs",
     "container": "Container",
     "follow": "Folgen",
+    "pause": "Pause",
     "timestamps": "Zeitstempel",
     "previous": "Vorherige",
     "since": "Seit",

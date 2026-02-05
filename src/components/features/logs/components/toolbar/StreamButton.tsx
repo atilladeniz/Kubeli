@@ -10,7 +10,7 @@ interface StreamButtonProps {
   onStart: () => void;
   onStop: () => void;
   followLabel: string;
-  pausedLabel: string;
+  pauseLabel: string;
 }
 
 export function StreamButton({
@@ -20,7 +20,7 @@ export function StreamButton({
   onStart,
   onStop,
   followLabel,
-  pausedLabel,
+  pauseLabel,
 }: StreamButtonProps) {
   if (isStreaming) {
     return (
@@ -31,7 +31,7 @@ export function StreamButton({
         className="h-7 text-xs text-yellow-500 hover:text-yellow-600"
       >
         <Pause className="size-3.5" />
-        {pausedLabel}
+        {pauseLabel}
       </Button>
     );
   }
