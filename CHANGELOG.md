@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.21] - 2026-02-05
+
+- Fixed detail pane click handling, events display, content overflow, and locale formatting
+
 ## [0.3.20] - 2026-02-05
 
 - Fixed cluster connection to use configured kubeconfig sources instead of defaults
