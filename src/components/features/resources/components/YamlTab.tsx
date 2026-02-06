@@ -14,11 +14,8 @@ import {
 import { DiscardChangesDialog } from "../dialogs/DiscardChangesDialog";
 import { useTranslations } from "next-intl";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { usePlatform } from "@/lib/hooks/usePlatform";
 import { cn } from "@/lib/utils";
-
-const IS_MAC =
-  typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
-const MOD_KEY = IS_MAC ? "\u2318" : "Ctrl+";
 
 interface YamlTabProps {
   yamlContent: string;
@@ -49,6 +46,7 @@ export function YamlTab({
 }: YamlTabProps) {
   const t = useTranslations();
   const { resolvedTheme } = useUIStore();
+  const { modKeySymbol } = usePlatform();
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const [isEditing, setIsEditing] = useState(false);
@@ -205,7 +203,7 @@ export function YamlTab({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {t("common.save")} ({MOD_KEY}S)
+                  {t("common.save")} ({modKeySymbol}S)
                 </TooltipContent>
               </Tooltip>
               <div className="w-px h-4 bg-border mx-1" />
@@ -242,7 +240,7 @@ export function YamlTab({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {t("common.search")} ({MOD_KEY}F)
+              {t("common.search")} ({modKeySymbol}F)
             </TooltipContent>
           </Tooltip>
 
