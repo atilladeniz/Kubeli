@@ -176,7 +176,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
           onStop: stopStream,
           onFetch: () => fetchLogs({ tail_lines: LOG_DEFAULTS.FETCH_TAIL_LINES, previous: showPreviousLogs }),
           followLabel: t("logs.follow"),
-          pausedLabel: t("logs.streamingPaused"),
+          pauseLabel: t("logs.pause"),
           fetchTooltip: showPreviousLogs ? t("logs.previousLogsNoStream") : t("logs.fetchLogs"),
         }}
         download={{
