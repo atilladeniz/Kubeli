@@ -146,6 +146,7 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
       setIsEditing(false);
     } catch {
       // Error is handled by parent (error alert), keep edit mode active
+      focusEditor();
     }
   };
 
@@ -190,7 +191,7 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={onReset}
+                    onClick={() => { onReset?.(); focusEditor(); }}
                     disabled={!hasChanges || isSaving}
                     className="h-7 text-xs gap-1"
                   >
