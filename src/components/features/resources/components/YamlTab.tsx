@@ -176,8 +176,8 @@ export function YamlTab({
           )}
         </div>
         <div className="flex items-center gap-1">
-          {/* Save & Reset - only when editing with changes */}
-          {isEditing && hasChanges && (
+          {/* Save & Reset - visible in edit mode, disabled when no changes */}
+          {isEditing && (
             <>
               <Tooltip>
                 <TooltipTrigger asChild>
@@ -185,7 +185,7 @@ export function YamlTab({
                     variant="ghost"
                     size="sm"
                     onClick={onReset}
-                    disabled={isSaving}
+                    disabled={!hasChanges || isSaving}
                     className="h-7 text-xs gap-1"
                   >
                     <RotateCcw className="size-3" />
@@ -199,7 +199,7 @@ export function YamlTab({
                   <Button
                     size="sm"
                     onClick={handleSave}
-                    disabled={isSaving}
+                    disabled={!hasChanges || isSaving}
                     className="h-7 text-xs gap-1"
                   >
                     <Save className="size-3" />
