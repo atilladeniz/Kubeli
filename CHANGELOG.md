@@ -2,6 +2,15 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.22] - 2026-02-06
+
+- Added YAML editor UX overhaul with edit mode, search, and managedFields filtering
+- Fixed pause label for Follow logs button
+- Updated Next.js from 16.1.3 to 16.1.6
+- Updated React and React DOM from 19.2.3 to 19.2.4
+- Updated actions/upload-artifact from 4 to 6
+- Removed unused streamingPaused i18n key
+
 ## [0.3.21] - 2026-02-05
 
 - Fixed detail pane click handling, events display, content overflow, and locale formatting
