@@ -3,8 +3,6 @@
 import { useState, useEffect } from "react";
 import {
   X,
-  Save,
-  RotateCcw,
   Trash2,
   AlertCircle,
   FileJson,
@@ -37,7 +35,7 @@ export function ResourceDetail({
   onClose,
   onSave,
   onDelete,
-  isLoading = false,
+  isLoading: _isLoading = false,
 }: {
   resource: ResourceData | null;
   resourceType: string;
@@ -129,32 +127,9 @@ export function ResourceDetail({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {hasChanges && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReset}
-                disabled={isSaving}
-              >
-                <RotateCcw className="size-4" />
-                {t("common.reset")}
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={isSaving || isLoading}
-              >
-                <Save className="size-4" />
-                {isSaving ? `${t("common.loading")}` : t("common.save")}
-              </Button>
-            </>
-          )}
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="size-4" />
-          </Button>
-        </div>
+        <Button variant="ghost" size="icon" onClick={onClose}>
+          <X className="size-4" />
+        </Button>
       </div>
 
       {/* Error Alert */}
@@ -227,8 +202,11 @@ export function ResourceDetail({
             hasChanges={hasChanges}
             onYamlChange={handleYamlChange}
             onCopyYaml={handleCopyYaml}
+            onSave={handleSave}
+            onReset={handleReset}
             copied={copied}
-            readOnly={!onSave}
+            canEdit={!!onSave}
+            isSaving={isSaving}
             isActive={activeTab === "yaml"}
           />
         </TabsContent>

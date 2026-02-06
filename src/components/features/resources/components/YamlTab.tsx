@@ -1,21 +1,30 @@
 "use client";
 
-import { useRef, useEffect } from "react";
+import { useRef, useEffect, useState } from "react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import "@/lib/monaco-config";
-import { Copy, Check } from "lucide-react";
+import { Copy, Check, Search, Pencil, Save, RotateCcw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { useTranslations } from "next-intl";
 import { useUIStore } from "@/lib/stores/ui-store";
+import { cn } from "@/lib/utils";
 
 interface YamlTabProps {
   yamlContent: string;
   hasChanges: boolean;
   onYamlChange: (value: string | undefined) => void;
   onCopyYaml: () => Promise<void>;
+  onSave?: () => Promise<void>;
+  onReset?: () => void;
   copied: boolean;
-  readOnly: boolean;
+  canEdit: boolean;
+  isSaving?: boolean;
   isActive?: boolean;
 }
 
@@ -24,14 +33,18 @@ export function YamlTab({
   hasChanges,
   onYamlChange,
   onCopyYaml,
+  onSave,
+  onReset,
   copied,
-  readOnly,
+  canEdit,
+  isSaving,
   isActive,
 }: YamlTabProps) {
   const t = useTranslations();
   const { resolvedTheme } = useUIStore();
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const [isEditing, setIsEditing] = useState(false);
 
   const handleEditorMount = (
     editorInstance: editor.IStandaloneCodeEditor,
@@ -51,27 +64,179 @@ export function YamlTab({
     }
   }, [isActive]);
 
+  const handleSearch = () => {
+    if (editorRef.current) {
+      editorRef.current.focus();
+      editorRef.current.getAction("actions.find")?.run();
+    }
+  };
+
+  const handleStartEditing = () => {
+    setIsEditing(true);
+    setTimeout(() => editorRef.current?.focus(), 50);
+  };
+
+  const handleCancelEditing = () => {
+    setIsEditing(false);
+    if (hasChanges) {
+      onReset?.();
+    }
+  };
+
+  const handleSave = async () => {
+    await onSave?.();
+    setIsEditing(false);
+  };
+
+  // ESC exits edit mode when the Monaco find widget is not open
+  useEffect(() => {
+    if (!isEditing || !editorRef.current) return;
+    const editor = editorRef.current;
+    const disposable = editor.onKeyDown((e) => {
+      if (e.keyCode === monacoRef.current?.KeyCode.Escape) {
+        // Let Monaco handle ESC if the find widget is visible
+        const findController = editor.getContribution("editor.contrib.findController") as { getState?: () => { isRevealed?: boolean } } | null;
+        if (findController?.getState?.()?.isRevealed) return;
+        e.preventDefault();
+        e.stopPropagation();
+        handleCancelEditing();
+      }
+    });
+    return () => disposable.dispose();
+  }, [isEditing, hasChanges]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const readOnly = !isEditing || !canEdit;
+  const isMac =
+    typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
+  const modKey = isMac ? "\u2318" : "Ctrl+";
+
   return (
     <div className="h-full flex flex-col">
-
-      <div className="flex items-center justify-between px-4 py-2 border-b border-border bg-muted/30">
-        <span className="text-xs text-muted-foreground">
-          {hasChanges ? t("resourceDetail.editYaml") : "—"}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onCopyYaml}
-          className="h-7 text-xs"
-        >
-          {copied ? (
-            <Check className="size-3 text-green-500" />
+      {/* Toolbar */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-b border-border bg-muted/30">
+        <div className="flex items-center gap-2">
+          {isEditing ? (
+            <span className="text-xs font-medium text-amber-500">
+              {t("resourceDetail.editYaml")}
+            </span>
           ) : (
-            <Copy className="size-3" />
+            <span className="text-xs text-muted-foreground">YAML</span>
           )}
-          {copied ? t("common.copied") : t("common.copy")}
-        </Button>
+        </div>
+        <div className="flex items-center gap-1">
+          {/* Save & Reset - only when editing with changes */}
+          {isEditing && hasChanges && (
+            <>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={onReset}
+                    disabled={isSaving}
+                    className="h-7 text-xs gap-1"
+                  >
+                    <RotateCcw className="size-3" />
+                    {t("common.reset")}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("common.reset")}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    size="sm"
+                    onClick={handleSave}
+                    disabled={isSaving}
+                    className="h-7 text-xs gap-1"
+                  >
+                    <Save className="size-3" />
+                    {isSaving ? t("common.loading") : t("common.save")}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {t("common.save")} ({modKey}S)
+                </TooltipContent>
+              </Tooltip>
+              <div className="w-px h-4 bg-border mx-1" />
+            </>
+          )}
+
+          {/* Cancel edit mode */}
+          {isEditing && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleCancelEditing}
+                  className="size-7"
+                >
+                  <X className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("common.cancel")} (Esc)</TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Search */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleSearch}
+                className="size-7"
+              >
+                <Search className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {t("common.search")} ({modKey}F)
+            </TooltipContent>
+          </Tooltip>
+
+          {/* Edit toggle */}
+          {canEdit && !isEditing && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={handleStartEditing}
+                  className="size-7"
+                >
+                  <Pencil className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{t("common.edit")}</TooltipContent>
+            </Tooltip>
+          )}
+
+          {/* Copy */}
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onCopyYaml}
+                className={cn("size-7", copied && "text-green-500")}
+              >
+                {copied ? (
+                  <Check className="size-3.5" />
+                ) : (
+                  <Copy className="size-3.5" />
+                )}
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              {copied ? t("common.copied") : t("common.copy")}
+            </TooltipContent>
+          </Tooltip>
+        </div>
       </div>
+
+      {/* Editor */}
       <div className="flex-1 min-h-0">
         <Editor
           height="100%"
@@ -100,22 +265,22 @@ export function YamlTab({
             readOnly,
             smoothScrolling: false,
             renderWhitespace: "none",
-            renderLineHighlight: "none",
+            renderLineHighlight: isEditing ? "line" : "none",
             renderLineHighlightOnlyWhenFocus: true,
             quickSuggestions: false,
             folding: true,
             foldingHighlight: false,
-            matchBrackets: "never",
-            occurrencesHighlight: "off",
-            selectionHighlight: false,
+            matchBrackets: isEditing ? "always" : "never",
+            occurrencesHighlight: isEditing ? "singleFile" : "off",
+            selectionHighlight: isEditing,
             codeLens: false,
-            contextmenu: false,
+            contextmenu: isEditing,
             fontLigatures: false,
             renderValidationDecorations: "off",
             cursorBlinking: "solid",
             cursorSmoothCaretAnimation: "off",
             guides: {
-              indentation: false,
+              indentation: isEditing,
               bracketPairs: false,
               highlightActiveIndentation: false,
             },
