@@ -787,6 +787,8 @@
     "readOnly": "Schreibgeschützt",
     "applyChanges": "Änderungen anwenden",
     "discardChanges": "Änderungen verwerfen",
+    "discardChangesTitle": "Änderungen verwerfen?",
+    "discardChangesDescription": "Du hast ungespeicherte Änderungen am YAML. Wenn du den Bearbeitungsmodus jetzt verlässt, gehen deine Änderungen verloren.",
     "dangerZone": "Gefahrenzone",
     "deleteResource": "{type} \"{name}\" löschen",
     "uninstallResource": "Helm Release \"{name}\" deinstallieren",

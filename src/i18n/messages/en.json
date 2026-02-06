@@ -787,6 +787,8 @@
     "readOnly": "Read-only",
     "applyChanges": "Apply Changes",
     "discardChanges": "Discard Changes",
+    "discardChangesTitle": "Discard unsaved changes?",
+    "discardChangesDescription": "You have unsaved changes to this YAML. If you leave edit mode now, your changes will be lost.",
     "dangerZone": "Danger Zone",
     "deleteResource": "Delete {type} \"{name}\"",
     "uninstallResource": "Uninstall Helm release \"{name}\"",

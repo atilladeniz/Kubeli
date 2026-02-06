@@ -11,6 +11,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { DiscardChangesDialog } from "../dialogs/DiscardChangesDialog";
 import { useTranslations } from "next-intl";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { cn } from "@/lib/utils";
@@ -47,6 +48,7 @@ export function YamlTab({
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [showReadOnlyHint, setShowReadOnlyHint] = useState(false);
   const readOnlyHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [prevResourceKey, setPrevResourceKey] = useState(resourceKey);
@@ -100,10 +102,17 @@ export function YamlTab({
   };
 
   const handleCancelEditing = () => {
-    setIsEditing(false);
     if (hasChanges) {
-      onReset?.();
+      setShowDiscardDialog(true);
+    } else {
+      setIsEditing(false);
     }
+  };
+
+  const handleConfirmDiscard = () => {
+    setShowDiscardDialog(false);
+    setIsEditing(false);
+    onReset?.();
   };
 
   const handleSave = async () => {
@@ -355,6 +364,12 @@ export function YamlTab({
           }}
         />
       </div>
+
+      <DiscardChangesDialog
+        open={showDiscardDialog}
+        onOpenChange={setShowDiscardDialog}
+        onConfirm={handleConfirmDiscard}
+      />
     </div>
   );
 }
