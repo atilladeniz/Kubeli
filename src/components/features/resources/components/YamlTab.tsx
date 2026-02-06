@@ -345,6 +345,7 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
           }
           options={{
             minimap: { enabled: false },
+            find: { addExtraSpaceOnTop: false },
             fontSize: 13,
             lineNumbers: "on",
             scrollBeyondLastLine: false,
