@@ -18,7 +18,9 @@ export function useKubeconfigWatcher() {
     }
 
     // Skip in mock/web-dev mode
-    if (process.env.NEXT_PUBLIC_TAURI_MOCK === "true") return;
+    if (process.env.VITE_TAURI_MOCK === "true") {
+      return;
+    }
 
     try {
       const { watch } = await import("@tauri-apps/plugin-fs");

@@ -1,31 +1,40 @@
+import js from "@eslint/js";
+import tseslint from "typescript-eslint";
+import globals from "globals";
+import reactHooks from "eslint-plugin-react-hooks";
 import { defineConfig, globalIgnores } from "eslint/config";
-import nextVitals from "eslint-config-next/core-web-vitals";
-import nextTs from "eslint-config-next/typescript";
 
-const eslintConfig = defineConfig([
-  ...nextVitals,
-  ...nextTs,
-  // Override default ignores of eslint-config-next.
+export default defineConfig(
+  js.configs.recommended,
+  ...tseslint.configs.recommended,
   globalIgnores([
-    // Default ignores of eslint-config-next:
-    ".next/**",
-    "out/**",
+    "dist/**",
     "build/**",
-    "next-env.d.ts",
-    // Generated artifacts
     "coverage/**",
     "web/dist/**",
-    // Ignore Tauri Rust project (generated files)
-    "src-tauri/**",
-    // Tooling configs
-    "jest.config.cjs",
-    // Astro generated files
     "web/.astro/**",
+    "src-tauri/**",
   ]),
-  // Custom rules
   {
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+  },
+  {
+    files: ["**/*.{ts,tsx}"],
+    languageOptions: {
+      parserOptions: {
+        projectService: true,
+      },
+    },
+    plugins: {
+      "react-hooks": reactHooks,
+    },
     rules: {
-      // Allow unused vars with _ prefix (convention for intentionally unused)
+      ...reactHooks.configs.recommended.rules,
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
@@ -36,6 +45,4 @@ const eslintConfig = defineConfig([
       ],
     },
   },
-]);
-
-export default eslintConfig;
+);

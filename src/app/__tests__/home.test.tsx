@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import Home from "../page";
+import Home from "../../App";
 
 jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -28,6 +28,12 @@ jest.mock("@/lib/stores/ui-store", () => ({
 jest.mock("@/lib/hooks/usePortForward", () => ({
   usePortForward: () => ({
     forwards: [],
+  }),
+}));
+
+jest.mock("@/lib/hooks/useKubeconfigWatcher", () => ({
+  useKubeconfigWatcher: () => ({
+    restartWatcher: jest.fn(),
   }),
 }));
 

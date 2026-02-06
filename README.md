@@ -53,7 +53,7 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 
 | Layer | Technology |
 |-------|------------|
-| Frontend | Next.js 16, React 19, TypeScript, Tailwind CSS 4 |
+| Frontend | Vite, React 19, TypeScript, Tailwind CSS 4 |
 | Desktop | Tauri 2.0 (Rust) |
 | K8s Client | kube-rs with k8s-openapi v1.32 |
 | State | Zustand |
@@ -96,10 +96,10 @@ make build-all
 ## Development
 
 ```bash
-# Start Tauri + Next.js dev environment
+# Start Tauri + Vite dev environment
 make dev
 
-# Start Next.js only (no Tauri)
+# Start Vite only (no Tauri)
 make web-dev
 
 # Run linting
@@ -258,8 +258,8 @@ For developing or testing Kubeli on Windows, see the [Windows Setup Guide](.dev/
 
 ```
 kubeli/
-├── src/                    # Next.js frontend
-│   ├── app/                # App Router pages
+├── src/                    # React frontend (Vite)
+│   ├── app/                # App styles/tests
 │   ├── components/         # React components
 │   │   ├── features/       # Dashboard, Resources, Logs, Terminal
 │   │   ├── layout/         # Sidebar, Titlebar

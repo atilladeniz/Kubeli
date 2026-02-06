@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { cn } from "@/lib/utils";
 import {
   detectClusterType,
@@ -20,7 +19,7 @@ export function ClusterIcon({ cluster, size = 20, className }: ClusterIconProps)
   const iconPath = getClusterIconPath(clusterType);
 
   return (
-    <Image
+    <img
       src={iconPath}
       alt={clusterType}
       width={size}
@@ -40,7 +39,7 @@ export function ClusterIconByType({ type, size = 20, className }: ClusterIconByT
   const iconPath = getClusterIconPath(type);
 
   return (
-    <Image
+    <img
       src={iconPath}
       alt={type}
       width={size}

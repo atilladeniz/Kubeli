@@ -1,5 +1,3 @@
-"use client";
-
 import { useEffect, useState, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { save } from "@tauri-apps/plugin-dialog";
@@ -35,12 +33,14 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { generateDebugLog } from "@/lib/tauri/commands";
-import packageJson from "../../package.json";
+import packageJson from "../package.json";
 
 // Check if we're in Tauri environment
 function checkIsTauri(): boolean {
   if (typeof window === "undefined") return false;
-  if (process.env.NEXT_PUBLIC_TAURI_MOCK === "true") return true;
+  if (process.env.VITE_TAURI_MOCK === "true") {
+    return true;
+  }
   return "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
 }
 
@@ -61,7 +61,7 @@ export default function Home() {
   const kubeconfigPath = isWindows ? "C:\\Users\\<username>\\.kube\\config" : "~/.kube/config";
 
   // Watch kubeconfig source paths for filesystem changes (new/modified/deleted files)
-  const { restartWatcher } = useKubeconfigWatcher();
+  useKubeconfigWatcher();
 
   const {
     clusters,
