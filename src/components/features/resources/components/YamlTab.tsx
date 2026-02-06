@@ -135,8 +135,12 @@ export function YamlTab({
   };
 
   const handleSave = async () => {
-    await onSave?.();
-    setIsEditing(false);
+    try {
+      await onSave?.();
+      setIsEditing(false);
+    } catch {
+      // Error is handled by parent (error alert), keep edit mode active
+    }
   };
 
   // ESC exits edit mode when the Monaco find widget is not open

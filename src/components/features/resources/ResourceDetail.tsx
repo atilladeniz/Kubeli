@@ -25,9 +25,8 @@ import { EventsTab } from "./components/EventsTab";
 import { DangerZoneTab } from "./components/DangerZoneTab";
 import { DeleteResourceDialog } from "./dialogs/DeleteResourceDialog";
 
-// Re-export types for backward compatibility
 export type { ResourceDetailProps, ResourceData } from "./types";
-import type { ResourceData } from "./types";
+import type { ResourceDetailProps } from "./types";
 
 export function ResourceDetail({
   resource,
@@ -35,13 +34,7 @@ export function ResourceDetail({
   onClose,
   onSave,
   onDelete,
-}: {
-  resource: ResourceData | null;
-  resourceType: string;
-  onClose: () => void;
-  onSave?: (yaml: string) => Promise<void>;
-  onDelete?: () => Promise<void>;
-}) {
+}: ResourceDetailProps) {
   const t = useTranslations();
   const [activeTab, setActiveTab] = useState("overview");
   const [yamlContent, setYamlContent] = useState("");
@@ -77,6 +70,7 @@ export function ResourceDetail({
       setHasChanges(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("messages.saveError"));
+      throw err;
     } finally {
       setIsSaving(false);
     }
