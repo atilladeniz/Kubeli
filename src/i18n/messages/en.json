@@ -784,6 +784,7 @@
     "copyYaml": "Copy YAML",
     "downloadYaml": "Download YAML",
     "editYaml": "Edit YAML",
+    "readOnly": "Read-only",
     "applyChanges": "Apply Changes",
     "discardChanges": "Discard Changes",
     "dangerZone": "Danger Zone",

@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef, useEffect, useState } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import "@/lib/monaco-config";
-import { Copy, Check, Search, Pencil, Save, RotateCcw, X } from "lucide-react";
+import { Copy, Check, Search, Pencil, Save, RotateCcw, X, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -45,6 +45,14 @@ export function YamlTab({
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [showReadOnlyHint, setShowReadOnlyHint] = useState(false);
+  const readOnlyHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const showReadOnlyNotification = useCallback(() => {
+    if (readOnlyHintTimer.current) clearTimeout(readOnlyHintTimer.current);
+    setShowReadOnlyHint(true);
+    readOnlyHintTimer.current = setTimeout(() => setShowReadOnlyHint(false), 3000);
+  }, []);
 
   const handleEditorMount = (
     editorInstance: editor.IStandaloneCodeEditor,
@@ -52,6 +60,11 @@ export function YamlTab({
   ) => {
     editorRef.current = editorInstance;
     monacoRef.current = monacoInstance;
+
+    // Replace Monaco's default "Cannot edit in read-only editor" with our custom notification
+    editorInstance.onDidAttemptReadOnlyEdit(() => {
+      if (canEdit) showReadOnlyNotification();
+    });
   };
 
   // When the tab becomes visible, force Monaco to remeasure fonts and layout.
@@ -237,7 +250,30 @@ export function YamlTab({
       </div>
 
       {/* Editor */}
-      <div className="flex-1 min-h-0">
+      <div className="flex-1 min-h-0 relative">
+        {/* Read-only notification */}
+        {showReadOnlyHint && canEdit && !isEditing && (
+          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 animate-in fade-in-0 slide-in-from-top-2 duration-200">
+            <div className="flex items-center gap-2.5 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+              <Lock className="size-3.5 text-muted-foreground shrink-0" />
+              <span className="text-xs text-muted-foreground">
+                {t("resourceDetail.readOnly")}
+              </span>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setShowReadOnlyHint(false);
+                  handleStartEditing();
+                }}
+                className="h-6 text-xs gap-1 px-2.5"
+              >
+                <Pencil className="size-3" />
+                {t("common.edit")}
+              </Button>
+            </div>
+          </div>
+        )}
+
         <Editor
           height="100%"
           defaultLanguage="yaml"
@@ -263,6 +299,7 @@ export function YamlTab({
             tabSize: 2,
             wordWrap: "off",
             readOnly,
+            readOnlyMessage: { value: "" },
             smoothScrolling: false,
             renderWhitespace: "none",
             renderLineHighlight: isEditing ? "line" : "none",

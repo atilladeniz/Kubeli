@@ -784,6 +784,7 @@
     "copyYaml": "YAML kopieren",
     "downloadYaml": "YAML herunterladen",
     "editYaml": "YAML bearbeiten",
+    "readOnly": "Schreibgeschützt",
     "applyChanges": "Änderungen anwenden",
     "discardChanges": "Änderungen verwerfen",
     "dangerZone": "Gefahrenzone",
