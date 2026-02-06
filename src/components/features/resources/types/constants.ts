@@ -37,5 +37,4 @@ export interface ResourceDetailProps {
   onClose: () => void;
   onSave?: (yaml: string) => Promise<void>;
   onDelete?: () => Promise<void>;
-  isLoading?: boolean;
 }

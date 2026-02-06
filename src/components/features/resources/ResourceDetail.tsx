@@ -1,10 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   X,
-  Save,
-  RotateCcw,
   Trash2,
   AlertCircle,
   FileJson,
@@ -21,15 +19,15 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { LogViewer } from "../logs/LogViewer";
 import { OverviewTab } from "./components/OverviewTab";
-import { YamlTab } from "./components/YamlTab";
+import { YamlTab, type YamlTabHandle } from "./components/YamlTab";
 import { ConditionsTab } from "./components/ConditionsTab";
 import { EventsTab } from "./components/EventsTab";
 import { DangerZoneTab } from "./components/DangerZoneTab";
 import { DeleteResourceDialog } from "./dialogs/DeleteResourceDialog";
+import { DiscardChangesDialog } from "./dialogs/DiscardChangesDialog";
 
-// Re-export types for backward compatibility
 export type { ResourceDetailProps, ResourceData } from "./types";
-import type { ResourceData } from "./types";
+import type { ResourceDetailProps } from "./types";
 
 export function ResourceDetail({
   resource,
@@ -37,22 +35,16 @@ export function ResourceDetail({
   onClose,
   onSave,
   onDelete,
-  isLoading = false,
-}: {
-  resource: ResourceData | null;
-  resourceType: string;
-  onClose: () => void;
-  onSave?: (yaml: string) => Promise<void>;
-  onDelete?: () => Promise<void>;
-  isLoading?: boolean;
-}) {
+}: ResourceDetailProps) {
   const t = useTranslations();
+  const yamlTabRef = useRef<YamlTabHandle>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [yamlContent, setYamlContent] = useState("");
   const [originalYaml, setOriginalYaml] = useState("");
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showDiscardOnClose, setShowDiscardOnClose] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -81,6 +73,7 @@ export function ResourceDetail({
       setHasChanges(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("messages.saveError"));
+      throw err;
     } finally {
       setIsSaving(false);
     }
@@ -114,6 +107,25 @@ export function ResourceDetail({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleClose = () => {
+    if (hasChanges) {
+      setShowDiscardOnClose(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleDiscardCloseChange = (open: boolean) => {
+    setShowDiscardOnClose(open);
+    if (!open) yamlTabRef.current?.focusEditor();
+  };
+
+  const handleConfirmClose = () => {
+    setShowDiscardOnClose(false);
+    setHasChanges(false);
+    onClose();
+  };
+
   if (!resource) return null;
 
   return (
@@ -129,32 +141,9 @@ export function ResourceDetail({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          {hasChanges && (
-            <>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleReset}
-                disabled={isSaving}
-              >
-                <RotateCcw className="size-4" />
-                {t("common.reset")}
-              </Button>
-              <Button
-                size="sm"
-                onClick={handleSave}
-                disabled={isSaving || isLoading}
-              >
-                <Save className="size-4" />
-                {isSaving ? `${t("common.loading")}` : t("common.save")}
-              </Button>
-            </>
-          )}
-          <Button variant="ghost" size="icon" onClick={onClose}>
-            <X className="size-4" />
-          </Button>
-        </div>
+        <Button variant="ghost" size="icon" onClick={handleClose}>
+          <X className="size-4" />
+        </Button>
       </div>
 
       {/* Error Alert */}
@@ -223,12 +212,18 @@ export function ResourceDetail({
           )}
         >
           <YamlTab
+            ref={yamlTabRef}
             yamlContent={yamlContent}
             hasChanges={hasChanges}
             onYamlChange={handleYamlChange}
             onCopyYaml={handleCopyYaml}
+            onSave={handleSave}
+            onReset={handleReset}
             copied={copied}
-            readOnly={!onSave}
+            canEdit={!!onSave}
+            isSaving={isSaving}
+            isActive={activeTab === "yaml"}
+            resourceKey={resource.uid}
           />
         </TabsContent>
 
@@ -260,6 +255,12 @@ export function ResourceDetail({
           </TabsContent>
         )}
       </Tabs>
+
+      <DiscardChangesDialog
+        open={showDiscardOnClose}
+        onOpenChange={handleDiscardCloseChange}
+        onConfirm={handleConfirmClose}
+      />
 
       <DeleteResourceDialog
         open={showDeleteDialog}

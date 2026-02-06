@@ -535,6 +535,45 @@ summary *,
   background-clip: content-box;
 }
 
+/* Monaco editor cursor overrides - undo the global cursor: default !important */
+.monaco-editor,
+.monaco-editor * {
+  cursor: inherit !important;
+}
+
+.monaco-editor .view-lines,
+.monaco-editor .view-line,
+.monaco-editor .inputarea,
+.monaco-editor .margin {
+  cursor: text !important;
+}
+
+.monaco-editor .scroll-decoration,
+.monaco-editor .decorationsOverviewRuler,
+.monaco-editor .minimap,
+.monaco-editor .slider {
+  cursor: pointer !important;
+}
+
+.monaco-editor .context-view,
+.monaco-editor .context-view * {
+  cursor: pointer !important;
+}
+
+.monaco-editor .find-widget,
+.monaco-editor .find-widget input {
+  cursor: text !important;
+}
+
+.monaco-editor .find-widget .button,
+.monaco-editor .find-widget .button * {
+  cursor: pointer !important;
+}
+
+.monaco-editor .codicon {
+  cursor: pointer !important;
+}
+
 /* Monaco editor container scrollbar fix for dark mode */
 .dark .monaco-editor .overflow-guard,
 .classic-dark .monaco-editor .overflow-guard,

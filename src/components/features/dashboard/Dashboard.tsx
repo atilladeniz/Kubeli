@@ -71,7 +71,7 @@ function DashboardContent() {
   const { isConnected, currentCluster } = useClusterStore();
   const { tabs, isOpen, setIsOpen } = useTerminalTabs();
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
-  const [isLoadingDetail, setIsLoadingDetail] = useState(false);
+
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [uninstallDialog, setUninstallDialog] = useState<UninstallDialogState | null>(null);
   const [scaleDialog, setScaleDialog] = useState<ScaleDialogState | null>(null);
@@ -169,7 +169,6 @@ function DashboardContent() {
   useKeyboardShortcuts(shortcuts, { enabled: isConnected });
 
   const openResourceDetail = async (resourceType: string, name: string, namespace?: string) => {
-    setIsLoadingDetail(true);
     try {
       const [yamlData, events] = await Promise.all([
         getResourceYaml(resourceType, name, namespace),
@@ -204,8 +203,6 @@ function DashboardContent() {
       });
     } catch (err) {
       console.error("Failed to load resource details:", err);
-    } finally {
-      setIsLoadingDetail(false);
     }
   };
 
@@ -335,7 +332,6 @@ function DashboardContent() {
                 onClose={() => setSelectedResource(null)}
                 onSave={handleSaveResource}
                 onDelete={handleDeleteResource}
-                isLoading={isLoadingDetail}
               />
             </div>
           )}

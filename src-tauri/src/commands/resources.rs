@@ -772,6 +772,14 @@ pub async fn delete_pod(
     Ok(())
 }
 
+/// Strip metadata.managedFields from a resource JSON value.
+/// managedFields is verbose internal bookkeeping that clutters the YAML view.
+fn strip_managed_fields(value: &mut Value) {
+    if let Some(metadata) = value.get_mut("metadata").and_then(|m| m.as_object_mut()) {
+        metadata.remove("managedFields");
+    }
+}
+
 /// Resource YAML response
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ResourceYaml {
@@ -1077,8 +1085,13 @@ async fn get_resource_yaml_dynamic(
         .await
         .map_err(|e| format!("Failed to get {}: {}", resource_type, e))?;
 
-    let yaml = serde_yaml::to_string(&resource)
-        .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+    // Serialize to JSON Value so we can strip managedFields before YAML output
+    let mut value = serde_json::to_value(&resource)
+        .map_err(|e| format!("Failed to serialize resource: {}", e))?;
+    strip_managed_fields(&mut value);
+
+    let yaml =
+        serde_yaml::to_string(&value).map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
 
     Ok(ResourceYaml {
         yaml,
