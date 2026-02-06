@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build
+.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -11,6 +11,7 @@ CYAN := \033[36m
 GREEN := \033[32m
 YELLOW := \033[33m
 RESET := \033[0m
+TAURI_BUILD_ARGS ?=
 
 ## Development
 
@@ -29,12 +30,22 @@ build: ## Build production Tauri app
 	@CURRENT_VERSION=$$(node -e "console.log(require('./package.json').version)"); \
 	echo "$(CYAN)Current version: $(GREEN)$$CURRENT_VERSION$(RESET)"; \
 	echo ""; \
-	printf "$(YELLOW)Do you want to bump the version before building? [y/N]: $(RESET)"; \
-	read answer; \
-	if [ "$$answer" = "y" ] || [ "$$answer" = "Y" ] || [ "$$answer" = "yes" ] || [ "$$answer" = "Yes" ]; then \
+	if [ "$$BUMP_TYPE" = "patch" ] || [ "$$BUMP_TYPE" = "minor" ] || [ "$$BUMP_TYPE" = "major" ]; then \
+		echo "$(CYAN)Auto version bump via BUMP_TYPE=$$BUMP_TYPE$(RESET)"; \
 		echo ""; \
-		$(MAKE) version-bump; \
+		$(MAKE) version-bump TYPE=$$BUMP_TYPE; \
 		echo ""; \
+	elif [ "$$SKIP_VERSION_PROMPT" = "1" ]; then \
+		echo "$(CYAN)Skipping version prompt (SKIP_VERSION_PROMPT=1)$(RESET)"; \
+		echo ""; \
+	else \
+		printf "$(YELLOW)Do you want to bump the version before building? [y/N]: $(RESET)"; \
+		read answer; \
+		if [ "$$answer" = "y" ] || [ "$$answer" = "Y" ] || [ "$$answer" = "yes" ] || [ "$$answer" = "Yes" ]; then \
+			echo ""; \
+			$(MAKE) version-bump; \
+			echo ""; \
+		fi; \
 	fi; \
 	if [ -f .env ]; then \
 		set -a; source .env; set +a; \
@@ -46,7 +57,23 @@ build: ## Build production Tauri app
 		export TAURI_SIGNING_PRIVATE_KEY_PASSWORD=""; \
 	fi; \
 	echo "$(CYAN)Starting build...$(RESET)"; \
-	npm run tauri:build
+	npm run tauri:build $(TAURI_BUILD_ARGS)
+
+build-start: ## Build local app bundle and launch Kubeli.app (macOS)
+	@SKIP=$${SKIP_VERSION_PROMPT:-1}; \
+	BUILD_EXIT=0; \
+	$(MAKE) build SKIP_VERSION_PROMPT=$$SKIP BUMP_TYPE=$$BUMP_TYPE TAURI_BUILD_ARGS="-- --bundles app" || BUILD_EXIT=$$?; \
+	APP_PATH="src-tauri/target/release/bundle/macos/Kubeli.app"; \
+	if [ ! -d "$$APP_PATH" ]; then \
+		echo "$(YELLOW)Error: App bundle not found at $$APP_PATH$(RESET)"; \
+		exit $$BUILD_EXIT; \
+	fi; \
+	if [ $$BUILD_EXIT -ne 0 ]; then \
+		echo "$(YELLOW)Warning: Build exited with code $$BUILD_EXIT, but app bundle exists.$(RESET)"; \
+	fi; \
+	echo "$(CYAN)Opening $$APP_PATH...$(RESET)"; \
+	open "$$APP_PATH"; \
+	echo "$(GREEN)✓ Kubeli started$(RESET)"
 
 web-build: ## Build Vite web app only
 	npm run build
