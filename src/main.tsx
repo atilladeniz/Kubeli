@@ -1,4 +1,5 @@
 import ReactDOM from "react-dom/client";
+import "@fontsource-variable/inter/wght.css";
 import App from "./App";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
