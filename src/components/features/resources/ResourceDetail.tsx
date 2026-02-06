@@ -24,6 +24,7 @@ import { ConditionsTab } from "./components/ConditionsTab";
 import { EventsTab } from "./components/EventsTab";
 import { DangerZoneTab } from "./components/DangerZoneTab";
 import { DeleteResourceDialog } from "./dialogs/DeleteResourceDialog";
+import { DiscardChangesDialog } from "./dialogs/DiscardChangesDialog";
 
 export type { ResourceDetailProps, ResourceData } from "./types";
 import type { ResourceDetailProps } from "./types";
@@ -42,6 +43,7 @@ export function ResourceDetail({
   const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showDiscardOnClose, setShowDiscardOnClose] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
 
@@ -104,6 +106,20 @@ export function ResourceDetail({
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const handleClose = () => {
+    if (hasChanges) {
+      setShowDiscardOnClose(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const handleConfirmClose = () => {
+    setShowDiscardOnClose(false);
+    setHasChanges(false);
+    onClose();
+  };
+
   if (!resource) return null;
 
   return (
@@ -119,7 +135,7 @@ export function ResourceDetail({
             </div>
           </div>
         </div>
-        <Button variant="ghost" size="icon" onClick={onClose}>
+        <Button variant="ghost" size="icon" onClick={handleClose}>
           <X className="size-4" />
         </Button>
       </div>
@@ -232,6 +248,12 @@ export function ResourceDetail({
           </TabsContent>
         )}
       </Tabs>
+
+      <DiscardChangesDialog
+        open={showDiscardOnClose}
+        onOpenChange={setShowDiscardOnClose}
+        onConfirm={handleConfirmClose}
+      />
 
       <DeleteResourceDialog
         open={showDeleteDialog}
