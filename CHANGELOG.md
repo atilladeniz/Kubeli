@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.24] - 2026-02-06
+
+- Extracted MergeModeSection component for improved readability in KubeconfigTab
+
 ## [0.3.23] - 2026-02-06
 
 - Migrated frontend from Next.js to Vite + React for improved Tauri integration and faster development builds
