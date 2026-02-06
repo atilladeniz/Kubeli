@@ -252,8 +252,15 @@ export function YamlTab({
       {/* Editor */}
       <div className="flex-1 min-h-0 relative">
         {/* Read-only notification */}
-        {showReadOnlyHint && canEdit && !isEditing && (
-          <div className="absolute top-3 left-1/2 -translate-x-1/2 z-50 animate-in fade-in-0 slide-in-from-top-2 duration-200">
+        {canEdit && !isEditing && (
+          <div
+            className={cn(
+              "absolute top-3 left-1/2 -translate-x-1/2 z-50 transition-all duration-200 ease-out",
+              showReadOnlyHint
+                ? "opacity-100 translate-y-0"
+                : "opacity-0 -translate-y-2 pointer-events-none"
+            )}
+          >
             <div className="flex items-center gap-2.5 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
               <Lock className="size-3.5 text-muted-foreground shrink-0" />
               <span className="text-xs text-muted-foreground">
