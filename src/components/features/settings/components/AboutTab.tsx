@@ -1,7 +1,6 @@
 import { useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { Heart, RefreshCw, Download } from "lucide-react";
-import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { useUpdater } from "@/lib/hooks/useUpdater";
@@ -31,7 +30,7 @@ export function AboutTab({ appVersion }: AboutTabProps) {
   return (
     <div className="flex flex-col items-center text-center py-4">
       <div className="mb-4 rounded-2xl bg-muted p-4">
-        <Image
+        <img
           src="/kubeli-icon.png"
           alt="Kubeli"
           width={80}

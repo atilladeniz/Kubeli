@@ -195,9 +195,11 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
             break;
           case "Progress":
             downloaded += event.data.chunkLength;
-            const prog = contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
-            debug(` Progress: ${Math.round(prog)}%`);
-            setProgress(prog);
+            {
+              const prog = contentLength > 0 ? (downloaded / contentLength) * 100 : 0;
+              debug(` Progress: ${Math.round(prog)}%`);
+              setProgress(prog);
+            }
             break;
           case "Finished":
             debug(" Download finished, installing...");
