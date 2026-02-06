@@ -306,7 +306,6 @@
     "searching": "Suche...",
     "noLogs": "Keine Logs verfügbar",
     "lines": "{count} Zeilen",
-    "streamingPaused": "Streaming pausiert",
     "streamingActive": "Streaming aktiv",
     "fetchLogs": "Logs abrufen",
     "analyzeWithAI": "Mit KI analysieren",
