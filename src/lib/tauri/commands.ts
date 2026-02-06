@@ -59,7 +59,7 @@ import type {
 } from "../types";
 
 const invoke = <T>(command: string, payload?: unknown): Promise<T> => {
-  if (process.env.VITE_TAURI_MOCK === "true" || process.env.NEXT_PUBLIC_TAURI_MOCK === "true") {
+  if (process.env.VITE_TAURI_MOCK === "true") {
     return mockInvoke(command, payload as Record<string, unknown> | undefined) as Promise<T>;
   }
 
