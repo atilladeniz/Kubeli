@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   X,
   Trash2,
@@ -19,7 +19,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { LogViewer } from "../logs/LogViewer";
 import { OverviewTab } from "./components/OverviewTab";
-import { YamlTab } from "./components/YamlTab";
+import { YamlTab, type YamlTabHandle } from "./components/YamlTab";
 import { ConditionsTab } from "./components/ConditionsTab";
 import { EventsTab } from "./components/EventsTab";
 import { DangerZoneTab } from "./components/DangerZoneTab";
@@ -37,6 +37,7 @@ export function ResourceDetail({
   onDelete,
 }: ResourceDetailProps) {
   const t = useTranslations();
+  const yamlTabRef = useRef<YamlTabHandle>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [yamlContent, setYamlContent] = useState("");
   const [originalYaml, setOriginalYaml] = useState("");
@@ -112,6 +113,11 @@ export function ResourceDetail({
     } else {
       onClose();
     }
+  };
+
+  const handleDiscardCloseChange = (open: boolean) => {
+    setShowDiscardOnClose(open);
+    if (!open) yamlTabRef.current?.focusEditor();
   };
 
   const handleConfirmClose = () => {
@@ -206,6 +212,7 @@ export function ResourceDetail({
           )}
         >
           <YamlTab
+            ref={yamlTabRef}
             yamlContent={yamlContent}
             hasChanges={hasChanges}
             onYamlChange={handleYamlChange}
@@ -251,7 +258,7 @@ export function ResourceDetail({
 
       <DiscardChangesDialog
         open={showDiscardOnClose}
-        onOpenChange={setShowDiscardOnClose}
+        onOpenChange={handleDiscardCloseChange}
         onConfirm={handleConfirmClose}
       />
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback, useImperativeHandle, forwardRef, type Ref } from "react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import "@/lib/monaco-config";
@@ -17,6 +17,10 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 import { cn } from "@/lib/utils";
 
+export interface YamlTabHandle {
+  focusEditor: () => void;
+}
+
 interface YamlTabProps {
   yamlContent: string;
   hasChanges: boolean;
@@ -31,7 +35,7 @@ interface YamlTabProps {
   resourceKey?: string;
 }
 
-export function YamlTab({
+export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab({
   yamlContent,
   hasChanges,
   onYamlChange,
@@ -43,7 +47,7 @@ export function YamlTab({
   isSaving,
   isActive,
   resourceKey,
-}: YamlTabProps) {
+}: YamlTabProps, ref: Ref<YamlTabHandle>) {
   const t = useTranslations();
   const { resolvedTheme } = useUIStore();
   const { modKeySymbol } = usePlatform();
@@ -108,6 +112,8 @@ export function YamlTab({
   const focusEditor = () => {
     setTimeout(() => editorRef.current?.focus(), 50);
   };
+
+  useImperativeHandle(ref, () => ({ focusEditor }));
 
   const handleStartEditing = () => {
     setIsEditing(true);
@@ -392,4 +398,4 @@ export function YamlTab({
       />
     </div>
   );
-}
+});
