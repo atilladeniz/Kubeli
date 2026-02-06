@@ -101,12 +101,22 @@ export function YamlTab({
     setTimeout(() => editorRef.current?.focus(), 50);
   };
 
+  const focusEditor = () => {
+    setTimeout(() => editorRef.current?.focus(), 50);
+  };
+
   const handleCancelEditing = () => {
     if (hasChanges) {
       setShowDiscardDialog(true);
     } else {
       setIsEditing(false);
     }
+  };
+
+  const handleDiscardDialogChange = (open: boolean) => {
+    setShowDiscardDialog(open);
+    // User dismissed dialog (Cancel or clicked outside) -> refocus editor
+    if (!open) focusEditor();
   };
 
   const handleConfirmDiscard = () => {
@@ -367,7 +377,7 @@ export function YamlTab({
 
       <DiscardChangesDialog
         open={showDiscardDialog}
-        onOpenChange={setShowDiscardDialog}
+        onOpenChange={handleDiscardDialogChange}
         onConfirm={handleConfirmDiscard}
       />
     </div>
