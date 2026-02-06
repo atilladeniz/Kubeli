@@ -7,9 +7,6 @@ import { getMessages } from "@/i18n/getMessages";
 import type { Locale, LanguageCode } from "@/i18n/config";
 import { defaultLocale, isValidLanguageCode } from "@/i18n/config";
 
-// Import default messages synchronously for initial render
-import enMessages from "@/i18n/messages/en.json";
-
 interface I18nProviderProps {
   children: ReactNode;
 }
@@ -49,11 +46,12 @@ export function I18nProvider({ children }: I18nProviderProps) {
 
   // Resolved language (actual language code, not "system")
   const [resolvedLanguage, setResolvedLanguage] = useState<LanguageCode>("en");
-  const [messages, setMessages] = useState<Record<string, unknown>>(enMessages);
-  const [isInitialized, setIsInitialized] = useState(false);
+  const [messages, setMessages] = useState<Record<string, unknown>>(() => getMessages("en"));
 
   // Resolve system language on mount and when locale changes
   useEffect(() => {
+    let isCancelled = false;
+
     async function resolveLanguage() {
       let lang: LanguageCode;
 
@@ -65,16 +63,18 @@ export function I18nProvider({ children }: I18nProviderProps) {
         lang = "en";
       }
 
-      if (lang !== resolvedLanguage || !isInitialized) {
-        const msgs = await getMessages(lang);
-        setMessages(msgs);
+      if (!isCancelled) {
+        setMessages(getMessages(lang));
         setResolvedLanguage(lang);
-        setIsInitialized(true);
       }
     }
 
     resolveLanguage();
-  }, [locale, resolvedLanguage, isInitialized]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [locale]);
 
   return (
     <NextIntlClientProvider
