@@ -208,6 +208,7 @@ export function ResourceDetail({
             canEdit={!!onSave}
             isSaving={isSaving}
             isActive={activeTab === "yaml"}
+            resourceKey={resource.uid}
           />
         </TabsContent>
 

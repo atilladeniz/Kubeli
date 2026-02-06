@@ -26,6 +26,7 @@ interface YamlTabProps {
   canEdit: boolean;
   isSaving?: boolean;
   isActive?: boolean;
+  resourceKey?: string;
 }
 
 export function YamlTab({
@@ -39,6 +40,7 @@ export function YamlTab({
   canEdit,
   isSaving,
   isActive,
+  resourceKey,
 }: YamlTabProps) {
   const t = useTranslations();
   const { resolvedTheme } = useUIStore();
@@ -47,6 +49,14 @@ export function YamlTab({
   const [isEditing, setIsEditing] = useState(false);
   const [showReadOnlyHint, setShowReadOnlyHint] = useState(false);
   const readOnlyHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [prevResourceKey, setPrevResourceKey] = useState(resourceKey);
+
+  // Reset edit mode when switching to a different resource
+  if (resourceKey !== prevResourceKey) {
+    setPrevResourceKey(resourceKey);
+    if (isEditing) setIsEditing(false);
+    if (showReadOnlyHint) setShowReadOnlyHint(false);
+  }
 
   const showReadOnlyNotification = useCallback(() => {
     if (readOnlyHintTimer.current) clearTimeout(readOnlyHintTimer.current);
