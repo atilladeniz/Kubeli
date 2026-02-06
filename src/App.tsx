@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { useTranslations } from "next-intl";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
@@ -18,8 +18,6 @@ import { usePortForward } from "@/lib/hooks/usePortForward";
 import { useUpdater } from "@/lib/hooks/useUpdater";
 import { useKubeconfigWatcher } from "@/lib/hooks/useKubeconfigWatcher";
 import { usePlatform } from "@/lib/hooks/usePlatform";
-import { Dashboard } from "@/components/features/dashboard";
-import { SettingsPanel } from "@/components/features/settings/SettingsPanel";
 import { RestartDialog } from "@/components/features/updates/RestartDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,10 +33,17 @@ import { toast } from "sonner";
 import { generateDebugLog } from "@/lib/tauri/commands";
 import packageJson from "../package.json";
 
+const Dashboard = lazy(() =>
+  import("@/components/features/dashboard").then((module) => ({ default: module.Dashboard })),
+);
+const SettingsPanel = lazy(() =>
+  import("@/components/features/settings/SettingsPanel").then((module) => ({ default: module.SettingsPanel })),
+);
+
 // Check if we're in Tauri environment
 function checkIsTauri(): boolean {
   if (typeof window === "undefined") return false;
-  if (process.env.VITE_TAURI_MOCK === "true" || process.env.NEXT_PUBLIC_TAURI_MOCK === "true") {
+  if (process.env.VITE_TAURI_MOCK === "true") {
     return true;
   }
   return "__TAURI_INTERNALS__" in window || "__TAURI__" in window;
@@ -206,7 +211,11 @@ export default function Home() {
 
   // Show full dashboard when connected
   if (showDashboard && isConnected) {
-    return <Dashboard />;
+    return (
+      <Suspense fallback={<div className="h-screen bg-background" />}>
+        <Dashboard />
+      </Suspense>
+    );
   }
 
   return (
@@ -464,7 +473,9 @@ export default function Home() {
       </footer>
 
       {/* Settings Panel */}
-      <SettingsPanel />
+      <Suspense fallback={null}>
+        <SettingsPanel />
+      </Suspense>
 
       {/* Restart Dialog */}
       <RestartDialog />

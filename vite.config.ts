@@ -5,12 +5,7 @@ import react from "@vitejs/plugin-react";
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
-  const tauriMockEnv =
-    env.VITE_TAURI_MOCK ??
-    env.NEXT_PUBLIC_TAURI_MOCK ??
-    process.env.VITE_TAURI_MOCK ??
-    process.env.NEXT_PUBLIC_TAURI_MOCK ??
-    "";
+  const tauriMockEnv = env.VITE_TAURI_MOCK ?? process.env.VITE_TAURI_MOCK ?? "";
 
   return {
     plugins: [react(), tailwindcss()],
@@ -21,8 +16,6 @@ export default defineConfig(({ mode }) => {
       },
     },
     define: {
-      // Preserve existing process.env checks during migration.
-      "process.env.NEXT_PUBLIC_TAURI_MOCK": JSON.stringify(tauriMockEnv),
       "process.env.VITE_TAURI_MOCK": JSON.stringify(tauriMockEnv),
     },
     server: {
@@ -35,6 +28,45 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "dist",
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes("node_modules")) {
+              return;
+            }
+
+            if (id.includes("monaco-editor") || id.includes("@monaco-editor")) {
+              return "vendor-monaco";
+            }
+
+            if (id.includes("@xterm")) {
+              return "vendor-xterm";
+            }
+
+            if (id.includes("@xyflow") || id.includes("elkjs")) {
+              return "vendor-diagram";
+            }
+
+            if (id.includes("@tauri-apps")) {
+              return "vendor-tauri";
+            }
+
+            if (id.includes("@radix-ui") || id.includes("lucide-react")) {
+              return "vendor-ui";
+            }
+
+            if (id.includes("@tanstack") || id.includes("zustand")) {
+              return "vendor-state";
+            }
+
+            if (id.includes("/react/") || id.includes("/react-dom/")) {
+              return "vendor-react";
+            }
+
+            return;
+          },
+        },
+      },
     },
   };
 });
