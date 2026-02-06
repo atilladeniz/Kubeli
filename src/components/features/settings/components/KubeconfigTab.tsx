@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -260,44 +260,11 @@ export function KubeconfigTab() {
       <Separator />
 
       {/* Merge Mode */}
-      <div className="flex items-start justify-between gap-6">
-        <div className="space-y-0.5 max-w-[85%]">
-          <div className="flex items-center gap-1.5">
-            <Label className="text-sm font-medium">
-              {t("kubeconfig.mergeMode.title")}
-            </Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <button className="text-muted-foreground hover:text-foreground transition-colors">
-                  <HelpCircle className="h-3.5 w-3.5" />
-                </button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 text-sm" side="top">
-                <div className="space-y-2">
-                  <p className="font-medium">{t("kubeconfig.mergeMode.helpTitle")}</p>
-                  <p className="text-muted-foreground text-xs">
-                    {t("kubeconfig.mergeMode.helpDescription")}
-                  </p>
-                  <div className="rounded-md bg-muted p-2 font-mono text-xs space-y-1">
-                    <p className="text-muted-foreground"># contexts.yaml</p>
-                    <p>contexts: [{`{ name: prod, cluster: prod-cluster }`}]</p>
-                    <p className="text-muted-foreground mt-1"># clusters.yaml</p>
-                    <p>clusters: [{`{ name: prod-cluster, server: ... }`}]</p>
-                  </div>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {t("kubeconfig.mergeMode.description")}
-          </p>
-        </div>
-        <Switch
-          className="shrink-0 mt-1"
-          checked={config?.merge_mode ?? false}
-          onCheckedChange={handleMergeModeChange}
-        />
-      </div>
+      <MergeModeSection
+        t={t}
+        mergeMode={config?.merge_mode ?? false}
+        onMergeModeChange={handleMergeModeChange}
+      />
       {/* Delete confirmation */}
       <AlertDialog
         open={deleteTarget !== null}
@@ -329,6 +296,81 @@ export function KubeconfigTab() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function MergeModeSection({
+  t,
+  mergeMode,
+  onMergeModeChange,
+}: {
+  t: ReturnType<typeof useTranslations<"settings">>;
+  mergeMode: boolean;
+  onMergeModeChange: (enabled: boolean) => void;
+}) {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const hoverTimeoutRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  const handleMouseEnter = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => setPopoverOpen(true), 300);
+  };
+
+  const handleMouseLeave = () => {
+    if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+    hoverTimeoutRef.current = setTimeout(() => setPopoverOpen(false), 200);
+  };
+
+  return (
+    <div
+      className="flex items-start justify-between gap-6"
+      onMouseEnter={handleMouseEnter}
+      onMouseLeave={handleMouseLeave}
+    >
+      <div className="space-y-0.5 max-w-[85%]">
+        <div className="flex items-center gap-1.5">
+          <Label className="text-sm font-medium">
+            {t("kubeconfig.mergeMode.title")}
+          </Label>
+          <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+            <PopoverTrigger asChild>
+              <button className="text-muted-foreground hover:text-foreground transition-colors">
+                <HelpCircle className="h-3.5 w-3.5" />
+              </button>
+            </PopoverTrigger>
+            <PopoverContent
+              className="w-80 text-sm"
+              side="top"
+              onMouseEnter={() => {
+                if (hoverTimeoutRef.current) clearTimeout(hoverTimeoutRef.current);
+              }}
+              onMouseLeave={handleMouseLeave}
+            >
+              <div className="space-y-2">
+                <p className="font-medium">{t("kubeconfig.mergeMode.helpTitle")}</p>
+                <p className="text-muted-foreground text-xs">
+                  {t("kubeconfig.mergeMode.helpDescription")}
+                </p>
+                <div className="rounded-md bg-muted p-2 font-mono text-xs space-y-1">
+                  <p className="text-muted-foreground"># contexts.yaml</p>
+                  <p>contexts: [{`{ name: prod, cluster: prod-cluster }`}]</p>
+                  <p className="text-muted-foreground mt-1"># clusters.yaml</p>
+                  <p>clusters: [{`{ name: prod-cluster, server: ... }`}]</p>
+                </div>
+              </div>
+            </PopoverContent>
+          </Popover>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          {t("kubeconfig.mergeMode.description")}
+        </p>
+      </div>
+      <Switch
+        className="shrink-0 mt-1"
+        checked={mergeMode}
+        onCheckedChange={onMergeModeChange}
+      />
     </div>
   );
 }
