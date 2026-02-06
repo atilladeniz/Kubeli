@@ -16,6 +16,10 @@ import { useTranslations } from "next-intl";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { cn } from "@/lib/utils";
 
+const IS_MAC =
+  typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
+const MOD_KEY = IS_MAC ? "\u2318" : "Ctrl+";
+
 interface YamlTabProps {
   yamlContent: string;
   hasChanges: boolean;
@@ -66,6 +70,13 @@ export function YamlTab({
     readOnlyHintTimer.current = setTimeout(() => setShowReadOnlyHint(false), 3000);
   }, []);
 
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (readOnlyHintTimer.current) clearTimeout(readOnlyHintTimer.current);
+    };
+  }, []);
+
   const handleEditorMount = (
     editorInstance: editor.IStandaloneCodeEditor,
     monacoInstance: Monaco
@@ -96,13 +107,13 @@ export function YamlTab({
     }
   };
 
-  const handleStartEditing = () => {
-    setIsEditing(true);
+  const focusEditor = () => {
     setTimeout(() => editorRef.current?.focus(), 50);
   };
 
-  const focusEditor = () => {
-    setTimeout(() => editorRef.current?.focus(), 50);
+  const handleStartEditing = () => {
+    setIsEditing(true);
+    focusEditor();
   };
 
   const handleCancelEditing = () => {
@@ -148,9 +159,6 @@ export function YamlTab({
   }, [isEditing, hasChanges]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const readOnly = !isEditing || !canEdit;
-  const isMac =
-    typeof navigator !== "undefined" && /Mac/.test(navigator.userAgent);
-  const modKey = isMac ? "\u2318" : "Ctrl+";
 
   return (
     <div className="h-full flex flex-col">
@@ -197,7 +205,7 @@ export function YamlTab({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent>
-                  {t("common.save")} ({modKey}S)
+                  {t("common.save")} ({MOD_KEY}S)
                 </TooltipContent>
               </Tooltip>
               <div className="w-px h-4 bg-border mx-1" />
@@ -234,7 +242,7 @@ export function YamlTab({
               </Button>
             </TooltipTrigger>
             <TooltipContent>
-              {t("common.search")} ({modKey}F)
+              {t("common.search")} ({MOD_KEY}F)
             </TooltipContent>
           </Tooltip>
 

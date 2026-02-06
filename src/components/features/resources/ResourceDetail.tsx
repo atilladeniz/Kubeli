@@ -35,14 +35,12 @@ export function ResourceDetail({
   onClose,
   onSave,
   onDelete,
-  isLoading: _isLoading = false,
 }: {
   resource: ResourceData | null;
   resourceType: string;
   onClose: () => void;
   onSave?: (yaml: string) => Promise<void>;
   onDelete?: () => Promise<void>;
-  isLoading?: boolean;
 }) {
   const t = useTranslations();
   const [activeTab, setActiveTab] = useState("overview");
