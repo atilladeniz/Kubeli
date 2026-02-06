@@ -17,26 +17,21 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "incremental": true,
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "next-intl": [
+        "./src/lib/i18n/next-intl-compat.ts"
       ]
     }
   },
   "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts",
-    "out/types/**/*.ts",
-    "out/dev/types/**/*.ts"
+    "src",
+    "tests",
+    "*.ts",
+    "*.mts",
+    "*.cts"
   ],
   "exclude": [
     "node_modules",

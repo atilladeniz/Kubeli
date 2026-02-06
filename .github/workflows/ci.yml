@@ -105,7 +105,7 @@ jobs:
         run: cargo fmt --check
 
       - name: Create dummy frontend dist for Tauri compile check
-        run: mkdir -p out && echo '<!DOCTYPE html><html><body></body></html>' > out/index.html
+        run: mkdir -p dist && echo '<!DOCTYPE html><html><body></body></html>' > dist/index.html
 
       - name: Run Clippy
         working-directory: src-tauri
@@ -141,7 +141,7 @@ jobs:
           cache-on-failure: true
 
       - name: Create dummy frontend dist for Tauri compile check
-        run: mkdir -p out && echo '<!DOCTYPE html><html><body></body></html>' > out/index.html
+        run: mkdir -p dist && echo '<!DOCTYPE html><html><body></body></html>' > dist/index.html
 
       - name: Install cargo-llvm-cov
         uses: taiki-e/install-action@cargo-llvm-cov

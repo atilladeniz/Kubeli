@@ -5,9 +5,9 @@
   "identifier": "com.kubeli",
   "build": {
     "beforeDevCommand": "npm run dev",
-    "devUrl": "http://localhost:3000",
+    "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../out"
+    "frontendDist": "../dist"
   },
   "app": {
     "macOSPrivateApi": true,

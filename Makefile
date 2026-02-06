@@ -17,7 +17,7 @@ RESET := \033[0m
 dev: ## Start full Tauri development environment
 	npm run tauri:dev
 
-web-dev: ## Start Next.js web dev server only (no Tauri)
+web-dev: ## Start Vite web dev server only (no Tauri)
 	npm run dev
 
 tauri-dev: ## Start Tauri development (alias for dev)
@@ -48,7 +48,7 @@ build: ## Build production Tauri app
 	echo "$(CYAN)Starting build...$(RESET)"; \
 	npm run tauri:build
 
-web-build: ## Build Next.js web app only
+web-build: ## Build Vite web app only
 	npm run build
 
 tauri-build: ## Build Tauri app (alias for build)
@@ -341,8 +341,7 @@ rust-test: ## Run Rust tests
 ## Cleanup
 
 clean: ## Clean build artifacts
-	rm -rf .next
-	rm -rf out
+	rm -rf dist
 	rm -rf node_modules/.cache
 	cd src-tauri && cargo clean
 
