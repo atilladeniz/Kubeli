@@ -229,6 +229,7 @@ export function ResourceDetail({
             onCopyYaml={handleCopyYaml}
             copied={copied}
             readOnly={!onSave}
+            isActive={activeTab === "yaml"}
           />
         </TabsContent>
 

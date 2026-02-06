@@ -1,6 +1,8 @@
 "use client";
 
-import Editor from "@monaco-editor/react";
+import { useRef, useEffect } from "react";
+import Editor, { type Monaco } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import "@/lib/monaco-config";
 import { Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +16,7 @@ interface YamlTabProps {
   onCopyYaml: () => Promise<void>;
   copied: boolean;
   readOnly: boolean;
+  isActive?: boolean;
 }
 
 export function YamlTab({
@@ -23,9 +26,30 @@ export function YamlTab({
   onCopyYaml,
   copied,
   readOnly,
+  isActive,
 }: YamlTabProps) {
   const t = useTranslations();
   const { resolvedTheme } = useUIStore();
+  const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+  const monacoRef = useRef<Monaco | null>(null);
+
+  const handleEditorMount = (
+    editorInstance: editor.IStandaloneCodeEditor,
+    monacoInstance: Monaco
+  ) => {
+    editorRef.current = editorInstance;
+    monacoRef.current = monacoInstance;
+  };
+
+  // When the tab becomes visible, force Monaco to remeasure fonts and layout.
+  // Monaco initializes with wrong font metrics when mounted in a hidden container
+  // (forceMount + display:none), causing click-to-cursor position miscalculation.
+  useEffect(() => {
+    if (isActive && editorRef.current && monacoRef.current) {
+      monacoRef.current.editor.remeasureFonts();
+      editorRef.current.layout();
+    }
+  }, [isActive]);
 
   return (
     <div className="h-full flex flex-col">
@@ -54,6 +78,7 @@ export function YamlTab({
           defaultLanguage="yaml"
           value={yamlContent}
           onChange={onYamlChange}
+          onMount={handleEditorMount}
           theme={
             resolvedTheme === "dark" || resolvedTheme === "classic-dark"
               ? "vs-dark"
