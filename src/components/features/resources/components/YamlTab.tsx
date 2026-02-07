@@ -376,7 +376,7 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
             occurrencesHighlight: isEditing ? "singleFile" : "off",
             selectionHighlight: isEditing,
             codeLens: false,
-            contextmenu: true,
+            contextmenu: false,
             fontLigatures: false,
             renderValidationDecorations: "off",
             cursorBlinking: "solid",
