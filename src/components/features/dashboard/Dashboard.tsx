@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import { Sidebar, type ResourceType } from "@/components/layout/Sidebar";
@@ -84,6 +84,7 @@ function DashboardContent() {
   const { setSettingsOpen, isAIAssistantOpen, toggleAIAssistant, pendingPodLogs, triggerRefresh, triggerSearchFocus } = useUIStore();
   const { isThinking, isStreaming } = useAIStore();
   const isAIProcessing = isThinking || isStreaming;
+  const detailRequestIdRef = useRef(0);
 
   // AI CLI availability check
   const [isAICliAvailable, setIsAICliAvailable] = useState<boolean | null>(null);
@@ -124,6 +125,7 @@ function DashboardContent() {
 
   const openResourceDetail = useCallback(
     async (resourceType: string, name: string, namespace?: string) => {
+      const requestId = ++detailRequestIdRef.current;
       try {
         const [yamlData, events] = await Promise.all([
           getResourceYaml(resourceType, name, namespace),
@@ -134,6 +136,11 @@ function DashboardContent() {
               }).catch(() => [])
             : Promise.resolve([]),
         ]);
+
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
+
         setSelectedResource({
           type: resourceType,
           data: {
@@ -157,6 +164,9 @@ function DashboardContent() {
           },
         });
       } catch (err) {
+        if (requestId !== detailRequestIdRef.current) {
+          return;
+        }
         console.error("Failed to load resource details:", err);
       }
     },
@@ -280,7 +290,7 @@ function DashboardContent() {
       selectedResource.data.name,
       selectedResource.data.namespace
     );
-    setSelectedResource(null);
+    closeResourceDetail();
     triggerResourceDeleteRefresh();
   };
 
@@ -311,9 +321,10 @@ function DashboardContent() {
     setScaleDialog({ open: true, name, namespace, currentReplicas, onSuccess });
   };
 
-  const closeResourceDetail = () => {
+  const closeResourceDetail = useCallback(() => {
+    detailRequestIdRef.current += 1;
     setSelectedResource(null);
-  };
+  }, []);
 
   return (
     <ResourceDetailContext.Provider
@@ -384,7 +395,7 @@ function DashboardContent() {
               <ResourceDetail
                 resource={selectedResource.data}
                 resourceType={selectedResource.type}
-                onClose={() => setSelectedResource(null)}
+                onClose={closeResourceDetail}
                 onSave={handleSaveResource}
                 onDelete={handleDeleteResource}
               />
