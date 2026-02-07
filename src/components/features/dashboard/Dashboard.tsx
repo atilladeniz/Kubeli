@@ -60,6 +60,22 @@ export function Dashboard() {
 
 type OpenResourceDetailResult = "success" | "not_found" | "error" | "stale";
 
+function toFavoriteResourceType(resourceType: string): string | null {
+  switch (resourceType) {
+    case "pod":
+    case "pods":
+      return "pods";
+    case "deployment":
+    case "deployments":
+      return "deployments";
+    case "service":
+    case "services":
+      return "services";
+    default:
+      return null;
+  }
+}
+
 function isNotFoundError(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return message.includes("NotFound") || message.includes("not found");
@@ -114,6 +130,33 @@ function DashboardContent() {
 
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
+  const activeFavoriteId = useMemo(() => {
+    if (activeResource === "pod-logs") {
+      const podName = activeTab?.metadata?.podName;
+      const namespace = activeTab?.metadata?.namespace;
+      if (!podName || !namespace) return null;
+      return (
+        favorites.find(
+          (f) =>
+            f.resourceType === "pods" &&
+            f.name === podName &&
+            f.namespace === namespace
+        )?.id ?? null
+      );
+    }
+
+    if (!selectedResource) return null;
+    const favoriteType = toFavoriteResourceType(selectedResource.type);
+    if (!favoriteType) return null;
+    return (
+      favorites.find(
+        (f) =>
+          f.resourceType === favoriteType &&
+          f.name === selectedResource.data.name &&
+          f.namespace === selectedResource.data.namespace
+      )?.id ?? null
+    );
+  }, [activeResource, activeTab, favorites, selectedResource]);
 
   // Restore tabs when cluster connects
   useEffect(() => {
@@ -386,6 +429,7 @@ function DashboardContent() {
       <div className="flex h-screen bg-background text-foreground overscroll-none">
         <Sidebar
           activeResource={activeResource}
+          activeFavoriteId={activeFavoriteId}
           onResourceSelect={setActiveResource}
           onFavoriteSelect={handleFavoriteSelect}
           onFavoriteOpenLogs={handleFavoriteOpenLogs}

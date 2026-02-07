@@ -306,6 +306,7 @@ function useNavigationSections(): NavSection[] {
 
 interface SidebarProps {
   activeResource: ResourceType;
+  activeFavoriteId?: string | null;
   onResourceSelect: (resource: ResourceType) => void;
   onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
   onFavoriteSelect?: (favorite: FavoriteResource) => void | Promise<void>;
@@ -314,6 +315,7 @@ interface SidebarProps {
 
 export function Sidebar({
   activeResource,
+  activeFavoriteId,
   onResourceSelect,
   onResourceSelectNewTab,
   onFavoriteSelect,
@@ -419,85 +421,6 @@ export function Sidebar({
 
       <Separator />
 
-      {/* Port Forwards */}
-      {isConnected && forwards.length > 0 && (
-        <>
-          <div className="p-3 overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <button
-                onClick={() => onResourceSelect("port-forwards")}
-                className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
-              >
-                <ArrowRightLeft className="size-3" />
-                {tNav("portForwards")}
-                <Maximize2 className="size-2.5" />
-              </button>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {forwards.length}
-              </Badge>
-            </div>
-            <div
-              className={cn(
-                "space-y-1",
-                forwards.length > 3 && "max-h-[132px] overflow-y-auto pr-1"
-              )}
-            >
-              {forwards.map((forward) => (
-                <div
-                  key={forward.forward_id}
-                  className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden"
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                    <span
-                      className={cn(
-                        "size-1.5 rounded-full shrink-0",
-                        forward.status === "connected"
-                          ? "bg-green-400"
-                          : forward.status === "connecting"
-                          ? "bg-yellow-400 animate-pulse"
-                          : "bg-red-400"
-                      )}
-                    />
-                    <span className="truncate font-medium max-w-[80px]">
-                      {forward.name}
-                    </span>
-                    <span className="text-muted-foreground shrink-0 tabular-nums">
-                      :{forward.local_port}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0 ml-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleOpenForwardInBrowser(forward.local_port);
-                      }}
-                      aria-label={`Open localhost:${forward.local_port}`}
-                    >
-                      <ExternalLink className="size-3" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-destructive"
-                      onClick={() => stopForward(forward.forward_id)}
-                      aria-label={`Stop ${forward.name} port forward`}
-                    >
-                      <X className="size-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <Separator />
-        </>
-      )}
-
       {/* Namespace Selector */}
       {isConnected && namespaces.length > 0 && (
         <>
@@ -594,6 +517,85 @@ export function Sidebar({
         </>
       )}
 
+      {/* Port Forwards */}
+      {isConnected && forwards.length > 0 && (
+        <>
+          <div className="p-3 overflow-hidden">
+            <div className="flex items-center justify-between mb-2">
+              <button
+                onClick={() => onResourceSelect("port-forwards")}
+                className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
+              >
+                <ArrowRightLeft className="size-3" />
+                {tNav("portForwards")}
+                <Maximize2 className="size-2.5" />
+              </button>
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                {forwards.length}
+              </Badge>
+            </div>
+            <div
+              className={cn(
+                "space-y-1",
+                forwards.length > 3 && "max-h-[132px] overflow-y-auto pr-1"
+              )}
+            >
+              {forwards.map((forward) => (
+                <div
+                  key={forward.forward_id}
+                  className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden"
+                >
+                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full shrink-0",
+                        forward.status === "connected"
+                          ? "bg-green-400"
+                          : forward.status === "connecting"
+                          ? "bg-yellow-400 animate-pulse"
+                          : "bg-red-400"
+                      )}
+                    />
+                    <span className="truncate font-medium max-w-[80px]">
+                      {forward.name}
+                    </span>
+                    <span className="text-muted-foreground shrink-0 tabular-nums">
+                      :{forward.local_port}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-foreground"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleOpenForwardInBrowser(forward.local_port);
+                      }}
+                      aria-label={`Open localhost:${forward.local_port}`}
+                    >
+                      <ExternalLink className="size-3" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-destructive"
+                      onClick={() => stopForward(forward.forward_id)}
+                      aria-label={`Stop ${forward.name} port forward`}
+                    >
+                      <X className="size-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <Separator />
+        </>
+      )}
+
       {/* Favorites */}
       {isConnected && favorites.length > 0 && (
         <>
@@ -631,6 +633,7 @@ export function Sidebar({
                       ? () => onFavoriteOpenLogs(fav)
                       : undefined
                   }
+                  isActive={activeFavoriteId === fav.id}
                   modKey={modKeySymbol}
                 />
               ))}
@@ -796,6 +799,7 @@ interface FavoriteItemProps {
   onSelect: () => void;
   onRemove: () => void;
   onOpenLogs?: () => void | Promise<void>;
+  isActive?: boolean;
   modKey: string;
 }
 
@@ -805,6 +809,7 @@ function FavoriteItem({
   onSelect,
   onRemove,
   onOpenLogs,
+  isActive = false,
   modKey,
 }: FavoriteItemProps) {
   const t = useTranslations();
@@ -812,22 +817,45 @@ function FavoriteItem({
   const canOpenLogs = favorite.resourceType === "pods" && !!favorite.namespace;
 
   return (
-    <div className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden">
+    <div
+      className={cn(
+        "flex items-center justify-between rounded-md border px-2 py-1.5 text-xs group overflow-hidden",
+        isActive ? "bg-primary/10 border-primary/40" : "bg-muted/50 border-border/50"
+      )}
+    >
       <button
         onClick={onSelect}
-        className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden text-left hover:text-foreground transition-colors"
+        className={cn(
+          "flex items-center gap-2 min-w-0 flex-1 overflow-hidden text-left transition-colors",
+          isActive ? "text-foreground" : "hover:text-foreground"
+        )}
       >
-        <Star className="size-3 shrink-0 fill-yellow-500 text-yellow-500" />
+        <Star
+          className={cn(
+            "size-3 shrink-0 fill-yellow-500 text-yellow-500",
+            isActive && "drop-shadow-[0_0_6px_rgba(250,204,21,0.35)]"
+          )}
+        />
         <span className="truncate font-medium">{favorite.name}</span>
         {favorite.namespace && (
-          <span className="text-muted-foreground/60 truncate text-[10px]">
+          <span
+            className={cn(
+              "truncate text-[10px]",
+              isActive ? "text-muted-foreground" : "text-muted-foreground/60"
+            )}
+          >
             {favorite.namespace}
           </span>
         )}
       </button>
       <div className="flex items-center gap-1 shrink-0 ml-1">
         {shortcutKey && (
-          <Kbd className="text-[9px] opacity-50 group-hover:opacity-100 transition-opacity">
+          <Kbd
+            className={cn(
+              "text-[9px] transition-opacity",
+              isActive ? "opacity-100" : "opacity-50 group-hover:opacity-100"
+            )}
+          >
             {modKey}{shortcutKey}
           </Kbd>
         )}
@@ -835,7 +863,10 @@ function FavoriteItem({
           <DropdownMenuTrigger asChild>
             <button
               aria-label={t("common.actions")}
-              className="p-1 rounded hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+              className={cn(
+                "p-1 rounded hover:bg-background transition-opacity",
+                isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              )}
             >
               <MoreHorizontal className="size-3 text-muted-foreground" />
             </button>
