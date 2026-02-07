@@ -399,6 +399,7 @@
 *::before,
 *::after {
   user-select: none !important;
+  -webkit-user-select: none !important;
   cursor: default !important;
 }
 
@@ -420,6 +421,7 @@ code,
 [data-allow-context-menu] code,
 [data-allow-context-menu] pre {
   user-select: text !important;
+  -webkit-user-select: text !important;
   cursor: text !important;
 }
 
