@@ -731,7 +731,9 @@
     "add": "Add to Favorites",
     "remove": "Remove from Favorites",
     "noFavorites": "No favorites yet",
-    "addHint": "Star resources to add them here"
+    "addHint": "Star resources to add them here",
+    "removedMissingPod": "Favorite removed",
+    "removedMissingPodDescription": "The pod \"{podName}\" in namespace \"{namespace}\" no longer exists."
   },
   "metrics": {
     "title": "Metrics",

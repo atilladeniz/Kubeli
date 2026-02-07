@@ -16,7 +16,10 @@ import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
-import { useFavoritesStore } from "@/lib/stores/favorites-store";
+import {
+  useFavoritesStore,
+  type FavoriteResource,
+} from "@/lib/stores/favorites-store";
 import { useTabsStore } from "@/lib/stores/tabs-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAIStore } from "@/lib/stores/ai-store";
@@ -27,6 +30,7 @@ import {
   getResourceYaml,
   applyResourceYaml,
   deleteResource,
+  getPod,
   listEvents,
   aiCheckCliAvailable,
   aiCheckCodexCliAvailable,
@@ -68,7 +72,7 @@ function DashboardContent() {
     },
     [navigateCurrentTab, getTabTitle]
   );
-  const { isConnected, currentCluster } = useClusterStore();
+  const { isConnected, currentCluster, setCurrentNamespace } = useClusterStore();
   const { tabs, isOpen, setIsOpen } = useTerminalTabs();
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
 
@@ -76,7 +80,7 @@ function DashboardContent() {
   const [uninstallDialog, setUninstallDialog] = useState<UninstallDialogState | null>(null);
   const [scaleDialog, setScaleDialog] = useState<ScaleDialogState | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
-  const { getFavorites } = useFavoritesStore();
+  const { getFavorites, removeFavorite } = useFavoritesStore();
   const { setSettingsOpen, isAIAssistantOpen, toggleAIAssistant, pendingPodLogs, triggerRefresh, triggerSearchFocus } = useUIStore();
   const { isThinking, isStreaming } = useAIStore();
   const isAIProcessing = isThinking || isStreaming;
@@ -118,13 +122,101 @@ function DashboardContent() {
     }
   }, [pendingPodLogs, setActiveResource]);
 
+  const openResourceDetail = useCallback(
+    async (resourceType: string, name: string, namespace?: string) => {
+      try {
+        const [yamlData, events] = await Promise.all([
+          getResourceYaml(resourceType, name, namespace),
+          namespace
+            ? listEvents({
+                namespace,
+                field_selector: `involvedObject.name=${name}`,
+              }).catch(() => [])
+            : Promise.resolve([]),
+        ]);
+        setSelectedResource({
+          type: resourceType,
+          data: {
+            name: yamlData.name,
+            namespace: yamlData.namespace || undefined,
+            uid: yamlData.uid,
+            apiVersion: yamlData.api_version,
+            kind: yamlData.kind,
+            createdAt: yamlData.created_at || undefined,
+            labels: yamlData.labels,
+            annotations: yamlData.annotations,
+            yaml: yamlData.yaml,
+            events: events.map((e) => ({
+              type: e.event_type,
+              reason: e.reason,
+              message: e.message,
+              count: e.count,
+              lastTimestamp: e.last_timestamp ?? undefined,
+              firstTimestamp: e.first_timestamp ?? undefined,
+            })),
+          },
+        });
+      } catch (err) {
+        console.error("Failed to load resource details:", err);
+      }
+    },
+    []
+  );
+
+  const isNotFoundError = (error: unknown): boolean => {
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes("NotFound") || message.includes("not found");
+  };
+
+  const handleFavoriteSelect = useCallback(
+    async (favorite: FavoriteResource) => {
+      if (favorite.namespace) {
+        setCurrentNamespace(favorite.namespace);
+      }
+
+      setActiveResource(favorite.resourceType as ResourceType);
+
+      if (favorite.resourceType !== "pods" || !favorite.namespace) {
+        return;
+      }
+
+      try {
+        await getPod(favorite.name, favorite.namespace);
+      } catch (error) {
+        if (isNotFoundError(error)) {
+          removeFavorite(clusterContext, favorite.id);
+          toast.info(t("favorites.removedMissingPod"), {
+            description: t("favorites.removedMissingPodDescription", {
+              podName: favorite.name,
+              namespace: favorite.namespace,
+            }),
+          });
+          return;
+        }
+
+        console.error("Failed to resolve favorite pod:", error);
+        return;
+      }
+
+      await openResourceDetail("pod", favorite.name, favorite.namespace);
+    },
+    [
+      clusterContext,
+      openResourceDetail,
+      removeFavorite,
+      setActiveResource,
+      setCurrentNamespace,
+      t,
+    ]
+  );
+
   // Navigate to favorite by index
   const navigateToFavorite = useCallback((index: number) => {
     if (index < favorites.length) {
       const fav = favorites[index];
-      setActiveResource(fav.resourceType as ResourceType);
+      void handleFavoriteSelect(fav);
     }
-  }, [favorites, setActiveResource]);
+  }, [favorites, handleFavoriteSelect]);
 
   // Keyboard shortcuts
   const shortcuts = useMemo(() => [
@@ -167,44 +259,6 @@ function DashboardContent() {
   ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, openTab, getTabTitle, closeTab, setActiveTab, setActiveResource, triggerRefresh, triggerSearchFocus]);
 
   useKeyboardShortcuts(shortcuts, { enabled: isConnected });
-
-  const openResourceDetail = async (resourceType: string, name: string, namespace?: string) => {
-    try {
-      const [yamlData, events] = await Promise.all([
-        getResourceYaml(resourceType, name, namespace),
-        namespace
-          ? listEvents({
-              namespace,
-              field_selector: `involvedObject.name=${name}`,
-            }).catch(() => [])
-          : Promise.resolve([]),
-      ]);
-      setSelectedResource({
-        type: resourceType,
-        data: {
-          name: yamlData.name,
-          namespace: yamlData.namespace || undefined,
-          uid: yamlData.uid,
-          apiVersion: yamlData.api_version,
-          kind: yamlData.kind,
-          createdAt: yamlData.created_at || undefined,
-          labels: yamlData.labels,
-          annotations: yamlData.annotations,
-          yaml: yamlData.yaml,
-          events: events.map((e) => ({
-            type: e.event_type,
-            reason: e.reason,
-            message: e.message,
-            count: e.count,
-            lastTimestamp: e.last_timestamp ?? undefined,
-            firstTimestamp: e.first_timestamp ?? undefined,
-          })),
-        },
-      });
-    } catch (err) {
-      console.error("Failed to load resource details:", err);
-    }
-  };
 
   const handleSaveResource = async (yaml: string) => {
     await applyResourceYaml(yaml);
@@ -277,6 +331,7 @@ function DashboardContent() {
         <Sidebar
           activeResource={activeResource}
           onResourceSelect={setActiveResource}
+          onFavoriteSelect={handleFavoriteSelect}
           onResourceSelectNewTab={(type) => {
             if (resourceTabs.length >= 10) {
               toast.warning(t("tabs.limitToast"));

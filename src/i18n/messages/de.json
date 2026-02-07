@@ -731,7 +731,9 @@
     "add": "Zu Favoriten hinzufügen",
     "remove": "Aus Favoriten entfernen",
     "noFavorites": "Noch keine Favoriten",
-    "addHint": "Markieren Sie Ressourcen mit einem Stern, um sie hier hinzuzufügen"
+    "addHint": "Markieren Sie Ressourcen mit einem Stern, um sie hier hinzuzufügen",
+    "removedMissingPod": "Favorit entfernt",
+    "removedMissingPodDescription": "Der Pod \"{podName}\" im Namespace \"{namespace}\" existiert nicht mehr."
   },
   "metrics": {
     "title": "Metriken",

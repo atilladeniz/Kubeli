@@ -298,9 +298,15 @@ interface SidebarProps {
   activeResource: ResourceType;
   onResourceSelect: (resource: ResourceType) => void;
   onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
+  onFavoriteSelect?: (favorite: FavoriteResource) => void | Promise<void>;
 }
 
-export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewTab }: SidebarProps) {
+export function Sidebar({
+  activeResource,
+  onResourceSelect,
+  onResourceSelectNewTab,
+  onFavoriteSelect,
+}: SidebarProps) {
   const t = useTranslations();
   const tNav = useTranslations("navigation");
   const tCluster = useTranslations("cluster");
@@ -600,9 +606,13 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
                   key={fav.id}
                   favorite={fav}
                   index={index}
-                  onSelect={() =>
-                    onResourceSelect(fav.resourceType as ResourceType)
-                  }
+                  onSelect={() => {
+                    if (onFavoriteSelect) {
+                      void onFavoriteSelect(fav);
+                      return;
+                    }
+                    onResourceSelect(fav.resourceType as ResourceType);
+                  }}
                   onRemove={() => removeFavorite(clusterContext, fav.id)}
                   modKey={modKeySymbol}
                 />
