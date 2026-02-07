@@ -184,6 +184,10 @@ export default function Home() {
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
+      // Allow context menu in areas that explicitly opt in
+      if (target.closest('[data-allow-context-menu]')) {
+        return;
+      }
       // Allow context menu on inputs for copy/paste
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") {
         return;
