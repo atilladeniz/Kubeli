@@ -537,9 +537,11 @@ summary *,
   background-clip: content-box;
 }
 
-/* Monaco editor cursor overrides - undo the global cursor: default !important */
+/* Monaco editor cursor/selection overrides - undo global !important defaults */
 .monaco-editor,
 .monaco-editor * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
   cursor: inherit !important;
 }
 

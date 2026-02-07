@@ -58,6 +58,11 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
   const [showReadOnlyHint, setShowReadOnlyHint] = useState(false);
   const readOnlyHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [prevResourceKey, setPrevResourceKey] = useState(resourceKey);
+  const remeasureAndLayoutEditor = useCallback(() => {
+    if (!editorRef.current || !monacoRef.current) return;
+    monacoRef.current.editor.remeasureFonts();
+    editorRef.current.layout();
+  }, []);
 
   // Reset edit mode when switching to a different resource
   if (resourceKey !== prevResourceKey) {
@@ -90,17 +95,23 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
     editorInstance.onDidAttemptReadOnlyEdit(() => {
       if (canEdit) showReadOnlyNotification();
     });
+
+    // Cover async mount races: when YAML tab is already active, run layout once
+    // immediately and once in the next frame so click-to-cursor math is correct.
+    if (isActive) {
+      remeasureAndLayoutEditor();
+      requestAnimationFrame(() => remeasureAndLayoutEditor());
+    }
   };
 
   // When the tab becomes visible, force Monaco to remeasure fonts and layout.
   // Monaco initializes with wrong font metrics when mounted in a hidden container
   // (forceMount + display:none), causing click-to-cursor position miscalculation.
   useEffect(() => {
-    if (isActive && editorRef.current && monacoRef.current) {
-      monacoRef.current.editor.remeasureFonts();
-      editorRef.current.layout();
-    }
-  }, [isActive]);
+    if (!isActive) return;
+    remeasureAndLayoutEditor();
+    requestAnimationFrame(() => remeasureAndLayoutEditor());
+  }, [isActive, remeasureAndLayoutEditor]);
 
   const handleSearch = () => {
     if (editorRef.current) {
