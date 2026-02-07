@@ -350,7 +350,7 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
           <TooltipTrigger asChild>
             <button
               onClick={disconnect}
-              className="mx-3 mb-3 flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2 transition-colors hover:bg-muted text-left w-[calc(100%-1.5rem)]"
+              className="mx-3 mb-3 flex w-[calc(100%-1.5rem)] items-center gap-2 rounded-lg border border-border/70 bg-muted/50 px-3 py-2 text-left transition-colors hover:border-border hover:bg-muted"
             >
               {currentCluster ? (
                 <ClusterIcon cluster={currentCluster} size={20} />
