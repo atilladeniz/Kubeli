@@ -448,23 +448,29 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
                     </span>
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0 ml-1">
-                    <button
+                    <Button
                       type="button"
-                      className="p-1 rounded hover:bg-background"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-foreground"
                       onClick={(e) => {
                         e.stopPropagation();
                         void handleOpenForwardInBrowser(forward.local_port);
                       }}
                       aria-label={`Open localhost:${forward.local_port}`}
                     >
-                      <ExternalLink className="size-3 text-muted-foreground hover:text-foreground" />
-                    </button>
-                    <button
+                      <ExternalLink className="size-3" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-destructive"
                       onClick={() => stopForward(forward.forward_id)}
-                      className="p-1 rounded hover:bg-background"
+                      aria-label={`Stop ${forward.name} port forward`}
                     >
-                      <X className="size-3 text-muted-foreground hover:text-destructive" />
-                    </button>
+                      <X className="size-3" />
+                    </Button>
                   </div>
                 </div>
               ))}
