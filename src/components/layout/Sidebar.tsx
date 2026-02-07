@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 import { useTranslations } from "next-intl";
 
@@ -75,6 +75,26 @@ import {
 import { cn } from "@/lib/utils";
 import { getNamespaceColor } from "@/lib/utils/colors";
 import { Kbd } from "@/components/ui/kbd";
+
+const SIDEBAR_UI_STATE_STORAGE_KEY = "kubeli-sidebar-ui-state";
+
+interface SidebarUiState {
+  namespaceOpen?: boolean;
+  portForwardsOpen?: boolean;
+  favoritesOpen?: boolean;
+  recentOpen?: boolean;
+}
+
+function readSidebarUiState(): SidebarUiState {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_UI_STATE_STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as SidebarUiState;
+  } catch {
+    return {};
+  }
+}
 
 export type ResourceType =
   // Cluster
@@ -342,12 +362,29 @@ export function Sidebar({
   const { forwards, stopForward } = usePortForward();
   const { getFavorites, removeFavorite, getRecentResources } =
     useFavoritesStore();
+  const initialSidebarUiState = useMemo(() => readSidebarUiState(), []);
   const [namespaceOpen, setNamespaceOpen] = useState(false);
-  const [isNamespaceSectionOpen, setIsNamespaceSectionOpen] = useState(true);
+  const [isNamespaceSectionOpen, setIsNamespaceSectionOpen] = useState(
+    typeof initialSidebarUiState.namespaceOpen === "boolean"
+      ? initialSidebarUiState.namespaceOpen
+      : true
+  );
   const [isPortForwardsSectionOpen, setIsPortForwardsSectionOpen] =
-    useState(true);
-  const [isFavoritesSectionOpen, setIsFavoritesSectionOpen] = useState(true);
-  const [isRecentSectionOpen, setIsRecentSectionOpen] = useState(true);
+    useState(
+      typeof initialSidebarUiState.portForwardsOpen === "boolean"
+        ? initialSidebarUiState.portForwardsOpen
+        : true
+    );
+  const [isFavoritesSectionOpen, setIsFavoritesSectionOpen] = useState(
+    typeof initialSidebarUiState.favoritesOpen === "boolean"
+      ? initialSidebarUiState.favoritesOpen
+      : true
+  );
+  const [isRecentSectionOpen, setIsRecentSectionOpen] = useState(
+    typeof initialSidebarUiState.recentOpen === "boolean"
+      ? initialSidebarUiState.recentOpen
+      : true
+  );
   const navigationSections = useNavigationSections();
   const { modKeySymbol } = usePlatform();
 
@@ -363,6 +400,28 @@ export function Sidebar({
       window.open(`http://localhost:${port}`, "_blank");
     }
   };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        SIDEBAR_UI_STATE_STORAGE_KEY,
+        JSON.stringify({
+          namespaceOpen: isNamespaceSectionOpen,
+          portForwardsOpen: isPortForwardsSectionOpen,
+          favoritesOpen: isFavoritesSectionOpen,
+          recentOpen: isRecentSectionOpen,
+        } satisfies SidebarUiState)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }, [
+    isNamespaceSectionOpen,
+    isPortForwardsSectionOpen,
+    isFavoritesSectionOpen,
+    isRecentSectionOpen,
+  ]);
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-card/50 overflow-hidden">
