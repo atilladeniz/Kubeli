@@ -434,31 +434,24 @@ export function Sidebar({
               open={isNamespaceSectionOpen}
               onOpenChange={setIsNamespaceSectionOpen}
             >
-              <div
-                className={cn(
-                  "flex items-center justify-between",
-                  isNamespaceSectionOpen && "mb-2"
-                )}
-              >
-                <span className="text-xs font-medium text-muted-foreground">
-                  {tCluster("namespace")}
-                </span>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-5 p-0 text-muted-foreground hover:text-foreground"
-                    aria-label={`Toggle ${tCluster("namespace")} section`}
-                  >
-                    <ChevronRight
-                      className={cn(
-                        "size-3.5 transition-transform",
-                        isNamespaceSectionOpen && "rotate-90"
-                      )}
-                    />
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
+                    isNamespaceSectionOpen && "mb-2"
+                  )}
+                  aria-label={`Toggle ${tCluster("namespace")} section`}
+                >
+                  <span>{tCluster("namespace")}</span>
+                  <ChevronRight
+                    className={cn(
+                      "size-3.5 transition-transform",
+                      isNamespaceSectionOpen && "rotate-90"
+                    )}
+                  />
+                </button>
+              </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1">
                 <Popover open={namespaceOpen} onOpenChange={setNamespaceOpen}>
                   <PopoverTrigger asChild>
@@ -665,37 +658,32 @@ export function Sidebar({
               open={isFavoritesSectionOpen}
               onOpenChange={setIsFavoritesSectionOpen}
             >
-              <div
-                className={cn(
-                  "flex items-center justify-between",
-                  isFavoritesSectionOpen && "mb-2"
-                )}
-              >
-                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <Star className="size-3 fill-yellow-500 text-yellow-500" />
-                  {tNav("favorites")}
-                </span>
-                <div className="flex items-center gap-1">
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    {favorites.length}
-                  </Badge>
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-5 p-0 text-muted-foreground hover:text-foreground"
-                      aria-label="Toggle favorites section"
-                    >
-                      <ChevronRight
-                        className={cn(
-                          "size-3.5 transition-transform",
-                          isFavoritesSectionOpen && "rotate-90"
-                        )}
-                      />
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-              </div>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
+                    isFavoritesSectionOpen && "mb-2"
+                  )}
+                  aria-label="Toggle favorites section"
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Star className="size-3 fill-yellow-500 text-yellow-500" />
+                    {tNav("favorites")}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {favorites.length}
+                    </Badge>
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 transition-transform",
+                        isFavoritesSectionOpen && "rotate-90"
+                      )}
+                    />
+                  </span>
+                </button>
+              </CollapsibleTrigger>
               <CollapsibleContent
                 className={cn(
                   "space-y-1",
