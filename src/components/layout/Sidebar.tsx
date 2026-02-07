@@ -444,12 +444,24 @@ export function Sidebar({
                   aria-label={`Toggle ${tCluster("namespace")} section`}
                 >
                   <span>{tCluster("namespace")}</span>
-                  <ChevronRight
-                    className={cn(
-                      "size-3.5 transition-transform",
-                      isNamespaceSectionOpen && "rotate-90"
+                  <span className="flex items-center gap-2">
+                    {!isNamespaceSectionOpen && (
+                      <Badge
+                        variant="secondary"
+                        className="max-w-[130px] px-2 py-0 text-[10px]"
+                      >
+                        <span className="truncate">
+                          {currentNamespace || tCluster("allNamespaces")}
+                        </span>
+                      </Badge>
                     )}
-                  />
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 transition-transform",
+                        isNamespaceSectionOpen && "rotate-90"
+                      )}
+                    />
+                  </span>
                 </button>
               </CollapsibleTrigger>
               <CollapsibleContent className="space-y-1">
