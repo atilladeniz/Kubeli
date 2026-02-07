@@ -199,6 +199,27 @@ export default function Home() {
     return () => document.removeEventListener("contextmenu", handleContextMenu);
   }, []);
 
+  // Prevent app-wide Select All; keep Cmd/Ctrl+A only for editable targets.
+  useEffect(() => {
+    const isEditableTarget = (target: EventTarget | null): boolean => {
+      if (!(target instanceof HTMLElement)) return false;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return true;
+      if (target.isContentEditable || target.closest('[contenteditable="true"]')) return true;
+      if (target.closest('[role="textbox"]')) return true;
+      return false;
+    };
+
+    const handleSelectAll = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
+      if (e.altKey) return;
+      if (isEditableTarget(e.target)) return;
+      e.preventDefault();
+    };
+
+    document.addEventListener("keydown", handleSelectAll, true);
+    return () => document.removeEventListener("keydown", handleSelectAll, true);
+  }, []);
+
   // Show dashboard when connected
   useEffect(() => {
     if (isConnected) {
