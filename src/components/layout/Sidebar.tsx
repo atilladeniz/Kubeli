@@ -22,6 +22,9 @@ import {
   Star,
   Clock,
   Trash2,
+  MoreHorizontal,
+  FileText,
+  Eye,
   Check,
   ChevronsUpDown,
   GitBranch,
@@ -62,6 +65,13 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { getNamespaceColor } from "@/lib/utils/colors";
 import { Kbd } from "@/components/ui/kbd";
@@ -299,6 +309,7 @@ interface SidebarProps {
   onResourceSelect: (resource: ResourceType) => void;
   onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
   onFavoriteSelect?: (favorite: FavoriteResource) => void | Promise<void>;
+  onFavoriteOpenLogs?: (favorite: FavoriteResource) => void | Promise<void>;
 }
 
 export function Sidebar({
@@ -306,6 +317,7 @@ export function Sidebar({
   onResourceSelect,
   onResourceSelectNewTab,
   onFavoriteSelect,
+  onFavoriteOpenLogs,
 }: SidebarProps) {
   const t = useTranslations();
   const tNav = useTranslations("navigation");
@@ -614,6 +626,11 @@ export function Sidebar({
                     onResourceSelect(fav.resourceType as ResourceType);
                   }}
                   onRemove={() => removeFavorite(clusterContext, fav.id)}
+                  onOpenLogs={
+                    onFavoriteOpenLogs
+                      ? () => onFavoriteOpenLogs(fav)
+                      : undefined
+                  }
                   modKey={modKeySymbol}
                 />
               ))}
@@ -778,6 +795,7 @@ interface FavoriteItemProps {
   index: number;
   onSelect: () => void;
   onRemove: () => void;
+  onOpenLogs?: () => void | Promise<void>;
   modKey: string;
 }
 
@@ -786,9 +804,12 @@ function FavoriteItem({
   index,
   onSelect,
   onRemove,
+  onOpenLogs,
   modKey,
 }: FavoriteItemProps) {
+  const t = useTranslations();
   const shortcutKey = index < 9 ? index + 1 : null;
+  const canOpenLogs = favorite.resourceType === "pods" && !!favorite.namespace;
 
   return (
     <div className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden">
@@ -810,15 +831,33 @@ function FavoriteItem({
             {modKey}{shortcutKey}
           </Kbd>
         )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="p-1 rounded hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <Trash2 className="size-3 text-muted-foreground hover:text-destructive" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label={t("common.actions")}
+              className="p-1 rounded hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
+            >
+              <MoreHorizontal className="size-3 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onSelect()}>
+              <Eye className="size-4" />
+              {t("favorites.openDetails")}
+            </DropdownMenuItem>
+            {canOpenLogs && onOpenLogs && (
+              <DropdownMenuItem onClick={() => onOpenLogs()}>
+                <FileText className="size-4" />
+                {t("favorites.openLogs")}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => onRemove()}>
+              <Trash2 className="size-4" />
+              {t("favorites.remove")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

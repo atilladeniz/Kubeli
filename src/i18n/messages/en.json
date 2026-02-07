@@ -732,6 +732,10 @@
     "remove": "Remove from Favorites",
     "noFavorites": "No favorites yet",
     "addHint": "Star resources to add them here",
+    "openDetails": "Open details",
+    "openLogs": "Open logs",
+    "removedMissingResource": "Favorite removed",
+    "removedMissingResourceDescription": "The resource \"{name}\" no longer exists.",
     "removedMissingPod": "Favorite removed",
     "removedMissingPodDescription": "The pod \"{podName}\" in namespace \"{namespace}\" no longer exists."
   },

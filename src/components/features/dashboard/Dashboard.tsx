@@ -30,7 +30,6 @@ import {
   getResourceYaml,
   applyResourceYaml,
   deleteResource,
-  getPod,
   listEvents,
   aiCheckCliAvailable,
   aiCheckCodexCliAvailable,
@@ -57,6 +56,13 @@ export function Dashboard() {
       <RestartDialog />
     </TerminalTabsProvider>
   );
+}
+
+type OpenResourceDetailResult = "success" | "not_found" | "error" | "stale";
+
+function isNotFoundError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("NotFound") || message.includes("not found");
 }
 
 function DashboardContent() {
@@ -124,7 +130,11 @@ function DashboardContent() {
   }, [pendingPodLogs, setActiveResource]);
 
   const openResourceDetail = useCallback(
-    async (resourceType: string, name: string, namespace?: string) => {
+    async (
+      resourceType: string,
+      name: string,
+      namespace?: string
+    ): Promise<OpenResourceDetailResult> => {
       const requestId = ++detailRequestIdRef.current;
       try {
         const [yamlData, events] = await Promise.all([
@@ -138,7 +148,7 @@ function DashboardContent() {
         ]);
 
         if (requestId !== detailRequestIdRef.current) {
-          return;
+          return "stale";
         }
 
         setSelectedResource({
@@ -163,20 +173,32 @@ function DashboardContent() {
             })),
           },
         });
+        return "success";
       } catch (err) {
         if (requestId !== detailRequestIdRef.current) {
-          return;
+          return "stale";
+        }
+        if (isNotFoundError(err)) {
+          return "not_found";
         }
         console.error("Failed to load resource details:", err);
+        return "error";
       }
     },
     []
   );
 
-  const isNotFoundError = (error: unknown): boolean => {
-    const message = error instanceof Error ? error.message : String(error);
-    return message.includes("NotFound") || message.includes("not found");
-  };
+  const removeMissingFavorite = useCallback(
+    (favorite: FavoriteResource) => {
+      removeFavorite(clusterContext, favorite.id);
+      toast.info(t("favorites.removedMissingResource"), {
+        description: t("favorites.removedMissingResourceDescription", {
+          name: favorite.name,
+        }),
+      });
+    },
+    [clusterContext, removeFavorite, t]
+  );
 
   const handleFavoriteSelect = useCallback(
     async (favorite: FavoriteResource) => {
@@ -186,34 +208,57 @@ function DashboardContent() {
 
       setActiveResource(favorite.resourceType as ResourceType);
 
+      const result = await openResourceDetail(
+        favorite.resourceType,
+        favorite.name,
+        favorite.namespace
+      );
+      if (result === "not_found") {
+        removeMissingFavorite(favorite);
+      }
+    },
+    [
+      openResourceDetail,
+      removeMissingFavorite,
+      setActiveResource,
+      setCurrentNamespace,
+    ]
+  );
+
+  const handleFavoriteOpenLogs = useCallback(
+    async (favorite: FavoriteResource) => {
       if (favorite.resourceType !== "pods" || !favorite.namespace) {
         return;
       }
 
+      setCurrentNamespace(favorite.namespace);
+      setActiveResource("pods");
+
       try {
-        await getPod(favorite.name, favorite.namespace);
+        await getResourceYaml("pods", favorite.name, favorite.namespace);
       } catch (error) {
         if (isNotFoundError(error)) {
-          removeFavorite(clusterContext, favorite.id);
-          toast.info(t("favorites.removedMissingPod"), {
-            description: t("favorites.removedMissingPodDescription", {
-              podName: favorite.name,
-              namespace: favorite.namespace,
-            }),
-          });
-          return;
+          removeMissingFavorite(favorite);
+        } else {
+          console.error("Failed to resolve favorite pod logs target:", error);
         }
-
-        console.error("Failed to resolve favorite pod:", error);
         return;
       }
 
-      await openResourceDetail("pod", favorite.name, favorite.namespace);
+      if (resourceTabs.length >= 10) {
+        toast.warning(t("tabs.limitToast"));
+        return;
+      }
+
+      openTab("pod-logs", `Logs: ${favorite.name} (${favorite.namespace})`, {
+        newTab: true,
+        metadata: { namespace: favorite.namespace, podName: favorite.name },
+      });
     },
     [
-      clusterContext,
-      openResourceDetail,
-      removeFavorite,
+      openTab,
+      removeMissingFavorite,
+      resourceTabs.length,
       setActiveResource,
       setCurrentNamespace,
       t,
@@ -343,6 +388,7 @@ function DashboardContent() {
           activeResource={activeResource}
           onResourceSelect={setActiveResource}
           onFavoriteSelect={handleFavoriteSelect}
+          onFavoriteOpenLogs={handleFavoriteOpenLogs}
           onResourceSelectNewTab={(type) => {
             if (resourceTabs.length >= 10) {
               toast.warning(t("tabs.limitToast"));
