@@ -434,7 +434,12 @@ export function Sidebar({
               open={isNamespaceSectionOpen}
               onOpenChange={setIsNamespaceSectionOpen}
             >
-              <div className="mb-2 flex items-center justify-between">
+              <div
+                className={cn(
+                  "flex items-center justify-between",
+                  isNamespaceSectionOpen && "mb-2"
+                )}
+              >
                 <span className="text-xs font-medium text-muted-foreground">
                   {tCluster("namespace")}
                 </span>
@@ -554,7 +559,12 @@ export function Sidebar({
               open={isPortForwardsSectionOpen}
               onOpenChange={setIsPortForwardsSectionOpen}
             >
-              <div className="mb-2 flex items-center justify-between">
+              <div
+                className={cn(
+                  "flex items-center justify-between",
+                  isPortForwardsSectionOpen && "mb-2"
+                )}
+              >
                 <button
                   onClick={() => onResourceSelect("port-forwards")}
                   className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
@@ -655,7 +665,12 @@ export function Sidebar({
               open={isFavoritesSectionOpen}
               onOpenChange={setIsFavoritesSectionOpen}
             >
-              <div className="mb-2 flex items-center justify-between">
+              <div
+                className={cn(
+                  "flex items-center justify-between",
+                  isFavoritesSectionOpen && "mb-2"
+                )}
+              >
                 <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                   <Star className="size-3 fill-yellow-500 text-yellow-500" />
                   {tNav("favorites")}
@@ -724,7 +739,12 @@ export function Sidebar({
               open={isRecentSectionOpen}
               onOpenChange={setIsRecentSectionOpen}
             >
-              <div className="mb-2 flex items-center justify-between">
+              <div
+                className={cn(
+                  "flex items-center justify-between",
+                  isRecentSectionOpen && "mb-2"
+                )}
+              >
                 <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
                   <Clock className="size-3" />
                   {tNav("recent")}
