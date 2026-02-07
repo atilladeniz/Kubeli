@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.25] - 2026-02-07
+
+- Added clear buttons and scoped Cmd/Ctrl+A behavior to search fields
+- Fixed port-forward open icon not working in Tauri sidebar
+- Fixed YAML editor cursor/selection issues and added clean copy context menu
+
 ## [0.3.24] - 2026-02-06
 
 - Extracted MergeModeSection component for improved readability in KubeconfigTab
