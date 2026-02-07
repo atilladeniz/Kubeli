@@ -307,7 +307,7 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
       </div>
 
       {/* Editor */}
-      <div className="flex-1 min-h-0 relative">
+      <div className="flex-1 min-h-0 relative" data-allow-context-menu>
         {/* Read-only notification */}
         {canEdit && !isEditing && (
           <div
@@ -376,7 +376,7 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
             occurrencesHighlight: isEditing ? "singleFile" : "off",
             selectionHighlight: isEditing,
             codeLens: false,
-            contextmenu: isEditing,
+            contextmenu: true,
             fontLigatures: false,
             renderValidationDecorations: "off",
             cursorBlinking: "solid",
