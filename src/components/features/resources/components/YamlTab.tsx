@@ -11,6 +11,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  ContextMenu,
+  ContextMenuContent,
+  ContextMenuItem,
+  ContextMenuTrigger,
+} from "@/components/ui/context-menu";
 import { DiscardChangesDialog } from "../dialogs/DiscardChangesDialog";
 import { useTranslations } from "next-intl";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -56,12 +62,20 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
   const [isEditing, setIsEditing] = useState(false);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
   const [showReadOnlyHint, setShowReadOnlyHint] = useState(false);
+  const [contextMenuSelection, setContextMenuSelection] = useState("");
   const readOnlyHintTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [prevResourceKey, setPrevResourceKey] = useState(resourceKey);
   const remeasureAndLayoutEditor = useCallback(() => {
     if (!editorRef.current || !monacoRef.current) return;
     monacoRef.current.editor.remeasureFonts();
     editorRef.current.layout();
+  }, []);
+  const getSelectedText = useCallback(() => {
+    const editorInstance = editorRef.current;
+    const model = editorInstance?.getModel();
+    const selection = editorInstance?.getSelection();
+    if (!editorInstance || !model || !selection || selection.isEmpty()) return "";
+    return model.getValueInRange(selection);
   }, []);
 
   // Reset edit mode when switching to a different resource
@@ -122,6 +136,21 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
 
   const focusEditor = () => {
     setTimeout(() => editorRef.current?.focus(), 50);
+  };
+
+  const handleContextMenuOpenChange = (open: boolean) => {
+    if (!open) return;
+    setContextMenuSelection(getSelectedText());
+  };
+
+  const handleCopySelection = async () => {
+    const selectedText = getSelectedText();
+    if (!selectedText) return;
+    try {
+      await navigator.clipboard.writeText(selectedText);
+    } catch {
+      await editorRef.current?.getAction("editor.action.clipboardCopyAction")?.run();
+    }
   };
 
   useImperativeHandle(ref, () => ({ focusEditor }));
@@ -307,102 +336,112 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
       </div>
 
       {/* Editor */}
-      <div className="flex-1 min-h-0 relative" data-allow-context-menu>
-        {/* Read-only notification */}
-        {canEdit && !isEditing && (
-          <div
-            className={cn(
-              "absolute top-3 left-1/2 -translate-x-1/2 z-50 transition-all duration-200 ease-out",
-              showReadOnlyHint
-                ? "opacity-100 translate-y-0"
-                : "opacity-0 -translate-y-2 pointer-events-none"
-            )}
-          >
-            <div className="flex items-center gap-2.5 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
-              <Lock className="size-3.5 text-muted-foreground shrink-0" />
-              <span className="text-xs text-muted-foreground">
-                {t("resourceDetail.readOnly")}
-              </span>
-              <Button
-                size="sm"
-                onClick={() => {
-                  setShowReadOnlyHint(false);
-                  handleStartEditing();
-                }}
-                className="h-6 text-xs gap-1 px-2.5"
+      <ContextMenu onOpenChange={handleContextMenuOpenChange}>
+        <ContextMenuTrigger asChild>
+          <div className="flex-1 min-h-0 relative" data-allow-context-menu>
+            {/* Read-only notification */}
+            {canEdit && !isEditing && (
+              <div
+                className={cn(
+                  "absolute top-3 left-1/2 -translate-x-1/2 z-50 transition-all duration-200 ease-out",
+                  showReadOnlyHint
+                    ? "opacity-100 translate-y-0"
+                    : "opacity-0 -translate-y-2 pointer-events-none"
+                )}
               >
-                <Pencil className="size-3" />
-                {t("common.edit")}
-              </Button>
-            </div>
-          </div>
-        )}
+                <div className="flex items-center gap-2.5 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg">
+                  <Lock className="size-3.5 text-muted-foreground shrink-0" />
+                  <span className="text-xs text-muted-foreground">
+                    {t("resourceDetail.readOnly")}
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      setShowReadOnlyHint(false);
+                      handleStartEditing();
+                    }}
+                    className="h-6 text-xs gap-1 px-2.5"
+                  >
+                    <Pencil className="size-3" />
+                    {t("common.edit")}
+                  </Button>
+                </div>
+              </div>
+            )}
 
-        <Editor
-          height="100%"
-          defaultLanguage="yaml"
-          value={yamlContent}
-          onChange={onYamlChange}
-          onMount={handleEditorMount}
-          theme={
-            resolvedTheme === "dark" || resolvedTheme === "classic-dark"
-              ? "vs-dark"
-              : "light"
-          }
-          loading={
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              {t("common.loading")}
-            </div>
-          }
-          options={{
-            minimap: { enabled: false },
-            find: { addExtraSpaceOnTop: false },
-            fontSize: 13,
-            lineNumbers: "on",
-            scrollBeyondLastLine: false,
-            automaticLayout: true,
-            tabSize: 2,
-            wordWrap: "off",
-            readOnly,
-            readOnlyMessage: { value: "" },
-            smoothScrolling: false,
-            renderWhitespace: "none",
-            renderLineHighlight: isEditing ? "line" : "none",
-            renderLineHighlightOnlyWhenFocus: true,
-            quickSuggestions: false,
-            folding: true,
-            foldingHighlight: false,
-            matchBrackets: isEditing ? "always" : "never",
-            occurrencesHighlight: isEditing ? "singleFile" : "off",
-            selectionHighlight: isEditing,
-            codeLens: false,
-            contextmenu: false,
-            fontLigatures: false,
-            renderValidationDecorations: "off",
-            cursorBlinking: "solid",
-            cursorSmoothCaretAnimation: "off",
-            guides: {
-              indentation: isEditing,
-              bracketPairs: false,
-              highlightActiveIndentation: false,
-            },
-            colorDecorators: false,
-            links: false,
-            hover: { enabled: false },
-            parameterHints: { enabled: false },
-            suggestOnTriggerCharacters: false,
-            acceptSuggestionOnEnter: "off",
-            inlineSuggest: { enabled: false },
-            scrollbar: {
-              vertical: "visible",
-              horizontal: "visible",
-              useShadows: false,
-              verticalScrollbarSize: 10,
-              horizontalScrollbarSize: 10,
-            },
-          }}
-        />
-      </div>
+            <Editor
+              height="100%"
+              defaultLanguage="yaml"
+              value={yamlContent}
+              onChange={onYamlChange}
+              onMount={handleEditorMount}
+              theme={
+                resolvedTheme === "dark" || resolvedTheme === "classic-dark"
+                  ? "vs-dark"
+                  : "light"
+              }
+              loading={
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  {t("common.loading")}
+                </div>
+              }
+              options={{
+                minimap: { enabled: false },
+                find: { addExtraSpaceOnTop: false },
+                fontSize: 13,
+                lineNumbers: "on",
+                scrollBeyondLastLine: false,
+                automaticLayout: true,
+                tabSize: 2,
+                wordWrap: "off",
+                readOnly,
+                readOnlyMessage: { value: "" },
+                smoothScrolling: false,
+                renderWhitespace: "none",
+                renderLineHighlight: isEditing ? "line" : "none",
+                renderLineHighlightOnlyWhenFocus: true,
+                quickSuggestions: false,
+                folding: true,
+                foldingHighlight: false,
+                matchBrackets: isEditing ? "always" : "never",
+                occurrencesHighlight: isEditing ? "singleFile" : "off",
+                selectionHighlight: isEditing,
+                codeLens: false,
+                contextmenu: false,
+                fontLigatures: false,
+                renderValidationDecorations: "off",
+                cursorBlinking: "solid",
+                cursorSmoothCaretAnimation: "off",
+                guides: {
+                  indentation: isEditing,
+                  bracketPairs: false,
+                  highlightActiveIndentation: false,
+                },
+                colorDecorators: false,
+                links: false,
+                hover: { enabled: false },
+                parameterHints: { enabled: false },
+                suggestOnTriggerCharacters: false,
+                acceptSuggestionOnEnter: "off",
+                inlineSuggest: { enabled: false },
+                scrollbar: {
+                  vertical: "visible",
+                  horizontal: "visible",
+                  useShadows: false,
+                  verticalScrollbarSize: 10,
+                  horizontalScrollbarSize: 10,
+                },
+              }}
+            />
+          </div>
+        </ContextMenuTrigger>
+        <ContextMenuContent className="w-40">
+          <ContextMenuItem onClick={handleCopySelection} disabled={!contextMenuSelection}>
+            <Copy className="size-3.5" />
+            {t("common.copy")}
+          </ContextMenuItem>
+        </ContextMenuContent>
+      </ContextMenu>
 
       <DiscardChangesDialog
         open={showDiscardDialog}
