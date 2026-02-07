@@ -329,6 +329,15 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
   const recentResources = getRecentResources(clusterContext).slice(0, 5);
+  const handleOpenForwardInBrowser = async (port: number) => {
+    try {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(`http://localhost:${port}`);
+    } catch (err) {
+      console.error("Failed to open browser:", err);
+      window.open(`http://localhost:${port}`, "_blank");
+    }
+  };
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-card/50 overflow-hidden">
@@ -439,15 +448,17 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
                     </span>
                   </div>
                   <div className="flex items-center gap-0.5 shrink-0 ml-1">
-                    <a
-                      href={`http://localhost:${forward.local_port}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <button
+                      type="button"
                       className="p-1 rounded hover:bg-background"
-                      onClick={(e) => e.stopPropagation()}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void handleOpenForwardInBrowser(forward.local_port);
+                      }}
+                      aria-label={`Open localhost:${forward.local_port}`}
                     >
                       <ExternalLink className="size-3 text-muted-foreground hover:text-foreground" />
-                    </a>
+                    </button>
                     <button
                       onClick={() => stopForward(forward.forward_id)}
                       className="p-1 rounded hover:bg-background"
