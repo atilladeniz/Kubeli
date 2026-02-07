@@ -245,9 +245,7 @@ function DashboardContent() {
 
   const handleFavoriteSelect = useCallback(
     async (favorite: FavoriteResource) => {
-      if (favorite.namespace) {
-        setCurrentNamespace(favorite.namespace);
-      }
+      setCurrentNamespace("");
 
       setActiveResource(favorite.resourceType as ResourceType);
 
@@ -274,7 +272,7 @@ function DashboardContent() {
         return;
       }
 
-      setCurrentNamespace(favorite.namespace);
+      setCurrentNamespace("");
       setActiveResource("pods");
 
       try {
