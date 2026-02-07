@@ -158,7 +158,6 @@ fn main() {
                     .cut()
                     .copy()
                     .paste()
-                    .select_all()
                     .build()?;
 
                 let window_submenu = SubmenuBuilder::new(app, "Window")

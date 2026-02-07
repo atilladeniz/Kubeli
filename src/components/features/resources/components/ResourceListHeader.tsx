@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { RefreshCw, Search, Radio } from "lucide-react";
+import { RefreshCw, Search, Radio, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -45,6 +45,10 @@ export function ResourceListHeader<T>({
   const searchInputRef = useRef<HTMLInputElement>(null);
   const searchFocusTrigger = useUIStore((s) => s.searchFocusTrigger);
   const refreshTrigger = useUIStore((s) => s.refreshTrigger);
+  const handleClearSearch = () => {
+    onSearchChange("");
+    searchInputRef.current?.focus();
+  };
 
   useEffect(() => {
     if (searchFocusTrigger > 0) {
@@ -130,8 +134,20 @@ export function ResourceListHeader<T>({
             placeholder={`${t("common.search")}...`}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-56 pl-8"
+            className="w-56 pl-8 pr-8"
           />
+          {searchQuery.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute right-1 top-1/2 size-6 -translate-y-1/2 rounded"
+              onClick={handleClearSearch}
+              aria-label={`${t("common.clear")} ${t("common.search")}`}
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
         </div>
 
         {/* Watch toggle */}

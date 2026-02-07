@@ -53,7 +53,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { GraphNodeStatus } from "@/lib/types";
 
@@ -70,6 +70,7 @@ const nodeTypes = {
 
 function ResourceDiagramInner() {
   const t = useTranslations("diagram");
+  const tCommon = useTranslations("common");
   const { currentNamespace, isConnected } = useClusterStore();
   const { resolvedTheme } = useUIStore();
   const {
@@ -98,6 +99,7 @@ function ResourceDiagramInner() {
   );
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [searchInput, setSearchInput] = useState("");
+  const searchInputRef = useRef<HTMLInputElement>(null);
   const [zoom, setZoom] = useState(1);
   // Cache the last valid translateExtent to prevent jumps during refresh
   // Left/top has more padding to allow symmetric panning (viewport origin is top-left)
@@ -474,11 +476,27 @@ function ResourceDiagramInner() {
         <div className="relative flex-1 max-w-xs">
           <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <Input
+            ref={searchInputRef}
             placeholder={t("searchResources")}
             value={searchInput}
             onChange={(e) => handleSearch(e.target.value)}
-            className="pl-9 h-9"
+            className="h-9 pl-9 pr-8"
           />
+          {searchInput.length > 0 && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="absolute right-1 top-1/2 size-6 -translate-y-1/2 rounded"
+              onClick={() => {
+                handleSearch("");
+                searchInputRef.current?.focus();
+              }}
+              aria-label={`${tCommon("clear")} ${tCommon("search")}`}
+            >
+              <X className="size-3.5" />
+            </Button>
+          )}
         </div>
 
         <Button
