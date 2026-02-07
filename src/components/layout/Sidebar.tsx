@@ -343,6 +343,11 @@ export function Sidebar({
   const { getFavorites, removeFavorite, getRecentResources } =
     useFavoritesStore();
   const [namespaceOpen, setNamespaceOpen] = useState(false);
+  const [isNamespaceSectionOpen, setIsNamespaceSectionOpen] = useState(true);
+  const [isPortForwardsSectionOpen, setIsPortForwardsSectionOpen] =
+    useState(true);
+  const [isFavoritesSectionOpen, setIsFavoritesSectionOpen] = useState(true);
+  const [isRecentSectionOpen, setIsRecentSectionOpen] = useState(true);
   const navigationSections = useNavigationSections();
   const { modKeySymbol } = usePlatform();
 
@@ -424,94 +429,118 @@ export function Sidebar({
       {/* Namespace Selector */}
       {isConnected && namespaces.length > 0 && (
         <>
-          <div className="p-3">
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              {tCluster("namespace")}
-            </label>
-            <Popover open={namespaceOpen} onOpenChange={setNamespaceOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={namespaceOpen}
-                  className="w-full justify-between"
-                >
-                  {currentNamespace ? (
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={cn(
-                          "size-2 rounded-full shrink-0",
-                          getNamespaceColor(currentNamespace).dot
-                        )}
-                      />
-                      <span className="truncate">{currentNamespace}</span>
-                    </span>
-                  ) : (
-                    tCluster("allNamespaces")
-                  )}
-                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="min-w-(--radix-popover-trigger-width) p-0"
-                align="start"
-              >
-                <Command>
-                  <CommandInput placeholder={`${t("common.search")}...`} />
-                  <CommandList>
-                    <CommandEmpty>{t("common.noData")}</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="all"
-                        onSelect={(value) => {
-                          setCurrentNamespace(value === "all" ? "" : value);
-                          setNamespaceOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 size-4",
-                            currentNamespace ? "opacity-0" : "opacity-100"
-                          )}
-                        />
-                        {tCluster("allNamespaces")}
-                      </CommandItem>
-                      {namespaces.map((ns) => {
-                        const color = getNamespaceColor(ns);
-                        return (
+          <div className="p-3 overflow-hidden">
+            <Collapsible
+              open={isNamespaceSectionOpen}
+              onOpenChange={setIsNamespaceSectionOpen}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground">
+                  {tCluster("namespace")}
+                </span>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-5 p-0 text-muted-foreground hover:text-foreground"
+                    aria-label={`Toggle ${tCluster("namespace")} section`}
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 transition-transform",
+                        isNamespaceSectionOpen && "rotate-90"
+                      )}
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent className="space-y-1">
+                <Popover open={namespaceOpen} onOpenChange={setNamespaceOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={namespaceOpen}
+                      className="w-full justify-between"
+                    >
+                      {currentNamespace ? (
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={cn(
+                              "size-2 rounded-full shrink-0",
+                              getNamespaceColor(currentNamespace).dot
+                            )}
+                          />
+                          <span className="truncate">{currentNamespace}</span>
+                        </span>
+                      ) : (
+                        tCluster("allNamespaces")
+                      )}
+                      <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="min-w-(--radix-popover-trigger-width) p-0"
+                    align="start"
+                  >
+                    <Command>
+                      <CommandInput placeholder={`${t("common.search")}...`} />
+                      <CommandList>
+                        <CommandEmpty>{t("common.noData")}</CommandEmpty>
+                        <CommandGroup>
                           <CommandItem
-                            key={ns}
-                            value={ns}
+                            value="all"
                             onSelect={(value) => {
-                              setCurrentNamespace(value);
+                              setCurrentNamespace(value === "all" ? "" : value);
                               setNamespaceOpen(false);
                             }}
                           >
                             <Check
                               className={cn(
                                 "mr-2 size-4",
-                                currentNamespace === ns
-                                  ? "opacity-100"
-                                  : "opacity-0"
+                                currentNamespace ? "opacity-0" : "opacity-100"
                               )}
                             />
-                            <span className="flex items-center gap-2">
-                              <span
-                                className={cn(
-                                  "size-2 rounded-full shrink-0",
-                                  color.dot
-                                )}
-                              />
-                              <span>{ns}</span>
-                            </span>
+                            {tCluster("allNamespaces")}
                           </CommandItem>
-                        );
-                      })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+                          {namespaces.map((ns) => {
+                            const color = getNamespaceColor(ns);
+                            return (
+                              <CommandItem
+                                key={ns}
+                                value={ns}
+                                onSelect={(value) => {
+                                  setCurrentNamespace(value);
+                                  setNamespaceOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 size-4",
+                                    currentNamespace === ns
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    className={cn(
+                                      "size-2 rounded-full shrink-0",
+                                      color.dot
+                                    )}
+                                  />
+                                  <span>{ns}</span>
+                                </span>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           <Separator />
         </>
@@ -521,76 +550,98 @@ export function Sidebar({
       {isConnected && forwards.length > 0 && (
         <>
           <div className="p-3 overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <button
-                onClick={() => onResourceSelect("port-forwards")}
-                className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
-              >
-                <ArrowRightLeft className="size-3" />
-                {tNav("portForwards")}
-                <Maximize2 className="size-2.5" />
-              </button>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {forwards.length}
-              </Badge>
-            </div>
-            <div
-              className={cn(
-                "space-y-1",
-                forwards.length > 3 && "max-h-[132px] overflow-y-auto pr-1"
-              )}
+            <Collapsible
+              open={isPortForwardsSectionOpen}
+              onOpenChange={setIsPortForwardsSectionOpen}
             >
-              {forwards.map((forward) => (
-                <div
-                  key={forward.forward_id}
-                  className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden"
+              <div className="mb-2 flex items-center justify-between">
+                <button
+                  onClick={() => onResourceSelect("port-forwards")}
+                  className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
                 >
-                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                    <span
-                      className={cn(
-                        "size-1.5 rounded-full shrink-0",
-                        forward.status === "connected"
-                          ? "bg-green-400"
-                          : forward.status === "connecting"
-                          ? "bg-yellow-400 animate-pulse"
-                          : "bg-red-400"
-                      )}
-                    />
-                    <span className="truncate font-medium max-w-[80px]">
-                      {forward.name}
-                    </span>
-                    <span className="text-muted-foreground shrink-0 tabular-nums">
-                      :{forward.local_port}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                  <ArrowRightLeft className="size-3" />
+                  {tNav("portForwards")}
+                  <Maximize2 className="size-2.5" />
+                </button>
+                <div className="flex items-center gap-1">
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {forwards.length}
+                  </Badge>
+                  <CollapsibleTrigger asChild>
                     <Button
-                      type="button"
                       variant="ghost"
                       size="icon-sm"
-                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleOpenForwardInBrowser(forward.local_port);
-                      }}
-                      aria-label={`Open localhost:${forward.local_port}`}
+                      className="size-5 p-0 text-muted-foreground hover:text-foreground"
+                      aria-label="Toggle port forwards section"
                     >
-                      <ExternalLink className="size-3" />
+                      <ChevronRight
+                        className={cn(
+                          "size-3.5 transition-transform",
+                          isPortForwardsSectionOpen && "rotate-90"
+                        )}
+                      />
                     </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-destructive"
-                      onClick={() => stopForward(forward.forward_id)}
-                      aria-label={`Stop ${forward.name} port forward`}
-                    >
-                      <X className="size-3" />
-                    </Button>
-                  </div>
+                  </CollapsibleTrigger>
                 </div>
-              ))}
-            </div>
+              </div>
+              <CollapsibleContent
+                className={cn(
+                  "space-y-1",
+                  forwards.length > 3 && "max-h-[132px] overflow-y-auto pr-1"
+                )}
+              >
+                {forwards.map((forward) => (
+                  <div
+                    key={forward.forward_id}
+                    className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                      <span
+                        className={cn(
+                          "size-1.5 rounded-full shrink-0",
+                          forward.status === "connected"
+                            ? "bg-green-400"
+                            : forward.status === "connecting"
+                            ? "bg-yellow-400 animate-pulse"
+                            : "bg-red-400"
+                        )}
+                      />
+                      <span className="truncate font-medium max-w-[80px]">
+                        {forward.name}
+                      </span>
+                      <span className="text-muted-foreground shrink-0 tabular-nums">
+                        :{forward.local_port}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleOpenForwardInBrowser(forward.local_port);
+                        }}
+                        aria-label={`Open localhost:${forward.local_port}`}
+                      >
+                        <ExternalLink className="size-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-destructive"
+                        onClick={() => stopForward(forward.forward_id)}
+                        aria-label={`Stop ${forward.name} port forward`}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           <Separator />
         </>
@@ -600,44 +651,66 @@ export function Sidebar({
       {isConnected && favorites.length > 0 && (
         <>
           <div className="p-3 overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <Star className="size-3 fill-yellow-500 text-yellow-500" />
-                {tNav("favorites")}
-              </span>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {favorites.length}
-              </Badge>
-            </div>
-            <div
-              className={cn(
-                "space-y-1",
-                favorites.length > 4 && "max-h-[176px] overflow-y-auto pr-1"
-              )}
+            <Collapsible
+              open={isFavoritesSectionOpen}
+              onOpenChange={setIsFavoritesSectionOpen}
             >
-              {favorites.map((fav, index) => (
-                <FavoriteItem
-                  key={fav.id}
-                  favorite={fav}
-                  index={index}
-                  onSelect={() => {
-                    if (onFavoriteSelect) {
-                      void onFavoriteSelect(fav);
-                      return;
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Star className="size-3 fill-yellow-500 text-yellow-500" />
+                  {tNav("favorites")}
+                </span>
+                <div className="flex items-center gap-1">
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {favorites.length}
+                  </Badge>
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-5 p-0 text-muted-foreground hover:text-foreground"
+                      aria-label="Toggle favorites section"
+                    >
+                      <ChevronRight
+                        className={cn(
+                          "size-3.5 transition-transform",
+                          isFavoritesSectionOpen && "rotate-90"
+                        )}
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+              </div>
+              <CollapsibleContent
+                className={cn(
+                  "space-y-1",
+                  favorites.length > 4 && "max-h-[176px] overflow-y-auto pr-1"
+                )}
+              >
+                {favorites.map((fav, index) => (
+                  <FavoriteItem
+                    key={fav.id}
+                    favorite={fav}
+                    index={index}
+                    onSelect={() => {
+                      if (onFavoriteSelect) {
+                        void onFavoriteSelect(fav);
+                        return;
+                      }
+                      onResourceSelect(fav.resourceType as ResourceType);
+                    }}
+                    onRemove={() => removeFavorite(clusterContext, fav.id)}
+                    onOpenLogs={
+                      onFavoriteOpenLogs
+                        ? () => onFavoriteOpenLogs(fav)
+                        : undefined
                     }
-                    onResourceSelect(fav.resourceType as ResourceType);
-                  }}
-                  onRemove={() => removeFavorite(clusterContext, fav.id)}
-                  onOpenLogs={
-                    onFavoriteOpenLogs
-                      ? () => onFavoriteOpenLogs(fav)
-                      : undefined
-                  }
-                  isActive={activeFavoriteId === fav.id}
-                  modKey={modKeySymbol}
-                />
-              ))}
-            </div>
+                    isActive={activeFavoriteId === fav.id}
+                    modKey={modKeySymbol}
+                  />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           <Separator />
         </>
@@ -647,32 +720,52 @@ export function Sidebar({
       {isConnected && recentResources.length > 0 && (
         <>
           <div className="p-3 overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <Clock className="size-3" />
-                {tNav("recent")}
-              </span>
-            </div>
-            <div className="space-y-1">
-              {recentResources.map((recent) => (
-                <button
-                  key={`${recent.resourceType}-${recent.name}-${
-                    recent.namespace || ""
-                  }`}
-                  onClick={() =>
-                    onResourceSelect(recent.resourceType as ResourceType)
-                  }
-                  className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                >
-                  <span className="truncate font-medium">{recent.name}</span>
-                  {recent.namespace && (
-                    <span className="text-[10px] text-muted-foreground/60 truncate">
-                      {recent.namespace}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            <Collapsible
+              open={isRecentSectionOpen}
+              onOpenChange={setIsRecentSectionOpen}
+            >
+              <div className="mb-2 flex items-center justify-between">
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Clock className="size-3" />
+                  {tNav("recent")}
+                </span>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-5 p-0 text-muted-foreground hover:text-foreground"
+                    aria-label="Toggle recent section"
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 transition-transform",
+                        isRecentSectionOpen && "rotate-90"
+                      )}
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent className="space-y-1">
+                {recentResources.map((recent) => (
+                  <button
+                    key={`${recent.resourceType}-${recent.name}-${
+                      recent.namespace || ""
+                    }`}
+                    onClick={() =>
+                      onResourceSelect(recent.resourceType as ResourceType)
+                    }
+                    className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  >
+                    <span className="truncate font-medium">{recent.name}</span>
+                    {recent.namespace && (
+                      <span className="text-[10px] text-muted-foreground/60 truncate">
+                        {recent.namespace}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           <Separator />
         </>
