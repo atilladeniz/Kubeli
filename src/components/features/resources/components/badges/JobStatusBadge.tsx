@@ -3,33 +3,24 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
-
-const variants: Record<string, StatusBadgeTone> = {
-  Complete: "success",
-  Running: "info",
-  Failed: "danger",
-  Pending: "warning",
-};
-
-const statusTranslationKeys: Record<string, string> = {
-  Complete: "complete",
-  Running: "running",
-  Failed: "failed",
-  Pending: "pending",
-};
+import {
+  getStatusBadgeConfig,
+  jobStatusConfig,
+  resolveBadgeLabel,
+} from "./badgeConfig";
+import { getStatusBadgeToneClass } from "./statusBadgeStyles";
 
 export function JobStatusBadge({ status }: { status: string }) {
   const t = useTranslations("workloads");
-  const translationKey = statusTranslationKeys[status];
-  const label = translationKey ? t(translationKey) : status;
+  const config = getStatusBadgeConfig(jobStatusConfig, status);
+  const label = config ? resolveBadgeLabel(config.label, { workloads: t }) : status;
 
   return (
     <Badge
       variant="outline"
       className={cn(
         "border font-medium",
-        getStatusBadgeToneClass(variants[status] || "neutral")
+        getStatusBadgeToneClass(config?.tone || "neutral")
       )}
     >
       {label}

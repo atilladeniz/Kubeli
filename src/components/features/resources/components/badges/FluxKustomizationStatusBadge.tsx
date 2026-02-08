@@ -3,35 +3,27 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
-
-const variants: Record<string, StatusBadgeTone> = {
-  ready: "success",
-  notready: "warning",
-  reconciling: "info",
-  failed: "danger",
-  unknown: "neutral",
-};
-
-const statusTranslationKeys: Record<string, string> = {
-  ready: "common.ready",
-  notready: "common.notReady",
-  reconciling: "common.reconciling",
-  failed: "workloads.failed",
-  unknown: "common.unknown",
-};
+import {
+  fluxStatusConfig,
+  getStatusBadgeConfig,
+  resolveBadgeLabel,
+} from "./badgeConfig";
+import { getStatusBadgeToneClass } from "./statusBadgeStyles";
 
 export function FluxKustomizationStatusBadge({ status }: { status: string }) {
-  const t = useTranslations();
-  const translationKey = statusTranslationKeys[status];
-  const label = translationKey ? t(translationKey) : status;
+  const tCommon = useTranslations("common");
+  const tWorkloads = useTranslations("workloads");
+  const config = getStatusBadgeConfig(fluxStatusConfig, status);
+  const label = config
+    ? resolveBadgeLabel(config.label, { common: tCommon, workloads: tWorkloads })
+    : status;
 
   return (
     <Badge
       variant="outline"
       className={cn(
         "border font-medium",
-        getStatusBadgeToneClass(variants[status] || "neutral")
+        getStatusBadgeToneClass(config?.tone || "neutral")
       )}
     >
       {label}

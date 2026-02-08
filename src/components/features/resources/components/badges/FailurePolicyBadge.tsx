@@ -3,29 +3,24 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
-
-const policyTranslationKeys: Record<string, string> = {
-  Fail: "common.fail",
-  Ignore: "common.ignore",
-};
-
-const policyTones: Record<string, StatusBadgeTone> = {
-  Fail: "danger",
-  Ignore: "neutral",
-};
+import {
+  failurePolicyConfig,
+  getStatusBadgeConfig,
+  resolveBadgeLabel,
+} from "./badgeConfig";
+import { getStatusBadgeToneClass } from "./statusBadgeStyles";
 
 export function FailurePolicyBadge({ policy }: { policy: string }) {
-  const t = useTranslations();
-  const translationKey = policyTranslationKeys[policy];
-  const tone = policyTones[policy] || "neutral";
+  const t = useTranslations("common");
+  const config = getStatusBadgeConfig(failurePolicyConfig, policy);
+  const label = config ? resolveBadgeLabel(config.label, { common: t }) : policy;
 
   return (
     <Badge
       variant="outline"
-      className={cn("border font-medium", getStatusBadgeToneClass(tone))}
+      className={cn("border font-medium", getStatusBadgeToneClass(config?.tone || "neutral"))}
     >
-      {translationKey ? t(translationKey) : policy}
+      {label}
     </Badge>
   );
 }

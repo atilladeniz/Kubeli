@@ -3,31 +3,27 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
-
-const variants: Record<string, StatusBadgeTone> = {
-  Bound: "success",
-  Pending: "warning",
-  Lost: "danger",
-};
-
-const statusTranslationKeys: Record<string, string> = {
-  Bound: "storage.bound",
-  Pending: "workloads.pending",
-  Lost: "storage.lost",
-};
+import {
+  getStatusBadgeConfig,
+  pvcStatusConfig,
+  resolveBadgeLabel,
+} from "./badgeConfig";
+import { getStatusBadgeToneClass } from "./statusBadgeStyles";
 
 export function PVCStatusBadge({ status }: { status: string }) {
-  const t = useTranslations();
-  const translationKey = statusTranslationKeys[status];
-  const label = translationKey ? t(translationKey) : status;
+  const tStorage = useTranslations("storage");
+  const tWorkloads = useTranslations("workloads");
+  const config = getStatusBadgeConfig(pvcStatusConfig, status);
+  const label = config
+    ? resolveBadgeLabel(config.label, { storage: tStorage, workloads: tWorkloads })
+    : status;
 
   return (
     <Badge
       variant="outline"
       className={cn(
         "border font-medium",
-        getStatusBadgeToneClass(variants[status] || "neutral")
+        getStatusBadgeToneClass(config?.tone || "neutral")
       )}
     >
       {label}

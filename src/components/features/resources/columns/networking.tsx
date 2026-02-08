@@ -140,8 +140,7 @@ export const ingressColumns: Column<IngressInfo>[] = [
     render: (ing) => (
       <BooleanStatusBadge
         value={ing.tls.length > 0}
-        trueKey="common.yes"
-        falseKey="common.no"
+        variant="yesNo"
       />
     ),
   },

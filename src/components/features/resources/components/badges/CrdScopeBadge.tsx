@@ -3,15 +3,14 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-
-const scopeTranslationKeys: Record<string, string> = {
-  Namespaced: "common.namespaced",
-  Cluster: "navigation.cluster",
-};
+import { crdScopeLabels, getLabelRef, resolveBadgeLabel } from "./badgeConfig";
 
 export function CrdScopeBadge({ scope }: { scope: string }) {
-  const t = useTranslations();
-  const translationKey = scopeTranslationKeys[scope];
+  const t = useTranslations("common");
+  const labelRef = getLabelRef(crdScopeLabels, scope);
+  const label = labelRef
+    ? resolveBadgeLabel(labelRef, { common: t })
+    : scope;
 
   return (
     <Badge
@@ -23,7 +22,7 @@ export function CrdScopeBadge({ scope }: { scope: string }) {
           : "bg-purple-500/10 text-purple-500"
       )}
     >
-      {translationKey ? t(translationKey) : scope}
+      {label}
     </Badge>
   );
 }

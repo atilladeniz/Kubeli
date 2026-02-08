@@ -122,10 +122,7 @@ export const crdColumns: Column<CRDInfo>[] = [
     render: (crd) => (
       <BooleanStatusBadge
         value={crd.conditions_ready}
-        trueKey="common.established"
-        falseKey="workloads.pending"
-        trueTone="success"
-        falseTone="warning"
+        variant="establishedPending"
       />
     ),
   },

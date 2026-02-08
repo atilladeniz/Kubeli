@@ -49,8 +49,7 @@ export const serviceAccountColumns: Column<ServiceAccountInfo>[] = [
     render: (sa) => (
       <BooleanStatusBadge
         value={sa.automount_service_account_token !== false}
-        trueKey="common.yes"
-        falseKey="common.no"
+        variant="yesNo"
       />
     ),
   },

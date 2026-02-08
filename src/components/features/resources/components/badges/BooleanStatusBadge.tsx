@@ -3,35 +3,39 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
-import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
+import {
+  booleanBadgeVariants,
+  type BooleanBadgeVariant,
+  resolveBadgeLabel,
+} from "./badgeConfig";
+import { getStatusBadgeToneClass } from "./statusBadgeStyles";
 
 interface BooleanStatusBadgeProps {
   value: boolean;
-  trueKey: string;
-  falseKey: string;
-  trueTone?: StatusBadgeTone;
-  falseTone?: StatusBadgeTone;
+  variant: BooleanBadgeVariant;
 }
 
 export function BooleanStatusBadge({
   value,
-  trueKey,
-  falseKey,
-  trueTone = "success",
-  falseTone = "neutral",
+  variant,
 }: BooleanStatusBadgeProps) {
-  const t = useTranslations();
-  const key = value ? trueKey : falseKey;
+  const tCommon = useTranslations("common");
+  const tWorkloads = useTranslations("workloads");
+  const config = booleanBadgeVariants[variant];
+  const label = resolveBadgeLabel(
+    value ? config.trueLabel : config.falseLabel,
+    { common: tCommon, workloads: tWorkloads }
+  );
 
   return (
     <Badge
       variant="outline"
       className={cn(
         "border font-medium",
-        getStatusBadgeToneClass(value ? trueTone : falseTone)
+        getStatusBadgeToneClass(value ? config.trueTone : config.falseTone)
       )}
     >
-      {t(key)}
+      {label}
     </Badge>
   );
 }
