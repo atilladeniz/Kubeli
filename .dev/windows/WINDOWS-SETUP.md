@@ -6,14 +6,14 @@
 
 ```powershell
 # Run directly from URL
-irm https://kubeli.atilla.app/setup-minikube.ps1 | iex
+irm https://kubeli.dev/setup-minikube.ps1 | iex
 ```
 
 ### Manual Setup
 
 1. **Download the script:**
    ```powershell
-   Invoke-WebRequest -Uri https://kubeli.atilla.app/setup-minikube.ps1 -OutFile setup-minikube.ps1
+   Invoke-WebRequest -Uri https://kubeli.dev/setup-minikube.ps1 -OutFile setup-minikube.ps1
    ```
 
 2. **Run the script:**
