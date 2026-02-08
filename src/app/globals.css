@@ -425,6 +425,19 @@ code,
   cursor: text !important;
 }
 
+/* Selection highlight for selectable content — visible blue like terminal emulators */
+[data-allow-context-menu] ::selection,
+[data-allow-context-menu]::selection {
+  background-color: rgba(56, 139, 253, 0.45) !important;
+  color: inherit !important;
+}
+
+/* Pre blocks: hide selection on newline characters (direct text of <pre>)
+   to prevent full-width bars. Child spans retain blue from the rule above. */
+pre[data-allow-context-menu]::selection {
+  background-color: transparent !important;
+}
+
 /* Pointer cursor for interactive elements */
 button,
 button *,

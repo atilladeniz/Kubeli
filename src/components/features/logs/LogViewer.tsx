@@ -232,6 +232,8 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         searchingText={t("logs.searching")}
         noLogsText={t("logs.noLogs")}
         followText={t("logs.follow")}
+        copyLabel={t("common.copy")}
+        copiedLabel={t("common.copied")}
       />
 
       <LogFooter

@@ -35,12 +35,15 @@ function normalizeYamlForCompare(value: string): string {
 
 export function ResourceDetail({
   resource,
-  resourceType,
+  resourceType: rawResourceType,
   onClose,
   onSave,
   onDelete,
 }: ResourceDetailProps) {
   const t = useTranslations();
+  // Normalize plural forms (e.g. "pods" → "pod") so tab conditions work
+  // regardless of whether the detail was opened from a list or a favorite shortcut.
+  const resourceType = rawResourceType.replace(/s$/, "");
   const yamlTabRef = useRef<YamlTabHandle>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [yamlContent, setYamlContent] = useState("");
@@ -96,7 +99,9 @@ export function ResourceDetail({
       onClose();
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : t("messages.deleteError", { name: resource?.name || "" })
+        err instanceof Error
+          ? err.message
+          : t("messages.deleteError", { name: resource?.name || "" }),
       );
       setShowDeleteDialog(false);
     }
@@ -192,7 +197,10 @@ export function ResourceDetail({
               </TabsTrigger>
             )}
             {onDelete && (
-              <TabsTrigger value="danger" className="gap-2 text-destructive data-[state=active]:text-destructive">
+              <TabsTrigger
+                value="danger"
+                className="gap-2 text-destructive data-[state=active]:text-destructive"
+              >
                 <Trash2 className="size-4" />
                 {t("resourceDetail.dangerZone")}
               </TabsTrigger>
@@ -209,7 +217,7 @@ export function ResourceDetail({
           forceMount
           className={cn(
             "flex-1 overflow-hidden m-0 flex flex-col",
-            activeTab !== "yaml" && "hidden"
+            activeTab !== "yaml" && "hidden",
           )}
         >
           <YamlTab
@@ -230,12 +238,19 @@ export function ResourceDetail({
 
         {resourceType === "pod" && resource.namespace && (
           <TabsContent value="logs" className="flex-1 overflow-hidden m-0">
-            <LogViewer namespace={resource.namespace} podName={resource.name} logTabId={`detail-${resource.namespace}-${resource.name}`} />
+            <LogViewer
+              namespace={resource.namespace}
+              podName={resource.name}
+              logTabId={`detail-${resource.namespace}-${resource.name}`}
+            />
           </TabsContent>
         )}
 
         {resource.conditions && resource.conditions.length > 0 && (
-          <TabsContent value="conditions" className="flex-1 overflow-hidden m-0">
+          <TabsContent
+            value="conditions"
+            className="flex-1 overflow-hidden m-0"
+          >
             <ConditionsTab conditions={resource.conditions} />
           </TabsContent>
         )}
