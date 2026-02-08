@@ -1,22 +1,26 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
 
-const variants: Record<string, string> = {
-  deployed: "bg-green-500/10 text-green-500",
-  superseded: "bg-muted text-muted-foreground",
-  failed: "bg-destructive/10 text-destructive",
-  uninstalling: "bg-yellow-500/10 text-yellow-500",
-  "pending-install": "bg-blue-500/10 text-blue-500",
-  "pending-upgrade": "bg-blue-500/10 text-blue-500",
-  "pending-rollback": "bg-yellow-500/10 text-yellow-500",
-  uninstalled: "bg-muted text-muted-foreground",
+const variants: Record<string, StatusBadgeTone> = {
+  deployed: "success",
+  superseded: "neutral",
+  failed: "danger",
+  uninstalling: "warning",
+  "pending-install": "info",
+  "pending-upgrade": "info",
+  "pending-rollback": "warning",
+  uninstalled: "neutral",
 };
 
 export function HelmStatusBadge({ status }: { status: string }) {
   return (
     <Badge
       variant="outline"
-      className={cn("border-0 text-[10px]", variants[status] || "bg-muted text-muted-foreground")}
+      className={cn(
+        "border font-medium",
+        getStatusBadgeToneClass(variants[status] || "neutral")
+      )}
     >
       {status}
     </Badge>

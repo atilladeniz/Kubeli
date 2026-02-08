@@ -10,6 +10,7 @@ import type { Column, TranslateFunc } from "../types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { formatAge } from "../lib/utils";
+import { getStatusBadgeToneClass } from "../components/badges/statusBadgeStyles";
 
 // Node columns
 export const nodeColumns: Column<NodeInfo>[] = [
@@ -27,11 +28,10 @@ export const nodeColumns: Column<NodeInfo>[] = [
     sortable: true,
     render: (node) => (
       <Badge
-        variant={node.status === "Ready" ? "default" : "secondary"}
+        variant="outline"
         className={cn(
-          node.status === "Ready"
-            ? "bg-green-500/10 text-green-500 hover:bg-green-500/20"
-            : "bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20"
+          "border font-medium",
+          getStatusBadgeToneClass(node.status === "Ready" ? "success" : "warning")
         )}
       >
         {node.status}
@@ -68,11 +68,10 @@ export function getNodeColumns(t: TranslateFunc): Column<NodeInfo>[] {
       sortable: true,
       render: (node) => (
         <Badge
-          variant={node.status === "Ready" ? "default" : "secondary"}
+          variant="outline"
           className={cn(
-            node.status === "Ready"
-              ? "bg-green-500/10 text-green-500 hover:bg-green-500/20"
-              : "bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20"
+            "border font-medium",
+            getStatusBadgeToneClass(node.status === "Ready" ? "success" : "warning")
           )}
         >
           {node.status}

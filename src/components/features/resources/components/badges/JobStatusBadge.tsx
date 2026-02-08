@@ -1,18 +1,22 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
 
-const variants: Record<string, string> = {
-  Complete: "bg-green-500/10 text-green-500",
-  Running: "bg-blue-500/10 text-blue-500",
-  Failed: "bg-destructive/10 text-destructive",
-  Pending: "bg-yellow-500/10 text-yellow-500",
+const variants: Record<string, StatusBadgeTone> = {
+  Complete: "success",
+  Running: "info",
+  Failed: "danger",
+  Pending: "warning",
 };
 
 export function JobStatusBadge({ status }: { status: string }) {
   return (
     <Badge
       variant="outline"
-      className={cn("border-0", variants[status] || "bg-muted text-muted-foreground")}
+      className={cn(
+        "border font-medium",
+        getStatusBadgeToneClass(variants[status] || "neutral")
+      )}
     >
       {status}
     </Badge>

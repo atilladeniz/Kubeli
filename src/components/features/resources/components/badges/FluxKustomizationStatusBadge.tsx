@@ -1,12 +1,13 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
 
-const variants: Record<string, string> = {
-  ready: "bg-green-500/10 text-green-500",
-  notready: "bg-yellow-500/10 text-yellow-500",
-  reconciling: "bg-blue-500/10 text-blue-500",
-  failed: "bg-destructive/10 text-destructive",
-  unknown: "bg-muted text-muted-foreground",
+const variants: Record<string, StatusBadgeTone> = {
+  ready: "success",
+  notready: "warning",
+  reconciling: "info",
+  failed: "danger",
+  unknown: "neutral",
 };
 
 const labels: Record<string, string> = {
@@ -21,7 +22,10 @@ export function FluxKustomizationStatusBadge({ status }: { status: string }) {
   return (
     <Badge
       variant="outline"
-      className={cn("border-0 text-[10px]", variants[status] || "bg-muted text-muted-foreground")}
+      className={cn(
+        "border font-medium",
+        getStatusBadgeToneClass(variants[status] || "neutral")
+      )}
     >
       {labels[status] || status}
     </Badge>

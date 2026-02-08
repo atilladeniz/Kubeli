@@ -1,17 +1,21 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
 
-const variants: Record<string, string> = {
-  Bound: "bg-green-500/10 text-green-500",
-  Pending: "bg-yellow-500/10 text-yellow-500",
-  Lost: "bg-destructive/10 text-destructive",
+const variants: Record<string, StatusBadgeTone> = {
+  Bound: "success",
+  Pending: "warning",
+  Lost: "danger",
 };
 
 export function PVCStatusBadge({ status }: { status: string }) {
   return (
     <Badge
       variant="outline"
-      className={cn("border-0", variants[status] || "bg-muted text-muted-foreground")}
+      className={cn(
+        "border font-medium",
+        getStatusBadgeToneClass(variants[status] || "neutral")
+      )}
     >
       {status}
     </Badge>

@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { EventTypeBadge } from "../components/badges/EventTypeBadge";
+import { getStatusBadgeToneClass } from "../components/badges/statusBadgeStyles";
 import { formatAge } from "../lib/utils";
 
 // ConfigMap columns
@@ -171,11 +172,10 @@ export const namespaceColumns: Column<NamespaceInfo>[] = [
     sortable: true,
     render: (ns) => (
       <Badge
-        variant={ns.status === "Active" ? "default" : "secondary"}
+        variant="outline"
         className={cn(
-          ns.status === "Active"
-            ? "bg-green-500/10 text-green-500 hover:bg-green-500/20"
-            : "bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20"
+          "border font-medium",
+          getStatusBadgeToneClass(ns.status === "Active" ? "success" : "warning")
         )}
       >
         {ns.status}
@@ -218,11 +218,10 @@ export function getNamespaceColumns(t: TranslateFunc): Column<NamespaceInfo>[] {
       sortable: true,
       render: (ns) => (
         <Badge
-          variant={ns.status === "Active" ? "default" : "secondary"}
+          variant="outline"
           className={cn(
-            ns.status === "Active"
-              ? "bg-green-500/10 text-green-500 hover:bg-green-500/20"
-              : "bg-yellow-500/10 text-yellow-500 hover:bg-yellow-500/20"
+            "border font-medium",
+            getStatusBadgeToneClass(ns.status === "Active" ? "success" : "warning")
           )}
         >
           {ns.status}
