@@ -341,7 +341,7 @@ function DashboardContent() {
     { key: NAVIGATION_SHORTCUTS.FAVORITE_8, meta: true, handler: () => navigateToFavorite(7), description: "Go to Favorite 8" },
     { key: NAVIGATION_SHORTCUTS.FAVORITE_9, meta: true, handler: () => navigateToFavorite(8), description: "Go to Favorite 9" },
     // Tab shortcuts
-    { key: "t", meta: true, handler: () => { if (resourceTabs.length < 10) openTab("cluster-overview", getTabTitle("cluster-overview"), { newTab: true }); }, description: "New tab", global: true },
+    { key: "t", meta: true, handler: () => { if (resourceTabs.length < 10) { openTab("cluster-overview", getTabTitle("cluster-overview"), { newTab: true }); } else { toast.warning(t("tabs.limitToast")); } }, description: "New tab", global: true },
     { key: "w", meta: true, handler: () => { if (resourceTabs.length > 1) closeTab(activeTabId); }, description: "Close current tab", global: true },
     { key: "Tab", meta: true, handler: () => {
       const idx = resourceTabs.findIndex((t) => t.id === activeTabId);
@@ -353,7 +353,7 @@ function DashboardContent() {
       const prevIdx = (idx - 1 + resourceTabs.length) % resourceTabs.length;
       setActiveTab(resourceTabs[prevIdx].id);
     }, description: "Previous tab", global: true },
-  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, openTab, getTabTitle, closeTab, setActiveTab, setActiveResource, triggerRefresh, triggerSearchFocus]);
+  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, openTab, getTabTitle, closeTab, setActiveTab, setActiveResource, triggerRefresh, triggerSearchFocus, t]);
 
   useKeyboardShortcuts(shortcuts, { enabled: isConnected });
 
