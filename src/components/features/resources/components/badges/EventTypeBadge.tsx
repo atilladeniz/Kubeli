@@ -1,5 +1,6 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getStatusBadgeToneClass } from "./statusBadgeStyles";
 
 export function EventTypeBadge({ type }: { type: string }) {
   const isWarning = type === "Warning";
@@ -7,10 +8,8 @@ export function EventTypeBadge({ type }: { type: string }) {
     <Badge
       variant="outline"
       className={cn(
-        "border-0",
-        isWarning
-          ? "bg-yellow-500/10 text-yellow-500"
-          : "bg-blue-500/10 text-blue-500"
+        "border font-medium",
+        getStatusBadgeToneClass(isWarning ? "warning" : "info")
       )}
     >
       {type}
