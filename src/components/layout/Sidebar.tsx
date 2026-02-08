@@ -911,7 +911,7 @@ export function Sidebar({
                   className="w-full justify-start gap-2 px-2 font-medium text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
                 >
                   <Star className="size-4 fill-yellow-500 text-yellow-500" />
-                  <span className="flex-1 text-left">{tNav("favorites")}</span>
+                  <span className="flex-1 text-left">{tNav("quickAccess")}</span>
                   <ChevronRight className="chevron size-3.5 transition-transform" />
                 </Button>
               </CollapsibleTrigger>
