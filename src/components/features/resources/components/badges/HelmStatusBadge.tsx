@@ -13,6 +13,17 @@ const variants: Record<string, StatusBadgeTone> = {
   uninstalled: "neutral",
 };
 
+const labels: Record<string, string> = {
+  deployed: "Deployed",
+  superseded: "Superseded",
+  failed: "Failed",
+  uninstalling: "Uninstalling",
+  "pending-install": "Pending Install",
+  "pending-upgrade": "Pending Upgrade",
+  "pending-rollback": "Pending Rollback",
+  uninstalled: "Uninstalled",
+};
+
 export function HelmStatusBadge({ status }: { status: string }) {
   return (
     <Badge
@@ -22,7 +33,7 @@ export function HelmStatusBadge({ status }: { status: string }) {
         getStatusBadgeToneClass(variants[status] || "neutral")
       )}
     >
-      {status}
+      {labels[status] || status}
     </Badge>
   );
 }
