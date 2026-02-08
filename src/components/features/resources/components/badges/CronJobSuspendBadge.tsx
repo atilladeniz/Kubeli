@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 
 export function CronJobSuspendBadge({ suspend }: { suspend: boolean }) {
-  const t = useTranslations("common");
+  const t = useTranslations("workloads");
 
   return (
     <Badge
@@ -16,7 +16,7 @@ export function CronJobSuspendBadge({ suspend }: { suspend: boolean }) {
           : "bg-green-500/10 text-green-500"
       )}
     >
-      {suspend ? t("yes") : t("no")}
+      {suspend ? t("suspended") : t("active")}
     </Badge>
   );
 }

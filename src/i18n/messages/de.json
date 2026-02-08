@@ -912,6 +912,7 @@
     "schedule": "ZEITPLAN",
     "suspend": "PAUSIERT",
     "active": "AKTIV",
+    "activeJobs": "AKTIVE JOBS",
     "lastSchedule": "LETZTE AUSFÜHRUNG",
     "class": "KLASSE",
     "hosts": "HOSTS",

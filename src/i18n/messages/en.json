@@ -912,6 +912,7 @@
     "schedule": "SCHEDULE",
     "suspend": "SUSPEND",
     "active": "ACTIVE",
+    "activeJobs": "ACTIVE JOBS",
     "lastSchedule": "LAST SCHEDULE",
     "class": "CLASS",
     "hosts": "HOSTS",

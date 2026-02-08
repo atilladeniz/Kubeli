@@ -26,6 +26,7 @@ const columnLabelToKey: Record<string, string> = {
   "SCHEDULE": "columns.schedule",
   "SUSPEND": "columns.suspend",
   "ACTIVE": "columns.active",
+  "ACTIVE JOBS": "columns.activeJobs",
   "LAST SCHEDULE": "columns.lastSchedule",
   "CLASS": "columns.class",
   "HOSTS": "columns.hosts",

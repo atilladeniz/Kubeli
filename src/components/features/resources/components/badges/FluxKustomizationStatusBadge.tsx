@@ -14,15 +14,15 @@ const variants: Record<string, StatusBadgeTone> = {
 };
 
 const statusTranslationKeys: Record<string, string> = {
-  ready: "ready",
-  notready: "notReady",
-  reconciling: "reconciling",
-  failed: "failed",
-  unknown: "unknown",
+  ready: "common.ready",
+  notready: "common.notReady",
+  reconciling: "common.reconciling",
+  failed: "workloads.failed",
+  unknown: "common.unknown",
 };
 
 export function FluxKustomizationStatusBadge({ status }: { status: string }) {
-  const t = useTranslations("common");
+  const t = useTranslations();
   const translationKey = statusTranslationKeys[status];
   const label = translationKey ? t(translationKey) : status;
 

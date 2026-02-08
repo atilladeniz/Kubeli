@@ -483,13 +483,13 @@ export const cronJobColumns: Column<CronJobInfo>[] = [
   },
   {
     key: "suspend",
-    label: "SUSPEND",
+    label: "STATUS",
     sortable: true,
     render: (cj) => <CronJobSuspendBadge suspend={cj.suspend} />,
   },
   {
     key: "active_jobs",
-    label: "ACTIVE",
+    label: "ACTIVE JOBS",
     sortable: true,
     render: (cj) => cj.active_jobs,
   },
