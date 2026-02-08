@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 import { useTranslations } from "next-intl";
 
@@ -1127,11 +1127,19 @@ function FavoriteItem({
   modKey,
 }: FavoriteItemProps) {
   const t = useTranslations();
+  const itemRef = useRef<HTMLDivElement>(null);
   const shortcutKey = index < 9 ? index + 1 : null;
   const canOpenLogs = favorite.resourceType === "pods" && !!favorite.namespace;
 
+  useEffect(() => {
+    if (isActive && itemRef.current) {
+      itemRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    }
+  }, [isActive]);
+
   return (
     <div
+      ref={itemRef}
       className={cn(
         "flex items-start justify-between rounded-md border px-2 py-2 text-xs group overflow-hidden",
         isActive ? "bg-primary/10 border-primary/40" : "bg-muted/50 border-border/50"
