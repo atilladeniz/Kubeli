@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.28] - 2026-02-08
+
+- Fixed tab limit toast not showing when using Cmd+T/Ctrl+T keyboard shortcut
+- Improved SEO for kubeli.dev website
+- Migrated public URLs to kubeli.dev domain
+
 ## [0.3.27] - 2026-02-08
 
 - Fixed pod status badge localization in pods table
