@@ -83,6 +83,8 @@ interface SidebarUiState {
   portForwardsOpen?: boolean;
   favoritesOpen?: boolean;
   recentOpen?: boolean;
+  navFavoritesOpen?: boolean;
+  navFavorites?: ResourceType[];
 }
 
 function readSidebarUiState(): SidebarUiState {
@@ -385,12 +387,39 @@ export function Sidebar({
       ? initialSidebarUiState.recentOpen
       : true
   );
+  const [isNavFavoritesSectionOpen, setIsNavFavoritesSectionOpen] = useState(
+    typeof initialSidebarUiState.navFavoritesOpen === "boolean"
+      ? initialSidebarUiState.navFavoritesOpen
+      : true
+  );
+  const [navFavorites, setNavFavorites] = useState<ResourceType[]>(() => {
+    if (!Array.isArray(initialSidebarUiState.navFavorites)) return [];
+    const unique = new Set<ResourceType>();
+    for (const value of initialSidebarUiState.navFavorites) {
+      if (
+        typeof value === "string" &&
+        implementedViews.includes(value as ResourceType)
+      ) {
+        unique.add(value as ResourceType);
+      }
+    }
+    return Array.from(unique);
+  });
   const navigationSections = useNavigationSections();
   const { modKeySymbol } = usePlatform();
 
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
   const recentResources = getRecentResources(clusterContext).slice(0, 5);
+  const navLabelById = useMemo(() => {
+    const map = new Map<ResourceType, string>();
+    for (const section of navigationSections) {
+      for (const item of section.items) {
+        map.set(item.id, item.label);
+      }
+    }
+    return map;
+  }, [navigationSections]);
   const handleOpenForwardInBrowser = async (port: number) => {
     try {
       const { openUrl } = await import("@tauri-apps/plugin-opener");
@@ -411,6 +440,8 @@ export function Sidebar({
           portForwardsOpen: isPortForwardsSectionOpen,
           favoritesOpen: isFavoritesSectionOpen,
           recentOpen: isRecentSectionOpen,
+          navFavoritesOpen: isNavFavoritesSectionOpen,
+          navFavorites,
         } satisfies SidebarUiState)
       );
     } catch {
@@ -421,7 +452,21 @@ export function Sidebar({
     isPortForwardsSectionOpen,
     isFavoritesSectionOpen,
     isRecentSectionOpen,
+    isNavFavoritesSectionOpen,
+    navFavorites,
   ]);
+
+  const isNavFavorite = (resource: ResourceType): boolean => {
+    return navFavorites.includes(resource);
+  };
+
+  const toggleNavFavorite = (resource: ResourceType) => {
+    setNavFavorites((prev) =>
+      prev.includes(resource)
+        ? prev.filter((r) => r !== resource)
+        : [...prev, resource]
+    );
+  };
 
   return (
     <aside className="flex w-64 shrink-0 flex-col border-r border-border bg-card/50 overflow-hidden">
@@ -853,6 +898,57 @@ export function Sidebar({
       {/* Navigation */}
       <ScrollArea className="flex-1 min-h-0">
         <nav className="p-2 pr-3 pb-4">
+          {navFavorites.length > 0 && (
+            <Collapsible
+              open={isNavFavoritesSectionOpen}
+              onOpenChange={setIsNavFavoritesSectionOpen}
+              className="mb-1"
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start gap-2 px-2 font-medium text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+                >
+                  <Star className="size-4 fill-yellow-500 text-yellow-500" />
+                  <span className="flex-1 text-left">{tNav("favorites")}</span>
+                  <ChevronRight className="chevron size-3.5 transition-transform" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="ml-4 mt-0.5 space-y-0.5">
+                {navFavorites.map((resource) => {
+                  const label = navLabelById.get(resource);
+                  if (!label) return null;
+                  return (
+                    <div key={resource} className="group relative">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onResourceSelect(resource)}
+                        className={cn(
+                          "w-full justify-start px-2 pr-9 font-normal",
+                          activeResource === resource
+                            ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {label}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => toggleNavFavorite(resource)}
+                        className="absolute right-1 top-1/2 size-7 -translate-y-1/2 text-yellow-500 hover:text-yellow-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                        aria-label={`Remove ${label} from favorites`}
+                      >
+                        <Star className="size-3.5 fill-yellow-500 text-yellow-500" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
           {navigationSections.map((section) => (
             <NavSectionCollapsible
               key={section.id}
@@ -860,6 +956,8 @@ export function Sidebar({
               activeResource={activeResource}
               onResourceSelect={onResourceSelect}
               onResourceSelectNewTab={onResourceSelectNewTab}
+              isNavFavorite={isNavFavorite}
+              onToggleNavFavorite={toggleNavFavorite}
               defaultOpen={
                 section.id === "cluster" ||
                 section.id === "workloads" ||
@@ -896,6 +994,8 @@ interface NavSectionCollapsibleProps {
   activeResource: ResourceType;
   onResourceSelect: (resource: ResourceType) => void;
   onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
+  isNavFavorite: (resource: ResourceType) => boolean;
+  onToggleNavFavorite: (resource: ResourceType) => void;
   defaultOpen?: boolean;
   soonLabel: string;
 }
@@ -905,6 +1005,8 @@ function NavSectionCollapsible({
   activeResource,
   onResourceSelect,
   onResourceSelectNewTab,
+  isNavFavorite,
+  onToggleNavFavorite,
   defaultOpen = false,
   soonLabel,
 }: NavSectionCollapsibleProps) {
@@ -924,39 +1026,68 @@ function NavSectionCollapsible({
       <CollapsibleContent className="ml-4 mt-0.5 space-y-0.5">
         {section.items.map((item) => {
           const isImplemented = implementedViews.includes(item.id);
+          const favoriteActive = isNavFavorite(item.id);
           return (
-            <Button
-              key={item.id}
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                if (!isImplemented) return;
-                if ((e.metaKey || e.ctrlKey) && onResourceSelectNewTab) {
-                  onResourceSelectNewTab(item.id, item.label);
-                } else {
-                  onResourceSelect(item.id);
+            <div key={item.id} className="group relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  if (!isImplemented) return;
+                  if ((e.metaKey || e.ctrlKey) && onResourceSelectNewTab) {
+                    onResourceSelectNewTab(item.id, item.label);
+                  } else {
+                    onResourceSelect(item.id);
+                  }
+                }}
+                disabled={!isImplemented}
+                className={cn(
+                  "w-full justify-between px-2 pr-9 font-normal",
+                  activeResource === item.id
+                    ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+                    : isImplemented
+                    ? "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground/50 cursor-not-allowed"
+                )}
+              >
+                <span>{item.label}</span>
+                {!isImplemented && (
+                  <Badge
+                    variant="outline"
+                    className="text-[9px] px-1 py-0 h-4 font-normal opacity-60"
+                  >
+                    {soonLabel}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!isImplemented}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleNavFavorite(item.id);
+                }}
+                className={cn(
+                  "absolute right-1 top-1/2 size-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
+                  favoriteActive
+                    ? "text-yellow-500 hover:text-yellow-400"
+                    : "text-muted-foreground hover:text-yellow-400"
+                )}
+                aria-label={
+                  favoriteActive
+                    ? `Remove ${item.label} from favorites`
+                    : `Add ${item.label} to favorites`
                 }
-              }}
-              disabled={!isImplemented}
-              className={cn(
-                "w-full justify-between px-2 font-normal",
-                activeResource === item.id
-                  ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
-                  : isImplemented
-                  ? "text-muted-foreground hover:text-foreground"
-                  : "text-muted-foreground/50 cursor-not-allowed"
-              )}
-            >
-              <span>{item.label}</span>
-              {!isImplemented && (
-                <Badge
-                  variant="outline"
-                  className="text-[9px] px-1 py-0 h-4 font-normal opacity-60"
-                >
-                  {soonLabel}
-                </Badge>
-              )}
-            </Button>
+              >
+                <Star
+                  className={cn(
+                    "size-3.5",
+                    favoriteActive && "fill-yellow-500 text-yellow-500"
+                  )}
+                />
+              </Button>
+            </div>
           );
         })}
       </CollapsibleContent>
