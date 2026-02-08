@@ -79,7 +79,7 @@ export function ResourceListHeader<T>({
               className={cn(
                 "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
                 activeFilter === null
-                  ? "border-foreground bg-foreground text-background dark:border-zinc-500 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600"
+                  ? "border-foreground bg-foreground text-background dark:border-zinc-500 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600 classic-dark:border-zinc-500 classic-dark:bg-zinc-700 classic-dark:text-zinc-100 classic-dark:hover:bg-zinc-600"
                   : "border-border/70 bg-muted text-foreground/80 hover:bg-muted/80"
               )}
             >
@@ -90,20 +90,20 @@ export function ResourceListHeader<T>({
               const isActive = activeFilter === filter.key;
               const colorClasses = {
                 default: isActive
-                  ? "border-foreground bg-foreground text-background"
+                  ? "border-foreground bg-foreground text-background dark:border-zinc-500 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600 classic-dark:border-zinc-500 classic-dark:bg-zinc-700 classic-dark:text-zinc-100 classic-dark:hover:bg-zinc-600"
                   : "border-border/70 bg-muted text-foreground/80 hover:bg-muted/80",
                 green: isActive
-                  ? "border-green-600 bg-green-600 text-white hover:bg-green-500 dark:border-green-500/70 dark:bg-green-500/30 dark:text-green-100 dark:hover:bg-green-500/35"
-                  : "border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700/60 dark:bg-green-500/15 dark:text-green-300 dark:hover:bg-green-500/25",
+                  ? "border-green-600 bg-green-600 text-white hover:bg-green-500 dark:border-green-500/70 dark:bg-green-500/30 dark:text-green-100 dark:hover:bg-green-500/35 classic-dark:border-green-500/70 classic-dark:bg-green-500/30 classic-dark:text-green-100 classic-dark:hover:bg-green-500/35"
+                  : "border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700/60 dark:bg-green-500/15 dark:text-green-300 dark:hover:bg-green-500/25 classic-dark:border-green-700/60 classic-dark:bg-green-500/15 classic-dark:text-green-300 classic-dark:hover:bg-green-500/25",
                 yellow: isActive
-                  ? "border-amber-500 bg-amber-400 text-amber-950 hover:bg-amber-300 dark:border-amber-500/70 dark:bg-amber-500/30 dark:text-amber-100 dark:hover:bg-amber-500/35"
-                  : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25",
+                  ? "border-amber-500 bg-amber-400 text-amber-950 hover:bg-amber-300 dark:border-amber-500/70 dark:bg-amber-500/30 dark:text-amber-100 dark:hover:bg-amber-500/35 classic-dark:border-amber-500/70 classic-dark:bg-amber-500/30 classic-dark:text-amber-100 classic-dark:hover:bg-amber-500/35"
+                  : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100 dark:border-amber-700/60 dark:bg-amber-500/15 dark:text-amber-300 dark:hover:bg-amber-500/25 classic-dark:border-amber-700/60 classic-dark:bg-amber-500/15 classic-dark:text-amber-300 classic-dark:hover:bg-amber-500/25",
                 red: isActive
-                  ? "border-red-600 bg-red-600 text-white hover:bg-red-500 dark:border-red-500/70 dark:bg-red-500/30 dark:text-red-100 dark:hover:bg-red-500/35"
-                  : "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-700/60 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/25",
+                  ? "border-red-600 bg-red-600 text-white hover:bg-red-500 dark:border-red-500/70 dark:bg-red-500/30 dark:text-red-100 dark:hover:bg-red-500/35 classic-dark:border-red-500/70 classic-dark:bg-red-500/30 classic-dark:text-red-100 classic-dark:hover:bg-red-500/35"
+                  : "border-red-300 bg-red-50 text-red-700 hover:bg-red-100 dark:border-red-700/60 dark:bg-red-500/15 dark:text-red-300 dark:hover:bg-red-500/25 classic-dark:border-red-700/60 classic-dark:bg-red-500/15 classic-dark:text-red-300 classic-dark:hover:bg-red-500/25",
                 blue: isActive
-                  ? "border-blue-600 bg-blue-600 text-white hover:bg-blue-500 dark:border-blue-500/70 dark:bg-blue-500/30 dark:text-blue-100 dark:hover:bg-blue-500/35"
-                  : "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-700/60 dark:bg-blue-500/15 dark:text-blue-300 dark:hover:bg-blue-500/25",
+                  ? "border-blue-600 bg-blue-600 text-white hover:bg-blue-500 dark:border-blue-500/70 dark:bg-blue-500/30 dark:text-blue-100 dark:hover:bg-blue-500/35 classic-dark:border-blue-500/70 classic-dark:bg-blue-500/30 classic-dark:text-blue-100 classic-dark:hover:bg-blue-500/35"
+                  : "border-blue-300 bg-blue-50 text-blue-700 hover:bg-blue-100 dark:border-blue-700/60 dark:bg-blue-500/15 dark:text-blue-300 dark:hover:bg-blue-500/25 classic-dark:border-blue-700/60 classic-dark:bg-blue-500/15 classic-dark:text-blue-300 classic-dark:hover:bg-blue-500/25",
               };
               return (
                 <button
