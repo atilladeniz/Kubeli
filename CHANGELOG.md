@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.27] - 2026-02-08
+
+- Fixed pod status badge localization in pods table
+
 ## [0.3.26] - 2026-02-08
 
 - Fixed status filter chip contrast for better readability
