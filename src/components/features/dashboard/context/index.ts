@@ -1,1 +1,6 @@
-export { ResourceDetailContext, useResourceDetail, type ResourceDetailContextType } from "./ResourceDetailContext";
+export {
+  ResourceDetailContext,
+  useResourceDetail,
+  type ResourceDetailContextType,
+  type OpenResourceDetailResult,
+} from "./ResourceDetailContext";

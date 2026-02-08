@@ -29,6 +29,10 @@ import { DiscardChangesDialog } from "./dialogs/DiscardChangesDialog";
 export type { ResourceDetailProps, ResourceData } from "./types";
 import type { ResourceDetailProps } from "./types";
 
+function normalizeYamlForCompare(value: string): string {
+  return value.replace(/\r\n/g, "\n").replace(/\n$/, "");
+}
+
 export function ResourceDetail({
   resource,
   resourceType,
@@ -41,25 +45,25 @@ export function ResourceDetail({
   const [activeTab, setActiveTab] = useState("overview");
   const [yamlContent, setYamlContent] = useState("");
   const [originalYaml, setOriginalYaml] = useState("");
-  const [hasChanges, setHasChanges] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showDiscardOnClose, setShowDiscardOnClose] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const hasChanges =
+    normalizeYamlForCompare(yamlContent) !==
+    normalizeYamlForCompare(originalYaml);
 
   useEffect(() => {
     if (resource?.yaml) {
       setYamlContent(resource.yaml);
       setOriginalYaml(resource.yaml);
-      setHasChanges(false);
     }
   }, [resource?.yaml]);
 
   const handleYamlChange = (value: string | undefined) => {
     if (value !== undefined) {
       setYamlContent(value);
-      setHasChanges(value !== originalYaml);
     }
   };
 
@@ -70,7 +74,6 @@ export function ResourceDetail({
     try {
       await onSave(yamlContent);
       setOriginalYaml(yamlContent);
-      setHasChanges(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : t("messages.saveError"));
       throw err;
@@ -81,7 +84,6 @@ export function ResourceDetail({
 
   const handleReset = () => {
     setYamlContent(originalYaml);
-    setHasChanges(false);
     setError(null);
   };
 
@@ -122,7 +124,6 @@ export function ResourceDetail({
 
   const handleConfirmClose = () => {
     setShowDiscardOnClose(false);
-    setHasChanges(false);
     onClose();
   };
 
