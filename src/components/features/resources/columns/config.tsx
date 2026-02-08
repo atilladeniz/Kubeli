@@ -6,11 +6,10 @@ import type {
   LeaseInfo,
 } from "@/lib/types";
 import type { Column, TranslateFunc } from "../types";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { EventTypeBadge } from "../components/badges/EventTypeBadge";
-import { getStatusBadgeToneClass } from "../components/badges/statusBadgeStyles";
+import { NamespaceStatusBadge } from "../components/badges/NamespaceStatusBadge";
 import { formatAge } from "../lib/utils";
 
 // ConfigMap columns
@@ -170,17 +169,7 @@ export const namespaceColumns: Column<NamespaceInfo>[] = [
     key: "status",
     label: "STATUS",
     sortable: true,
-    render: (ns) => (
-      <Badge
-        variant="outline"
-        className={cn(
-          "border font-medium",
-          getStatusBadgeToneClass(ns.status === "Active" ? "success" : "warning")
-        )}
-      >
-        {ns.status}
-      </Badge>
-    ),
+    render: (ns) => <NamespaceStatusBadge status={ns.status} />,
   },
   {
     key: "labels",
@@ -216,17 +205,7 @@ export function getNamespaceColumns(t: TranslateFunc): Column<NamespaceInfo>[] {
       key: "status",
       label: t("columns.status"),
       sortable: true,
-      render: (ns) => (
-        <Badge
-          variant="outline"
-          className={cn(
-            "border font-medium",
-            getStatusBadgeToneClass(ns.status === "Active" ? "success" : "warning")
-          )}
-        >
-          {ns.status}
-        </Badge>
-      ),
+      render: (ns) => <NamespaceStatusBadge status={ns.status} />,
     },
     {
       key: "labels",

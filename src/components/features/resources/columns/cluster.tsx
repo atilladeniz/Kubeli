@@ -10,7 +10,7 @@ import type { Column, TranslateFunc } from "../types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { formatAge } from "../lib/utils";
-import { getStatusBadgeToneClass } from "../components/badges/statusBadgeStyles";
+import { NodeStatusBadge } from "../components/badges/NodeStatusBadge";
 
 // Node columns
 export const nodeColumns: Column<NodeInfo>[] = [
@@ -26,17 +26,7 @@ export const nodeColumns: Column<NodeInfo>[] = [
     key: "status",
     label: "STATUS",
     sortable: true,
-    render: (node) => (
-      <Badge
-        variant="outline"
-        className={cn(
-          "border font-medium",
-          getStatusBadgeToneClass(node.status === "Ready" ? "success" : "warning")
-        )}
-      >
-        {node.status}
-      </Badge>
-    ),
+    render: (node) => <NodeStatusBadge status={node.status} />,
   },
   {
     key: "roles",
@@ -66,17 +56,7 @@ export function getNodeColumns(t: TranslateFunc): Column<NodeInfo>[] {
       key: "status",
       label: t("columns.status"),
       sortable: true,
-      render: (node) => (
-        <Badge
-          variant="outline"
-          className={cn(
-            "border font-medium",
-            getStatusBadgeToneClass(node.status === "Ready" ? "success" : "warning")
-          )}
-        >
-          {node.status}
-        </Badge>
-      ),
+      render: (node) => <NodeStatusBadge status={node.status} />,
     },
     {
       key: "roles",

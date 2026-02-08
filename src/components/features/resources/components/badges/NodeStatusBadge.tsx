@@ -5,17 +5,23 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import { getStatusBadgeToneClass } from "./statusBadgeStyles";
 
-export function EventTypeBadge({ type }: { type: string }) {
+const statusTranslationKeys: Record<string, string> = {
+  Ready: "ready",
+  NotReady: "notReady",
+  Unknown: "unknown",
+};
+
+export function NodeStatusBadge({ status }: { status: string }) {
   const t = useTranslations("common");
-  const isWarning = type === "Warning";
-  const label = type === "Warning" ? t("warning") : type === "Normal" ? t("normal") : type;
+  const translationKey = statusTranslationKeys[status];
+  const label = translationKey ? t(translationKey) : status;
 
   return (
     <Badge
       variant="outline"
       className={cn(
         "border font-medium",
-        getStatusBadgeToneClass(isWarning ? "warning" : "info")
+        getStatusBadgeToneClass(status === "Ready" ? "success" : "warning")
       )}
     >
       {label}
