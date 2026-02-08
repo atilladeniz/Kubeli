@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import { Sidebar, type ResourceType } from "@/components/layout/Sidebar";
@@ -16,7 +16,10 @@ import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
-import { useFavoritesStore } from "@/lib/stores/favorites-store";
+import {
+  useFavoritesStore,
+  type FavoriteResource,
+} from "@/lib/stores/favorites-store";
 import { useTabsStore } from "@/lib/stores/tabs-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAIStore } from "@/lib/stores/ai-store";
@@ -32,7 +35,10 @@ import {
   aiCheckCodexCliAvailable,
 } from "@/lib/tauri/commands";
 
-import { ResourceDetailContext } from "./context";
+import {
+  ResourceDetailContext,
+  type OpenResourceDetailResult,
+} from "./context";
 import { ResourceView } from "./views";
 import { NotConnectedState } from "./components";
 import {
@@ -55,6 +61,27 @@ export function Dashboard() {
   );
 }
 
+function toFavoriteResourceType(resourceType: string): string | null {
+  switch (resourceType) {
+    case "pod":
+    case "pods":
+      return "pods";
+    case "deployment":
+    case "deployments":
+      return "deployments";
+    case "service":
+    case "services":
+      return "services";
+    default:
+      return null;
+  }
+}
+
+function isNotFoundError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("NotFound") || message.includes("not found");
+}
+
 function DashboardContent() {
   useDeepLinkNavigation();
   const t = useTranslations();
@@ -68,7 +95,7 @@ function DashboardContent() {
     },
     [navigateCurrentTab, getTabTitle]
   );
-  const { isConnected, currentCluster } = useClusterStore();
+  const { isConnected, currentCluster, setCurrentNamespace } = useClusterStore();
   const { tabs, isOpen, setIsOpen } = useTerminalTabs();
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
 
@@ -76,10 +103,11 @@ function DashboardContent() {
   const [uninstallDialog, setUninstallDialog] = useState<UninstallDialogState | null>(null);
   const [scaleDialog, setScaleDialog] = useState<ScaleDialogState | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
-  const { getFavorites } = useFavoritesStore();
+  const { getFavorites, removeFavorite } = useFavoritesStore();
   const { setSettingsOpen, isAIAssistantOpen, toggleAIAssistant, pendingPodLogs, triggerRefresh, triggerSearchFocus } = useUIStore();
   const { isThinking, isStreaming } = useAIStore();
   const isAIProcessing = isThinking || isStreaming;
+  const detailRequestIdRef = useRef(0);
 
   // AI CLI availability check
   const [isAICliAvailable, setIsAICliAvailable] = useState<boolean | null>(null);
@@ -103,6 +131,33 @@ function DashboardContent() {
 
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
+  const activeFavoriteId = useMemo(() => {
+    if (activeResource === "pod-logs") {
+      const podName = activeTab?.metadata?.podName;
+      const namespace = activeTab?.metadata?.namespace;
+      if (!podName || !namespace) return null;
+      return (
+        favorites.find(
+          (f) =>
+            f.resourceType === "pods" &&
+            f.name === podName &&
+            f.namespace === namespace
+        )?.id ?? null
+      );
+    }
+
+    if (!selectedResource) return null;
+    const favoriteType = toFavoriteResourceType(selectedResource.type);
+    if (!favoriteType) return null;
+    return (
+      favorites.find(
+        (f) =>
+          f.resourceType === favoriteType &&
+          f.name === selectedResource.data.name &&
+          f.namespace === selectedResource.data.namespace
+      )?.id ?? null
+    );
+  }, [activeResource, activeTab, favorites, selectedResource]);
 
   // Restore tabs when cluster connects
   useEffect(() => {
@@ -118,13 +173,147 @@ function DashboardContent() {
     }
   }, [pendingPodLogs, setActiveResource]);
 
+  const openResourceDetail = useCallback(
+    async (
+      resourceType: string,
+      name: string,
+      namespace?: string
+    ): Promise<OpenResourceDetailResult> => {
+      const requestId = ++detailRequestIdRef.current;
+      try {
+        const [yamlData, events] = await Promise.all([
+          getResourceYaml(resourceType, name, namespace),
+          namespace
+            ? listEvents({
+                namespace,
+                field_selector: `involvedObject.name=${name}`,
+              }).catch(() => [])
+            : Promise.resolve([]),
+        ]);
+
+        if (requestId !== detailRequestIdRef.current) {
+          return "stale";
+        }
+
+        setSelectedResource({
+          type: resourceType,
+          data: {
+            name: yamlData.name,
+            namespace: yamlData.namespace || undefined,
+            uid: yamlData.uid,
+            apiVersion: yamlData.api_version,
+            kind: yamlData.kind,
+            createdAt: yamlData.created_at || undefined,
+            labels: yamlData.labels,
+            annotations: yamlData.annotations,
+            yaml: yamlData.yaml,
+            events: events.map((e) => ({
+              type: e.event_type,
+              reason: e.reason,
+              message: e.message,
+              count: e.count,
+              lastTimestamp: e.last_timestamp ?? undefined,
+              firstTimestamp: e.first_timestamp ?? undefined,
+            })),
+          },
+        });
+        return "success";
+      } catch (err) {
+        if (requestId !== detailRequestIdRef.current) {
+          return "stale";
+        }
+        if (isNotFoundError(err)) {
+          return "not_found";
+        }
+        console.error("Failed to load resource details:", err);
+        return "error";
+      }
+    },
+    []
+  );
+
+  const removeMissingFavorite = useCallback(
+    (favorite: FavoriteResource) => {
+      removeFavorite(clusterContext, favorite.id);
+      toast.info(t("favorites.removedMissingResource"), {
+        description: t("favorites.removedMissingResourceDescription", {
+          name: favorite.name,
+        }),
+      });
+    },
+    [clusterContext, removeFavorite, t]
+  );
+
+  const handleFavoriteSelect = useCallback(
+    async (favorite: FavoriteResource) => {
+      setCurrentNamespace("");
+
+      setActiveResource(favorite.resourceType as ResourceType);
+
+      const result = await openResourceDetail(
+        favorite.resourceType,
+        favorite.name,
+        favorite.namespace
+      );
+      if (result === "not_found") {
+        removeMissingFavorite(favorite);
+      }
+    },
+    [
+      openResourceDetail,
+      removeMissingFavorite,
+      setActiveResource,
+      setCurrentNamespace,
+    ]
+  );
+
+  const handleFavoriteOpenLogs = useCallback(
+    async (favorite: FavoriteResource) => {
+      if (favorite.resourceType !== "pods" || !favorite.namespace) {
+        return;
+      }
+
+      setCurrentNamespace("");
+      setActiveResource("pods");
+
+      try {
+        await getResourceYaml("pods", favorite.name, favorite.namespace);
+      } catch (error) {
+        if (isNotFoundError(error)) {
+          removeMissingFavorite(favorite);
+        } else {
+          console.error("Failed to resolve favorite pod logs target:", error);
+        }
+        return;
+      }
+
+      if (resourceTabs.length >= 10) {
+        toast.warning(t("tabs.limitToast"));
+        return;
+      }
+
+      openTab("pod-logs", `Logs: ${favorite.name} (${favorite.namespace})`, {
+        newTab: true,
+        metadata: { namespace: favorite.namespace, podName: favorite.name },
+      });
+    },
+    [
+      openTab,
+      removeMissingFavorite,
+      resourceTabs.length,
+      setActiveResource,
+      setCurrentNamespace,
+      t,
+    ]
+  );
+
   // Navigate to favorite by index
   const navigateToFavorite = useCallback((index: number) => {
     if (index < favorites.length) {
       const fav = favorites[index];
-      setActiveResource(fav.resourceType as ResourceType);
+      void handleFavoriteSelect(fav);
     }
-  }, [favorites, setActiveResource]);
+  }, [favorites, handleFavoriteSelect]);
 
   // Keyboard shortcuts
   const shortcuts = useMemo(() => [
@@ -168,44 +357,6 @@ function DashboardContent() {
 
   useKeyboardShortcuts(shortcuts, { enabled: isConnected });
 
-  const openResourceDetail = async (resourceType: string, name: string, namespace?: string) => {
-    try {
-      const [yamlData, events] = await Promise.all([
-        getResourceYaml(resourceType, name, namespace),
-        namespace
-          ? listEvents({
-              namespace,
-              field_selector: `involvedObject.name=${name}`,
-            }).catch(() => [])
-          : Promise.resolve([]),
-      ]);
-      setSelectedResource({
-        type: resourceType,
-        data: {
-          name: yamlData.name,
-          namespace: yamlData.namespace || undefined,
-          uid: yamlData.uid,
-          apiVersion: yamlData.api_version,
-          kind: yamlData.kind,
-          createdAt: yamlData.created_at || undefined,
-          labels: yamlData.labels,
-          annotations: yamlData.annotations,
-          yaml: yamlData.yaml,
-          events: events.map((e) => ({
-            type: e.event_type,
-            reason: e.reason,
-            message: e.message,
-            count: e.count,
-            lastTimestamp: e.last_timestamp ?? undefined,
-            firstTimestamp: e.first_timestamp ?? undefined,
-          })),
-        },
-      });
-    } catch (err) {
-      console.error("Failed to load resource details:", err);
-    }
-  };
-
   const handleSaveResource = async (yaml: string) => {
     await applyResourceYaml(yaml);
     if (selectedResource) {
@@ -226,7 +377,7 @@ function DashboardContent() {
       selectedResource.data.name,
       selectedResource.data.namespace
     );
-    setSelectedResource(null);
+    closeResourceDetail();
     triggerResourceDeleteRefresh();
   };
 
@@ -257,9 +408,10 @@ function DashboardContent() {
     setScaleDialog({ open: true, name, namespace, currentReplicas, onSuccess });
   };
 
-  const closeResourceDetail = () => {
+  const closeResourceDetail = useCallback(() => {
+    detailRequestIdRef.current += 1;
     setSelectedResource(null);
-  };
+  }, []);
 
   return (
     <ResourceDetailContext.Provider
@@ -276,7 +428,10 @@ function DashboardContent() {
       <div className="flex h-screen bg-background text-foreground overscroll-none">
         <Sidebar
           activeResource={activeResource}
+          activeFavoriteId={activeFavoriteId}
           onResourceSelect={setActiveResource}
+          onFavoriteSelect={handleFavoriteSelect}
+          onFavoriteOpenLogs={handleFavoriteOpenLogs}
           onResourceSelectNewTab={(type) => {
             if (resourceTabs.length >= 10) {
               toast.warning(t("tabs.limitToast"));
@@ -329,7 +484,7 @@ function DashboardContent() {
               <ResourceDetail
                 resource={selectedResource.data}
                 resourceType={selectedResource.type}
-                onClose={() => setSelectedResource(null)}
+                onClose={closeResourceDetail}
                 onSave={handleSaveResource}
                 onDelete={handleDeleteResource}
               />

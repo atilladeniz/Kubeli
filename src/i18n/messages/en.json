@@ -54,7 +54,10 @@
     "labels": "Labels",
     "annotations": "Annotations",
     "ready": "Ready",
-    "reason": "Reason"
+    "reason": "Reason",
+    "toggleSection": "Toggle {section} section",
+    "addToFavorites": "Add {name} to favorites",
+    "removeFromFavorites": "Remove {name} from favorites"
   },
   "navigation": {
     "cluster": "Cluster",
@@ -69,6 +72,8 @@
     "helm": "Helm",
     "diagram": "Diagram",
     "favorites": "Favorites",
+    "pinnedResources": "Pinned Resources",
+    "quickAccess": "Quick Access",
     "recent": "Recent",
     "portForwards": "Port Forwards",
     "overview": "Overview",
@@ -731,7 +736,11 @@
     "add": "Add to Favorites",
     "remove": "Remove from Favorites",
     "noFavorites": "No favorites yet",
-    "addHint": "Star resources to add them here"
+    "addHint": "Star resources to add them here",
+    "openDetails": "Open details",
+    "openLogs": "Open logs",
+    "removedMissingResource": "Favorite removed",
+    "removedMissingResourceDescription": "The resource \"{name}\" no longer exists."
   },
   "metrics": {
     "title": "Metrics",

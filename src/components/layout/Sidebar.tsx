@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 import { useTranslations } from "next-intl";
 
@@ -22,6 +22,9 @@ import {
   Star,
   Clock,
   Trash2,
+  MoreHorizontal,
+  FileText,
+  Eye,
   Check,
   ChevronsUpDown,
   GitBranch,
@@ -62,9 +65,38 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { getNamespaceColor } from "@/lib/utils/colors";
 import { Kbd } from "@/components/ui/kbd";
+
+const SIDEBAR_UI_STATE_STORAGE_KEY = "kubeli-sidebar-ui-state";
+
+interface SidebarUiState {
+  namespaceOpen?: boolean;
+  portForwardsOpen?: boolean;
+  favoritesOpen?: boolean;
+  recentOpen?: boolean;
+  navFavoritesOpen?: boolean;
+  navFavorites?: ResourceType[];
+}
+
+function readSidebarUiState(): SidebarUiState {
+  if (typeof window === "undefined") return {};
+  try {
+    const raw = window.localStorage.getItem(SIDEBAR_UI_STATE_STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as SidebarUiState;
+  } catch {
+    return {};
+  }
+}
 
 export type ResourceType =
   // Cluster
@@ -296,11 +328,21 @@ function useNavigationSections(): NavSection[] {
 
 interface SidebarProps {
   activeResource: ResourceType;
+  activeFavoriteId?: string | null;
   onResourceSelect: (resource: ResourceType) => void;
   onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
+  onFavoriteSelect?: (favorite: FavoriteResource) => void | Promise<void>;
+  onFavoriteOpenLogs?: (favorite: FavoriteResource) => void | Promise<void>;
 }
 
-export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewTab }: SidebarProps) {
+export function Sidebar({
+  activeResource,
+  activeFavoriteId,
+  onResourceSelect,
+  onResourceSelectNewTab,
+  onFavoriteSelect,
+  onFavoriteOpenLogs,
+}: SidebarProps) {
   const t = useTranslations();
   const tNav = useTranslations("navigation");
   const tCluster = useTranslations("cluster");
@@ -322,13 +364,62 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
   const { forwards, stopForward } = usePortForward();
   const { getFavorites, removeFavorite, getRecentResources } =
     useFavoritesStore();
+  const initialSidebarUiState = useMemo(() => readSidebarUiState(), []);
   const [namespaceOpen, setNamespaceOpen] = useState(false);
+  const [isNamespaceSectionOpen, setIsNamespaceSectionOpen] = useState(
+    typeof initialSidebarUiState.namespaceOpen === "boolean"
+      ? initialSidebarUiState.namespaceOpen
+      : true
+  );
+  const [isPortForwardsSectionOpen, setIsPortForwardsSectionOpen] =
+    useState(
+      typeof initialSidebarUiState.portForwardsOpen === "boolean"
+        ? initialSidebarUiState.portForwardsOpen
+        : true
+    );
+  const [isFavoritesSectionOpen, setIsFavoritesSectionOpen] = useState(
+    typeof initialSidebarUiState.favoritesOpen === "boolean"
+      ? initialSidebarUiState.favoritesOpen
+      : true
+  );
+  const [isRecentSectionOpen, setIsRecentSectionOpen] = useState(
+    typeof initialSidebarUiState.recentOpen === "boolean"
+      ? initialSidebarUiState.recentOpen
+      : true
+  );
+  const [isNavFavoritesSectionOpen, setIsNavFavoritesSectionOpen] = useState(
+    typeof initialSidebarUiState.navFavoritesOpen === "boolean"
+      ? initialSidebarUiState.navFavoritesOpen
+      : true
+  );
+  const [navFavorites, setNavFavorites] = useState<ResourceType[]>(() => {
+    if (!Array.isArray(initialSidebarUiState.navFavorites)) return [];
+    const unique = new Set<ResourceType>();
+    for (const value of initialSidebarUiState.navFavorites) {
+      if (
+        typeof value === "string" &&
+        implementedViews.includes(value as ResourceType)
+      ) {
+        unique.add(value as ResourceType);
+      }
+    }
+    return Array.from(unique);
+  });
   const navigationSections = useNavigationSections();
   const { modKeySymbol } = usePlatform();
 
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
   const recentResources = getRecentResources(clusterContext).slice(0, 5);
+  const navLabelById = useMemo(() => {
+    const map = new Map<ResourceType, string>();
+    for (const section of navigationSections) {
+      for (const item of section.items) {
+        map.set(item.id, item.label);
+      }
+    }
+    return map;
+  }, [navigationSections]);
   const handleOpenForwardInBrowser = async (port: number) => {
     try {
       const { openUrl } = await import("@tauri-apps/plugin-opener");
@@ -337,6 +428,44 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
       console.error("Failed to open browser:", err);
       window.open(`http://localhost:${port}`, "_blank");
     }
+  };
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(
+        SIDEBAR_UI_STATE_STORAGE_KEY,
+        JSON.stringify({
+          namespaceOpen: isNamespaceSectionOpen,
+          portForwardsOpen: isPortForwardsSectionOpen,
+          favoritesOpen: isFavoritesSectionOpen,
+          recentOpen: isRecentSectionOpen,
+          navFavoritesOpen: isNavFavoritesSectionOpen,
+          navFavorites,
+        } satisfies SidebarUiState)
+      );
+    } catch {
+      // Ignore storage errors
+    }
+  }, [
+    isNamespaceSectionOpen,
+    isPortForwardsSectionOpen,
+    isFavoritesSectionOpen,
+    isRecentSectionOpen,
+    isNavFavoritesSectionOpen,
+    navFavorites,
+  ]);
+
+  const isNavFavorite = (resource: ResourceType): boolean => {
+    return navFavorites.includes(resource);
+  };
+
+  const toggleNavFavorite = (resource: ResourceType) => {
+    setNavFavorites((prev) =>
+      prev.includes(resource)
+        ? prev.filter((r) => r !== resource)
+        : [...prev, resource]
+    );
   };
 
   return (
@@ -401,176 +530,241 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
 
       <Separator />
 
-      {/* Port Forwards */}
-      {isConnected && forwards.length > 0 && (
-        <>
-          <div className="p-3 overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <button
-                onClick={() => onResourceSelect("port-forwards")}
-                className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
-              >
-                <ArrowRightLeft className="size-3" />
-                {tNav("portForwards")}
-                <Maximize2 className="size-2.5" />
-              </button>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {forwards.length}
-              </Badge>
-            </div>
-            <div
-              className={cn(
-                "space-y-1",
-                forwards.length > 3 && "max-h-[132px] overflow-y-auto pr-1"
-              )}
-            >
-              {forwards.map((forward) => (
-                <div
-                  key={forward.forward_id}
-                  className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden"
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                    <span
-                      className={cn(
-                        "size-1.5 rounded-full shrink-0",
-                        forward.status === "connected"
-                          ? "bg-green-400"
-                          : forward.status === "connecting"
-                          ? "bg-yellow-400 animate-pulse"
-                          : "bg-red-400"
-                      )}
-                    />
-                    <span className="truncate font-medium max-w-[80px]">
-                      {forward.name}
-                    </span>
-                    <span className="text-muted-foreground shrink-0 tabular-nums">
-                      :{forward.local_port}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-0.5 shrink-0 ml-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-foreground"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void handleOpenForwardInBrowser(forward.local_port);
-                      }}
-                      aria-label={`Open localhost:${forward.local_port}`}
-                    >
-                      <ExternalLink className="size-3" />
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-destructive"
-                      onClick={() => stopForward(forward.forward_id)}
-                      aria-label={`Stop ${forward.name} port forward`}
-                    >
-                      <X className="size-3" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <Separator />
-        </>
-      )}
-
       {/* Namespace Selector */}
       {isConnected && namespaces.length > 0 && (
         <>
-          <div className="p-3">
-            <label className="mb-1.5 block text-xs font-medium text-muted-foreground">
-              {tCluster("namespace")}
-            </label>
-            <Popover open={namespaceOpen} onOpenChange={setNamespaceOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={namespaceOpen}
-                  className="w-full justify-between"
-                >
-                  {currentNamespace ? (
-                    <span className="flex items-center gap-2 min-w-0">
-                      <span
-                        className={cn(
-                          "size-2 rounded-full shrink-0",
-                          getNamespaceColor(currentNamespace).dot
-                        )}
-                      />
-                      <span className="truncate">{currentNamespace}</span>
-                    </span>
-                  ) : (
-                    tCluster("allNamespaces")
+          <div className="p-3 overflow-hidden">
+            <Collapsible
+              open={isNamespaceSectionOpen}
+              onOpenChange={setIsNamespaceSectionOpen}
+            >
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
+                    isNamespaceSectionOpen && "mb-2"
                   )}
-                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="min-w-(--radix-popover-trigger-width) p-0"
-                align="start"
-              >
-                <Command>
-                  <CommandInput placeholder={`${t("common.search")}...`} />
-                  <CommandList>
-                    <CommandEmpty>{t("common.noData")}</CommandEmpty>
-                    <CommandGroup>
-                      <CommandItem
-                        value="all"
-                        onSelect={(value) => {
-                          setCurrentNamespace(value === "all" ? "" : value);
-                          setNamespaceOpen(false);
-                        }}
+                  aria-label={t("common.toggleSection", {
+                    section: tCluster("namespace"),
+                  })}
+                >
+                  <span>{tCluster("namespace")}</span>
+                  <span className="flex items-center gap-2">
+                    {!isNamespaceSectionOpen && (
+                      <Badge
+                        variant="secondary"
+                        className="max-w-[130px] px-2 py-0 text-[10px]"
                       >
-                        <Check
-                          className={cn(
-                            "mr-2 size-4",
-                            currentNamespace ? "opacity-0" : "opacity-100"
-                          )}
-                        />
-                        {tCluster("allNamespaces")}
-                      </CommandItem>
-                      {namespaces.map((ns) => {
-                        const color = getNamespaceColor(ns);
-                        return (
+                        <span className="truncate">
+                          {currentNamespace || tCluster("allNamespaces")}
+                        </span>
+                      </Badge>
+                    )}
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 transition-transform",
+                        isNamespaceSectionOpen && "rotate-90"
+                      )}
+                    />
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="space-y-1">
+                <Popover open={namespaceOpen} onOpenChange={setNamespaceOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={namespaceOpen}
+                      className="w-full justify-between"
+                    >
+                      {currentNamespace ? (
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span
+                            className={cn(
+                              "size-2 rounded-full shrink-0",
+                              getNamespaceColor(currentNamespace).dot
+                            )}
+                          />
+                          <span className="truncate">{currentNamespace}</span>
+                        </span>
+                      ) : (
+                        tCluster("allNamespaces")
+                      )}
+                      <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    className="min-w-(--radix-popover-trigger-width) p-0"
+                    align="start"
+                  >
+                    <Command>
+                      <CommandInput placeholder={`${t("common.search")}...`} />
+                      <CommandList>
+                        <CommandEmpty>{t("common.noData")}</CommandEmpty>
+                        <CommandGroup>
                           <CommandItem
-                            key={ns}
-                            value={ns}
+                            value="all"
                             onSelect={(value) => {
-                              setCurrentNamespace(value);
+                              setCurrentNamespace(value === "all" ? "" : value);
                               setNamespaceOpen(false);
                             }}
                           >
                             <Check
                               className={cn(
                                 "mr-2 size-4",
-                                currentNamespace === ns
-                                  ? "opacity-100"
-                                  : "opacity-0"
+                                currentNamespace ? "opacity-0" : "opacity-100"
                               )}
                             />
-                            <span className="flex items-center gap-2">
-                              <span
-                                className={cn(
-                                  "size-2 rounded-full shrink-0",
-                                  color.dot
-                                )}
-                              />
-                              <span>{ns}</span>
-                            </span>
+                            {tCluster("allNamespaces")}
                           </CommandItem>
-                        );
+                          {namespaces.map((ns) => {
+                            const color = getNamespaceColor(ns);
+                            return (
+                              <CommandItem
+                                key={ns}
+                                value={ns}
+                                onSelect={(value) => {
+                                  setCurrentNamespace(value);
+                                  setNamespaceOpen(false);
+                                }}
+                              >
+                                <Check
+                                  className={cn(
+                                    "mr-2 size-4",
+                                    currentNamespace === ns
+                                      ? "opacity-100"
+                                      : "opacity-0"
+                                  )}
+                                />
+                                <span className="flex items-center gap-2">
+                                  <span
+                                    className={cn(
+                                      "size-2 rounded-full shrink-0",
+                                      color.dot
+                                    )}
+                                  />
+                                  <span>{ns}</span>
+                                </span>
+                              </CommandItem>
+                            );
+                          })}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              </CollapsibleContent>
+            </Collapsible>
+          </div>
+          <Separator />
+        </>
+      )}
+
+      {/* Port Forwards */}
+      {isConnected && forwards.length > 0 && (
+        <>
+          <div className="p-3 overflow-hidden">
+            <Collapsible
+              open={isPortForwardsSectionOpen}
+              onOpenChange={setIsPortForwardsSectionOpen}
+            >
+              <div
+                className={cn(
+                  "flex items-center justify-between",
+                  isPortForwardsSectionOpen && "mb-2"
+                )}
+              >
+                <button
+                  onClick={() => onResourceSelect("port-forwards")}
+                  className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
+                >
+                  <ArrowRightLeft className="size-3" />
+                  {tNav("portForwards")}
+                  <Maximize2 className="size-2.5" />
+                </button>
+                <div className="flex items-center gap-1">
+                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                    {forwards.length}
+                  </Badge>
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      className="size-5 p-0 text-muted-foreground hover:text-foreground"
+                      aria-label={t("common.toggleSection", {
+                        section: tNav("portForwards"),
                       })}
-                    </CommandGroup>
-                  </CommandList>
-                </Command>
-              </PopoverContent>
-            </Popover>
+                    >
+                      <ChevronRight
+                        className={cn(
+                          "size-3.5 transition-transform",
+                          isPortForwardsSectionOpen && "rotate-90"
+                        )}
+                      />
+                    </Button>
+                  </CollapsibleTrigger>
+                </div>
+              </div>
+              <CollapsibleContent
+                className={cn(
+                  "space-y-1",
+                  forwards.length > 3 && "max-h-[132px] overflow-y-auto pr-1"
+                )}
+              >
+                {forwards.map((forward) => (
+                  <div
+                    key={forward.forward_id}
+                    className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                      <span
+                        className={cn(
+                          "size-1.5 rounded-full shrink-0",
+                          forward.status === "connected"
+                            ? "bg-green-400"
+                            : forward.status === "connecting"
+                            ? "bg-yellow-400 animate-pulse"
+                            : "bg-red-400"
+                        )}
+                      />
+                      <span className="truncate font-medium max-w-[80px]">
+                        {forward.name}
+                      </span>
+                      <span className="text-muted-foreground shrink-0 tabular-nums">
+                        :{forward.local_port}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-0.5 shrink-0 ml-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-foreground"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void handleOpenForwardInBrowser(forward.local_port);
+                        }}
+                        aria-label={`Open localhost:${forward.local_port}`}
+                      >
+                        <ExternalLink className="size-3" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-destructive"
+                        onClick={() => stopForward(forward.forward_id)}
+                        aria-label={`Stop ${forward.name} port forward`}
+                      >
+                        <X className="size-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           <Separator />
         </>
@@ -580,34 +774,68 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
       {isConnected && favorites.length > 0 && (
         <>
           <div className="p-3 overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <Star className="size-3 fill-yellow-500 text-yellow-500" />
-                {tNav("favorites")}
-              </span>
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                {favorites.length}
-              </Badge>
-            </div>
-            <div
-              className={cn(
-                "space-y-1",
-                favorites.length > 4 && "max-h-[176px] overflow-y-auto pr-1"
-              )}
+            <Collapsible
+              open={isFavoritesSectionOpen}
+              onOpenChange={setIsFavoritesSectionOpen}
             >
-              {favorites.map((fav, index) => (
-                <FavoriteItem
-                  key={fav.id}
-                  favorite={fav}
-                  index={index}
-                  onSelect={() =>
-                    onResourceSelect(fav.resourceType as ResourceType)
-                  }
-                  onRemove={() => removeFavorite(clusterContext, fav.id)}
-                  modKey={modKeySymbol}
-                />
-              ))}
-            </div>
+              <CollapsibleTrigger asChild>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
+                    isFavoritesSectionOpen && "mb-2"
+                  )}
+                  aria-label={t("common.toggleSection", {
+                    section: tNav("pinnedResources"),
+                  })}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Star className="size-3 text-muted-foreground" />
+                    {tNav("pinnedResources")}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {favorites.length}
+                    </Badge>
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 transition-transform",
+                        isFavoritesSectionOpen && "rotate-90"
+                      )}
+                    />
+                  </span>
+                </button>
+              </CollapsibleTrigger>
+              <CollapsibleContent
+                className={cn(
+                  "space-y-1",
+                  favorites.length > 4 && "max-h-[176px] overflow-y-auto pr-1"
+                )}
+              >
+                {favorites.map((fav, index) => (
+                  <FavoriteItem
+                    key={fav.id}
+                    favorite={fav}
+                    index={index}
+                    onSelect={() => {
+                      if (onFavoriteSelect) {
+                        void onFavoriteSelect(fav);
+                        return;
+                      }
+                      onResourceSelect(fav.resourceType as ResourceType);
+                    }}
+                    onRemove={() => removeFavorite(clusterContext, fav.id)}
+                    onOpenLogs={
+                      onFavoriteOpenLogs
+                        ? () => onFavoriteOpenLogs(fav)
+                        : undefined
+                    }
+                    isActive={activeFavoriteId === fav.id}
+                    modKey={modKeySymbol}
+                  />
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           <Separator />
         </>
@@ -617,32 +845,59 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
       {isConnected && recentResources.length > 0 && (
         <>
           <div className="p-3 overflow-hidden">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                <Clock className="size-3" />
-                {tNav("recent")}
-              </span>
-            </div>
-            <div className="space-y-1">
-              {recentResources.map((recent) => (
-                <button
-                  key={`${recent.resourceType}-${recent.name}-${
-                    recent.namespace || ""
-                  }`}
-                  onClick={() =>
-                    onResourceSelect(recent.resourceType as ResourceType)
-                  }
-                  className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                >
-                  <span className="truncate font-medium">{recent.name}</span>
-                  {recent.namespace && (
-                    <span className="text-[10px] text-muted-foreground/60 truncate">
-                      {recent.namespace}
-                    </span>
-                  )}
-                </button>
-              ))}
-            </div>
+            <Collapsible
+              open={isRecentSectionOpen}
+              onOpenChange={setIsRecentSectionOpen}
+            >
+              <div
+                className={cn(
+                  "flex items-center justify-between",
+                  isRecentSectionOpen && "mb-2"
+                )}
+              >
+                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                  <Clock className="size-3" />
+                  {tNav("recent")}
+                </span>
+                <CollapsibleTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    className="size-5 p-0 text-muted-foreground hover:text-foreground"
+                    aria-label={t("common.toggleSection", {
+                      section: tNav("recent"),
+                    })}
+                  >
+                    <ChevronRight
+                      className={cn(
+                        "size-3.5 transition-transform",
+                        isRecentSectionOpen && "rotate-90"
+                      )}
+                    />
+                  </Button>
+                </CollapsibleTrigger>
+              </div>
+              <CollapsibleContent className="space-y-1">
+                {recentResources.map((recent) => (
+                  <button
+                    key={`${recent.resourceType}-${recent.name}-${
+                      recent.namespace || ""
+                    }`}
+                    onClick={() =>
+                      onResourceSelect(recent.resourceType as ResourceType)
+                    }
+                    className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  >
+                    <span className="truncate font-medium">{recent.name}</span>
+                    {recent.namespace && (
+                      <span className="text-[10px] text-muted-foreground/60 truncate">
+                        {recent.namespace}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </CollapsibleContent>
+            </Collapsible>
           </div>
           <Separator />
         </>
@@ -651,6 +906,59 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
       {/* Navigation */}
       <ScrollArea className="flex-1 min-h-0">
         <nav className="p-2 pr-3 pb-4">
+          {navFavorites.length > 0 && (
+            <Collapsible
+              open={isNavFavoritesSectionOpen}
+              onOpenChange={setIsNavFavoritesSectionOpen}
+              className="mb-1"
+            >
+              <CollapsibleTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="w-full justify-start gap-2 px-2 font-medium text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+                >
+                  <Star className="size-4 text-muted-foreground" />
+                  <span className="flex-1 text-left">{tNav("quickAccess")}</span>
+                  <ChevronRight className="chevron size-3.5 transition-transform" />
+                </Button>
+              </CollapsibleTrigger>
+              <CollapsibleContent className="ml-4 mt-0.5 space-y-0.5">
+                {navFavorites.map((resource) => {
+                  const label = navLabelById.get(resource);
+                  if (!label) return null;
+                  return (
+                    <div key={resource} className="group relative">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onResourceSelect(resource)}
+                        className={cn(
+                          "w-full justify-start px-2 pr-9 font-normal",
+                          activeResource === resource
+                            ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+                            : "text-muted-foreground hover:text-foreground"
+                        )}
+                      >
+                        {label}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => toggleNavFavorite(resource)}
+                        className="absolute right-1 top-1/2 size-7 -translate-y-1/2 text-yellow-500 opacity-0 transition-opacity hover:text-yellow-400 group-hover:opacity-100 group-focus-within:opacity-100"
+                        aria-label={t("common.removeFromFavorites", {
+                          name: label,
+                        })}
+                      >
+                        <Star className="size-3.5 fill-yellow-500 text-yellow-500" />
+                      </Button>
+                    </div>
+                  );
+                })}
+              </CollapsibleContent>
+            </Collapsible>
+          )}
           {navigationSections.map((section) => (
             <NavSectionCollapsible
               key={section.id}
@@ -658,6 +966,8 @@ export function Sidebar({ activeResource, onResourceSelect, onResourceSelectNewT
               activeResource={activeResource}
               onResourceSelect={onResourceSelect}
               onResourceSelectNewTab={onResourceSelectNewTab}
+              isNavFavorite={isNavFavorite}
+              onToggleNavFavorite={toggleNavFavorite}
               defaultOpen={
                 section.id === "cluster" ||
                 section.id === "workloads" ||
@@ -694,6 +1004,8 @@ interface NavSectionCollapsibleProps {
   activeResource: ResourceType;
   onResourceSelect: (resource: ResourceType) => void;
   onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
+  isNavFavorite: (resource: ResourceType) => boolean;
+  onToggleNavFavorite: (resource: ResourceType) => void;
   defaultOpen?: boolean;
   soonLabel: string;
 }
@@ -703,9 +1015,12 @@ function NavSectionCollapsible({
   activeResource,
   onResourceSelect,
   onResourceSelectNewTab,
+  isNavFavorite,
+  onToggleNavFavorite,
   defaultOpen = false,
   soonLabel,
 }: NavSectionCollapsibleProps) {
+  const t = useTranslations();
   return (
     <Collapsible defaultOpen={defaultOpen} className="mb-1">
       <CollapsibleTrigger asChild>
@@ -722,39 +1037,68 @@ function NavSectionCollapsible({
       <CollapsibleContent className="ml-4 mt-0.5 space-y-0.5">
         {section.items.map((item) => {
           const isImplemented = implementedViews.includes(item.id);
+          const favoriteActive = isNavFavorite(item.id);
           return (
-            <Button
-              key={item.id}
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                if (!isImplemented) return;
-                if ((e.metaKey || e.ctrlKey) && onResourceSelectNewTab) {
-                  onResourceSelectNewTab(item.id, item.label);
-                } else {
-                  onResourceSelect(item.id);
+            <div key={item.id} className="group relative">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  if (!isImplemented) return;
+                  if ((e.metaKey || e.ctrlKey) && onResourceSelectNewTab) {
+                    onResourceSelectNewTab(item.id, item.label);
+                  } else {
+                    onResourceSelect(item.id);
+                  }
+                }}
+                disabled={!isImplemented}
+                className={cn(
+                  "w-full justify-between px-2 pr-9 font-normal",
+                  activeResource === item.id
+                    ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
+                    : isImplemented
+                    ? "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground/50 cursor-not-allowed"
+                )}
+              >
+                <span>{item.label}</span>
+                {!isImplemented && (
+                  <Badge
+                    variant="outline"
+                    className="text-[9px] px-1 py-0 h-4 font-normal opacity-60"
+                  >
+                    {soonLabel}
+                  </Badge>
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                disabled={!isImplemented}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onToggleNavFavorite(item.id);
+                }}
+                className={cn(
+                  "absolute right-1 top-1/2 size-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
+                  favoriteActive
+                    ? "text-yellow-500 hover:text-yellow-400"
+                    : "text-muted-foreground hover:text-yellow-400"
+                )}
+                aria-label={
+                  favoriteActive
+                    ? t("common.removeFromFavorites", { name: item.label })
+                    : t("common.addToFavorites", { name: item.label })
                 }
-              }}
-              disabled={!isImplemented}
-              className={cn(
-                "w-full justify-between px-2 font-normal",
-                activeResource === item.id
-                  ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
-                  : isImplemented
-                  ? "text-muted-foreground hover:text-foreground"
-                  : "text-muted-foreground/50 cursor-not-allowed"
-              )}
-            >
-              <span>{item.label}</span>
-              {!isImplemented && (
-                <Badge
-                  variant="outline"
-                  className="text-[9px] px-1 py-0 h-4 font-normal opacity-60"
-                >
-                  {soonLabel}
-                </Badge>
-              )}
-            </Button>
+              >
+                <Star
+                  className={cn(
+                    "size-3.5",
+                    favoriteActive && "fill-yellow-500 text-yellow-500"
+                  )}
+                />
+              </Button>
+            </div>
           );
         })}
       </CollapsibleContent>
@@ -768,6 +1112,8 @@ interface FavoriteItemProps {
   index: number;
   onSelect: () => void;
   onRemove: () => void;
+  onOpenLogs?: () => void | Promise<void>;
+  isActive?: boolean;
   modKey: string;
 }
 
@@ -776,39 +1122,83 @@ function FavoriteItem({
   index,
   onSelect,
   onRemove,
+  onOpenLogs,
+  isActive = false,
   modKey,
 }: FavoriteItemProps) {
+  const t = useTranslations();
   const shortcutKey = index < 9 ? index + 1 : null;
+  const canOpenLogs = favorite.resourceType === "pods" && !!favorite.namespace;
 
   return (
-    <div className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden">
+    <div
+      className={cn(
+        "flex items-start justify-between rounded-md border px-2 py-2 text-xs group overflow-hidden",
+        isActive ? "bg-primary/10 border-primary/40" : "bg-muted/50 border-border/50"
+      )}
+    >
       <button
         onClick={onSelect}
-        className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden text-left hover:text-foreground transition-colors"
+        className={cn(
+          "flex min-w-0 flex-1 flex-col items-start gap-0.5 overflow-hidden text-left transition-colors",
+          isActive ? "text-foreground" : "hover:text-foreground"
+        )}
       >
-        <Star className="size-3 shrink-0 fill-yellow-500 text-yellow-500" />
-        <span className="truncate font-medium">{favorite.name}</span>
+        <span className="w-full truncate text-xs font-medium leading-tight">
+          {favorite.name}
+        </span>
         {favorite.namespace && (
-          <span className="text-muted-foreground/60 truncate text-[10px]">
+          <span
+            className={cn(
+              "w-full truncate text-[10px] leading-tight",
+              isActive ? "text-muted-foreground" : "text-muted-foreground/60"
+            )}
+          >
             {favorite.namespace}
           </span>
         )}
       </button>
-      <div className="flex items-center gap-1 shrink-0 ml-1">
+      <div className="ml-1 flex shrink-0 items-center gap-1 self-start">
         {shortcutKey && (
-          <Kbd className="text-[9px] opacity-50 group-hover:opacity-100 transition-opacity">
+          <Kbd
+            className={cn(
+              "text-[9px] transition-opacity",
+              isActive ? "opacity-100" : "opacity-50 group-hover:opacity-100"
+            )}
+          >
             {modKey}{shortcutKey}
           </Kbd>
         )}
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemove();
-          }}
-          className="p-1 rounded hover:bg-background opacity-0 group-hover:opacity-100 transition-opacity"
-        >
-          <Trash2 className="size-3 text-muted-foreground hover:text-destructive" />
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              aria-label={t("common.actions")}
+              className={cn(
+                "p-1 rounded hover:bg-background transition-opacity",
+                isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+              )}
+            >
+              <MoreHorizontal className="size-3 text-muted-foreground" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onSelect()}>
+              <Eye className="size-4" />
+              {t("favorites.openDetails")}
+            </DropdownMenuItem>
+            {canOpenLogs && onOpenLogs && (
+              <DropdownMenuItem onClick={() => onOpenLogs()}>
+                <FileText className="size-4" />
+                {t("favorites.openLogs")}
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem variant="destructive" onClick={() => onRemove()}>
+              <Trash2 className="size-4" />
+              {t("favorites.remove")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </div>
   );

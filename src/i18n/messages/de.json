@@ -54,7 +54,10 @@
     "labels": "Labels",
     "annotations": "Annotationen",
     "ready": "Bereit",
-    "reason": "Grund"
+    "reason": "Grund",
+    "toggleSection": "Bereich {section} umschalten",
+    "addToFavorites": "{name} zu Favoriten hinzufügen",
+    "removeFromFavorites": "{name} aus Favoriten entfernen"
   },
   "navigation": {
     "cluster": "Cluster",
@@ -69,6 +72,8 @@
     "helm": "Helm",
     "diagram": "Diagramm",
     "favorites": "Favoriten",
+    "pinnedResources": "Angepinnte Ressourcen",
+    "quickAccess": "Schnellzugriff",
     "recent": "Zuletzt verwendet",
     "portForwards": "Port-Weiterleitungen",
     "overview": "Übersicht",
@@ -731,7 +736,11 @@
     "add": "Zu Favoriten hinzufügen",
     "remove": "Aus Favoriten entfernen",
     "noFavorites": "Noch keine Favoriten",
-    "addHint": "Markieren Sie Ressourcen mit einem Stern, um sie hier hinzuzufügen"
+    "addHint": "Markieren Sie Ressourcen mit einem Stern, um sie hier hinzuzufügen",
+    "openDetails": "Details öffnen",
+    "openLogs": "Logs öffnen",
+    "removedMissingResource": "Favorit entfernt",
+    "removedMissingResourceDescription": "Die Ressource \"{name}\" existiert nicht mehr."
   },
   "metrics": {
     "title": "Metriken",
