@@ -69,6 +69,7 @@
     "helm": "Helm",
     "diagram": "Diagram",
     "favorites": "Favorites",
+    "pinnedResources": "Pinned Resources",
     "quickAccess": "Quick Access",
     "recent": "Recent",
     "portForwards": "Port Forwards",

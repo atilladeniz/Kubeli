@@ -785,7 +785,7 @@ export function Sidebar({
                 >
                   <span className="flex items-center gap-1.5">
                     <Star className="size-3 fill-yellow-500 text-yellow-500" />
-                    {tNav("favorites")}
+                    {tNav("pinnedResources")}
                   </span>
                   <span className="flex items-center gap-1">
                     <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
