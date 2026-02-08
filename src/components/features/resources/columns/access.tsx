@@ -6,9 +6,10 @@ import type {
   ClusterRoleBindingInfo,
 } from "@/lib/types";
 import type { Column } from "../types";
-import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
+import { BooleanStatusBadge } from "../components/badges/BooleanStatusBadge";
+import { AggregatedBadge } from "../components/badges/AggregatedBadge";
 import { formatAge } from "../lib/utils";
 
 export const serviceAccountColumns: Column<ServiceAccountInfo>[] = [
@@ -46,17 +47,11 @@ export const serviceAccountColumns: Column<ServiceAccountInfo>[] = [
     label: "AUTOMOUNT TOKEN",
     sortable: true,
     render: (sa) => (
-      <Badge
-        variant="outline"
-        className={cn(
-          "border-0",
-          sa.automount_service_account_token !== false
-            ? "bg-green-500/10 text-green-500"
-            : "bg-muted text-muted-foreground"
-        )}
-      >
-        {sa.automount_service_account_token !== false ? "Yes" : "No"}
-      </Badge>
+      <BooleanStatusBadge
+        value={sa.automount_service_account_token !== false}
+        trueKey="common.yes"
+        falseKey="common.no"
+      />
     ),
   },
   {
@@ -153,9 +148,7 @@ export const clusterRoleColumns: Column<ClusterRoleInfo>[] = [
       <div className="flex items-center gap-2">
         <span className="font-medium">{cr.name}</span>
         {cr.aggregation_rule && (
-          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-500/10 text-blue-500">
-            aggregated
-          </Badge>
+          <AggregatedBadge />
         )}
       </div>
     ),

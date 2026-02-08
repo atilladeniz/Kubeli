@@ -11,6 +11,10 @@ import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { formatAge } from "../lib/utils";
 import { NodeStatusBadge } from "../components/badges/NodeStatusBadge";
+import { DefaultBadge } from "../components/badges/DefaultBadge";
+import { BooleanStatusBadge } from "../components/badges/BooleanStatusBadge";
+import { FailurePolicyBadge } from "../components/badges/FailurePolicyBadge";
+import { CrdScopeBadge } from "../components/badges/CrdScopeBadge";
 
 // Node columns
 export const nodeColumns: Column<NodeInfo>[] = [
@@ -99,19 +103,7 @@ export const crdColumns: Column<CRDInfo>[] = [
     key: "scope",
     label: "SCOPE",
     sortable: true,
-    render: (crd) => (
-      <Badge
-        variant="outline"
-        className={cn(
-          "border-0 text-[10px]",
-          crd.scope === "Namespaced"
-            ? "bg-blue-500/10 text-blue-500"
-            : "bg-purple-500/10 text-purple-500"
-        )}
-      >
-        {crd.scope}
-      </Badge>
-    ),
+    render: (crd) => <CrdScopeBadge scope={crd.scope} />,
   },
   {
     key: "versions",
@@ -128,17 +120,13 @@ export const crdColumns: Column<CRDInfo>[] = [
     label: "STATUS",
     sortable: true,
     render: (crd) => (
-      <Badge
-        variant="outline"
-        className={cn(
-          "border-0",
-          crd.conditions_ready
-            ? "bg-green-500/10 text-green-500"
-            : "bg-yellow-500/10 text-yellow-500"
-        )}
-      >
-        {crd.conditions_ready ? "Established" : "Pending"}
-      </Badge>
+      <BooleanStatusBadge
+        value={crd.conditions_ready}
+        trueKey="common.established"
+        falseKey="workloads.pending"
+        trueTone="success"
+        falseTone="warning"
+      />
     ),
   },
   {
@@ -159,9 +147,7 @@ export const priorityClassColumns: Column<PriorityClassInfo>[] = [
       <div className="flex items-center gap-2">
         <span className="font-medium">{pc.name}</span>
         {pc.global_default && (
-          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-yellow-500/10 text-yellow-500">
-            default
-          </Badge>
+          <DefaultBadge className="bg-yellow-500/10 text-yellow-500 border-yellow-500/20" />
         )}
       </div>
     ),
@@ -287,19 +273,7 @@ export const mutatingWebhookColumns: Column<MutatingWebhookInfo>[] = [
     sortable: false,
     render: (mw) => {
       const policy = mw.webhooks[0]?.failure_policy || "-";
-      return (
-        <Badge
-          variant="outline"
-          className={cn(
-            "border-0 text-[10px]",
-            policy === "Fail"
-              ? "bg-red-500/10 text-red-500"
-              : "bg-muted text-muted-foreground"
-          )}
-        >
-          {policy}
-        </Badge>
-      );
+      return <FailurePolicyBadge policy={policy} />;
     },
   },
   {
@@ -347,19 +321,7 @@ export const validatingWebhookColumns: Column<ValidatingWebhookInfo>[] = [
     sortable: false,
     render: (vw) => {
       const policy = vw.webhooks[0]?.failure_policy || "-";
-      return (
-        <Badge
-          variant="outline"
-          className={cn(
-            "border-0 text-[10px]",
-            policy === "Fail"
-              ? "bg-red-500/10 text-red-500"
-              : "bg-muted text-muted-foreground"
-          )}
-        >
-          {policy}
-        </Badge>
-      );
+      return <FailurePolicyBadge policy={policy} />;
     },
   },
   {
