@@ -1,31 +1,35 @@
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
 
-const variants: Record<string, string> = {
-  Running: "bg-green-500/10 text-green-500",
-  Pending: "bg-yellow-500/10 text-yellow-500",
-  Succeeded: "bg-blue-500/10 text-blue-500",
-  Failed: "bg-destructive/10 text-destructive",
-  Terminating: "bg-muted text-muted-foreground",
-  Unknown: "bg-muted text-muted-foreground",
-  CrashLoopBackOff: "bg-destructive/10 text-destructive",
-  Error: "bg-destructive/10 text-destructive",
-  ImagePullBackOff: "bg-yellow-500/10 text-yellow-500",
-  ErrImagePull: "bg-yellow-500/10 text-yellow-500",
-  CreateContainerConfigError: "bg-destructive/10 text-destructive",
-  OOMKilled: "bg-destructive/10 text-destructive",
-  PodInitializing: "bg-yellow-500/10 text-yellow-500",
+const variants: Record<string, StatusBadgeTone> = {
+  Running: "success",
+  Pending: "warning",
+  Succeeded: "info",
+  Failed: "danger",
+  Terminating: "neutral",
+  Unknown: "neutral",
+  CrashLoopBackOff: "danger",
+  Error: "danger",
+  ImagePullBackOff: "warning",
+  ErrImagePull: "warning",
+  CreateContainerConfigError: "danger",
+  OOMKilled: "danger",
+  PodInitializing: "warning",
 };
 
-function getVariant(phase: string): string {
+function getVariant(phase: string): StatusBadgeTone {
   if (variants[phase]) return variants[phase];
-  if (phase.startsWith("Init:")) return "bg-yellow-500/10 text-yellow-500";
+  if (phase.startsWith("Init:")) return "warning";
   return variants.Unknown;
 }
 
 export function PodPhaseBadge({ phase }: { phase: string }) {
   return (
-    <Badge variant="outline" className={cn("border-0", getVariant(phase))}>
+    <Badge
+      variant="outline"
+      className={cn("border font-medium", getStatusBadgeToneClass(getVariant(phase)))}
+    >
       {phase}
     </Badge>
   );
