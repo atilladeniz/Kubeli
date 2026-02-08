@@ -790,7 +790,7 @@ export function Sidebar({
                   })}
                 >
                   <span className="flex items-center gap-1.5">
-                    <Star className="size-3 fill-yellow-500 text-yellow-500" />
+                    <Star className="size-3 text-muted-foreground" />
                     {tNav("pinnedResources")}
                   </span>
                   <span className="flex items-center gap-1">
@@ -918,7 +918,7 @@ export function Sidebar({
                   size="sm"
                   className="w-full justify-start gap-2 px-2 font-medium text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
                 >
-                  <Star className="size-4 fill-yellow-500 text-yellow-500" />
+                  <Star className="size-4 text-muted-foreground" />
                   <span className="flex-1 text-left">{tNav("quickAccess")}</span>
                   <ChevronRight className="chevron size-3.5 transition-transform" />
                 </Button>
@@ -946,7 +946,7 @@ export function Sidebar({
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => toggleNavFavorite(resource)}
-                        className="absolute right-1 top-1/2 size-7 -translate-y-1/2 text-yellow-500 hover:text-yellow-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
+                        className="absolute right-1 top-1/2 size-7 -translate-y-1/2 text-yellow-500 opacity-0 transition-opacity hover:text-yellow-400 group-hover:opacity-100 group-focus-within:opacity-100"
                         aria-label={t("common.removeFromFavorites", {
                           name: label,
                         })}
@@ -1133,28 +1133,24 @@ function FavoriteItem({
   return (
     <div
       className={cn(
-        "flex items-center justify-between rounded-md border px-2 py-1.5 text-xs group overflow-hidden",
+        "flex items-start justify-between rounded-md border px-2 py-2 text-xs group overflow-hidden",
         isActive ? "bg-primary/10 border-primary/40" : "bg-muted/50 border-border/50"
       )}
     >
       <button
         onClick={onSelect}
         className={cn(
-          "flex items-center gap-2 min-w-0 flex-1 overflow-hidden text-left transition-colors",
+          "flex min-w-0 flex-1 flex-col items-start gap-0.5 overflow-hidden text-left transition-colors",
           isActive ? "text-foreground" : "hover:text-foreground"
         )}
       >
-        <Star
-          className={cn(
-            "size-3 shrink-0 fill-yellow-500 text-yellow-500",
-            isActive && "drop-shadow-[0_0_6px_rgba(250,204,21,0.35)]"
-          )}
-        />
-        <span className="truncate font-medium">{favorite.name}</span>
+        <span className="w-full truncate text-xs font-medium leading-tight">
+          {favorite.name}
+        </span>
         {favorite.namespace && (
           <span
             className={cn(
-              "truncate text-[10px]",
+              "w-full truncate text-[10px] leading-tight",
               isActive ? "text-muted-foreground" : "text-muted-foreground/60"
             )}
           >
@@ -1162,7 +1158,7 @@ function FavoriteItem({
           </span>
         )}
       </button>
-      <div className="flex items-center gap-1 shrink-0 ml-1">
+      <div className="ml-1 flex shrink-0 items-center gap-1 self-start">
         {shortcutKey && (
           <Kbd
             className={cn(
