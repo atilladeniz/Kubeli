@@ -203,6 +203,7 @@
     "failed": "Failed",
     "unhealthy": "Unhealthy",
     "unknown": "Unknown",
+    "terminating": "Terminating",
     "containerReady": "Container Ready",
     "podReady": "Pod Ready",
     "ip": "IP",

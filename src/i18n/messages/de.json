@@ -203,6 +203,7 @@
     "failed": "Fehlgeschlagen",
     "unhealthy": "Ungesund",
     "unknown": "Unbekannt",
+    "terminating": "Wird beendet",
     "containerReady": "Container bereit",
     "podReady": "Pod bereit",
     "ip": "IP",
