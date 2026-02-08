@@ -1,5 +1,8 @@
+"use client";
+
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { useTranslations } from "next-intl";
 import { getStatusBadgeToneClass, type StatusBadgeTone } from "./statusBadgeStyles";
 
 const variants: Record<string, StatusBadgeTone> = {
@@ -13,18 +16,22 @@ const variants: Record<string, StatusBadgeTone> = {
   uninstalled: "neutral",
 };
 
-const labels: Record<string, string> = {
-  deployed: "Deployed",
-  superseded: "Superseded",
-  failed: "Failed",
-  uninstalling: "Uninstalling",
-  "pending-install": "Pending Install",
-  "pending-upgrade": "Pending Upgrade",
-  "pending-rollback": "Pending Rollback",
-  uninstalled: "Uninstalled",
+const statusTranslationKeys: Record<string, string> = {
+  deployed: "deployed",
+  superseded: "superseded",
+  failed: "failed",
+  uninstalling: "uninstalling",
+  "pending-install": "pendingInstall",
+  "pending-upgrade": "pendingUpgrade",
+  "pending-rollback": "pendingRollback",
+  uninstalled: "uninstalled",
 };
 
 export function HelmStatusBadge({ status }: { status: string }) {
+  const t = useTranslations("helm");
+  const translationKey = statusTranslationKeys[status];
+  const label = translationKey ? t(translationKey) : status;
+
   return (
     <Badge
       variant="outline"
@@ -33,7 +40,7 @@ export function HelmStatusBadge({ status }: { status: string }) {
         getStatusBadgeToneClass(variants[status] || "neutral")
       )}
     >
-      {labels[status] || status}
+      {label}
     </Badge>
   );
 }

@@ -58,6 +58,7 @@
     "active": "Aktiv",
     "unknown": "Unbekannt",
     "terminating": "Wird beendet",
+    "reconciling": "Abgleich läuft",
     "reason": "Grund",
     "toggleSection": "Bereich {section} umschalten",
     "addToFavorites": "{name} zu Favoriten hinzufügen",
@@ -296,9 +297,13 @@
     "appVersion": "App-Version",
     "chartVersion": "Chart-Version",
     "deployed": "Bereitgestellt",
+    "superseded": "Ersetzt",
     "failed": "Fehlgeschlagen",
+    "uninstalling": "Wird deinstalliert",
     "pendingInstall": "Installation ausstehend",
-    "pendingUpgrade": "Aktualisierung ausstehend"
+    "pendingUpgrade": "Aktualisierung ausstehend",
+    "pendingRollback": "Rollback ausstehend",
+    "uninstalled": "Deinstalliert"
   },
   "logs": {
     "title": "Logs",

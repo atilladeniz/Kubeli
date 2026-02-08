@@ -58,6 +58,7 @@
     "active": "Active",
     "unknown": "Unknown",
     "terminating": "Terminating",
+    "reconciling": "Reconciling",
     "reason": "Reason",
     "toggleSection": "Toggle {section} section",
     "addToFavorites": "Add {name} to favorites",
@@ -296,9 +297,13 @@
     "appVersion": "App Version",
     "chartVersion": "Chart Version",
     "deployed": "Deployed",
+    "superseded": "Superseded",
     "failed": "Failed",
+    "uninstalling": "Uninstalling",
     "pendingInstall": "Pending Install",
-    "pendingUpgrade": "Pending Upgrade"
+    "pendingUpgrade": "Pending Upgrade",
+    "pendingRollback": "Pending Rollback",
+    "uninstalled": "Uninstalled"
   },
   "logs": {
     "title": "Logs",
