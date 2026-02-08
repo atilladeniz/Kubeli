@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.29] - 2026-02-08
+
+- Fixed UI polish: log selection, detail tabs, Cmd+A, sidebar scroll
+- Added supply chain hardening and network audit tooling
+
 ## [0.3.28] - 2026-02-08
 
 - Fixed tab limit toast not showing when using Cmd+T/Ctrl+T keyboard shortcut
