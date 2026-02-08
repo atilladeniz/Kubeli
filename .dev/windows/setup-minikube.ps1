@@ -8,7 +8,7 @@
     and sample resources for testing Kubeli.
 
     Run from URL:
-    irm https://kubeli.atilla.app/setup-minikube.ps1 | iex
+    irm https://kubeli.dev/setup-minikube.ps1 | iex
 
 .NOTES
     Author: Kubeli Team
@@ -107,7 +107,7 @@ EXAMPLES:
     .\setup-minikube.ps1 -CleanOnly
 
 RUN FROM URL:
-    irm https://kubeli.atilla.app/setup-minikube.ps1 | iex
+    irm https://kubeli.dev/setup-minikube.ps1 | iex
 
 "@
 }
