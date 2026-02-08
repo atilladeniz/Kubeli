@@ -9,6 +9,8 @@ import type { Column, TranslateFunc } from "../types";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
+import { BooleanStatusBadge } from "../components/badges/BooleanStatusBadge";
+import { DefaultBadge } from "../components/badges/DefaultBadge";
 import { formatAge } from "../lib/utils";
 
 // Service columns
@@ -136,16 +138,10 @@ export const ingressColumns: Column<IngressInfo>[] = [
     label: "TLS",
     sortable: false,
     render: (ing) => (
-      <Badge
-        variant="outline"
-        className={cn(
-          ing.tls.length > 0
-            ? "bg-green-500/10 text-green-500"
-            : "bg-muted text-muted-foreground"
-        )}
-      >
-        {ing.tls.length > 0 ? "Yes" : "No"}
-      </Badge>
+      <BooleanStatusBadge
+        value={ing.tls.length > 0}
+        variant="yesNo"
+      />
     ),
   },
   {
@@ -295,9 +291,7 @@ export const ingressClassColumns: Column<IngressClassInfo>[] = [
       <div className="flex items-center gap-2">
         <span className="font-medium">{ic.name}</span>
         {ic.is_default && (
-          <Badge variant="outline" className="text-xs bg-primary/10 text-primary">
-            Default
-          </Badge>
+          <DefaultBadge className="text-xs bg-primary/10 text-primary border-primary/20" />
         )}
       </div>
     ),

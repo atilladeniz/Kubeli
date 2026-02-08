@@ -9,10 +9,10 @@ import type {
 } from "@/lib/types";
 import type { Column, TranslateFunc } from "../types";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { PodPhaseBadge } from "../components/badges/PodPhaseBadge";
 import { JobStatusBadge } from "../components/badges/JobStatusBadge";
+import { CronJobSuspendBadge } from "../components/badges/CronJobSuspendBadge";
 import { formatAge, formatDuration } from "../lib/utils";
 import { getEffectivePodStatus } from "@/lib/utils/pod-status";
 
@@ -483,24 +483,13 @@ export const cronJobColumns: Column<CronJobInfo>[] = [
   },
   {
     key: "suspend",
-    label: "SUSPEND",
+    label: "STATUS",
     sortable: true,
-    render: (cj) => (
-      <Badge
-        variant="outline"
-        className={cn(
-          cj.suspend
-            ? "bg-yellow-500/10 text-yellow-500"
-            : "bg-green-500/10 text-green-500"
-        )}
-      >
-        {cj.suspend ? "True" : "False"}
-      </Badge>
-    ),
+    render: (cj) => <CronJobSuspendBadge suspend={cj.suspend} />,
   },
   {
     key: "active_jobs",
-    label: "ACTIVE",
+    label: "ACTIVE JOBS",
     sortable: true,
     render: (cj) => cj.active_jobs,
   },

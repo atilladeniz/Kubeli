@@ -5,22 +5,22 @@ import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
 import {
   getStatusBadgeConfig,
-  helmStatusConfig,
+  nodeStatusConfig,
   resolveBadgeLabel,
 } from "./badgeConfig";
 import { getStatusBadgeToneClass } from "./statusBadgeStyles";
 
-export function HelmStatusBadge({ status }: { status: string }) {
-  const t = useTranslations("helm");
-  const config = getStatusBadgeConfig(helmStatusConfig, status);
-  const label = config ? resolveBadgeLabel(config.label, { helm: t }) : status;
+export function NodeStatusBadge({ status }: { status: string }) {
+  const t = useTranslations("common");
+  const config = getStatusBadgeConfig(nodeStatusConfig, status);
+  const label = config ? resolveBadgeLabel(config.label, { common: t }) : status;
 
   return (
     <Badge
       variant="outline"
       className={cn(
         "border font-medium",
-        getStatusBadgeToneClass(config?.tone || "neutral")
+        getStatusBadgeToneClass(config?.tone || "warning")
       )}
     >
       {label}

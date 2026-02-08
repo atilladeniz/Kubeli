@@ -12,6 +12,7 @@ import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { PVStatusBadge } from "../components/badges/PVStatusBadge";
 import { PVCStatusBadge } from "../components/badges/PVCStatusBadge";
 import { VolumeAttachmentStatusBadge } from "../components/badges/VolumeAttachmentStatusBadge";
+import { DefaultBadge } from "../components/badges/DefaultBadge";
 import { formatAge } from "../lib/utils";
 
 export const pvColumns: Column<PVInfo>[] = [
@@ -130,9 +131,7 @@ export const storageClassColumns: Column<StorageClassInfo>[] = [
       <div className="flex items-center gap-2">
         <span className="font-medium">{sc.name}</span>
         {sc.is_default && (
-          <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-primary/10 text-primary border-primary/20">
-            default
-          </Badge>
+          <DefaultBadge className="bg-primary/10 text-primary border-primary/20" />
         )}
       </div>
     ),
