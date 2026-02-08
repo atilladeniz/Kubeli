@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.26] - 2026-02-08
+
+- Fixed status filter chip contrast for better readability
+- Fixed favorite pod navigation to be actionable
+
 ## [0.3.25] - 2026-02-07
 
 - Added clear buttons and scoped Cmd/Ctrl+A behavior to search fields
