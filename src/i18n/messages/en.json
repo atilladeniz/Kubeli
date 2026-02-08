@@ -54,7 +54,10 @@
     "labels": "Labels",
     "annotations": "Annotations",
     "ready": "Ready",
-    "reason": "Reason"
+    "reason": "Reason",
+    "toggleSection": "Toggle {section} section",
+    "addToFavorites": "Add {name} to favorites",
+    "removeFromFavorites": "Remove {name} from favorites"
   },
   "navigation": {
     "cluster": "Cluster",
@@ -737,9 +740,7 @@
     "openDetails": "Open details",
     "openLogs": "Open logs",
     "removedMissingResource": "Favorite removed",
-    "removedMissingResourceDescription": "The resource \"{name}\" no longer exists.",
-    "removedMissingPod": "Favorite removed",
-    "removedMissingPodDescription": "The pod \"{podName}\" in namespace \"{namespace}\" no longer exists."
+    "removedMissingResourceDescription": "The resource \"{name}\" no longer exists."
   },
   "metrics": {
     "title": "Metrics",

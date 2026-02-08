@@ -545,7 +545,9 @@ export function Sidebar({
                     "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
                     isNamespaceSectionOpen && "mb-2"
                   )}
-                  aria-label={`Toggle ${tCluster("namespace")} section`}
+                  aria-label={t("common.toggleSection", {
+                    section: tCluster("namespace"),
+                  })}
                 >
                   <span>{tCluster("namespace")}</span>
                   <span className="flex items-center gap-2">
@@ -691,7 +693,9 @@ export function Sidebar({
                       variant="ghost"
                       size="icon-sm"
                       className="size-5 p-0 text-muted-foreground hover:text-foreground"
-                      aria-label="Toggle port forwards section"
+                      aria-label={t("common.toggleSection", {
+                        section: tNav("portForwards"),
+                      })}
                     >
                       <ChevronRight
                         className={cn(
@@ -781,7 +785,9 @@ export function Sidebar({
                     "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
                     isFavoritesSectionOpen && "mb-2"
                   )}
-                  aria-label="Toggle favorites section"
+                  aria-label={t("common.toggleSection", {
+                    section: tNav("pinnedResources"),
+                  })}
                 >
                   <span className="flex items-center gap-1.5">
                     <Star className="size-3 fill-yellow-500 text-yellow-500" />
@@ -858,7 +864,9 @@ export function Sidebar({
                     variant="ghost"
                     size="icon-sm"
                     className="size-5 p-0 text-muted-foreground hover:text-foreground"
-                    aria-label="Toggle recent section"
+                    aria-label={t("common.toggleSection", {
+                      section: tNav("recent"),
+                    })}
                   >
                     <ChevronRight
                       className={cn(
@@ -939,7 +947,9 @@ export function Sidebar({
                         size="icon-sm"
                         onClick={() => toggleNavFavorite(resource)}
                         className="absolute right-1 top-1/2 size-7 -translate-y-1/2 text-yellow-500 hover:text-yellow-400 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100"
-                        aria-label={`Remove ${label} from favorites`}
+                        aria-label={t("common.removeFromFavorites", {
+                          name: label,
+                        })}
                       >
                         <Star className="size-3.5 fill-yellow-500 text-yellow-500" />
                       </Button>
@@ -1010,6 +1020,7 @@ function NavSectionCollapsible({
   defaultOpen = false,
   soonLabel,
 }: NavSectionCollapsibleProps) {
+  const t = useTranslations();
   return (
     <Collapsible defaultOpen={defaultOpen} className="mb-1">
       <CollapsibleTrigger asChild>
@@ -1076,8 +1087,8 @@ function NavSectionCollapsible({
                 )}
                 aria-label={
                   favoriteActive
-                    ? `Remove ${item.label} from favorites`
-                    : `Add ${item.label} to favorites`
+                    ? t("common.removeFromFavorites", { name: item.label })
+                    : t("common.addToFavorites", { name: item.label })
                 }
               >
                 <Star

@@ -35,7 +35,10 @@ import {
   aiCheckCodexCliAvailable,
 } from "@/lib/tauri/commands";
 
-import { ResourceDetailContext } from "./context";
+import {
+  ResourceDetailContext,
+  type OpenResourceDetailResult,
+} from "./context";
 import { ResourceView } from "./views";
 import { NotConnectedState } from "./components";
 import {
@@ -57,8 +60,6 @@ export function Dashboard() {
     </TerminalTabsProvider>
   );
 }
-
-type OpenResourceDetailResult = "success" | "not_found" | "error" | "stale";
 
 function toFavoriteResourceType(resourceType: string): string | null {
   switch (resourceType) {
