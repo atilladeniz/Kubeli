@@ -14,8 +14,9 @@ interface LogLineProps {
 }
 
 /**
- * Renders a single log line with optional timestamp and search highlighting.
- * Automatically detects and colors log levels (error, warn, info, debug).
+ * Renders a single log line as inline content (spans + newline).
+ * Must be placed inside a <pre> so that \n produces visible line breaks
+ * and ::selection only highlights text, not full-width blocks.
  *
  * Memoized to prevent unnecessary re-renders when parent updates.
  * Critical for performance with 10k+ log lines.
@@ -42,16 +43,17 @@ export const LogLine = memo(function LogLine({
   }, [log.message, searchQuery, useRegex, searchRegex]);
 
   return (
-    <div className="group flex hover:bg-muted/30">
+    <>
       {showTimestamp && log.timestamp && (
-        <span className="mr-2 shrink-0 text-muted-foreground/60">
+        <span className="mr-2 text-muted-foreground/60">
           {formatTimestamp(log.timestamp)}
         </span>
       )}
       <span className={LOG_LEVEL_COLORS[logLevel] || LOG_LEVEL_COLORS.default}>
         {highlightedMessage}
       </span>
-    </div>
+      {"\n"}
+    </>
   );
 });
 
