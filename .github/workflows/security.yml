@@ -137,6 +137,57 @@ jobs:
           if-no-files-found: ignore
           retention-days: 30
 
+  cargo-deny:
+    name: Cargo Deny (Licenses, Bans, Sources)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          shared-key: ubuntu-rust-deny
+
+      - name: Install cargo-deny
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-deny
+
+      - name: Run cargo-deny
+        working-directory: src-tauri
+        run: cargo deny check
+
+  cargo-audit:
+    name: Cargo Audit (RustSec)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install cargo-audit
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-audit
+
+      - name: Run cargo-audit
+        working-directory: src-tauri
+        run: cargo audit
+
+  lockfile-lint:
+    name: Lockfile Integrity Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Lint lockfile registry sources
+        run: npx lockfile-lint --type npm --path package-lock.json --validate-https --allowed-hosts npm
+
   semgrep:
     name: Semgrep SAST Scan
     runs-on: ubuntu-latest

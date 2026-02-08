@@ -26,3 +26,81 @@ rules:
     message: "Avoid dangerouslySetInnerHTML - XSS risk"
     languages: [typescript, javascript]
     severity: ERROR
+
+  # -- Network call detection (telemetry / phone-home prevention) --
+
+  # Detect direct fetch() calls outside of Tauri command bindings
+  - id: no-direct-fetch
+    patterns:
+      - pattern: fetch(...)
+      - pattern-not-inside: |
+          async function invoke(...) { ... fetch(...) ... }
+    paths:
+      include:
+        - /src/
+      exclude:
+        - /src/**/*.test.*
+        - /src/**/*.spec.*
+        - /src/lib/tauri/
+    message: "Direct fetch() detected. All network requests must go through Tauri commands. If intentional, add a semgrep nosemgrep comment."
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  # Detect XMLHttpRequest usage
+  - id: no-xmlhttprequest
+    pattern: new XMLHttpRequest(...)
+    paths:
+      include:
+        - /src/
+      exclude:
+        - /src/**/*.test.*
+        - /src/**/*.spec.*
+    message: "XMLHttpRequest detected. All network requests must go through Tauri commands."
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  # Detect WebSocket creation (should only be in Tauri backend)
+  - id: no-direct-websocket
+    pattern: new WebSocket(...)
+    paths:
+      include:
+        - /src/
+      exclude:
+        - /src/**/*.test.*
+        - /src/**/*.spec.*
+    message: "Direct WebSocket detected. WebSocket connections should be managed by the Tauri backend."
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  # Detect sendBeacon (commonly used for telemetry)
+  - id: no-sendbeacon
+    pattern: navigator.sendBeacon(...)
+    paths:
+      include:
+        - /src/
+    message: "navigator.sendBeacon() detected - this is commonly used for telemetry. Remove it."
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  # Detect EventSource / Server-Sent Events
+  - id: no-eventsource
+    pattern: new EventSource(...)
+    paths:
+      include:
+        - /src/
+      exclude:
+        - /src/**/*.test.*
+        - /src/**/*.spec.*
+    message: "EventSource detected. All network requests must go through Tauri commands."
+    languages: [typescript, javascript]
+    severity: ERROR
+
+  # Detect known tracking/analytics domains in strings
+  - id: no-tracking-domains
+    pattern-regex: "(google-analytics|googletagmanager|sentry\\.io|segment\\.io|mixpanel|amplitude|hotjar|fullstory|heap\\.io|posthog|plausible\\.io|datadog)"
+    paths:
+      include:
+        - /src/
+    message: "Tracking/analytics domain reference detected. Kubeli must not include any telemetry."
+    languages: [typescript, javascript]
+    severity: ERROR

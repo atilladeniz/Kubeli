@@ -1,0 +1,87 @@
+# cargo-deny configuration for Kubeli
+# https://embarkstudios.github.io/cargo-deny/
+#
+# Run: cd src-tauri && cargo deny check
+
+[graph]
+targets = [
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+    "x86_64-pc-windows-msvc",
+]
+
+# -- Advisories: check for known vulnerabilities in dependencies --
+[advisories]
+version = 2
+db-path = "~/.cargo/advisory-db"
+db-urls = ["https://github.com/rustsec/advisory-db"]
+
+# Ignored advisories (transitive deps outside our control)
+ignore = [
+    # unic-* crates: unmaintained, pulled in by tauri-utils -> urlpattern
+    # No alternative available; tracking upstream fix in tauri
+    "RUSTSEC-2025-0098", # unic-ucd-version
+    "RUSTSEC-2025-0081", # unic-char-property
+    "RUSTSEC-2025-0075", # unic-char-range
+    "RUSTSEC-2025-0080", # unic-common
+    "RUSTSEC-2025-0100", # unic-ucd-ident
+
+    # fxhash: unmaintained, pulled in by tauri ecosystem
+    "RUSTSEC-2025-0057",
+
+    # bytes: integer overflow in BytesMut::reserve, transitive via hyper/tokio
+    "RUSTSEC-2026-0007",
+
+    # serde_json: DoS via stack exhaustion, transitive dep
+    "RUSTSEC-2026-0009",
+]
+
+# -- Licenses: ensure all crate licenses are acceptable --
+[licenses]
+version = 2
+confidence-threshold = 0.8
+
+allow = [
+    "MIT",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "ISC",
+    "Zlib",
+    "0BSD",
+    "Unicode-3.0",
+    "CC0-1.0",
+    "MIT-0",
+    "MPL-2.0",
+    "BSL-1.0",
+    "Unlicense",
+    "OpenSSL",
+    "CDLA-Permissive-2.0",
+]
+
+# [[licenses.exceptions]]
+# allow = ["LGPL-2.1-or-later"]
+# crate = "adler2"
+
+# -- Bans: deny or allow specific crates --
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+highlight = "all"
+
+# Crates that should never be used
+deny = [
+    # Known telemetry / analytics crates
+    { crate = "sentry", wrappers = [] },
+    { crate = "sentry-core", wrappers = [] },
+    { crate = "opentelemetry", wrappers = [] },
+    { crate = "datadog", wrappers = [] },
+]
+
+# -- Sources: ensure crates only come from trusted registries --
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
