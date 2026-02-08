@@ -57,6 +57,11 @@ export function ResourceDetail({
     normalizeYamlForCompare(yamlContent) !==
     normalizeYamlForCompare(originalYaml);
 
+  // Reset to overview tab when switching to a different resource
+  useEffect(() => {
+    setActiveTab("overview");
+  }, [resource?.uid]);
+
   useEffect(() => {
     if (resource?.yaml) {
       setYamlContent(resource.yaml);
