@@ -859,7 +859,10 @@
     "lintErrors": "{count, plural, one {# error} other {# errors}}",
     "lintErrorLine": "Line {line}, Col {col}: {message}",
     "copyError": "Copy Error",
-    "copyAllErrors": "Copy All"
+    "copyAllErrors": "Copy All",
+    "lintNotMapping": "Document must be a YAML mapping (key: value pairs), not a scalar or list",
+    "lintMissingApiVersion": "Missing required field: apiVersion",
+    "lintMissingKind": "Missing required field: kind"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",

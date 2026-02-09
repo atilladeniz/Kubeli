@@ -859,7 +859,10 @@
     "lintErrors": "{count, plural, one {# Fehler} other {# Fehler}}",
     "lintErrorLine": "Zeile {line}, Spalte {col}: {message}",
     "copyError": "Fehlermeldung kopieren",
-    "copyAllErrors": "Alles kopieren"
+    "copyAllErrors": "Alles kopieren",
+    "lintNotMapping": "Dokument muss ein YAML-Mapping sein (Schlüssel: Wert), kein Skalar oder Liste",
+    "lintMissingApiVersion": "Pflichtfeld fehlt: apiVersion",
+    "lintMissingKind": "Pflichtfeld fehlt: kind"
   },
   "shortcuts": {
     "title": "Tastenkürzel",

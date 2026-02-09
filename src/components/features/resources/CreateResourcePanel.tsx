@@ -4,7 +4,7 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import "@/lib/monaco-config";
-import { parseAllDocuments, type YAMLError } from "yaml";
+import { parseAllDocuments, isMap, isScalar, isSeq, type YAMLError } from "yaml";
 import { X, Loader2, CircleAlert, ChevronDown, ChevronUp, Copy, CopyCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -76,13 +76,44 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     try {
       const docs = parseAllDocuments(yamlContent);
       for (const doc of docs) {
+        // Collect syntax errors and warnings
         for (const err of [...doc.errors, ...doc.warnings]) {
           const pos = getErrorPosition(err);
+          errors.push({ line: pos.line, col: pos.col, message: err.message });
+        }
+
+        // Skip structural checks if syntax errors already exist for this doc
+        if (doc.errors.length > 0) continue;
+
+        const content = doc.contents;
+        if (!content) continue;
+
+        const docLine = content.range?.[0] != null
+          ? yamlContent.slice(0, content.range[0]).split("\n").length
+          : 1;
+
+        // Root must be a mapping (not a scalar or sequence)
+        if (isScalar(content)) {
           errors.push({
-            line: pos.line,
-            col: pos.col,
-            message: err.message,
+            line: docLine,
+            col: 1,
+            message: t("lintNotMapping"),
           });
+        } else if (isSeq(content)) {
+          errors.push({
+            line: docLine,
+            col: 1,
+            message: t("lintNotMapping"),
+          });
+        } else if (isMap(content)) {
+          // Check required K8s fields
+          const keys = content.items.map((item) => String(item.key));
+          if (!keys.includes("apiVersion")) {
+            errors.push({ line: docLine, col: 1, message: t("lintMissingApiVersion") });
+          }
+          if (!keys.includes("kind")) {
+            errors.push({ line: docLine, col: 1, message: t("lintMissingKind") });
+          }
         }
       }
     } catch {
@@ -90,7 +121,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     }
 
     setLintErrors(errors);
-  }, [yamlContent]);
+  }, [yamlContent, t]);
 
   // Set Monaco editor markers for inline error squiggles
   useEffect(() => {
