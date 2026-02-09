@@ -48,6 +48,16 @@ const SPEC_LEVEL_KEYS = new Set([
   "matchLabels", "matchExpressions",
 ]);
 
+/** Resource kinds that require a `spec` field at root level. */
+const KINDS_REQUIRING_SPEC = new Set([
+  "Pod", "Deployment", "ReplicaSet", "ReplicationController",
+  "DaemonSet", "StatefulSet", "Job", "CronJob",
+  "Service", "Ingress", "IngressClass", "NetworkPolicy", "EndpointSlice",
+  "HorizontalPodAutoscaler", "PodDisruptionBudget",
+  "PersistentVolume", "PersistentVolumeClaim", "StorageClass",
+  "VerticalPodAutoscaler",
+]);
+
 interface CreateResourcePanelProps {
   onClose: () => void;
   onApplied: () => void;
@@ -138,6 +148,13 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
           }
           if (!keys.includes("kind")) {
             errors.push({ line: docLine, col: 1, message: t("lintMissingKind") });
+          }
+
+          // Check for missing spec on kinds that require it
+          const kindItem = content.items.find((item) => String(item.key) === "kind");
+          const kindValue = kindItem && isScalar(kindItem.value) ? String(kindItem.value) : null;
+          if (kindValue && KINDS_REQUIRING_SPEC.has(kindValue) && !keys.includes("spec")) {
+            errors.push({ line: docLine, col: 1, message: t("lintMissingSpec") });
           }
 
           // Detect keys that should be under spec but appear at root (indentation error)

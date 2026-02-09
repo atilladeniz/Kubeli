@@ -863,6 +863,7 @@
     "lintNotMapping": "Dokument muss ein YAML-Mapping sein (Schlüssel: Wert), kein Skalar oder Liste",
     "lintMissingApiVersion": "Pflichtfeld fehlt: apiVersion",
     "lintMissingKind": "Pflichtfeld fehlt: kind",
+    "lintMissingSpec": "Pflichtfeld fehlt: spec — Einrückung prüfen",
     "lintTabIndent": "Tabs sind in YAML nicht erlaubt — bitte Leerzeichen verwenden",
     "lintMisplacedKey": "\"{key}\" sollte nicht auf Root-Ebene stehen — Einrückung prüfen (gehört unter spec)"
   },

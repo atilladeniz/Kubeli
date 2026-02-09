@@ -863,6 +863,7 @@
     "lintNotMapping": "Document must be a YAML mapping (key: value pairs), not a scalar or list",
     "lintMissingApiVersion": "Missing required field: apiVersion",
     "lintMissingKind": "Missing required field: kind",
+    "lintMissingSpec": "Missing required field: spec — check indentation",
     "lintTabIndent": "Tabs are not allowed for indentation in YAML — use spaces",
     "lintMisplacedKey": "\"{key}\" should not be at root level — check indentation (belongs under spec)"
   },
