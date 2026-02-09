@@ -130,21 +130,31 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
 
   return (
     <div className="flex h-full flex-col bg-background">
-      {/* Header */}
+      {/* Title bar */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold">{t("title")}</h2>
         <Button variant="ghost" size="icon" onClick={onClose} className="size-7">
-          <X className="size-4" />
+          <X className="size-3.5" />
         </Button>
       </div>
 
-      {/* Template selector */}
-      <div className="border-b border-border px-4 py-3">
+      {/* Toolbar: apply + template selector */}
+      <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <Button
+          size="sm"
+          onClick={handleApply}
+          disabled={!yamlContent.trim() || isApplying}
+          className="h-7 text-xs gap-1"
+        >
+          {isApplying && <Loader2 className="size-3 animate-spin" />}
+          {isApplying ? t("applying") : t("apply")}
+        </Button>
+        <div className="flex-1" />
         <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
-          <SelectTrigger className="w-full">
+          <SelectTrigger size="sm" className="w-48">
             <SelectValue placeholder={t("selectTemplate")} />
           </SelectTrigger>
-          <SelectContent position="popper" className="max-h-[40vh]">
+          <SelectContent position="popper" align="end" className="max-h-[40vh]">
             {Object.entries(templatesByCategory).map(([category, templates], index) => (
               <SelectGroup key={category}>
                 {index > 0 && <SelectSeparator />}
@@ -162,6 +172,15 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
           </SelectContent>
         </Select>
       </div>
+
+      {/* Error alert */}
+      {error && (
+        <div className="px-3 py-2 border-b border-border">
+          <Alert variant="destructive">
+            <AlertDescription className="text-xs break-all">{error}</AlertDescription>
+          </Alert>
+        </div>
+      )}
 
       {/* Monaco YAML editor */}
       <div className="flex-1 min-h-0">
@@ -233,23 +252,6 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
         />
       </div>
 
-      {/* Bottom bar */}
-      <div className="border-t border-border px-4 py-3 space-y-2">
-        {error && (
-          <Alert variant="destructive">
-            <AlertDescription className="text-xs break-all">{error}</AlertDescription>
-          </Alert>
-        )}
-        <div className="flex justify-end">
-          <Button
-            onClick={handleApply}
-            disabled={!yamlContent.trim() || isApplying}
-          >
-            {isApplying && <Loader2 className="size-4 animate-spin" />}
-            {isApplying ? t("applying") : t("apply")}
-          </Button>
-        </div>
-      </div>
     </div>
   );
 }
