@@ -5,7 +5,7 @@ import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import "@/lib/monaco-config";
 import { parseAllDocuments, type YAMLError } from "yaml";
-import { X, Loader2, CircleAlert, ChevronDown, ChevronUp } from "lucide-react";
+import { X, Loader2, CircleAlert, ChevronDown, ChevronUp, Copy, CopyCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -18,6 +18,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import {
+  ContextMenu,
+  ContextMenuTrigger,
+  ContextMenuContent,
+  ContextMenuItem,
+} from "@/components/ui/context-menu";
 import { DiscardChangesDialog } from "./dialogs/DiscardChangesDialog";
 import { useTranslations } from "next-intl";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -217,6 +223,21 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     editorInstance.focus();
   }, []);
 
+  const formatLintError = useCallback((err: LintError) => {
+    return `Line ${err.line}, Col ${err.col}: ${err.message}`;
+  }, []);
+
+  const copyErrorToClipboard = useCallback((err: LintError) => {
+    navigator.clipboard.writeText(formatLintError(err));
+    toast.success(tCommon("copied"));
+  }, [formatLintError, tCommon]);
+
+  const copyAllErrorsToClipboard = useCallback(() => {
+    const text = lintErrors.map(formatLintError).join("\n");
+    navigator.clipboard.writeText(text);
+    toast.success(tCommon("copied"));
+  }, [lintErrors, formatLintError, tCommon]);
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Title bar */}
@@ -357,17 +378,30 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
       {showLintPanel && hasLintErrors && (
         <div className="border-t border-border max-h-32 overflow-y-auto bg-muted/50">
           {lintErrors.map((err, i) => (
-            <button
-              key={i}
-              type="button"
-              onClick={() => handleLintErrorClick(err)}
-              className="flex w-full items-start gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/80 transition-colors"
-            >
-              <CircleAlert className="size-3 mt-0.5 shrink-0 text-destructive" />
-              <span className="text-muted-foreground font-mono">
-                {t("lintErrorLine", { line: err.line, col: err.col, message: err.message })}
-              </span>
-            </button>
+            <ContextMenu key={i}>
+              <ContextMenuTrigger asChild>
+                <button
+                  type="button"
+                  onClick={() => handleLintErrorClick(err)}
+                  className="flex w-full items-start gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/80 transition-colors"
+                >
+                  <CircleAlert className="size-3 mt-0.5 shrink-0 text-destructive" />
+                  <span className="text-muted-foreground font-mono">
+                    {t("lintErrorLine", { line: err.line, col: err.col, message: err.message })}
+                  </span>
+                </button>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onClick={() => copyErrorToClipboard(err)}>
+                  <Copy className="size-3.5" />
+                  {t("copyError")}
+                </ContextMenuItem>
+                <ContextMenuItem onClick={copyAllErrorsToClipboard}>
+                  <CopyCheck className="size-3.5" />
+                  {t("copyAllErrors")}
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
           ))}
         </div>
       )}

@@ -857,7 +857,9 @@
       "administration": "Administration"
     },
     "lintErrors": "{count, plural, one {# error} other {# errors}}",
-    "lintErrorLine": "Line {line}, Col {col}: {message}"
+    "lintErrorLine": "Line {line}, Col {col}: {message}",
+    "copyError": "Copy Error",
+    "copyAllErrors": "Copy All"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",

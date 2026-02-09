@@ -857,7 +857,9 @@
       "administration": "Administration"
     },
     "lintErrors": "{count, plural, one {# Fehler} other {# Fehler}}",
-    "lintErrorLine": "Zeile {line}, Spalte {col}: {message}"
+    "lintErrorLine": "Zeile {line}, Spalte {col}: {message}",
+    "copyError": "Fehlermeldung kopieren",
+    "copyAllErrors": "Alles kopieren"
   },
   "shortcuts": {
     "title": "Tastenkürzel",
