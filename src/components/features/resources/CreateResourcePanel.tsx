@@ -4,7 +4,6 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import "@/lib/monaco-config";
-import { parseAllDocuments, isMap, isScalar, isSeq, type YAMLError } from "yaml";
 import { X, Loader2, CircleAlert, ChevronDown, ChevronUp, Copy, CopyCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -37,27 +36,6 @@ interface LintError {
   message: string;
 }
 
-/** Keys that belong under `spec` (or similar), never at document root. */
-const SPEC_LEVEL_KEYS = new Set([
-  "containers", "initContainers", "volumes", "replicas",
-  "selector", "template", "strategy", "minReadySeconds",
-  "revisionHistoryLimit", "progressDeadlineSeconds",
-  "serviceName", "podManagementPolicy", "updateStrategy",
-  "schedule", "jobTemplate", "completions", "parallelism",
-  "backoffLimit", "activeDeadlineSeconds", "suspend",
-  "matchLabels", "matchExpressions",
-]);
-
-/** Resource kinds that require a `spec` field at root level. */
-const KINDS_REQUIRING_SPEC = new Set([
-  "Pod", "Deployment", "ReplicaSet", "ReplicationController",
-  "DaemonSet", "StatefulSet", "Job", "CronJob",
-  "Service", "Ingress", "IngressClass", "NetworkPolicy", "EndpointSlice",
-  "HorizontalPodAutoscaler", "PodDisruptionBudget",
-  "PersistentVolume", "PersistentVolumeClaim", "StorageClass",
-  "VerticalPodAutoscaler",
-]);
-
 interface CreateResourcePanelProps {
   onClose: () => void;
   onApplied: () => void;
@@ -86,120 +64,37 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
 
   const templatesByCategory = getTemplatesByCategory();
 
-  // Real-time YAML linting
+  // Listen to Monaco markers (set by monaco-yaml) to populate lint errors
   useEffect(() => {
-    if (!yamlContent.trim()) {
-      setLintErrors([]);
-      return;
-    }
-
-    const errors: LintError[] = [];
-
-    // Check for tab indentation (forbidden in YAML spec)
-    const lines = yamlContent.split("\n");
-    for (let i = 0; i < lines.length; i++) {
-      const tabMatch = lines[i].match(/^\t+/);
-      if (tabMatch) {
-        errors.push({
-          line: i + 1,
-          col: 1,
-          message: t("lintTabIndent"),
-        });
-      }
-    }
-
-    try {
-      const docs = parseAllDocuments(yamlContent);
-      for (const doc of docs) {
-        // Collect syntax errors and warnings
-        for (const err of [...doc.errors, ...doc.warnings]) {
-          const pos = getErrorPosition(err);
-          errors.push({ line: pos.line, col: pos.col, message: err.message });
-        }
-
-        // Skip structural checks if syntax errors already exist for this doc
-        if (doc.errors.length > 0) continue;
-
-        const content = doc.contents;
-        if (!content) continue;
-
-        const docLine = content.range?.[0] != null
-          ? yamlContent.slice(0, content.range[0]).split("\n").length
-          : 1;
-
-        // Root must be a mapping (not a scalar or sequence)
-        if (isScalar(content)) {
-          errors.push({
-            line: docLine,
-            col: 1,
-            message: t("lintNotMapping"),
-          });
-        } else if (isSeq(content)) {
-          errors.push({
-            line: docLine,
-            col: 1,
-            message: t("lintNotMapping"),
-          });
-        } else if (isMap(content)) {
-          // Check required K8s fields
-          const keys = content.items.map((item) => String(item.key));
-          if (!keys.includes("apiVersion")) {
-            errors.push({ line: docLine, col: 1, message: t("lintMissingApiVersion") });
-          }
-          if (!keys.includes("kind")) {
-            errors.push({ line: docLine, col: 1, message: t("lintMissingKind") });
-          }
-
-          // Check for missing spec on kinds that require it
-          const kindItem = content.items.find((item) => String(item.key) === "kind");
-          const kindValue = kindItem && isScalar(kindItem.value) ? String(kindItem.value) : null;
-          if (kindValue && KINDS_REQUIRING_SPEC.has(kindValue) && !keys.includes("spec")) {
-            errors.push({ line: docLine, col: 1, message: t("lintMissingSpec") });
-          }
-
-          // Detect keys that should be under spec but appear at root (indentation error)
-          for (const item of content.items) {
-            const key = String(item.key);
-            if (SPEC_LEVEL_KEYS.has(key)) {
-              const itemLine = item.key && "range" in (item.key as { range?: number[] })
-                ? yamlContent.slice(0, (item.key as { range: number[] }).range[0]).split("\n").length
-                : docLine;
-              errors.push({
-                line: itemLine,
-                col: 1,
-                message: t("lintMisplacedKey", { key }),
-              });
-            }
-          }
-        }
-      }
-    } catch {
-      errors.push({ line: 1, col: 1, message: "Failed to parse YAML" });
-    }
-
-    setLintErrors(errors);
-  }, [yamlContent, t]);
-
-  // Set Monaco editor markers for inline error squiggles
-  useEffect(() => {
-    const editorInstance = editorRef.current;
     const monacoInstance = monacoRef.current;
-    if (!editorInstance || !monacoInstance) return;
+    const editorInstance = editorRef.current;
+    if (!monacoInstance || !editorInstance) return;
 
     const model = editorInstance.getModel();
     if (!model) return;
 
-    const markers = lintErrors.map((err) => ({
-      severity: monacoInstance.MarkerSeverity.Error,
-      message: err.message,
-      startLineNumber: err.line,
-      startColumn: err.col,
-      endLineNumber: err.line,
-      endColumn: model.getLineMaxColumn(err.line),
-    }));
+    const updateErrors = () => {
+      const markers = monacoInstance.editor.getModelMarkers({ resource: model.uri });
+      setLintErrors(
+        markers.map((m: editor.IMarker) => ({
+          line: m.startLineNumber,
+          col: m.startColumn,
+          message: m.message,
+        }))
+      );
+    };
 
-    monacoInstance.editor.setModelMarkers(model, "yaml-lint", markers);
-  }, [lintErrors]);
+    // Check on mount (markers may already be set)
+    updateErrors();
+
+    const disposable = monacoInstance.editor.onDidChangeMarkers((uris: readonly Monaco["Uri"][]) => {
+      if (uris.some((uri: Monaco["Uri"]) => uri.toString() === model.uri.toString())) {
+        updateErrors();
+      }
+    });
+
+    return () => disposable.dispose();
+  }, []);
 
   const handleTemplateChange = useCallback((value: string) => {
     setSelectedTemplate(value);
@@ -421,6 +316,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
             scrollBeyondLastLine: false,
             automaticLayout: true,
             tabSize: 2,
+            insertSpaces: true,
             wordWrap: settings.editorWordWrap ? "on" : "off",
             readOnly: false,
             smoothScrolling: false,
@@ -446,7 +342,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
             },
             colorDecorators: false,
             links: false,
-            hover: { enabled: false },
+            hover: { enabled: true },
             parameterHints: { enabled: false },
             suggestOnTriggerCharacters: false,
             acceptSuggestionOnEnter: "off",
@@ -506,11 +402,4 @@ function camelCase(str: string): string {
   return str
     .toLowerCase()
     .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase());
-}
-
-function getErrorPosition(err: YAMLError): { line: number; col: number } {
-  if (err.linePos && err.linePos.length > 0) {
-    return { line: err.linePos[0].line, col: err.linePos[0].col };
-  }
-  return { line: 1, col: 1 };
 }
