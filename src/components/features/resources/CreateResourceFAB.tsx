@@ -19,6 +19,8 @@ const HIDDEN_VIEWS = new Set([
   "events",
   "namespaces",
   "port-forwards",
+  "helm-releases",
+  "flux-kustomizations",
 ]);
 
 interface CreateResourceFABProps {
