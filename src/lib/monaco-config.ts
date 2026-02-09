@@ -3,6 +3,7 @@
 import { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
 import { configureMonacoYaml } from "monaco-yaml";
+import YamlWorker from "@/lib/workers/yaml.worker?worker";
 
 // Monaco configuration for Tauri - only runs in browser
 if (typeof window !== "undefined") {
@@ -11,10 +12,7 @@ if (typeof window !== "undefined") {
     getWorker(_, label) {
       switch (label) {
         case "yaml":
-          return new Worker(
-            new URL("monaco-yaml/yaml.worker.js", import.meta.url),
-            { type: "module" }
-          );
+          return new YamlWorker();
         default:
           return new Worker(
             new URL(

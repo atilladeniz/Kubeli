@@ -47,7 +47,6 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
   const { resolvedTheme, settings } = useUIStore();
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
-  const markerDisposableRef = useRef<{ dispose: () => void } | null>(null);
 
   const defaultTemplate = k8sTemplates[0];
   const defaultValue = `${defaultTemplate.category}/${defaultTemplate.kind}`;
@@ -65,9 +64,14 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
 
   const templatesByCategory = getTemplatesByCategory();
 
-  // Clean up marker listener on unmount
-  useEffect(() => {
-    return () => markerDisposableRef.current?.dispose();
+  const handleValidate = useCallback((markers: editor.IMarker[]) => {
+    setLintErrors(
+      markers.map((m) => ({
+        line: m.startLineNumber,
+        col: m.startColumn,
+        message: m.message,
+      }))
+    );
   }, []);
 
   const handleTemplateChange = useCallback((value: string) => {
@@ -141,27 +145,10 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
       }
     );
 
-    // Listen to Monaco markers (set by monaco-yaml) to populate lint errors
+    // Ensure we also pick up markers that already exist on initial mount.
     const model = editorInstance.getModel();
     if (model) {
-      const updateErrors = () => {
-        const markers = monacoInstance.editor.getModelMarkers({ resource: model.uri });
-        setLintErrors(
-          markers.map((m: editor.IMarker) => ({
-            line: m.startLineNumber,
-            col: m.startColumn,
-            message: m.message,
-          }))
-        );
-      };
-
-      markerDisposableRef.current = monacoInstance.editor.onDidChangeMarkers(
-        (uris: readonly Monaco["Uri"][]) => {
-          if (uris.some((uri: Monaco["Uri"]) => uri.toString() === model.uri.toString())) {
-            updateErrors();
-          }
-        }
-      );
+      handleValidate(monacoInstance.editor.getModelMarkers({ resource: model.uri }));
     }
   };
 
@@ -288,6 +275,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
       <div className="flex-1 min-h-0">
         <Editor
           height="100%"
+          path="file:///create-resource.yaml"
           defaultLanguage="yaml"
           value={yamlContent}
           onChange={(value) => {
@@ -295,6 +283,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
             setError(null);
           }}
           onMount={handleEditorMount}
+          onValidate={handleValidate}
           theme={
             resolvedTheme === "dark" || resolvedTheme === "classic-dark"
               ? "vs-dark"
