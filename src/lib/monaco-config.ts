@@ -1,5 +1,7 @@
 "use client";
 
+import { loader } from "@monaco-editor/react";
+import * as monaco from "monaco-editor";
 import { configureMonacoYaml } from "monaco-yaml";
 
 // Monaco configuration for Tauri - only runs in browser
@@ -25,20 +27,16 @@ if (typeof window !== "undefined") {
     },
   };
 
-  // Dynamically import and configure Monaco only on client side
-  import("@monaco-editor/react").then(({ loader }) => {
-    import("monaco-editor").then((monaco) => {
-      loader.config({ monaco });
+  // Configure loader to use local monaco-editor (not CDN)
+  loader.config({ monaco });
 
-      // Configure YAML language support with K8s schema validation
-      configureMonacoYaml(monaco, {
-        isKubernetes: true,
-        enableSchemaRequest: true,
-        validate: true,
-        completion: true,
-        hover: true,
-        format: true,
-      });
-    });
+  // Configure YAML language support with K8s schema validation
+  configureMonacoYaml(monaco, {
+    isKubernetes: true,
+    enableSchemaRequest: true,
+    validate: true,
+    completion: true,
+    hover: true,
+    format: true,
   });
 }
