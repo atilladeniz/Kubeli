@@ -102,6 +102,9 @@ interface UIState {
   refreshTrigger: number;
   searchFocusTrigger: number;
 
+  // Create resource panel state
+  isCreateResourceOpen: boolean;
+
   // Actions
   setTheme: (theme: Theme) => void;
   setLocale: (locale: Locale) => void;
@@ -117,6 +120,7 @@ interface UIState {
   triggerResourceDeleteRefresh: () => void;
   triggerRefresh: () => void;
   triggerSearchFocus: () => void;
+  setCreateResourceOpen: (open: boolean) => void;
 }
 
 // Helper to get valid vibrancy level
@@ -139,6 +143,7 @@ export const useUIStore = create<UIState>()(
       resourceDeleteTrigger: 0,
       refreshTrigger: 0,
       searchFocusTrigger: 0,
+      isCreateResourceOpen: false,
 
       setTheme: (theme) => {
         set((state) => ({
@@ -203,6 +208,8 @@ export const useUIStore = create<UIState>()(
 
       triggerSearchFocus: () =>
         set((state) => ({ searchFocusTrigger: state.searchFocusTrigger + 1 })),
+
+      setCreateResourceOpen: (open) => set({ isCreateResourceOpen: open }),
     }),
     {
       name: "kubeli-ui-settings",
