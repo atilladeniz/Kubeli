@@ -76,7 +76,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     try {
       const docs = parseAllDocuments(yamlContent);
       for (const doc of docs) {
-        for (const err of doc.errors) {
+        for (const err of [...doc.errors, ...doc.warnings]) {
           const pos = getErrorPosition(err);
           errors.push({
             line: pos.line,
@@ -380,16 +380,19 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
           {lintErrors.map((err, i) => (
             <ContextMenu key={i}>
               <ContextMenuTrigger asChild>
-                <button
-                  type="button"
-                  onClick={() => handleLintErrorClick(err)}
-                  className="flex w-full items-start gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/80 transition-colors"
-                >
-                  <CircleAlert className="size-3 mt-0.5 shrink-0 text-destructive" />
-                  <span className="text-muted-foreground font-mono">
+                <div className="flex w-full items-start gap-2 px-3 py-1.5 text-xs hover:bg-muted/80 transition-colors">
+                  <button
+                    type="button"
+                    onClick={() => handleLintErrorClick(err)}
+                    className="mt-0.5 shrink-0 cursor-pointer"
+                    title={`Go to line ${err.line}`}
+                  >
+                    <CircleAlert className="size-3 text-destructive" />
+                  </button>
+                  <span className="text-muted-foreground font-mono select-text cursor-text">
                     {t("lintErrorLine", { line: err.line, col: err.col, message: err.message })}
                   </span>
-                </button>
+                </div>
               </ContextMenuTrigger>
               <ContextMenuContent>
                 <ContextMenuItem onClick={() => copyErrorToClipboard(err)}>
