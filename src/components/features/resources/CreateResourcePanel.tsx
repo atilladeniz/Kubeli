@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { DiscardChangesDialog } from "./dialogs/DiscardChangesDialog";
 import { useTranslations } from "next-intl";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { applyResourceYaml } from "@/lib/tauri/commands";
@@ -39,8 +40,12 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
   const defaultValue = `${defaultTemplate.category}/${defaultTemplate.kind}`;
   const [yamlContent, setYamlContent] = useState(defaultTemplate.yaml);
   const [selectedTemplate, setSelectedTemplate] = useState<string>(defaultValue);
+  const [templateYaml, setTemplateYaml] = useState(defaultTemplate.yaml);
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+
+  const hasChanges = yamlContent !== templateYaml;
 
   const templatesByCategory = getTemplatesByCategory();
 
@@ -48,7 +53,6 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     setSelectedTemplate(value);
     setError(null);
 
-    // Find template by "category/kind" value
     const [category, kind] = value.split("/");
     let template: K8sTemplate | undefined;
     for (const templates of Object.values(templatesByCategory)) {
@@ -58,6 +62,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
 
     if (template) {
       setYamlContent(template.yaml);
+      setTemplateYaml(template.yaml);
     }
   }, [templatesByCategory]);
 
@@ -80,6 +85,26 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     }
   }, [yamlContent, t, onApplied, onClose]);
 
+  // Ref so Monaco addCommand always sees the latest handleApply
+  const handleApplyRef = useRef(handleApply);
+  handleApplyRef.current = handleApply;
+
+  const requestClose = useCallback(() => {
+    if (hasChanges) {
+      setShowDiscardDialog(true);
+    } else {
+      onClose();
+    }
+  }, [hasChanges, onClose]);
+
+  const requestCloseRef = useRef(requestClose);
+  requestCloseRef.current = requestClose;
+
+  const handleConfirmDiscard = () => {
+    setShowDiscardDialog(false);
+    onClose();
+  };
+
   const handleEditorMount = (
     editorInstance: editor.IStandaloneCodeEditor,
     monacoInstance: Monaco
@@ -91,7 +116,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     editorInstance.addCommand(
       monacoInstance.KeyMod.CtrlCmd | monacoInstance.KeyCode.KeyS,
       () => {
-        handleApply();
+        handleApplyRef.current();
       }
     );
   };
@@ -106,34 +131,32 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
         if (findController?.getState?.()?.isRevealed) return;
         e.preventDefault();
         e.stopPropagation();
-        onClose();
+        requestCloseRef.current();
       }
     });
     return () => disposable.dispose();
-  }, [onClose]);
+  }, []);
 
   // Global ESC handler for when editor doesn't have focus
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        // Don't close if typing in select
         const target = e.target as HTMLElement;
         if (target.closest("[data-radix-select-content]")) return;
-        // Don't close if Monaco has focus (handled by editor's own ESC handler)
         if (target.closest(".monaco-editor")) return;
-        onClose();
+        requestCloseRef.current();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose]);
+  }, []);
 
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Title bar */}
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <h2 className="text-sm font-semibold">{t("title")}</h2>
-        <Button variant="ghost" size="icon" onClick={onClose} className="size-7">
+        <Button variant="ghost" size="icon" onClick={requestClose} className="size-7">
           <X className="size-3.5" />
         </Button>
       </div>
@@ -252,6 +275,11 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
         />
       </div>
 
+      <DiscardChangesDialog
+        open={showDiscardDialog}
+        onOpenChange={setShowDiscardDialog}
+        onConfirm={handleConfirmDiscard}
+      />
     </div>
   );
 }
