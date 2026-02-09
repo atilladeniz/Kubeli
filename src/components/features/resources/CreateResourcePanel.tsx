@@ -376,30 +376,26 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
 
       {/* Lint errors panel */}
       {showLintPanel && hasLintErrors && (
-        <div className="border-t border-border max-h-32 overflow-y-auto bg-muted/50">
+        <div className="border-t border-border max-h-32 overflow-y-auto bg-muted/50 cursor-text select-text">
           {lintErrors.map((err, i) => (
             <ContextMenu key={i}>
               <ContextMenuTrigger asChild>
-                <div className="flex w-full items-start gap-2 px-3 py-1.5 text-xs hover:bg-muted/80 transition-colors">
-                  <button
-                    type="button"
-                    onClick={() => handleLintErrorClick(err)}
-                    className="mt-0.5 shrink-0 cursor-pointer"
-                    title={`Go to line ${err.line}`}
-                  >
-                    <CircleAlert className="size-3 text-destructive" />
-                  </button>
-                  <span className="text-muted-foreground font-mono select-text cursor-text">
+                <div
+                  className="flex w-full items-start gap-2 px-3 py-1.5 text-xs hover:bg-muted/80 transition-colors"
+                  onDoubleClick={() => handleLintErrorClick(err)}
+                >
+                  <CircleAlert className="size-3 mt-0.5 shrink-0 text-destructive" />
+                  <span className="text-muted-foreground font-mono">
                     {t("lintErrorLine", { line: err.line, col: err.col, message: err.message })}
                   </span>
                 </div>
               </ContextMenuTrigger>
               <ContextMenuContent>
-                <ContextMenuItem onClick={() => copyErrorToClipboard(err)}>
+                <ContextMenuItem onSelect={() => copyErrorToClipboard(err)}>
                   <Copy className="size-3.5" />
                   {t("copyError")}
                 </ContextMenuItem>
-                <ContextMenuItem onClick={copyAllErrorsToClipboard}>
+                <ContextMenuItem onSelect={copyAllErrorsToClipboard}>
                   <CopyCheck className="size-3.5" />
                   {t("copyAllErrors")}
                 </ContextMenuItem>
