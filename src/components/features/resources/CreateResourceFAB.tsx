@@ -40,7 +40,7 @@ export function CreateResourceFAB({ activeResource, onClick }: CreateResourceFAB
         <Button
           size="icon"
           onClick={onClick}
-          className="absolute bottom-6 right-6 z-10 size-12 rounded-full shadow-lg"
+          className="absolute bottom-6 right-6 z-10 size-12 rounded-full shadow-lg border border-border"
         >
           <Plus className="size-6" />
         </Button>
