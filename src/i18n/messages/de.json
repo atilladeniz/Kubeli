@@ -855,7 +855,9 @@
       "storage": "Speicher",
       "accessControl": "Zugriffskontrolle",
       "administration": "Administration"
-    }
+    },
+    "lintErrors": "{count, plural, one {# Fehler} other {# Fehler}}",
+    "lintErrorLine": "Zeile {line}, Spalte {col}: {message}"
   },
   "shortcuts": {
     "title": "Tastenkürzel",

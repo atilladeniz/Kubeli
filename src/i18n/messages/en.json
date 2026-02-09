@@ -855,7 +855,9 @@
       "storage": "Storage",
       "accessControl": "Access Control",
       "administration": "Administration"
-    }
+    },
+    "lintErrors": "{count, plural, one {# error} other {# errors}}",
+    "lintErrorLine": "Line {line}, Col {col}: {message}"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",

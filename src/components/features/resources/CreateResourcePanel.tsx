@@ -4,7 +4,8 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import "@/lib/monaco-config";
-import { X, Loader2 } from "lucide-react";
+import { parseAllDocuments, type YAMLError } from "yaml";
+import { X, Loader2, CircleAlert, ChevronDown, ChevronUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Select,
@@ -23,6 +24,12 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { applyResourceYaml } from "@/lib/tauri/commands";
 import { toast } from "sonner";
 import { k8sTemplates, getTemplatesByCategory, type K8sTemplate } from "@/lib/templates/k8s-templates";
+
+interface LintError {
+  line: number;
+  col: number;
+  message: string;
+}
 
 interface CreateResourcePanelProps {
   onClose: () => void;
@@ -44,10 +51,61 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
+  const [lintErrors, setLintErrors] = useState<LintError[]>([]);
+  const [showLintPanel, setShowLintPanel] = useState(false);
 
   const hasChanges = yamlContent !== templateYaml;
+  const hasLintErrors = lintErrors.length > 0;
 
   const templatesByCategory = getTemplatesByCategory();
+
+  // Real-time YAML linting
+  useEffect(() => {
+    if (!yamlContent.trim()) {
+      setLintErrors([]);
+      return;
+    }
+
+    const errors: LintError[] = [];
+    try {
+      const docs = parseAllDocuments(yamlContent);
+      for (const doc of docs) {
+        for (const err of doc.errors) {
+          const pos = getErrorPosition(err);
+          errors.push({
+            line: pos.line,
+            col: pos.col,
+            message: err.message,
+          });
+        }
+      }
+    } catch {
+      errors.push({ line: 1, col: 1, message: "Failed to parse YAML" });
+    }
+
+    setLintErrors(errors);
+  }, [yamlContent]);
+
+  // Set Monaco editor markers for inline error squiggles
+  useEffect(() => {
+    const editorInstance = editorRef.current;
+    const monacoInstance = monacoRef.current;
+    if (!editorInstance || !monacoInstance) return;
+
+    const model = editorInstance.getModel();
+    if (!model) return;
+
+    const markers = lintErrors.map((err) => ({
+      severity: monacoInstance.MarkerSeverity.Error,
+      message: err.message,
+      startLineNumber: err.line,
+      startColumn: err.col,
+      endLineNumber: err.line,
+      endColumn: model.getLineMaxColumn(err.line),
+    }));
+
+    monacoInstance.editor.setModelMarkers(model, "yaml-lint", markers);
+  }, [lintErrors]);
 
   const handleTemplateChange = useCallback((value: string) => {
     setSelectedTemplate(value);
@@ -67,7 +125,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
   }, [templatesByCategory]);
 
   const handleApply = useCallback(async () => {
-    if (!yamlContent.trim()) return;
+    if (!yamlContent.trim() || hasLintErrors) return;
 
     setIsApplying(true);
     setError(null);
@@ -83,7 +141,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     } finally {
       setIsApplying(false);
     }
-  }, [yamlContent, t, onApplied, onClose]);
+  }, [yamlContent, hasLintErrors, t, onApplied, onClose]);
 
   // Ref so Monaco addCommand always sees the latest handleApply
   const handleApplyRef = useRef(handleApply);
@@ -151,6 +209,14 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
+  const handleLintErrorClick = useCallback((err: LintError) => {
+    const editorInstance = editorRef.current;
+    if (!editorInstance) return;
+    editorInstance.revealLineInCenter(err.line);
+    editorInstance.setPosition({ lineNumber: err.line, column: err.col });
+    editorInstance.focus();
+  }, []);
+
   return (
     <div className="flex h-full flex-col bg-background">
       {/* Title bar */}
@@ -161,17 +227,29 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
         </Button>
       </div>
 
-      {/* Toolbar: apply + template selector */}
+      {/* Toolbar: apply + lint toggle + template selector */}
       <div className="flex items-center gap-2 border-b border-border px-3 py-2">
         <Button
           size="sm"
           onClick={handleApply}
-          disabled={!yamlContent.trim() || isApplying}
+          disabled={!yamlContent.trim() || isApplying || hasLintErrors}
           className="h-7 text-xs gap-1"
         >
           {isApplying && <Loader2 className="size-3 animate-spin" />}
           {isApplying ? t("applying") : t("apply")}
         </Button>
+        {hasLintErrors && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowLintPanel((v) => !v)}
+            className="h-7 text-xs gap-1 text-destructive hover:text-destructive"
+          >
+            <CircleAlert className="size-3.5" />
+            {t("lintErrors", { count: lintErrors.length })}
+            {showLintPanel ? <ChevronDown className="size-3" /> : <ChevronUp className="size-3" />}
+          </Button>
+        )}
         <div className="flex-1" />
         <Select value={selectedTemplate} onValueChange={handleTemplateChange}>
           <SelectTrigger size="sm" className="w-48">
@@ -249,7 +327,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
             codeLens: false,
             contextmenu: false,
             fontLigatures: false,
-            renderValidationDecorations: "off",
+            renderValidationDecorations: "on",
             cursorBlinking: "solid",
             cursorSmoothCaretAnimation: "off",
             guides: {
@@ -275,6 +353,25 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
         />
       </div>
 
+      {/* Lint errors panel */}
+      {showLintPanel && hasLintErrors && (
+        <div className="border-t border-border max-h-32 overflow-y-auto bg-muted/50">
+          {lintErrors.map((err, i) => (
+            <button
+              key={i}
+              type="button"
+              onClick={() => handleLintErrorClick(err)}
+              className="flex w-full items-start gap-2 px-3 py-1.5 text-left text-xs hover:bg-muted/80 transition-colors"
+            >
+              <CircleAlert className="size-3 mt-0.5 shrink-0 text-destructive" />
+              <span className="text-muted-foreground font-mono">
+                {t("lintErrorLine", { line: err.line, col: err.col, message: err.message })}
+              </span>
+            </button>
+          ))}
+        </div>
+      )}
+
       <DiscardChangesDialog
         open={showDiscardDialog}
         onOpenChange={setShowDiscardDialog}
@@ -288,4 +385,11 @@ function camelCase(str: string): string {
   return str
     .toLowerCase()
     .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase());
+}
+
+function getErrorPosition(err: YAMLError): { line: number; col: number } {
+  if (err.linePos && err.linePos.length > 0) {
+    return { line: err.linePos[0].line, col: err.linePos[0].col };
+  }
+  return { line: 1, col: 1 };
 }
