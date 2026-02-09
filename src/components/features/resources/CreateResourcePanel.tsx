@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import "@/lib/monaco-config";
+import { configureYamlLanguage } from "@/lib/monaco-config";
 import { X, Loader2, CircleAlert, ChevronDown, ChevronUp, Copy, CopyCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -277,6 +277,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
           height="100%"
           path="file:///create-resource.yaml"
           defaultLanguage="yaml"
+          beforeMount={configureYamlLanguage}
           value={yamlContent}
           onChange={(value) => {
             setYamlContent(value || "");

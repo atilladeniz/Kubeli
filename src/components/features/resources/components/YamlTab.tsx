@@ -3,7 +3,7 @@
 import { useRef, useEffect, useState, useCallback, useImperativeHandle, forwardRef, type Ref } from "react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import "@/lib/monaco-config";
+import { configureYamlLanguage } from "@/lib/monaco-config";
 import { Copy, Check, Search, Pencil, Save, RotateCcw, X, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -372,6 +372,7 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
             <Editor
               height="100%"
               defaultLanguage="yaml"
+              beforeMount={configureYamlLanguage}
               value={yamlContent}
               onChange={onYamlChange}
               onMount={handleEditorMount}
