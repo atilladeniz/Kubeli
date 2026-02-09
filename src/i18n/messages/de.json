@@ -862,7 +862,8 @@
     "copyAllErrors": "Alles kopieren",
     "lintNotMapping": "Dokument muss ein YAML-Mapping sein (Schlüssel: Wert), kein Skalar oder Liste",
     "lintMissingApiVersion": "Pflichtfeld fehlt: apiVersion",
-    "lintMissingKind": "Pflichtfeld fehlt: kind"
+    "lintMissingKind": "Pflichtfeld fehlt: kind",
+    "lintMisplacedKey": "\"{key}\" sollte nicht auf Root-Ebene stehen — Einrückung prüfen (gehört unter spec)"
   },
   "shortcuts": {
     "title": "Tastenkürzel",

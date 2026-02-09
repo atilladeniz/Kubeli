@@ -862,7 +862,8 @@
     "copyAllErrors": "Copy All",
     "lintNotMapping": "Document must be a YAML mapping (key: value pairs), not a scalar or list",
     "lintMissingApiVersion": "Missing required field: apiVersion",
-    "lintMissingKind": "Missing required field: kind"
+    "lintMissingKind": "Missing required field: kind",
+    "lintMisplacedKey": "\"{key}\" should not be at root level — check indentation (belongs under spec)"
   },
   "shortcuts": {
     "title": "Keyboard Shortcuts",

@@ -37,6 +37,17 @@ interface LintError {
   message: string;
 }
 
+/** Keys that belong under `spec` (or similar), never at document root. */
+const SPEC_LEVEL_KEYS = new Set([
+  "containers", "initContainers", "volumes", "replicas",
+  "selector", "template", "strategy", "minReadySeconds",
+  "revisionHistoryLimit", "progressDeadlineSeconds",
+  "serviceName", "podManagementPolicy", "updateStrategy",
+  "schedule", "jobTemplate", "completions", "parallelism",
+  "backoffLimit", "activeDeadlineSeconds", "suspend",
+  "matchLabels", "matchExpressions",
+]);
+
 interface CreateResourcePanelProps {
   onClose: () => void;
   onApplied: () => void;
@@ -113,6 +124,21 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
           }
           if (!keys.includes("kind")) {
             errors.push({ line: docLine, col: 1, message: t("lintMissingKind") });
+          }
+
+          // Detect keys that should be under spec but appear at root (indentation error)
+          for (const item of content.items) {
+            const key = String(item.key);
+            if (SPEC_LEVEL_KEYS.has(key)) {
+              const itemLine = item.key && "range" in (item.key as { range?: number[] })
+                ? yamlContent.slice(0, (item.key as { range: number[] }).range[0]).split("\n").length
+                : docLine;
+              errors.push({
+                line: itemLine,
+                col: 1,
+                message: t("lintMisplacedKey", { key }),
+              });
+            }
           }
         }
       }
