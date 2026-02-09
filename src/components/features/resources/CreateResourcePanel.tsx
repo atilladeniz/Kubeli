@@ -47,6 +47,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
   const { resolvedTheme, settings } = useUIStore();
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const markerDisposableRef = useRef<{ dispose: () => void } | null>(null);
 
   const defaultTemplate = k8sTemplates[0];
   const defaultValue = `${defaultTemplate.category}/${defaultTemplate.kind}`;
@@ -64,36 +65,9 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
 
   const templatesByCategory = getTemplatesByCategory();
 
-  // Listen to Monaco markers (set by monaco-yaml) to populate lint errors
+  // Clean up marker listener on unmount
   useEffect(() => {
-    const monacoInstance = monacoRef.current;
-    const editorInstance = editorRef.current;
-    if (!monacoInstance || !editorInstance) return;
-
-    const model = editorInstance.getModel();
-    if (!model) return;
-
-    const updateErrors = () => {
-      const markers = monacoInstance.editor.getModelMarkers({ resource: model.uri });
-      setLintErrors(
-        markers.map((m: editor.IMarker) => ({
-          line: m.startLineNumber,
-          col: m.startColumn,
-          message: m.message,
-        }))
-      );
-    };
-
-    // Check on mount (markers may already be set)
-    updateErrors();
-
-    const disposable = monacoInstance.editor.onDidChangeMarkers((uris: readonly Monaco["Uri"][]) => {
-      if (uris.some((uri: Monaco["Uri"]) => uri.toString() === model.uri.toString())) {
-        updateErrors();
-      }
-    });
-
-    return () => disposable.dispose();
+    return () => markerDisposableRef.current?.dispose();
   }, []);
 
   const handleTemplateChange = useCallback((value: string) => {
@@ -166,6 +140,29 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
         handleApplyRef.current();
       }
     );
+
+    // Listen to Monaco markers (set by monaco-yaml) to populate lint errors
+    const model = editorInstance.getModel();
+    if (model) {
+      const updateErrors = () => {
+        const markers = monacoInstance.editor.getModelMarkers({ resource: model.uri });
+        setLintErrors(
+          markers.map((m: editor.IMarker) => ({
+            line: m.startLineNumber,
+            col: m.startColumn,
+            message: m.message,
+          }))
+        );
+      };
+
+      markerDisposableRef.current = monacoInstance.editor.onDidChangeMarkers(
+        (uris: readonly Monaco["Uri"][]) => {
+          if (uris.some((uri: Monaco["Uri"]) => uri.toString() === model.uri.toString())) {
+            updateErrors();
+          }
+        }
+      );
+    }
   };
 
   // ESC closes panel when Monaco find widget is not open
