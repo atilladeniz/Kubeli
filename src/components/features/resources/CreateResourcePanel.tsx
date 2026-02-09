@@ -84,6 +84,20 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
     }
 
     const errors: LintError[] = [];
+
+    // Check for tab indentation (forbidden in YAML spec)
+    const lines = yamlContent.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      const tabMatch = lines[i].match(/^\t+/);
+      if (tabMatch) {
+        errors.push({
+          line: i + 1,
+          col: 1,
+          message: t("lintTabIndent"),
+        });
+      }
+    }
+
     try {
       const docs = parseAllDocuments(yamlContent);
       for (const doc of docs) {
