@@ -40,7 +40,7 @@ export function BulkActionBar<T>({
 
   return (
     <>
-      <div className="flex items-center justify-between gap-2 border-t border-border bg-background px-4 py-2.5">
+      <div data-bulk-bar className="flex items-center justify-between gap-2 border-t border-border bg-background px-4 py-2.5">
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium">
             {t("common.selected", { count: selectedCount })}

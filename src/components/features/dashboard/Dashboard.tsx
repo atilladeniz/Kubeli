@@ -457,7 +457,7 @@ function DashboardContent() {
               onOpenSettings={() => setSettingsOpen(true)}
             />
             {isConnected && <TabBar />}
-            <main className={cn("flex-1 overflow-hidden relative", isOpen && "h-[60%]")}>
+            <main className={cn("flex-1 overflow-hidden relative group/main", isOpen && "h-[60%]")}>
               {!isConnected ? (
                 <NotConnectedState />
               ) : (
