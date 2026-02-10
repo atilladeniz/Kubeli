@@ -3,7 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
-import { configureYamlLanguage } from "@/lib/monaco-config";
+import { setupYamlValidation } from "@/lib/monaco-config";
 import { X, Loader2, CircleAlert, ChevronDown, ChevronUp, Copy, CopyCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +16,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   ContextMenu,
   ContextMenuTrigger,
@@ -47,6 +46,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
   const { resolvedTheme, settings } = useUIStore();
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
+  const validationDispose = useRef<(() => void) | null>(null);
 
   const defaultTemplate = k8sTemplates[0];
   const defaultValue = `${defaultTemplate.category}/${defaultTemplate.kind}`;
@@ -145,10 +145,12 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
       }
     );
 
-    // Ensure we also pick up markers that already exist on initial mount.
-    const model = editorInstance.getModel();
-    if (model) {
-      handleValidate(monacoInstance.editor.getModelMarkers({ resource: model.uri }));
+    // Lightweight YAML validation (yaml package + setModelMarkers)
+    validationDispose.current = setupYamlValidation(editorInstance, monacoInstance);
+
+    if (import.meta.env.VITE_TAURI_MOCK === "true") {
+      (window as Window & { __KUBELI_MONACO__?: Monaco }).__KUBELI_MONACO__ =
+        monacoInstance;
     }
   };
 
@@ -166,6 +168,11 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
       }
     });
     return () => disposable.dispose();
+  }, []);
+
+  // Cleanup YAML validation on unmount
+  useEffect(() => {
+    return () => validationDispose.current?.();
   }, []);
 
   // Global ESC handler for when editor doesn't have focus
@@ -262,22 +269,12 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
         </Select>
       </div>
 
-      {/* Error alert */}
-      {error && (
-        <div className="px-3 py-2 border-b border-border">
-          <Alert variant="destructive">
-            <AlertDescription className="text-xs break-all">{error}</AlertDescription>
-          </Alert>
-        </div>
-      )}
-
       {/* Monaco YAML editor */}
       <div className="flex-1 min-h-0">
         <Editor
           height="100%"
           path="file:///create-resource.yaml"
           defaultLanguage="yaml"
-          beforeMount={configureYamlLanguage}
           value={yamlContent}
           onChange={(value) => {
             setYamlContent(value || "");
@@ -345,10 +342,31 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
         />
       </div>
 
-      {/* Lint errors panel */}
-      {showLintPanel && hasLintErrors && (
+      {/* Errors panel (API errors + lint errors) */}
+      {((showLintPanel && hasLintErrors) || error) && (
         <div className="border-t border-border max-h-32 overflow-y-auto bg-muted/50 cursor-text select-text">
-          {lintErrors.map((err, i) => (
+          {error && (
+            <ContextMenu>
+              <ContextMenuTrigger asChild>
+                <div className="flex w-full items-start gap-2 px-3 py-1.5 text-xs hover:bg-muted/80 transition-colors">
+                  <CircleAlert className="size-3 mt-0.5 shrink-0 text-destructive" />
+                  <span className="text-destructive font-mono">
+                    {parseApiError(error)}
+                  </span>
+                </div>
+              </ContextMenuTrigger>
+              <ContextMenuContent>
+                <ContextMenuItem onSelect={() => {
+                  navigator.clipboard.writeText(parseApiError(error));
+                  toast.success(tCommon("copied"));
+                }}>
+                  <Copy className="size-3.5" />
+                  {t("copyError")}
+                </ContextMenuItem>
+              </ContextMenuContent>
+            </ContextMenu>
+          )}
+          {showLintPanel && lintErrors.map((err, i) => (
             <ContextMenu key={i}>
               <ContextMenuTrigger asChild>
                 <div
@@ -389,4 +407,16 @@ function camelCase(str: string): string {
   return str
     .toLowerCase()
     .replace(/[^a-zA-Z0-9]+(.)/g, (_, char) => char.toUpperCase());
+}
+
+/** Extract readable message from raw K8s API / Tauri error strings. */
+function parseApiError(raw: string): string {
+  // Strip the raw Rust Status debug dump: (Status { ... })
+  let msg = raw.replace(/\s*\(Status\s*\{[\s\S]*\}\s*\)\s*$/, "");
+  // Remove common prefixes
+  msg = msg.replace(/^Failed to apply resource:\s*/i, "");
+  msg = msg.replace(/^ApiError:\s*/i, "");
+  // Remove trailing colon left after Status removal
+  msg = msg.replace(/:\s*$/, "");
+  return msg.trim() || raw;
 }

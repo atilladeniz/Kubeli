@@ -2,31 +2,18 @@
 
 import { loader } from "@monaco-editor/react";
 import * as monaco from "monaco-editor";
-import { configureMonacoYaml } from "monaco-yaml";
 import type { Monaco } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
+import { parseDocument } from "yaml";
 
-// Monaco configuration for Tauri - only runs in browser
+// Editor worker wrapper — Vite ?worker import for reliable bundling
+import EditorWorker from "@/lib/workers/editor.worker?worker";
+
+// Monaco configuration for Tauri — only runs in browser
 if (typeof window !== "undefined") {
-  // Set up worker routing before Monaco loads
   window.MonacoEnvironment = {
-    getWorker(workerIdOrLabel, label) {
-      // Monaco can call getWorker with either (label) or (workerId, label)
-      const workerLabel = typeof label === "string" ? label : workerIdOrLabel;
-      switch (workerLabel) {
-        case "yaml":
-          return new Worker(
-            new URL("monaco-yaml/yaml.worker.js", import.meta.url),
-            { type: "module" }
-          );
-        default:
-          return new Worker(
-            new URL(
-              "monaco-editor/esm/vs/editor/editor.worker.js",
-              import.meta.url
-            ),
-            { type: "module" }
-          );
-      }
+    getWorker() {
+      return new EditorWorker();
     },
   };
 
@@ -34,23 +21,74 @@ if (typeof window !== "undefined") {
   loader.config({ monaco });
 }
 
-const configuredMonacoInstances = new WeakSet<object>();
-
-export function configureYamlLanguage(monacoInstance: Monaco) {
-  const key = monacoInstance as unknown as object;
-  if (configuredMonacoInstances.has(key)) {
+/** Validate YAML content and set Monaco markers. */
+function validateYamlModel(model: editor.ITextModel, monacoInstance: Monaco) {
+  const content = model.getValue();
+  if (!content.trim()) {
+    monacoInstance.editor.setModelMarkers(model, "yaml", []);
     return;
   }
 
-  configureMonacoYaml(monacoInstance, {
-    isKubernetes: true,
-    enableSchemaRequest: true,
-    validate: true,
-    completion: true,
-    hover: true,
-    format: true,
+  const doc = parseDocument(content, { prettyErrors: true });
+  const markers: editor.IMarkerData[] = [];
+
+  for (const error of doc.errors) {
+    const start = error.linePos?.[0] ?? { line: 1, col: 1 };
+    const end = error.linePos?.[1] ?? start;
+    markers.push({
+      severity: monacoInstance.MarkerSeverity.Error,
+      message: error.message.split("\n")[0],
+      startLineNumber: start.line,
+      startColumn: start.col,
+      endLineNumber: end.line,
+      endColumn: end.col + 1,
+      source: "yaml",
+    });
+  }
+
+  for (const warning of doc.warnings) {
+    const start = warning.linePos?.[0] ?? { line: 1, col: 1 };
+    const end = warning.linePos?.[1] ?? start;
+    markers.push({
+      severity: monacoInstance.MarkerSeverity.Warning,
+      message: warning.message.split("\n")[0],
+      startLineNumber: start.line,
+      startColumn: start.col,
+      endLineNumber: end.line,
+      endColumn: end.col + 1,
+      source: "yaml",
+    });
+  }
+
+  monacoInstance.editor.setModelMarkers(model, "yaml", markers);
+}
+
+/**
+ * Set up debounced YAML validation on a Monaco editor instance.
+ * Call from the Editor's onMount callback.
+ * Returns a dispose function to clean up the content-change listener.
+ */
+export function setupYamlValidation(
+  editorInstance: editor.IStandaloneCodeEditor,
+  monacoInstance: Monaco,
+): () => void {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+
+  const validate = () => {
+    const model = editorInstance.getModel();
+    if (model) validateYamlModel(model, monacoInstance);
+  };
+
+  const disposable = editorInstance.onDidChangeModelContent(() => {
+    if (timeout) clearTimeout(timeout);
+    timeout = setTimeout(validate, 300);
   });
 
-  configuredMonacoInstances.add(key);
-  (window as Window & { __KUBELI_MONACO__?: Monaco }).__KUBELI_MONACO__ = monacoInstance;
+  // Run initial validation
+  validate();
+
+  return () => {
+    disposable.dispose();
+    if (timeout) clearTimeout(timeout);
+  };
 }
