@@ -47,6 +47,7 @@ function buildShortcutGroups(mod: string): ShortcutGroup[] {
       shortcuts: [
         { keys: ["/"], label: (t) => t("search") },
         { keys: ["r"], label: (t) => t("refresh") },
+        { keys: [mod, "N"], combo: true, label: (t) => t("createResource") },
         { keys: ["?"], label: (t) => t("title") },
         { keys: ["Esc"], label: (t) => t("escape") },
       ],

@@ -841,6 +841,26 @@
     "exitCodeSignal": "Signal {signal}",
     "exitCodeGeneric": "Exit {code}"
   },
+  "createResource": {
+    "title": "Ressource erstellen",
+    "selectTemplate": "Vorlage auswählen...",
+    "apply": "Anwenden",
+    "applying": "Wird angewendet...",
+    "applySuccess": "Ressource erfolgreich erstellt",
+    "applyError": "Ressource konnte nicht erstellt werden",
+    "categories": {
+      "workloads": "Workloads",
+      "networking": "Netzwerk",
+      "configuration": "Konfiguration",
+      "storage": "Speicher",
+      "accessControl": "Zugriffskontrolle",
+      "administration": "Administration"
+    },
+    "lintErrors": "{count, plural, one {# Fehler} other {# Fehler}}",
+    "lintErrorLine": "Zeile {line}, Spalte {col}: {message}",
+    "copyError": "Fehlermeldung kopieren",
+    "copyAllErrors": "Alles kopieren"
+  },
   "shortcuts": {
     "title": "Tastenkürzel",
     "general": "Allgemein",
@@ -851,6 +871,7 @@
     "toggleAI": "KI-Panel umschalten",
     "refresh": "Aktualisieren",
     "search": "Suche fokussieren",
+    "createResource": "Ressource erstellen",
     "escape": "Schließen / Abbrechen",
     "tabs": "Tabs",
     "newTab": "Neuer Tab",

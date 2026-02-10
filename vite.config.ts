@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
               return;
             }
 
-            if (id.includes("monaco-editor") || id.includes("@monaco-editor")) {
+            if (id.includes("monaco-editor") || id.includes("@monaco-editor") || id.includes("monaco-yaml")) {
               return "vendor-monaco";
             }
 
