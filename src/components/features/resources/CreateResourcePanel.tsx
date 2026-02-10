@@ -72,6 +72,8 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
         message: m.message,
       }))
     );
+    // Clear stale API error whenever content changes (validation re-runs)
+    setError(null);
   }, []);
 
   const handleTemplateChange = useCallback((value: string) => {
