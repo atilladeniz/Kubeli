@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.31] - 2026-02-10
+
+- Added resource creation panel with YAML templates
+
 ## [0.3.30] - 2026-02-08
 
 - Fixed detail tab not resetting when switching resources via favorites
