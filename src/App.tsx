@@ -82,6 +82,13 @@ export default function Home() {
     lastConnectionErrorMessage,
   } = useClusterStore();
 
+  const searchLower = searchQuery.toLowerCase();
+  const filteredClusters = clusters.filter(
+    (cluster) =>
+      cluster.name.toLowerCase().includes(searchLower) ||
+      cluster.context.toLowerCase().includes(searchLower),
+  );
+
   const canDownloadDebugLog = Boolean(
     isTauri &&
     error &&
@@ -386,17 +393,7 @@ export default function Home() {
               </Card>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {clusters
-                  .filter(
-                    (cluster) =>
-                      cluster.name
-                        .toLowerCase()
-                        .includes(searchQuery.toLowerCase()) ||
-                      cluster.context
-                        .toLowerCase()
-                        .includes(searchQuery.toLowerCase()),
-                  )
-                  .map((cluster) => {
+                {filteredClusters.map((cluster) => {
                     const isActive =
                       isConnected &&
                       currentCluster?.context === cluster.context;
