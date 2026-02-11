@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.33] - 2026-02-11
+
+- Added port forward auto-cleanup and smart reconnect
+
 ## [0.3.32] - 2026-02-11
 
 - Added search bar for filtering cluster list
