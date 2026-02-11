@@ -395,7 +395,12 @@
     "neverOpen": "Never open",
     "podName": "Pod Name",
     "serviceName": "Service Name",
-    "starting": "Starting..."
+    "starting": "Starting...",
+    "reconnecting": "Reconnecting...",
+    "reconnected": "Reconnected",
+    "portForwardLost": "Port forward lost",
+    "podRemoved": "Pod was removed",
+    "reconnectingTo": "Reconnecting to new pod"
   },
   "settings": {
     "title": "Settings",
