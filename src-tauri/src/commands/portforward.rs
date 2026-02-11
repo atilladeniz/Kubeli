@@ -997,6 +997,18 @@ async fn handle_service_reconnect(
     namespace: &str,
     selector: &BTreeMap<String, String>,
 ) {
+    // Skip if already reconnecting
+    if let Some((_, _, _, status)) = pf_manager.get_reconnect_info(forward_id).await {
+        let current = status.read().await.clone();
+        if current == PortForwardStatus::Reconnecting {
+            tracing::info!(
+                "Forward {} already reconnecting, skipping duplicate",
+                forward_id
+            );
+            return;
+        }
+    }
+
     // Emit reconnecting event
     let _ = app.emit(
         event_name,

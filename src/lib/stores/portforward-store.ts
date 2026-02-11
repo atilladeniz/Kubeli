@@ -58,6 +58,9 @@ interface PortForwardState {
   cleanup: () => void;
 }
 
+// Track forward IDs that just reconnected, so the next Connected event skips the browser dialog
+const recentlyReconnected = new Set<string>();
+
 export const usePortForwardStore = create<PortForwardState>((set, get) => ({
   forwards: [],
   isLoading: false,
@@ -119,6 +122,13 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
 
           case "Connected": {
             get().updateForwardStatus(payload.data.forward_id, "connected");
+
+            // Skip toast and browser dialog if this Connected follows a Reconnected event
+            if (recentlyReconnected.has(payload.data.forward_id)) {
+              recentlyReconnected.delete(payload.data.forward_id);
+              break;
+            }
+
             const forward = get().forwards.find(
               (f) => f.forward_id === payload.data.forward_id
             );
@@ -150,10 +160,8 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
           }
 
           case "Reconnecting":
+            recentlyReconnected.add(payload.data.forward_id);
             get().updateForwardStatus(payload.data.forward_id, "reconnecting");
-            toast.info("Port forward reconnecting", {
-              description: payload.data.reason,
-            });
             break;
 
           case "Reconnected": {
