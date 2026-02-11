@@ -153,7 +153,7 @@
     "unhealthy": "Connection unhealthy",
     "clickToSwitch": "Click to switch cluster",
     "latency": "{ms}ms",
-    "searchPlaceholder": "Search clusters..."
+    "searchClustersPlaceholder": "Search clusters..."
   },
   "workloads": {
     "overview": "Workloads Overview",

@@ -153,7 +153,7 @@
     "unhealthy": "Verbindung fehlerhaft",
     "clickToSwitch": "Klicken zum Wechseln",
     "latency": "{ms}ms",
-    "searchPlaceholder": "Suche Cluster..."
+    "searchClustersPlaceholder": "Cluster suchen..."
   },
   "workloads": {
     "overview": "Workloads-Übersicht",

@@ -352,7 +352,7 @@ export default function Home() {
                 <div className="relative w-64">
                   <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
                   <Input
-                    placeholder={t("searchPlaceholder")}
+                    placeholder={t("searchClustersPlaceholder")}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="pl-8"
