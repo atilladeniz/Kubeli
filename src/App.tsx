@@ -11,8 +11,16 @@ import {
   Settings,
   ArrowRightLeft,
   Search,
+  SearchX,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -347,7 +355,7 @@ export default function Home() {
 
         {/* Clusters Section */}
         {isTauri && (
-          <section className="mx-auto w-full max-w-4xl space-y-4">
+          <section className="mx-auto w-full max-w-4xl space-y-8">
             <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold">{t("selectCluster")}</h2>
@@ -391,84 +399,95 @@ export default function Home() {
                   </p>
                 </CardContent>
               </Card>
+            ) : filteredClusters.length === 0 ? (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <SearchX className="size-5" />
+                  </EmptyMedia>
+                  <EmptyTitle>{t("noSearchResults")}</EmptyTitle>
+                  <EmptyDescription>
+                    {t("noSearchResultsHint", { query: searchQuery })}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {filteredClusters.map((cluster) => {
-                    const isActive =
-                      isConnected &&
-                      currentCluster?.context === cluster.context;
-                    return (
-                      <Card
-                        key={cluster.id}
-                        className={`flex h-full flex-col transition-all ${
-                          isActive
-                            ? "border-green-500/50 bg-green-500/5"
-                            : "hover:border-border/80 hover:bg-muted/50"
-                        }`}
-                      >
-                        <CardHeader className="pb-2">
-                          <div className="flex items-start justify-between">
-                            <div className="flex items-center gap-3">
-                              <ClusterIcon cluster={cluster} size={32} />
-                              <div>
-                                <CardTitle className="flex items-center gap-2 text-base">
-                                  {cluster.name}
-                                  {cluster.current && (
-                                    <Badge
-                                      variant="secondary"
-                                      className="text-[10px]"
-                                    >
-                                      {t("default")}
-                                    </Badge>
-                                  )}
-                                </CardTitle>
-                                <CardDescription className="text-xs">
-                                  {cluster.context}
-                                </CardDescription>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {currentCluster?.context === cluster.context &&
-                                forwards.length > 0 && (
-                                  <div className="flex items-center gap-1 rounded bg-purple-500/10 px-1.5 py-0.5">
-                                    <ArrowRightLeft className="size-3 text-purple-500" />
-                                    <span className="text-xs font-medium text-purple-500">
-                                      {forwards.length}
-                                    </span>
-                                  </div>
+                  const isActive =
+                    isConnected && currentCluster?.context === cluster.context;
+                  return (
+                    <Card
+                      key={cluster.id}
+                      className={`flex h-full flex-col transition-all ${
+                        isActive
+                          ? "border-green-500/50 bg-green-500/5"
+                          : "hover:border-border/80 hover:bg-muted/50"
+                      }`}
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start justify-between">
+                          <div className="flex items-center gap-3">
+                            <ClusterIcon cluster={cluster} size={32} />
+                            <div>
+                              <CardTitle className="flex items-center gap-2 text-base">
+                                {cluster.name}
+                                {cluster.current && (
+                                  <Badge
+                                    variant="secondary"
+                                    className="text-[10px]"
+                                  >
+                                    {t("default")}
+                                  </Badge>
                                 )}
-                              {isActive && (
-                                <CheckCircle2 className="size-5 text-green-500" />
-                              )}
+                              </CardTitle>
+                              <CardDescription className="text-xs">
+                                {cluster.context}
+                              </CardDescription>
                             </div>
                           </div>
-                        </CardHeader>
-                        <CardContent className="flex flex-1 flex-col space-y-3">
-                          <div className="text-sm text-muted-foreground">
-                            <p className="truncate">{cluster.server}</p>
-                            <p className="text-xs text-muted-foreground/70">
-                              {cluster.namespace || "default"} |{" "}
-                              {cluster.auth_type}
-                            </p>
-                          </div>
-                          <Button
-                            onClick={() => handleConnect(cluster.context)}
-                            disabled={connectingContext !== null || isActive}
-                            className="mt-auto w-full"
-                            variant={isActive ? "secondary" : "default"}
-                          >
-                            {connectingContext === cluster.context ? (
-                              <Loader2 className="size-4 animate-spin" />
-                            ) : isActive ? (
-                              t("connected")
-                            ) : (
-                              t("connect")
+                          <div className="flex items-center gap-2">
+                            {currentCluster?.context === cluster.context &&
+                              forwards.length > 0 && (
+                                <div className="flex items-center gap-1 rounded bg-purple-500/10 px-1.5 py-0.5">
+                                  <ArrowRightLeft className="size-3 text-purple-500" />
+                                  <span className="text-xs font-medium text-purple-500">
+                                    {forwards.length}
+                                  </span>
+                                </div>
+                              )}
+                            {isActive && (
+                              <CheckCircle2 className="size-5 text-green-500" />
                             )}
-                          </Button>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="flex flex-1 flex-col space-y-3">
+                        <div className="text-sm text-muted-foreground">
+                          <p className="truncate">{cluster.server}</p>
+                          <p className="text-xs text-muted-foreground/70">
+                            {cluster.namespace || "default"} |{" "}
+                            {cluster.auth_type}
+                          </p>
+                        </div>
+                        <Button
+                          onClick={() => handleConnect(cluster.context)}
+                          disabled={connectingContext !== null || isActive}
+                          className="mt-auto w-full"
+                          variant={isActive ? "secondary" : "default"}
+                        >
+                          {connectingContext === cluster.context ? (
+                            <Loader2 className="size-4 animate-spin" />
+                          ) : isActive ? (
+                            t("connected")
+                          ) : (
+                            t("connect")
+                          )}
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
             )}
           </section>

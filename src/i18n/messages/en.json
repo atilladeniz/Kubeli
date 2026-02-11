@@ -153,7 +153,9 @@
     "unhealthy": "Connection unhealthy",
     "clickToSwitch": "Click to switch cluster",
     "latency": "{ms}ms",
-    "searchClustersPlaceholder": "Search clusters..."
+    "searchClustersPlaceholder": "Search clusters...",
+    "noSearchResults": "No clusters found",
+    "noSearchResultsHint": "No clusters matching \"{query}\". Try a different search term."
   },
   "workloads": {
     "overview": "Workloads Overview",
