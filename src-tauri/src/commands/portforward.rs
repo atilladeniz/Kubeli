@@ -431,6 +431,7 @@ pub async fn portforward_start(
         )
         .await;
 
+    let status_for_check = status.clone();
     tokio::spawn(async move {
         run_port_forward(
             client,
@@ -446,13 +447,17 @@ pub async fn portforward_start(
         )
         .await;
 
-        pf_manager_clone.remove_session(&forward_id_clone).await;
-        let _ = app.emit(
-            &event_name,
-            PortForwardEvent::Stopped {
-                forward_id: forward_id_clone,
-            },
-        );
+        // Only cleanup if not being reconnected by the watcher
+        let current_status = status_for_check.read().await.clone();
+        if current_status != PortForwardStatus::Reconnecting {
+            pf_manager_clone.remove_session(&forward_id_clone).await;
+            let _ = app.emit(
+                &event_name,
+                PortForwardEvent::Stopped {
+                    forward_id: forward_id_clone,
+                },
+            );
+        }
     });
 
     tracing::info!(
@@ -561,13 +566,17 @@ async fn run_port_forward(
         }
     }
 
-    *status.write().await = PortForwardStatus::Disconnected;
-    let _ = app.emit(
-        event_name,
-        PortForwardEvent::Disconnected {
-            forward_id: forward_id.to_string(),
-        },
-    );
+    // Only emit Disconnected if not being reconnected by the watcher
+    let current_status = status.read().await.clone();
+    if current_status != PortForwardStatus::Reconnecting {
+        *status.write().await = PortForwardStatus::Disconnected;
+        let _ = app.emit(
+            event_name,
+            PortForwardEvent::Disconnected {
+                forward_id: forward_id.to_string(),
+            },
+        );
+    }
 }
 
 /// Handle a single port forward connection
@@ -1166,6 +1175,7 @@ async fn reconnect_forward(
     let namespace_clone = namespace.to_string();
     let pod_name_clone = new_pod_name.to_string();
     let status_clone = status.clone();
+    let status_for_check = status.clone();
     let pf_manager_clone = Arc::clone(pf_manager);
 
     tokio::spawn(async move {
@@ -1183,13 +1193,17 @@ async fn reconnect_forward(
         )
         .await;
 
-        pf_manager_clone.remove_session(&forward_id_clone).await;
-        let _ = app_clone.emit(
-            &event_name_clone,
-            PortForwardEvent::Stopped {
-                forward_id: forward_id_clone,
-            },
-        );
+        // Only cleanup if not being reconnected again
+        let current_status = status_for_check.read().await.clone();
+        if current_status != PortForwardStatus::Reconnecting {
+            pf_manager_clone.remove_session(&forward_id_clone).await;
+            let _ = app_clone.emit(
+                &event_name_clone,
+                PortForwardEvent::Stopped {
+                    forward_id: forward_id_clone,
+                },
+            );
+        }
     });
 
     // Emit reconnected event
