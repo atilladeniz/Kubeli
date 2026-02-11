@@ -152,7 +152,11 @@
     "reconnecting": "Reconnecting (attempt {count})...",
     "unhealthy": "Connection unhealthy",
     "clickToSwitch": "Click to switch cluster",
-    "latency": "{ms}ms"
+    "latency": "{ms}ms",
+    "searchClustersPlaceholder": "Search clusters...",
+    "noSearchResults": "No clusters found",
+    "noSearchResultsHint": "No clusters matching \"{query}\". Try a different search term.",
+    "connecting": "Connecting..."
   },
   "workloads": {
     "overview": "Workloads Overview",

@@ -10,7 +10,19 @@ import {
   CheckCircle2,
   Settings,
   ArrowRightLeft,
+  Search,
+  SearchX,
+  X,
 } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -55,10 +67,15 @@ export default function Home() {
   const [isTauri, setIsTauri] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [isDownloadingDebugLog, setIsDownloadingDebugLog] = useState(false);
-  const [connectingContext, setConnectingContext] = useState<string | null>(null);
+  const [connectingContext, setConnectingContext] = useState<string | null>(
+    null,
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const initialFetchDone = useRef(false);
   const { isWindows } = usePlatform();
-  const kubeconfigPath = isWindows ? "C:\\Users\\<username>\\.kube\\config" : "~/.kube/config";
+  const kubeconfigPath = isWindows
+    ? "C:\\Users\\<username>\\.kube\\config"
+    : "~/.kube/config";
 
   // Watch kubeconfig source paths for filesystem changes (new/modified/deleted files)
   useKubeconfigWatcher();
@@ -75,14 +92,20 @@ export default function Home() {
     lastConnectionErrorMessage,
   } = useClusterStore();
 
-  const canDownloadDebugLog =
-    Boolean(
-      isTauri &&
-        error &&
-        lastConnectionErrorContext &&
-        lastConnectionErrorMessage &&
-        error === lastConnectionErrorMessage,
-    );
+  const searchLower = searchQuery.toLowerCase();
+  const filteredClusters = clusters.filter(
+    (cluster) =>
+      cluster.name.toLowerCase().includes(searchLower) ||
+      cluster.context.toLowerCase().includes(searchLower),
+  );
+
+  const canDownloadDebugLog = Boolean(
+    isTauri &&
+    error &&
+    lastConnectionErrorContext &&
+    lastConnectionErrorMessage &&
+    error === lastConnectionErrorMessage,
+  );
 
   const handleDownloadDebugLog = async () => {
     if (!lastConnectionErrorContext || !canDownloadDebugLog) {
@@ -131,7 +154,16 @@ export default function Home() {
 
   const { setSettingsOpen } = useUIStore();
   const { forwards } = usePortForward();
-  const { available, update, downloading, progress, readyToRestart, downloadComplete, downloadAndInstall, restartNow } = useUpdater();
+  const {
+    available,
+    update,
+    downloading,
+    progress,
+    readyToRestart,
+    downloadComplete,
+    downloadAndInstall,
+    restartNow,
+  } = useUpdater();
 
   // Initialize app - check Tauri and fetch clusters
   useEffect(() => {
@@ -175,9 +207,13 @@ export default function Home() {
           await fetchClusters();
           await connect(ctx);
         }
-      }).then((fn) => { unlisten = fn; });
+      }).then((fn) => {
+        unlisten = fn;
+      });
     });
-    return () => { unlisten?.(); };
+    return () => {
+      unlisten?.();
+    };
   }, [isTauri, fetchClusters, connect]);
 
   // Disable native context menu globally
@@ -185,7 +221,7 @@ export default function Home() {
     const handleContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       // Allow context menu in areas that explicitly opt in
-      if (target.closest('[data-allow-context-menu]')) {
+      if (target.closest("[data-allow-context-menu]")) {
         return;
       }
       // Allow context menu on inputs for copy/paste
@@ -203,8 +239,13 @@ export default function Home() {
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null): boolean => {
       if (!(target instanceof HTMLElement)) return false;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return true;
-      if (target.isContentEditable || target.closest('[contenteditable="true"]')) return true;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
+        return true;
+      if (
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]')
+      )
+        return true;
       if (target.closest('[role="textbox"]')) return true;
       return false;
     };
@@ -257,10 +298,18 @@ export default function Home() {
               variant="default"
               size="sm"
               className="h-5 text-[10px] px-2 py-0"
-              onClick={() => (readyToRestart || downloadComplete) ? restartNow() : downloadAndInstall()}
+              onClick={() =>
+                readyToRestart || downloadComplete
+                  ? restartNow()
+                  : downloadAndInstall()
+              }
               disabled={downloading}
             >
-              {downloading ? `${Math.round(progress)}%` : (readyToRestart || downloadComplete) ? tu("restartNow") : tu("updateNow")}
+              {downloading
+                ? `${Math.round(progress)}%`
+                : readyToRestart || downloadComplete
+                  ? tu("restartNow")
+                  : tu("updateNow")}
             </Button>
           )}
           <Button
@@ -308,25 +357,47 @@ export default function Home() {
 
         {/* Clusters Section */}
         {isTauri && (
-          <section className="mx-auto w-full max-w-4xl space-y-4">
-            <div className="flex items-center justify-between">
+          <section className="mx-auto w-full max-w-4xl space-y-8">
+            <div className="flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-xl font-semibold">{t("selectCluster")}</h2>
                 <p className="text-sm text-muted-foreground">
                   {t("selectClusterDesc")}
                 </p>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => fetchClusters()}
-                disabled={isClusterLoading}
-              >
-                <RefreshCw
-                  className={`size-4 ${isClusterLoading ? "animate-spin" : ""}`}
-                />
-                {tc("refresh")}
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="relative w-64">
+                  <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    placeholder={t("searchClustersPlaceholder")}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="pl-8 pr-8"
+                  />
+                  {searchQuery.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="absolute right-1 top-1/2 size-6 -translate-y-1/2 rounded"
+                      onClick={() => setSearchQuery("")}
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  )}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fetchClusters()}
+                  disabled={isClusterLoading}
+                >
+                  <RefreshCw
+                    className={`size-4 ${isClusterLoading ? "animate-spin" : ""}`}
+                  />
+                  {tc("refresh")}
+                </Button>
+              </div>
             </div>
 
             {clusters.length === 0 && !isClusterLoading ? (
@@ -341,9 +412,21 @@ export default function Home() {
                   </p>
                 </CardContent>
               </Card>
+            ) : filteredClusters.length === 0 ? (
+              <Empty>
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <SearchX className="size-5" />
+                  </EmptyMedia>
+                  <EmptyTitle>{t("noSearchResults")}</EmptyTitle>
+                  <EmptyDescription>
+                    {t("noSearchResultsHint", { query: searchQuery })}
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
             ) : (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-                {clusters.map((cluster) => {
+                {filteredClusters.map((cluster) => {
                   const isActive =
                     isConnected && currentCluster?.context === cluster.context;
                   return (
@@ -407,7 +490,10 @@ export default function Home() {
                           variant={isActive ? "secondary" : "default"}
                         >
                           {connectingContext === cluster.context ? (
-                            <Loader2 className="size-4 animate-spin" />
+                            <>
+                              <Spinner />
+                              {t("connecting")}
+                            </>
                           ) : isActive ? (
                             t("connected")
                           ) : (
@@ -439,7 +525,9 @@ export default function Home() {
             <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">{tw("multiCluster")}</CardTitle>
+                  <CardTitle className="text-base">
+                    {tw("multiCluster")}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
@@ -474,9 +562,7 @@ export default function Home() {
             {!isTauri && (
               <Alert className="max-w-md">
                 <AlertCircle className="size-4" />
-                <AlertDescription>
-                  {tw("webModeWarning")}
-                </AlertDescription>
+                <AlertDescription>{tw("webModeWarning")}</AlertDescription>
               </Alert>
             )}
           </div>
