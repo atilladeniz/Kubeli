@@ -721,7 +721,7 @@ export function Sidebar({
                     <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                       <span
                         className={cn(
-                          "size-1.5 rounded-full shrink-0",
+                          "size-1.5 rounded-full shrink-0 self-center",
                           forward.status === "connected"
                             ? "bg-green-400"
                             : forward.status === "connecting"
@@ -731,20 +731,19 @@ export function Sidebar({
                             : "bg-red-400"
                         )}
                       />
-                      {forward.status === "reconnecting" ? (
-                        <span className="truncate text-orange-400 animate-pulse">
-                          Reconnecting…
-                        </span>
-                      ) : (
-                        <>
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <div className="flex items-center gap-1">
                           <span className="truncate font-medium max-w-[80px]">
                             {forward.name}
                           </span>
                           <span className="text-muted-foreground shrink-0 tabular-nums">
                             :{forward.local_port}
                           </span>
-                        </>
-                      )}
+                        </div>
+                        {forward.status === "reconnecting" && (
+                          <ReconnectingTimer />
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0 ml-1">
                       <Button
@@ -1219,5 +1218,20 @@ function FavoriteItem({
         </DropdownMenu>
       </div>
     </div>
+  );
+}
+
+function ReconnectingTimer() {
+  const [elapsed, setElapsed] = useState(0);
+
+  useEffect(() => {
+    const interval = setInterval(() => setElapsed((s) => s + 1), 1000);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <span className="text-[10px] text-orange-400 leading-tight">
+      Reconnecting… {elapsed}s
+    </span>
   );
 }
