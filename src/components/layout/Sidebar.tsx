@@ -721,7 +721,8 @@ export function Sidebar({
                     <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                       <span
                         className={cn(
-                          "size-1.5 rounded-full shrink-0 self-center",
+                          "size-1.5 rounded-full shrink-0",
+                          forward.status === "reconnecting" ? "self-start mt-[5px]" : "self-center",
                           forward.status === "connected"
                             ? "bg-green-400"
                             : forward.status === "connecting"
