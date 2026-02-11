@@ -12,6 +12,7 @@ import {
   ArrowRightLeft,
   Search,
   SearchX,
+  X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import {
@@ -365,13 +366,24 @@ export default function Home() {
               </div>
               <div className="flex items-center gap-2">
                 <div className="relative w-64">
-                  <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
+                  <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
                   <Input
                     placeholder={t("searchClustersPlaceholder")}
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-8"
+                    className="pl-8 pr-8"
                   />
+                  {searchQuery.length > 0 && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      className="absolute right-1 top-1/2 size-6 -translate-y-1/2 rounded"
+                      onClick={() => setSearchQuery("")}
+                    >
+                      <X className="size-3.5" />
+                    </Button>
+                  )}
                 </div>
                 <Button
                   variant="outline"
