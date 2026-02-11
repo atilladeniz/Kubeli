@@ -149,6 +149,37 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
             break;
           }
 
+          case "Reconnecting":
+            get().updateForwardStatus(payload.data.forward_id, "reconnecting");
+            toast.info("Port forward reconnecting", {
+              description: payload.data.reason,
+            });
+            break;
+
+          case "Reconnected": {
+            get().updateForwardStatus(payload.data.forward_id, "connected");
+            // Update pod_name on the forward
+            set((state) => ({
+              forwards: state.forwards.map((f) =>
+                f.forward_id === payload.data.forward_id
+                  ? { ...f, status: "connected" as const, pod_name: payload.data.new_pod }
+                  : f
+              ),
+            }));
+            toast.success("Port forward reconnected", {
+              description: `Connected to new pod: ${payload.data.new_pod}`,
+            });
+            break;
+          }
+
+          case "PodDied": {
+            get().updateForwardStatus(payload.data.forward_id, "disconnected");
+            toast.warning("Port forward lost", {
+              description: `Pod ${payload.data.pod_name} was removed. No replacement found.`,
+            });
+            break;
+          }
+
           case "Disconnected":
             get().updateForwardStatus(payload.data.forward_id, "disconnected");
             toast.info("Port forward disconnected");
@@ -201,6 +232,8 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
         target_port: targetPort,
         local_port: localPort ?? 0, // Will be updated when we get the response
         status: "connecting",
+        pod_name: undefined,
+        pod_uid: undefined,
       };
 
       set((state) => ({
