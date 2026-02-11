@@ -991,6 +991,7 @@ async fn watch_pods_for_portforwards(
 }
 
 /// Handle reconnection for service-type port forwards
+#[allow(clippy::too_many_arguments)]
 async fn handle_service_reconnect(
     client: &kube::Client,
     app: &AppHandle,
