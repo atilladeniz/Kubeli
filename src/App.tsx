@@ -57,11 +57,15 @@ export default function Home() {
   const [isTauri, setIsTauri] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [isDownloadingDebugLog, setIsDownloadingDebugLog] = useState(false);
-  const [connectingContext, setConnectingContext] = useState<string | null>(null);
+  const [connectingContext, setConnectingContext] = useState<string | null>(
+    null,
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const initialFetchDone = useRef(false);
   const { isWindows } = usePlatform();
-  const kubeconfigPath = isWindows ? "C:\\Users\\<username>\\.kube\\config" : "~/.kube/config";
+  const kubeconfigPath = isWindows
+    ? "C:\\Users\\<username>\\.kube\\config"
+    : "~/.kube/config";
 
   // Watch kubeconfig source paths for filesystem changes (new/modified/deleted files)
   useKubeconfigWatcher();
@@ -78,14 +82,13 @@ export default function Home() {
     lastConnectionErrorMessage,
   } = useClusterStore();
 
-  const canDownloadDebugLog =
-    Boolean(
-      isTauri &&
-      error &&
-      lastConnectionErrorContext &&
-      lastConnectionErrorMessage &&
-      error === lastConnectionErrorMessage,
-    );
+  const canDownloadDebugLog = Boolean(
+    isTauri &&
+    error &&
+    lastConnectionErrorContext &&
+    lastConnectionErrorMessage &&
+    error === lastConnectionErrorMessage,
+  );
 
   const handleDownloadDebugLog = async () => {
     if (!lastConnectionErrorContext || !canDownloadDebugLog) {
@@ -134,7 +137,16 @@ export default function Home() {
 
   const { setSettingsOpen } = useUIStore();
   const { forwards } = usePortForward();
-  const { available, update, downloading, progress, readyToRestart, downloadComplete, downloadAndInstall, restartNow } = useUpdater();
+  const {
+    available,
+    update,
+    downloading,
+    progress,
+    readyToRestart,
+    downloadComplete,
+    downloadAndInstall,
+    restartNow,
+  } = useUpdater();
 
   // Initialize app - check Tauri and fetch clusters
   useEffect(() => {
@@ -178,9 +190,13 @@ export default function Home() {
           await fetchClusters();
           await connect(ctx);
         }
-      }).then((fn) => { unlisten = fn; });
+      }).then((fn) => {
+        unlisten = fn;
+      });
     });
-    return () => { unlisten?.(); };
+    return () => {
+      unlisten?.();
+    };
   }, [isTauri, fetchClusters, connect]);
 
   // Disable native context menu globally
@@ -188,7 +204,7 @@ export default function Home() {
     const handleContextMenu = (e: MouseEvent) => {
       const target = e.target as HTMLElement;
       // Allow context menu in areas that explicitly opt in
-      if (target.closest('[data-allow-context-menu]')) {
+      if (target.closest("[data-allow-context-menu]")) {
         return;
       }
       // Allow context menu on inputs for copy/paste
@@ -206,8 +222,13 @@ export default function Home() {
   useEffect(() => {
     const isEditableTarget = (target: EventTarget | null): boolean => {
       if (!(target instanceof HTMLElement)) return false;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return true;
-      if (target.isContentEditable || target.closest('[contenteditable="true"]')) return true;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
+        return true;
+      if (
+        target.isContentEditable ||
+        target.closest('[contenteditable="true"]')
+      )
+        return true;
       if (target.closest('[role="textbox"]')) return true;
       return false;
     };
@@ -239,8 +260,9 @@ export default function Home() {
 
   return (
     <div
-      className={`flex h-screen flex-col bg-background text-foreground transition-opacity duration-200 ${isReady ? "opacity-100" : "opacity-0"
-        }`}
+      className={`flex h-screen flex-col bg-background text-foreground transition-opacity duration-200 ${
+        isReady ? "opacity-100" : "opacity-0"
+      }`}
     >
       {/* Titlebar safe area - pl-20 for macOS traffic lights */}
       <div
@@ -259,10 +281,18 @@ export default function Home() {
               variant="default"
               size="sm"
               className="h-5 text-[10px] px-2 py-0"
-              onClick={() => (readyToRestart || downloadComplete) ? restartNow() : downloadAndInstall()}
+              onClick={() =>
+                readyToRestart || downloadComplete
+                  ? restartNow()
+                  : downloadAndInstall()
+              }
               disabled={downloading}
             >
-              {downloading ? `${Math.round(progress)}%` : (readyToRestart || downloadComplete) ? tu("restartNow") : tu("updateNow")}
+              {downloading
+                ? `${Math.round(progress)}%`
+                : readyToRestart || downloadComplete
+                  ? tu("restartNow")
+                  : tu("updateNow")}
             </Button>
           )}
           <Button
@@ -357,20 +387,27 @@ export default function Home() {
             ) : (
               <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
                 {clusters
-                  .filter((cluster) =>
-                    cluster.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                    cluster.context.toLowerCase().includes(searchQuery.toLowerCase())
+                  .filter(
+                    (cluster) =>
+                      cluster.name
+                        .toLowerCase()
+                        .includes(searchQuery.toLowerCase()) ||
+                      cluster.context
+                        .toLowerCase()
+                        .includes(searchQuery.toLowerCase()),
                   )
                   .map((cluster) => {
                     const isActive =
-                      isConnected && currentCluster?.context === cluster.context;
+                      isConnected &&
+                      currentCluster?.context === cluster.context;
                     return (
                       <Card
                         key={cluster.id}
-                        className={`flex h-full flex-col transition-all ${isActive
-                          ? "border-green-500/50 bg-green-500/5"
-                          : "hover:border-border/80 hover:bg-muted/50"
-                          }`}
+                        className={`flex h-full flex-col transition-all ${
+                          isActive
+                            ? "border-green-500/50 bg-green-500/5"
+                            : "hover:border-border/80 hover:bg-muted/50"
+                        }`}
                       >
                         <CardHeader className="pb-2">
                           <div className="flex items-start justify-between">
@@ -456,7 +493,9 @@ export default function Home() {
             <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader>
-                  <CardTitle className="text-base">{tw("multiCluster")}</CardTitle>
+                  <CardTitle className="text-base">
+                    {tw("multiCluster")}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
@@ -491,9 +530,7 @@ export default function Home() {
             {!isTauri && (
               <Alert className="max-w-md">
                 <AlertCircle className="size-4" />
-                <AlertDescription>
-                  {tw("webModeWarning")}
-                </AlertDescription>
+                <AlertDescription>{tw("webModeWarning")}</AlertDescription>
               </Alert>
             )}
           </div>
