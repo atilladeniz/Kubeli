@@ -152,7 +152,8 @@
     "reconnecting": "Reconnecting (attempt {count})...",
     "unhealthy": "Connection unhealthy",
     "clickToSwitch": "Click to switch cluster",
-    "latency": "{ms}ms"
+    "latency": "{ms}ms",
+    "searchPlaceholder": "Search clusters..."
   },
   "workloads": {
     "overview": "Workloads Overview",

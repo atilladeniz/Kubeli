@@ -152,7 +152,8 @@
     "reconnecting": "Verbinde erneut (Versuch {count})...",
     "unhealthy": "Verbindung fehlerhaft",
     "clickToSwitch": "Klicken zum Wechseln",
-    "latency": "{ms}ms"
+    "latency": "{ms}ms",
+    "searchPlaceholder": "Suche Cluster..."
   },
   "workloads": {
     "overview": "Workloads-Übersicht",
