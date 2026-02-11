@@ -1313,6 +1313,7 @@ pub async fn portforward_check_port(
     }
 }
 
+// TODO: Extract tests into a separate file (e.g. src/commands/portforward_test.rs) for better SOLID separation
 #[cfg(test)]
 mod tests {
     use super::*;
