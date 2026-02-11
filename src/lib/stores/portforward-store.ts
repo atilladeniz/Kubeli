@@ -61,6 +61,13 @@ interface PortForwardState {
 // Track forward IDs that just reconnected, so the next Connected event skips the browser dialog
 const recentlyReconnected = new Set<string>();
 
+// Track when each forward started reconnecting (epoch ms), survives component unmount/remount
+const reconnectStartTimes = new Map<string, number>();
+
+export function getReconnectStartTime(forwardId: string): number | undefined {
+  return reconnectStartTimes.get(forwardId);
+}
+
 export const usePortForwardStore = create<PortForwardState>((set, get) => ({
   forwards: [],
   isLoading: false,
@@ -161,6 +168,7 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
 
           case "Reconnecting":
             recentlyReconnected.add(payload.data.forward_id);
+            reconnectStartTimes.set(payload.data.forward_id, Date.now());
             get().updateForwardStatus(payload.data.forward_id, "reconnecting");
             toast.info("Port forward reconnecting", {
               description: payload.data.reason,
@@ -168,6 +176,7 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
             break;
 
           case "Reconnected": {
+            reconnectStartTimes.delete(payload.data.forward_id);
             get().updateForwardStatus(payload.data.forward_id, "connected");
             // Update pod_name on the forward
             set((state) => ({
@@ -184,6 +193,7 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
           }
 
           case "PodDied": {
+            reconnectStartTimes.delete(payload.data.forward_id);
             get().updateForwardStatus(payload.data.forward_id, "disconnected");
             toast.warning("Port forward lost", {
               description: `Pod ${payload.data.pod_name} was removed. No replacement found.`,
@@ -192,11 +202,13 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
           }
 
           case "Disconnected":
+            reconnectStartTimes.delete(payload.data.forward_id);
             get().updateForwardStatus(payload.data.forward_id, "disconnected");
             toast.info("Port forward disconnected");
             break;
 
           case "Error":
+            reconnectStartTimes.delete(payload.data.forward_id);
             get().updateForwardStatus(payload.data.forward_id, "error");
             get().setError(payload.data.message);
             toast.error("Port forward error", {
@@ -205,6 +217,7 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
             break;
 
           case "Stopped": {
+            reconnectStartTimes.delete(payload.data.forward_id);
             // Remove listener
             const storedUnlisten = get().listeners.get(payload.data.forward_id);
             if (storedUnlisten) {

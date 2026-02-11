@@ -33,6 +33,7 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
+import { getReconnectStartTime } from "@/lib/stores/portforward-store";
 import {
   useFavoritesStore,
   type FavoriteResource,
@@ -742,7 +743,7 @@ export function Sidebar({
                           </span>
                         </div>
                         {forward.status === "reconnecting" && (
-                          <ReconnectingTimer />
+                          <ReconnectingTimer forwardId={forward.forward_id} />
                         )}
                       </div>
                     </div>
@@ -1222,13 +1223,21 @@ function FavoriteItem({
   );
 }
 
-function ReconnectingTimer() {
-  const [elapsed, setElapsed] = useState(0);
+function ReconnectingTimer({ forwardId }: { forwardId: string }) {
+  const [elapsed, setElapsed] = useState(() => {
+    const startTime = getReconnectStartTime(forwardId);
+    return startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+  });
 
   useEffect(() => {
-    const interval = setInterval(() => setElapsed((s) => s + 1), 1000);
+    const interval = setInterval(() => {
+      const startTime = getReconnectStartTime(forwardId);
+      if (startTime) {
+        setElapsed(Math.floor((Date.now() - startTime) / 1000));
+      }
+    }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [forwardId]);
 
   return (
     <span className="text-[10px] text-orange-400 leading-tight">
