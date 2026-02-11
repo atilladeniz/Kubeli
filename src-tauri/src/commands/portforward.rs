@@ -1,10 +1,12 @@
 use crate::k8s::AppState;
+use futures::StreamExt;
 use k8s_openapi::api::core::v1::{Pod, Service};
 use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
 use kube::api::Api;
+use kube::runtime::watcher::{watcher, Config, Event};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -21,6 +23,9 @@ struct PortForwardSession {
     target_type: PortForwardTargetType,
     namespace: String,
     name: String,
+    pod_name: String,
+    pod_uid: String,
+    service_selector: Option<BTreeMap<String, String>>,
     status: Arc<RwLock<PortForwardStatus>>,
 }
 
@@ -38,6 +43,7 @@ pub enum PortForwardTargetType {
 pub enum PortForwardStatus {
     Connecting,
     Connected,
+    Reconnecting,
     Disconnected,
     Error,
 }
@@ -46,11 +52,35 @@ pub enum PortForwardStatus {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "data")]
 pub enum PortForwardEvent {
-    Started { forward_id: String, local_port: u16 },
-    Connected { forward_id: String },
-    Disconnected { forward_id: String },
-    Error { forward_id: String, message: String },
-    Stopped { forward_id: String },
+    Started {
+        forward_id: String,
+        local_port: u16,
+    },
+    Connected {
+        forward_id: String,
+    },
+    Reconnecting {
+        forward_id: String,
+        reason: String,
+    },
+    Reconnected {
+        forward_id: String,
+        new_pod: String,
+    },
+    PodDied {
+        forward_id: String,
+        pod_name: String,
+    },
+    Disconnected {
+        forward_id: String,
+    },
+    Error {
+        forward_id: String,
+        message: String,
+    },
+    Stopped {
+        forward_id: String,
+    },
 }
 
 /// Options for starting a port forward
@@ -73,6 +103,8 @@ pub struct PortForwardInfo {
     pub target_port: u16,
     pub local_port: u16,
     pub status: PortForwardStatus,
+    pub pod_name: Option<String>,
+    pub pod_uid: Option<String>,
 }
 
 /// Manager for active port forward sessions
@@ -104,6 +136,8 @@ impl PortForwardManager {
                 target_port: s.target_port,
                 local_port: s.local_port,
                 status,
+                pod_name: Some(s.pod_name.clone()),
+                pod_uid: Some(s.pod_uid.clone()),
             })
         } else {
             None
@@ -143,6 +177,8 @@ impl PortForwardManager {
                 target_port: s.target_port,
                 local_port: s.local_port,
                 status,
+                pod_name: Some(s.pod_name.clone()),
+                pod_uid: Some(s.pod_uid.clone()),
             });
         }
         result
@@ -151,6 +187,61 @@ impl PortForwardManager {
     async fn is_port_in_use(&self, port: u16) -> bool {
         let sessions = self.sessions.read().await;
         sessions.values().any(|s| s.local_port == port)
+    }
+
+    /// Update a session's pod target without changing forward_id
+    async fn update_pod_target(
+        &self,
+        id: &str,
+        new_pod_name: String,
+        new_pod_uid: String,
+        new_stop_flag: Arc<AtomicBool>,
+    ) {
+        let mut sessions = self.sessions.write().await;
+        if let Some(session) = sessions.get_mut(id) {
+            session.pod_name = new_pod_name;
+            session.pod_uid = new_pod_uid;
+            session.stop_flag = new_stop_flag;
+        }
+    }
+
+    /// Get all forwards targeting a specific pod UID
+    async fn get_forwards_for_pod_uid(
+        &self,
+        pod_uid: &str,
+    ) -> Vec<(
+        String,
+        PortForwardTargetType,
+        Option<BTreeMap<String, String>>,
+    )> {
+        let sessions = self.sessions.read().await;
+        sessions
+            .iter()
+            .filter(|(_, s)| s.pod_uid == pod_uid)
+            .map(|(id, s)| {
+                (
+                    id.clone(),
+                    s.target_type.clone(),
+                    s.service_selector.clone(),
+                )
+            })
+            .collect()
+    }
+
+    /// Get session details needed for reconnection
+    async fn get_reconnect_info(
+        &self,
+        id: &str,
+    ) -> Option<(String, u16, u16, Arc<RwLock<PortForwardStatus>>)> {
+        let sessions = self.sessions.read().await;
+        sessions.get(id).map(|s| {
+            (
+                s.namespace.clone(),
+                s.local_port,
+                s.target_port,
+                s.status.clone(),
+            )
+        })
     }
 }
 
@@ -193,6 +284,7 @@ pub async fn portforward_start(
     app: AppHandle,
     state: State<'_, AppState>,
     pf_manager: State<'_, Arc<PortForwardManager>>,
+    pf_watch_manager: State<'_, Arc<PortForwardWatchManager>>,
     forward_id: String,
     options: PortForwardOptions,
 ) -> Result<PortForwardInfo, String> {
@@ -219,14 +311,16 @@ pub async fn portforward_start(
         None => find_available_port().await?,
     };
 
-    // Verify target exists and get pod + resolved target port
-    let (pod_name, resolved_target_port) = match &options.target_type {
+    // Verify target exists and get pod + resolved target port + UID + selector
+    let (pod_name, pod_uid, resolved_target_port, service_selector) = match &options.target_type {
         PortForwardTargetType::Pod => {
             let pods: Api<Pod> = Api::namespaced(client.clone(), &options.namespace);
-            pods.get(&options.name)
+            let pod = pods
+                .get(&options.name)
                 .await
                 .map_err(|e| format!("Failed to get pod: {}", e))?;
-            (options.name.clone(), options.target_port)
+            let uid = pod.metadata.uid.clone().unwrap_or_default();
+            (options.name.clone(), uid, options.target_port, None)
         }
         PortForwardTargetType::Service => {
             let services: Api<Service> = Api::namespaced(client.clone(), &options.namespace);
@@ -271,10 +365,12 @@ pub async fn portforward_start(
                 .clone()
                 .ok_or_else(|| "Target pod has no name".to_string())?;
 
+            let uid = target_pod.metadata.uid.clone().unwrap_or_default();
+
             let resolved_port = resolve_service_target_port(&svc, &target_pod, options.target_port)
                 .unwrap_or(options.target_port);
 
-            (pod_name, resolved_port)
+            (pod_name, uid, resolved_port, Some(selector.clone()))
         }
     };
 
@@ -288,6 +384,9 @@ pub async fn portforward_start(
         target_type: options.target_type.clone(),
         namespace: options.namespace.clone(),
         name: options.name.clone(),
+        pod_name: pod_name.clone(),
+        pod_uid: pod_uid.clone(),
+        service_selector: service_selector.clone(),
         status: status.clone(),
     };
 
@@ -299,6 +398,8 @@ pub async fn portforward_start(
         target_port: resolved_target_port,
         local_port,
         status: PortForwardStatus::Connecting,
+        pod_name: Some(pod_name.clone()),
+        pod_uid: Some(pod_uid.clone()),
     };
 
     pf_manager.add_session(forward_id.clone(), session).await;
@@ -316,6 +417,19 @@ pub async fn portforward_start(
             local_port,
         },
     );
+
+    // Start the pod health watcher for this namespace
+    let pf_watch_manager_clone = Arc::clone(&pf_watch_manager);
+    let pf_manager_for_watch = Arc::clone(&pf_manager);
+    let watch_client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    pf_watch_manager_clone
+        .ensure_namespace_watcher(
+            watch_client,
+            app.clone(),
+            options.namespace.clone(),
+            pf_manager_for_watch,
+        )
+        .await;
 
     tokio::spawn(async move {
         run_port_forward(
@@ -421,6 +535,8 @@ async fn run_port_forward(
                         let pod_name_clone = pod_name.clone();
                         let forward_id_clone = forward_id.clone();
                         let stop_flag_clone = stop_flag.clone();
+                        let app_clone = app.clone();
+                        let event_name_clone = event_name.to_string();
 
                         tokio::spawn(async move {
                             handle_connection(
@@ -431,6 +547,8 @@ async fn run_port_forward(
                                 addr,
                                 stop_flag_clone,
                                 &forward_id_clone,
+                                app_clone,
+                                &event_name_clone,
                             )
                             .await;
                         });
@@ -453,6 +571,7 @@ async fn run_port_forward(
 }
 
 /// Handle a single port forward connection
+#[allow(clippy::too_many_arguments)]
 async fn handle_connection(
     pods: Api<Pod>,
     pod_name: &str,
@@ -461,6 +580,8 @@ async fn handle_connection(
     addr: SocketAddr,
     stop_flag: Arc<AtomicBool>,
     forward_id: &str,
+    app: AppHandle,
+    event_name: &str,
 ) {
     let mut pf = match pods.portforward(pod_name, &[target_port]).await {
         Ok(pf) => pf,
@@ -470,6 +591,13 @@ async fn handle_connection(
                 pod_name,
                 target_port,
                 e
+            );
+            let _ = app.emit(
+                event_name,
+                PortForwardEvent::Error {
+                    forward_id: forward_id.to_string(),
+                    message: format!("Connection to pod failed: {}", e),
+                },
             );
             return;
         }
@@ -575,18 +703,535 @@ fn find_named_container_port(pod: &Pod, name: &str) -> Option<u16> {
     })
 }
 
+/// Find a replacement running pod using label selector
+async fn find_replacement_pod(
+    client: &kube::Client,
+    namespace: &str,
+    selector: &BTreeMap<String, String>,
+) -> Option<(String, String)> {
+    let label_selector: String = selector
+        .iter()
+        .map(|(k, v)| format!("{}={}", k, v))
+        .collect::<Vec<_>>()
+        .join(",");
+
+    let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
+    let pod_list = pods
+        .list(&kube::api::ListParams::default().labels(&label_selector))
+        .await
+        .ok()?;
+
+    pod_list.items.into_iter().find_map(|p| {
+        let is_running = p
+            .status
+            .as_ref()
+            .and_then(|s| s.phase.as_ref())
+            .map(|phase| phase == "Running")
+            .unwrap_or(false);
+        let not_deleting = p.metadata.deletion_timestamp.is_none();
+        let is_ready = p
+            .status
+            .as_ref()
+            .and_then(|s| s.conditions.as_ref())
+            .map(|conds| {
+                conds
+                    .iter()
+                    .any(|c| c.type_ == "Ready" && c.status == "True")
+            })
+            .unwrap_or(false);
+
+        if is_running && not_deleting && is_ready {
+            let name = p.metadata.name?;
+            let uid = p.metadata.uid.unwrap_or_default();
+            Some((name, uid))
+        } else {
+            None
+        }
+    })
+}
+
+/// Per-namespace pod watcher for port forward health monitoring
+struct NamespaceWatchHandle {
+    stop_flag: Arc<AtomicBool>,
+    ref_count: usize,
+}
+
+/// Manager for namespace-level pod watchers used by port forwarding
+pub struct PortForwardWatchManager {
+    watchers: RwLock<HashMap<String, NamespaceWatchHandle>>,
+}
+
+impl PortForwardWatchManager {
+    pub fn new() -> Self {
+        Self {
+            watchers: RwLock::new(HashMap::new()),
+        }
+    }
+
+    /// Ensure a watcher exists for the given namespace. If one already exists, increment ref count.
+    async fn ensure_namespace_watcher(
+        &self,
+        client: kube::Client,
+        app: AppHandle,
+        namespace: String,
+        pf_manager: Arc<PortForwardManager>,
+    ) {
+        let mut watchers = self.watchers.write().await;
+        if let Some(handle) = watchers.get_mut(&namespace) {
+            handle.ref_count += 1;
+            return;
+        }
+
+        let stop_flag = Arc::new(AtomicBool::new(false));
+        watchers.insert(
+            namespace.clone(),
+            NamespaceWatchHandle {
+                stop_flag: stop_flag.clone(),
+                ref_count: 1,
+            },
+        );
+        drop(watchers);
+
+        let ns = namespace.clone();
+        let client_clone = client.clone();
+
+        tokio::spawn(async move {
+            watch_pods_for_portforwards(client_clone, app, ns, pf_manager, stop_flag).await;
+        });
+
+        tracing::info!(
+            "Started port forward pod watcher for namespace: {}",
+            namespace
+        );
+    }
+
+    /// Decrement ref count for a namespace watcher. Stop it if ref count reaches 0.
+    async fn release_namespace_watcher(&self, namespace: &str) {
+        let mut watchers = self.watchers.write().await;
+        let should_remove = if let Some(handle) = watchers.get_mut(namespace) {
+            handle.ref_count = handle.ref_count.saturating_sub(1);
+            if handle.ref_count == 0 {
+                handle.stop_flag.store(true, Ordering::SeqCst);
+                true
+            } else {
+                false
+            }
+        } else {
+            false
+        };
+        if should_remove {
+            watchers.remove(namespace);
+            tracing::info!(
+                "Stopped port forward pod watcher for namespace: {}",
+                namespace
+            );
+        }
+    }
+}
+
+impl Default for PortForwardWatchManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Event-driven pod watcher for port forward health monitoring.
+/// Watches all pods in a namespace and reacts when pods targeted by port forwards are deleted.
+async fn watch_pods_for_portforwards(
+    client: kube::Client,
+    app: AppHandle,
+    namespace: String,
+    pf_manager: Arc<PortForwardManager>,
+    stop_flag: Arc<AtomicBool>,
+) {
+    let pods: Api<Pod> = Api::namespaced(client.clone(), &namespace);
+    let watcher_config = Config::default();
+    let mut stream = watcher(pods, watcher_config).boxed();
+
+    while let Some(event) = stream.next().await {
+        if stop_flag.load(Ordering::SeqCst) {
+            break;
+        }
+
+        match event {
+            Ok(Event::Delete(pod)) => {
+                let pod_uid = pod.metadata.uid.as_deref().unwrap_or_default();
+                let pod_name = pod.metadata.name.as_deref().unwrap_or_default();
+
+                let affected = pf_manager.get_forwards_for_pod_uid(pod_uid).await;
+                if affected.is_empty() {
+                    continue;
+                }
+
+                tracing::info!(
+                    "Pod {} (uid={}) deleted, {} port forward(s) affected",
+                    pod_name,
+                    pod_uid,
+                    affected.len()
+                );
+
+                for (forward_id, target_type, selector) in affected {
+                    let event_name = format!("portforward-{}", forward_id);
+
+                    match target_type {
+                        PortForwardTargetType::Service => {
+                            if let Some(sel) = &selector {
+                                handle_service_reconnect(
+                                    &client,
+                                    &app,
+                                    &pf_manager,
+                                    &forward_id,
+                                    &event_name,
+                                    &namespace,
+                                    sel,
+                                )
+                                .await;
+                            }
+                        }
+                        PortForwardTargetType::Pod => {
+                            // For pod-type forwards: check if same-name pod exists (StatefulSet pattern)
+                            let pod_api: Api<Pod> = Api::namespaced(client.clone(), &namespace);
+                            match pod_api.get(pod_name).await {
+                                Ok(new_pod) => {
+                                    let new_uid =
+                                        new_pod.metadata.uid.as_deref().unwrap_or_default();
+                                    if new_uid != pod_uid {
+                                        // Same name, new UID - StatefulSet replacement
+                                        handle_pod_reconnect(
+                                            &client,
+                                            &app,
+                                            &pf_manager,
+                                            &forward_id,
+                                            &event_name,
+                                            &namespace,
+                                            pod_name,
+                                        )
+                                        .await;
+                                    }
+                                }
+                                Err(_) => {
+                                    // Pod gone with different name expected (Deployment) - auto-cleanup
+                                    let _ = app.emit(
+                                        &event_name,
+                                        PortForwardEvent::PodDied {
+                                            forward_id: forward_id.clone(),
+                                            pod_name: pod_name.to_string(),
+                                        },
+                                    );
+                                    // Stop and remove the forward
+                                    pf_manager.stop_session(&forward_id).await;
+                                    tokio::time::sleep(tokio::time::Duration::from_millis(100))
+                                        .await;
+                                    pf_manager.remove_session(&forward_id).await;
+                                    let _ = app.emit(
+                                        &event_name,
+                                        PortForwardEvent::Stopped {
+                                            forward_id: forward_id.clone(),
+                                        },
+                                    );
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(Event::Apply(pod)) => {
+                // Check if this pod has a deletion_timestamp (terminating)
+                if pod.metadata.deletion_timestamp.is_some() {
+                    let pod_uid = pod.metadata.uid.as_deref().unwrap_or_default();
+                    let affected = pf_manager.get_forwards_for_pod_uid(pod_uid).await;
+                    if affected.is_empty() {
+                        continue;
+                    }
+
+                    // Pod is terminating - for service-type, start proactive reconnect
+                    for (forward_id, target_type, selector) in affected {
+                        if target_type == PortForwardTargetType::Service {
+                            if let Some(sel) = &selector {
+                                let event_name = format!("portforward-{}", forward_id);
+                                handle_service_reconnect(
+                                    &client,
+                                    &app,
+                                    &pf_manager,
+                                    &forward_id,
+                                    &event_name,
+                                    &namespace,
+                                    sel,
+                                )
+                                .await;
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(_) => {} // Init, InitApply, InitDone - skip
+            Err(e) => {
+                tracing::warn!(
+                    "Port forward pod watcher error in namespace {}: {}",
+                    namespace,
+                    e
+                );
+            }
+        }
+    }
+
+    tracing::info!("Port forward pod watcher for namespace {} ended", namespace);
+}
+
+/// Handle reconnection for service-type port forwards
+async fn handle_service_reconnect(
+    client: &kube::Client,
+    app: &AppHandle,
+    pf_manager: &Arc<PortForwardManager>,
+    forward_id: &str,
+    event_name: &str,
+    namespace: &str,
+    selector: &BTreeMap<String, String>,
+) {
+    // Emit reconnecting event
+    let _ = app.emit(
+        event_name,
+        PortForwardEvent::Reconnecting {
+            forward_id: forward_id.to_string(),
+            reason: "Target pod terminated".to_string(),
+        },
+    );
+
+    // Update status
+    if let Some((_, _, _, status)) = pf_manager.get_reconnect_info(forward_id).await {
+        *status.write().await = PortForwardStatus::Reconnecting;
+    }
+
+    // Try to find replacement with retries over 30 seconds
+    let mut replacement = None;
+    for attempt in 0..15 {
+        if let Some(found) = find_replacement_pod(client, namespace, selector).await {
+            replacement = Some(found);
+            break;
+        }
+        if attempt < 14 {
+            tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+        }
+    }
+
+    match replacement {
+        Some((new_pod_name, new_pod_uid)) => {
+            reconnect_forward(
+                client,
+                app,
+                pf_manager,
+                forward_id,
+                event_name,
+                namespace,
+                &new_pod_name,
+                &new_pod_uid,
+            )
+            .await;
+        }
+        None => {
+            // No replacement found - auto-cleanup
+            let _ = app.emit(
+                event_name,
+                PortForwardEvent::PodDied {
+                    forward_id: forward_id.to_string(),
+                    pod_name: "unknown".to_string(),
+                },
+            );
+            pf_manager.stop_session(forward_id).await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+            pf_manager.remove_session(forward_id).await;
+            let _ = app.emit(
+                event_name,
+                PortForwardEvent::Stopped {
+                    forward_id: forward_id.to_string(),
+                },
+            );
+        }
+    }
+}
+
+/// Handle reconnection for pod-type forwards (StatefulSet same-name pattern)
+async fn handle_pod_reconnect(
+    client: &kube::Client,
+    app: &AppHandle,
+    pf_manager: &Arc<PortForwardManager>,
+    forward_id: &str,
+    event_name: &str,
+    namespace: &str,
+    pod_name: &str,
+) {
+    let _ = app.emit(
+        event_name,
+        PortForwardEvent::Reconnecting {
+            forward_id: forward_id.to_string(),
+            reason: "Pod restarted (same name)".to_string(),
+        },
+    );
+
+    if let Some((_, _, _, status)) = pf_manager.get_reconnect_info(forward_id).await {
+        *status.write().await = PortForwardStatus::Reconnecting;
+    }
+
+    // Wait for pod to be ready (up to 30s)
+    let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
+    let mut ready = false;
+    for _ in 0..15 {
+        if let Ok(pod) = pods.get(pod_name).await {
+            let is_running = pod
+                .status
+                .as_ref()
+                .and_then(|s| s.phase.as_ref())
+                .map(|phase| phase == "Running")
+                .unwrap_or(false);
+            let is_ready = pod
+                .status
+                .as_ref()
+                .and_then(|s| s.conditions.as_ref())
+                .map(|conds| {
+                    conds
+                        .iter()
+                        .any(|c| c.type_ == "Ready" && c.status == "True")
+                })
+                .unwrap_or(false);
+            if is_running && is_ready {
+                let new_uid = pod.metadata.uid.as_deref().unwrap_or_default();
+                reconnect_forward(
+                    client, app, pf_manager, forward_id, event_name, namespace, pod_name, new_uid,
+                )
+                .await;
+                ready = true;
+                break;
+            }
+        }
+        tokio::time::sleep(tokio::time::Duration::from_secs(2)).await;
+    }
+
+    if !ready {
+        let _ = app.emit(
+            event_name,
+            PortForwardEvent::PodDied {
+                forward_id: forward_id.to_string(),
+                pod_name: pod_name.to_string(),
+            },
+        );
+        pf_manager.stop_session(forward_id).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        pf_manager.remove_session(forward_id).await;
+        let _ = app.emit(
+            event_name,
+            PortForwardEvent::Stopped {
+                forward_id: forward_id.to_string(),
+            },
+        );
+    }
+}
+
+/// Reconnect a port forward to a new pod
+#[allow(clippy::too_many_arguments)]
+async fn reconnect_forward(
+    client: &kube::Client,
+    app: &AppHandle,
+    pf_manager: &Arc<PortForwardManager>,
+    forward_id: &str,
+    event_name: &str,
+    namespace: &str,
+    new_pod_name: &str,
+    new_pod_uid: &str,
+) {
+    let reconnect_info = pf_manager.get_reconnect_info(forward_id).await;
+    let (_, local_port, target_port, status) = match reconnect_info {
+        Some(info) => info,
+        None => return,
+    };
+
+    // Stop old listener
+    pf_manager.stop_session(forward_id).await;
+    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+
+    // Create new stop flag for reconnected session
+    let new_stop_flag = Arc::new(AtomicBool::new(false));
+    pf_manager
+        .update_pod_target(
+            forward_id,
+            new_pod_name.to_string(),
+            new_pod_uid.to_string(),
+            new_stop_flag.clone(),
+        )
+        .await;
+
+    let client_clone = client.clone();
+    let app_clone = app.clone();
+    let event_name_clone = event_name.to_string();
+    let forward_id_clone = forward_id.to_string();
+    let namespace_clone = namespace.to_string();
+    let pod_name_clone = new_pod_name.to_string();
+    let status_clone = status.clone();
+    let pf_manager_clone = Arc::clone(pf_manager);
+
+    tokio::spawn(async move {
+        run_port_forward(
+            client_clone,
+            app_clone.clone(),
+            &event_name_clone,
+            &forward_id_clone,
+            new_stop_flag,
+            status_clone,
+            local_port,
+            target_port,
+            &namespace_clone,
+            &pod_name_clone,
+        )
+        .await;
+
+        pf_manager_clone.remove_session(&forward_id_clone).await;
+        let _ = app_clone.emit(
+            &event_name_clone,
+            PortForwardEvent::Stopped {
+                forward_id: forward_id_clone,
+            },
+        );
+    });
+
+    // Emit reconnected event
+    let _ = app.emit(
+        event_name,
+        PortForwardEvent::Reconnected {
+            forward_id: forward_id.to_string(),
+            new_pod: new_pod_name.to_string(),
+        },
+    );
+
+    tracing::info!(
+        "Reconnected port forward {} to new pod {}",
+        forward_id,
+        new_pod_name
+    );
+}
+
 /// Stop a port forward session
 #[command]
 pub async fn portforward_stop(
     app: AppHandle,
     pf_manager: State<'_, Arc<PortForwardManager>>,
+    pf_watch_manager: State<'_, Arc<PortForwardWatchManager>>,
     forward_id: String,
 ) -> Result<(), String> {
     let event_name = format!("portforward-{}", forward_id);
 
+    // Get namespace before removing
+    let namespace = {
+        let sessions = pf_manager.sessions.read().await;
+        sessions.get(&forward_id).map(|s| s.namespace.clone())
+    };
+
     if pf_manager.stop_session(&forward_id).await {
         tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         pf_manager.remove_session(&forward_id).await;
+
+        // Release the namespace watcher ref
+        if let Some(ns) = namespace {
+            pf_watch_manager.release_namespace_watcher(&ns).await;
+        }
 
         let _ = app.emit(
             &event_name,
