@@ -892,6 +892,7 @@ async fn watch_pods_for_portforwards(
                                     &forward_id,
                                     &event_name,
                                     &namespace,
+                                    pod_name,
                                     sel,
                                 )
                                 .await;
@@ -948,6 +949,7 @@ async fn watch_pods_for_portforwards(
                 // Check if this pod has a deletion_timestamp (terminating)
                 if pod.metadata.deletion_timestamp.is_some() {
                     let pod_uid = pod.metadata.uid.as_deref().unwrap_or_default();
+                    let pod_name = pod.metadata.name.as_deref().unwrap_or_default();
                     let affected = pf_manager.get_forwards_for_pod_uid(pod_uid).await;
                     if affected.is_empty() {
                         continue;
@@ -965,6 +967,7 @@ async fn watch_pods_for_portforwards(
                                     &forward_id,
                                     &event_name,
                                     &namespace,
+                                    pod_name,
                                     sel,
                                 )
                                 .await;
@@ -995,6 +998,7 @@ async fn handle_service_reconnect(
     forward_id: &str,
     event_name: &str,
     namespace: &str,
+    pod_name: &str,
     selector: &BTreeMap<String, String>,
 ) {
     // Skip if already reconnecting
@@ -1055,7 +1059,7 @@ async fn handle_service_reconnect(
                 event_name,
                 PortForwardEvent::PodDied {
                     forward_id: forward_id.to_string(),
-                    pod_name: "unknown".to_string(),
+                    pod_name: pod_name.to_string(),
                 },
             );
             pf_manager.stop_session(forward_id).await;

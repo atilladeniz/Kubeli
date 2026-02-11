@@ -726,15 +726,25 @@ export function Sidebar({
                             ? "bg-green-400"
                             : forward.status === "connecting"
                             ? "bg-yellow-400 animate-pulse"
+                            : forward.status === "reconnecting"
+                            ? "bg-orange-400 animate-pulse"
                             : "bg-red-400"
                         )}
                       />
-                      <span className="truncate font-medium max-w-[80px]">
-                        {forward.name}
-                      </span>
-                      <span className="text-muted-foreground shrink-0 tabular-nums">
-                        :{forward.local_port}
-                      </span>
+                      {forward.status === "reconnecting" ? (
+                        <span className="truncate text-orange-400 animate-pulse">
+                          Reconnecting…
+                        </span>
+                      ) : (
+                        <>
+                          <span className="truncate font-medium max-w-[80px]">
+                            {forward.name}
+                          </span>
+                          <span className="text-muted-foreground shrink-0 tabular-nums">
+                            :{forward.local_port}
+                          </span>
+                        </>
+                      )}
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0 ml-1">
                       <Button
