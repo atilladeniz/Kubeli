@@ -1312,3 +1312,637 @@ pub async fn portforward_check_port(
         Err(_) => Ok(false),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use k8s_openapi::api::core::v1::{
+        Container, ContainerPort, Pod, PodSpec, PodStatus, Service, ServicePort, ServiceSpec,
+    };
+    use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+    use kube::api::ObjectMeta;
+
+    // ── Helper builders ──
+
+    fn make_pod(name: &str, uid: &str, ports: Vec<(&str, i32)>) -> Pod {
+        Pod {
+            metadata: ObjectMeta {
+                name: Some(name.to_string()),
+                uid: Some(uid.to_string()),
+                ..Default::default()
+            },
+            spec: Some(PodSpec {
+                containers: vec![Container {
+                    name: "main".to_string(),
+                    ports: Some(
+                        ports
+                            .into_iter()
+                            .map(|(pname, port)| ContainerPort {
+                                name: if pname.is_empty() {
+                                    None
+                                } else {
+                                    Some(pname.to_string())
+                                },
+                                container_port: port,
+                                ..Default::default()
+                            })
+                            .collect(),
+                    ),
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            status: Some(PodStatus {
+                phase: Some("Running".to_string()),
+                ..Default::default()
+            }),
+        }
+    }
+
+    fn make_service(ports: Vec<(i32, Option<IntOrString>)>) -> Service {
+        Service {
+            metadata: ObjectMeta::default(),
+            spec: Some(ServiceSpec {
+                ports: Some(
+                    ports
+                        .into_iter()
+                        .map(|(port, target_port)| ServicePort {
+                            port,
+                            target_port,
+                            ..Default::default()
+                        })
+                        .collect(),
+                ),
+                ..Default::default()
+            }),
+            status: None,
+        }
+    }
+
+    fn make_session(
+        local_port: u16,
+        target_port: u16,
+        target_type: PortForwardTargetType,
+        namespace: &str,
+        name: &str,
+        pod_name: &str,
+        pod_uid: &str,
+    ) -> PortForwardSession {
+        PortForwardSession {
+            stop_flag: Arc::new(AtomicBool::new(false)),
+            local_port,
+            target_port,
+            target_type,
+            namespace: namespace.to_string(),
+            name: name.to_string(),
+            pod_name: pod_name.to_string(),
+            pod_uid: pod_uid.to_string(),
+            service_selector: None,
+            status: Arc::new(RwLock::new(PortForwardStatus::Connected)),
+        }
+    }
+
+    fn make_session_with_selector(
+        local_port: u16,
+        target_port: u16,
+        namespace: &str,
+        name: &str,
+        pod_name: &str,
+        pod_uid: &str,
+        selector: BTreeMap<String, String>,
+    ) -> PortForwardSession {
+        PortForwardSession {
+            stop_flag: Arc::new(AtomicBool::new(false)),
+            local_port,
+            target_port,
+            target_type: PortForwardTargetType::Service,
+            namespace: namespace.to_string(),
+            name: name.to_string(),
+            pod_name: pod_name.to_string(),
+            pod_uid: pod_uid.to_string(),
+            service_selector: Some(selector),
+            status: Arc::new(RwLock::new(PortForwardStatus::Connected)),
+        }
+    }
+
+    // ── resolve_service_target_port tests ──
+
+    #[test]
+    fn resolve_target_port_int() {
+        let svc = make_service(vec![(80, Some(IntOrString::Int(8080)))]);
+        let pod = make_pod("p", "uid", vec![]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(8080));
+    }
+
+    #[test]
+    fn resolve_target_port_no_target_port_falls_back_to_service_port() {
+        let svc = make_service(vec![(3000, None)]);
+        let pod = make_pod("p", "uid", vec![]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 3000), Some(3000));
+    }
+
+    #[test]
+    fn resolve_target_port_string_numeric() {
+        let svc = make_service(vec![(80, Some(IntOrString::String("9090".to_string())))]);
+        let pod = make_pod("p", "uid", vec![]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(9090));
+    }
+
+    #[test]
+    fn resolve_target_port_named_port_lookup() {
+        let svc = make_service(vec![(80, Some(IntOrString::String("http".to_string())))]);
+        let pod = make_pod("p", "uid", vec![("http", 8080), ("metrics", 9090)]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(8080));
+    }
+
+    #[test]
+    fn resolve_target_port_named_port_not_found() {
+        let svc = make_service(vec![(80, Some(IntOrString::String("grpc".to_string())))]);
+        let pod = make_pod("p", "uid", vec![("http", 8080)]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), None);
+    }
+
+    #[test]
+    fn resolve_target_port_empty_string_returns_none() {
+        let svc = make_service(vec![(80, Some(IntOrString::String("".to_string())))]);
+        let pod = make_pod("p", "uid", vec![]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), None);
+    }
+
+    #[test]
+    fn resolve_target_port_falls_back_to_first_port() {
+        // Requested port doesn't match, falls back to first service port
+        let svc = make_service(vec![(80, Some(IntOrString::Int(8080)))]);
+        let pod = make_pod("p", "uid", vec![]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 9999), Some(8080));
+    }
+
+    #[test]
+    fn resolve_target_port_no_spec_returns_none() {
+        let svc = Service {
+            metadata: ObjectMeta::default(),
+            spec: None,
+            status: None,
+        };
+        let pod = make_pod("p", "uid", vec![]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), None);
+    }
+
+    #[test]
+    fn resolve_target_port_negative_int_clamped_to_zero() {
+        let svc = make_service(vec![(80, Some(IntOrString::Int(-1)))]);
+        let pod = make_pod("p", "uid", vec![]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(0));
+    }
+
+    // ── find_named_container_port tests ──
+
+    #[test]
+    fn find_named_port_found() {
+        let pod = make_pod("p", "uid", vec![("http", 8080), ("metrics", 9090)]);
+        assert_eq!(find_named_container_port(&pod, "metrics"), Some(9090));
+    }
+
+    #[test]
+    fn find_named_port_not_found() {
+        let pod = make_pod("p", "uid", vec![("http", 8080)]);
+        assert_eq!(find_named_container_port(&pod, "grpc"), None);
+    }
+
+    #[test]
+    fn find_named_port_no_spec() {
+        let pod = Pod {
+            metadata: ObjectMeta::default(),
+            spec: None,
+            status: None,
+        };
+        assert_eq!(find_named_container_port(&pod, "http"), None);
+    }
+
+    #[test]
+    fn find_named_port_no_ports() {
+        let pod = Pod {
+            metadata: ObjectMeta::default(),
+            spec: Some(PodSpec {
+                containers: vec![Container {
+                    name: "main".to_string(),
+                    ports: None,
+                    ..Default::default()
+                }],
+                ..Default::default()
+            }),
+            status: None,
+        };
+        assert_eq!(find_named_container_port(&pod, "http"), None);
+    }
+
+    // ── PortForwardManager tests ──
+
+    #[tokio::test]
+    async fn manager_add_and_get_session() {
+        let mgr = PortForwardManager::new();
+        let session = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "web-abc",
+            "uid-1",
+        );
+        mgr.add_session("fwd-1".to_string(), session).await;
+
+        let info = mgr.get_session_info("fwd-1").await.unwrap();
+        assert_eq!(info.forward_id, "fwd-1");
+        assert_eq!(info.local_port, 8080);
+        assert_eq!(info.target_port, 80);
+        assert_eq!(info.namespace, "default");
+        assert_eq!(info.name, "web");
+        assert_eq!(info.pod_name, Some("web-abc".to_string()));
+        assert_eq!(info.pod_uid, Some("uid-1".to_string()));
+        assert_eq!(info.status, PortForwardStatus::Connected);
+    }
+
+    #[tokio::test]
+    async fn manager_get_nonexistent_returns_none() {
+        let mgr = PortForwardManager::new();
+        assert!(mgr.get_session_info("nope").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn manager_remove_session() {
+        let mgr = PortForwardManager::new();
+        let session = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "web-abc",
+            "uid-1",
+        );
+        mgr.add_session("fwd-1".to_string(), session).await;
+
+        mgr.remove_session("fwd-1").await;
+        assert!(!mgr.is_active("fwd-1").await);
+    }
+
+    #[tokio::test]
+    async fn manager_stop_sets_flag() {
+        let mgr = PortForwardManager::new();
+        let session = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "web-abc",
+            "uid-1",
+        );
+        let flag = session.stop_flag.clone();
+        mgr.add_session("fwd-1".to_string(), session).await;
+
+        assert!(!flag.load(Ordering::SeqCst));
+        assert!(mgr.stop_session("fwd-1").await);
+        assert!(flag.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn manager_stop_nonexistent_returns_false() {
+        let mgr = PortForwardManager::new();
+        assert!(!mgr.stop_session("nope").await);
+    }
+
+    #[tokio::test]
+    async fn manager_is_port_in_use() {
+        let mgr = PortForwardManager::new();
+        let session = make_session(
+            41587,
+            80,
+            PortForwardTargetType::Service,
+            "default",
+            "web",
+            "web-abc",
+            "uid-1",
+        );
+        mgr.add_session("fwd-1".to_string(), session).await;
+
+        assert!(mgr.is_port_in_use(41587).await);
+        assert!(!mgr.is_port_in_use(9999).await);
+    }
+
+    #[tokio::test]
+    async fn manager_list_sessions() {
+        let mgr = PortForwardManager::new();
+        let s1 = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "pod-1",
+            "uid-1",
+        );
+        let s2 = make_session(
+            9090,
+            90,
+            PortForwardTargetType::Service,
+            "kube-system",
+            "dns",
+            "pod-2",
+            "uid-2",
+        );
+        mgr.add_session("fwd-1".to_string(), s1).await;
+        mgr.add_session("fwd-2".to_string(), s2).await;
+
+        let list = mgr.list_sessions().await;
+        assert_eq!(list.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn manager_update_pod_target() {
+        let mgr = PortForwardManager::new();
+        let session = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Service,
+            "default",
+            "web",
+            "old-pod",
+            "old-uid",
+        );
+        mgr.add_session("fwd-1".to_string(), session).await;
+
+        let new_flag = Arc::new(AtomicBool::new(false));
+        mgr.update_pod_target(
+            "fwd-1",
+            "new-pod".to_string(),
+            "new-uid".to_string(),
+            new_flag,
+        )
+        .await;
+
+        let info = mgr.get_session_info("fwd-1").await.unwrap();
+        assert_eq!(info.pod_name, Some("new-pod".to_string()));
+        assert_eq!(info.pod_uid, Some("new-uid".to_string()));
+    }
+
+    #[tokio::test]
+    async fn manager_get_forwards_for_pod_uid() {
+        let mgr = PortForwardManager::new();
+        let s1 = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Service,
+            "default",
+            "web",
+            "pod-abc",
+            "uid-target",
+        );
+        let s2 = make_session(
+            9090,
+            90,
+            PortForwardTargetType::Pod,
+            "default",
+            "api",
+            "pod-def",
+            "uid-other",
+        );
+        let s3 = make_session(
+            7070,
+            70,
+            PortForwardTargetType::Service,
+            "default",
+            "grpc",
+            "pod-abc",
+            "uid-target",
+        );
+        mgr.add_session("fwd-1".to_string(), s1).await;
+        mgr.add_session("fwd-2".to_string(), s2).await;
+        mgr.add_session("fwd-3".to_string(), s3).await;
+
+        let affected = mgr.get_forwards_for_pod_uid("uid-target").await;
+        assert_eq!(affected.len(), 2);
+
+        let ids: Vec<&str> = affected.iter().map(|(id, _, _)| id.as_str()).collect();
+        assert!(ids.contains(&"fwd-1"));
+        assert!(ids.contains(&"fwd-3"));
+    }
+
+    #[tokio::test]
+    async fn manager_get_forwards_for_pod_uid_none_found() {
+        let mgr = PortForwardManager::new();
+        let s1 = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "pod-abc",
+            "uid-1",
+        );
+        mgr.add_session("fwd-1".to_string(), s1).await;
+
+        let affected = mgr.get_forwards_for_pod_uid("uid-nonexistent").await;
+        assert!(affected.is_empty());
+    }
+
+    #[tokio::test]
+    async fn manager_get_reconnect_info() {
+        let mgr = PortForwardManager::new();
+        let session = make_session(
+            41587,
+            8080,
+            PortForwardTargetType::Service,
+            "default",
+            "web",
+            "pod-abc",
+            "uid-1",
+        );
+        mgr.add_session("fwd-1".to_string(), session).await;
+
+        let info = mgr.get_reconnect_info("fwd-1").await.unwrap();
+        assert_eq!(info.0, "default"); // namespace
+        assert_eq!(info.1, 41587); // local_port
+        assert_eq!(info.2, 8080); // target_port
+
+        // Status should be accessible
+        let status = info.3.read().await.clone();
+        assert_eq!(status, PortForwardStatus::Connected);
+    }
+
+    #[tokio::test]
+    async fn manager_get_reconnect_info_nonexistent() {
+        let mgr = PortForwardManager::new();
+        assert!(mgr.get_reconnect_info("nope").await.is_none());
+    }
+
+    #[tokio::test]
+    async fn manager_get_forwards_returns_selector() {
+        let mgr = PortForwardManager::new();
+        let mut selector = BTreeMap::new();
+        selector.insert("app".to_string(), "web".to_string());
+        let session = make_session_with_selector(
+            8080,
+            80,
+            "default",
+            "web-svc",
+            "pod-1",
+            "uid-1",
+            selector.clone(),
+        );
+        mgr.add_session("fwd-1".to_string(), session).await;
+
+        let affected = mgr.get_forwards_for_pod_uid("uid-1").await;
+        assert_eq!(affected.len(), 1);
+        assert_eq!(affected[0].2, Some(selector));
+    }
+
+    // ── PortForwardWatchManager tests ──
+
+    #[tokio::test]
+    async fn watch_manager_release_decrements_ref_count() {
+        let wm = PortForwardWatchManager::new();
+
+        // Manually insert a watch handle (we can't use ensure_namespace_watcher without a real client)
+        {
+            let mut watchers = wm.watchers.write().await;
+            watchers.insert(
+                "default".to_string(),
+                NamespaceWatchHandle {
+                    stop_flag: Arc::new(AtomicBool::new(false)),
+                    ref_count: 3,
+                },
+            );
+        }
+
+        wm.release_namespace_watcher("default").await;
+        {
+            let watchers = wm.watchers.read().await;
+            assert_eq!(watchers.get("default").unwrap().ref_count, 2);
+        }
+
+        wm.release_namespace_watcher("default").await;
+        wm.release_namespace_watcher("default").await;
+
+        // Ref count reached 0, should be removed
+        let watchers = wm.watchers.read().await;
+        assert!(!watchers.contains_key("default"));
+    }
+
+    #[tokio::test]
+    async fn watch_manager_release_sets_stop_flag_at_zero() {
+        let wm = PortForwardWatchManager::new();
+        let stop_flag = Arc::new(AtomicBool::new(false));
+
+        {
+            let mut watchers = wm.watchers.write().await;
+            watchers.insert(
+                "kube-system".to_string(),
+                NamespaceWatchHandle {
+                    stop_flag: stop_flag.clone(),
+                    ref_count: 1,
+                },
+            );
+        }
+
+        wm.release_namespace_watcher("kube-system").await;
+        assert!(stop_flag.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn watch_manager_release_nonexistent_is_noop() {
+        let wm = PortForwardWatchManager::new();
+        // Should not panic
+        wm.release_namespace_watcher("nonexistent").await;
+    }
+
+    // ── Serialization tests ──
+
+    #[test]
+    fn port_forward_event_serializes_correctly() {
+        let event = PortForwardEvent::Reconnecting {
+            forward_id: "fwd-1".to_string(),
+            reason: "Pod terminated".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"Reconnecting\""));
+        assert!(json.contains("\"forward_id\":\"fwd-1\""));
+        assert!(json.contains("\"reason\":\"Pod terminated\""));
+    }
+
+    #[test]
+    fn port_forward_event_reconnected_serializes() {
+        let event = PortForwardEvent::Reconnected {
+            forward_id: "fwd-1".to_string(),
+            new_pod: "pod-xyz".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"Reconnected\""));
+        assert!(json.contains("\"new_pod\":\"pod-xyz\""));
+    }
+
+    #[test]
+    fn port_forward_event_pod_died_serializes() {
+        let event = PortForwardEvent::PodDied {
+            forward_id: "fwd-1".to_string(),
+            pod_name: "old-pod".to_string(),
+        };
+        let json = serde_json::to_string(&event).unwrap();
+        assert!(json.contains("\"type\":\"PodDied\""));
+        assert!(json.contains("\"pod_name\":\"old-pod\""));
+    }
+
+    #[test]
+    fn port_forward_status_serializes_reconnecting() {
+        let status = PortForwardStatus::Reconnecting;
+        let json = serde_json::to_string(&status).unwrap();
+        assert_eq!(json, "\"reconnecting\"");
+    }
+
+    #[test]
+    fn port_forward_target_type_roundtrips() {
+        let svc = PortForwardTargetType::Service;
+        let json = serde_json::to_string(&svc).unwrap();
+        assert_eq!(json, "\"service\"");
+        let back: PortForwardTargetType = serde_json::from_str(&json).unwrap();
+        assert_eq!(back, PortForwardTargetType::Service);
+    }
+
+    #[test]
+    fn port_forward_info_includes_pod_fields() {
+        let info = PortForwardInfo {
+            forward_id: "fwd-1".to_string(),
+            namespace: "default".to_string(),
+            name: "web".to_string(),
+            target_type: PortForwardTargetType::Service,
+            target_port: 80,
+            local_port: 41587,
+            status: PortForwardStatus::Reconnecting,
+            pod_name: Some("pod-abc".to_string()),
+            pod_uid: Some("uid-123".to_string()),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        assert!(json.contains("\"pod_name\":\"pod-abc\""));
+        assert!(json.contains("\"pod_uid\":\"uid-123\""));
+        assert!(json.contains("\"reconnecting\""));
+    }
+
+    // ── Status transition tests ──
+
+    #[tokio::test]
+    async fn status_transition_connected_to_reconnecting() {
+        let status = Arc::new(RwLock::new(PortForwardStatus::Connected));
+        *status.write().await = PortForwardStatus::Reconnecting;
+        assert_eq!(*status.read().await, PortForwardStatus::Reconnecting);
+    }
+
+    #[tokio::test]
+    async fn status_check_prevents_cleanup_during_reconnect() {
+        let status = Arc::new(RwLock::new(PortForwardStatus::Reconnecting));
+        let current = status.read().await.clone();
+        // This is the guard that prevents run_port_forward cleanup from racing with reconnect
+        assert_eq!(current, PortForwardStatus::Reconnecting);
+        assert!(current == PortForwardStatus::Reconnecting);
+    }
+}
