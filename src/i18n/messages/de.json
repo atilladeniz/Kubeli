@@ -155,7 +155,8 @@
     "latency": "{ms}ms",
     "searchClustersPlaceholder": "Cluster suchen...",
     "noSearchResults": "Keine Cluster gefunden",
-    "noSearchResultsHint": "Keine Cluster für \"{query}\" gefunden. Versuche einen anderen Suchbegriff."
+    "noSearchResultsHint": "Keine Cluster für \"{query}\" gefunden. Versuche einen anderen Suchbegriff.",
+    "connecting": "Verbinde..."
   },
   "workloads": {
     "overview": "Workloads-Übersicht",

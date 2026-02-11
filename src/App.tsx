@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import {
   Empty,
   EmptyDescription,
@@ -489,7 +490,10 @@ export default function Home() {
                           variant={isActive ? "secondary" : "default"}
                         >
                           {connectingContext === cluster.context ? (
-                            <Loader2 className="size-4 animate-spin" />
+                            <>
+                              <Spinner />
+                              {t("connecting")}
+                            </>
                           ) : isActive ? (
                             t("connected")
                           ) : (
