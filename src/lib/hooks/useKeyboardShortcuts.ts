@@ -115,6 +115,7 @@ export const NAVIGATION_SHORTCUTS = {
   REFRESH: "r",
   HELP: "?",
   TOGGLE_AI: "g i",
+  CREATE_RESOURCE: "n",
   // Favorite shortcuts (Cmd+1 through Cmd+9)
   FAVORITE_1: "1",
   FAVORITE_2: "2",

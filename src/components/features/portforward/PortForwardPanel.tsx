@@ -140,6 +140,8 @@ function PortForwardItem({ forward, onStop }: PortForwardItemProps) {
         return t("connecting");
       case "connected":
         return t("connected");
+      case "reconnecting":
+        return t("reconnecting");
       case "disconnected":
         return t("disconnected");
       case "error":
@@ -150,6 +152,7 @@ function PortForwardItem({ forward, onStop }: PortForwardItemProps) {
   const statusColors: Record<PortForwardStatus, string> = {
     connecting: "bg-yellow-500",
     connected: "bg-green-500",
+    reconnecting: "bg-orange-500",
     disconnected: "bg-muted-foreground",
     error: "bg-destructive",
   };
@@ -170,7 +173,7 @@ function PortForwardItem({ forward, onStop }: PortForwardItemProps) {
               className={cn(
                 "size-2 rounded-full",
                 statusColors[forward.status],
-                forward.status === "connecting" && "animate-pulse"
+                (forward.status === "connecting" || forward.status === "reconnecting") && "animate-pulse"
               )}
               title={statusLabel}
             />

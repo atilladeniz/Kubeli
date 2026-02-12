@@ -2,6 +2,26 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.35] - 2026-02-12
+
+- Fixed shell tab management issues
+
+## [0.3.34] - 2026-02-12
+
+- Fixed port forward UI to display the resolved target port instead of the raw port value
+
+## [0.3.33] - 2026-02-11
+
+- Added port forward auto-cleanup and smart reconnect
+
+## [0.3.32] - 2026-02-11
+
+- Added search bar for filtering cluster list
+
+## [0.3.31] - 2026-02-10
+
+- Added resource creation panel with YAML templates
+
 ## [0.3.30] - 2026-02-08
 
 - Fixed detail tab not resetting when switching resources via favorites

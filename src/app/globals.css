@@ -357,6 +357,26 @@
   }
 }
 
+/* Toast notifications - near-opaque regardless of vibrancy level */
+:is(.vibrancy-standard, .vibrancy-more, .vibrancy-extra) {
+  & [data-sonner-toast] {
+    backdrop-filter: blur(20px) saturate(1.3);
+    -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  }
+
+  &:not(.dark):not(.classic-dark) [data-sonner-toast] {
+    background: rgba(252, 252, 252, 0.9) !important;
+  }
+
+  &.dark [data-sonner-toast] {
+    background: rgba(42, 42, 42, 0.9) !important;
+  }
+
+  &.classic-dark [data-sonner-toast] {
+    background: rgba(30, 31, 40, 0.9) !important;
+  }
+}
+
 /* Windows-specific vibrancy adjustments - higher opacity to compensate for Mica/Acrylic blur */
 .platform-windows.vibrancy-standard {
   --vibrancy-bg-light: rgba(245, 245, 245, 0.95);

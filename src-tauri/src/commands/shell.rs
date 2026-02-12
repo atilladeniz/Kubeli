@@ -300,7 +300,7 @@ pub async fn shell_resize(
     Ok(())
 }
 
-/// Close a shell session
+/// Close a shell session (idempotent - no error if already closed)
 #[command]
 pub async fn shell_close(
     shell_manager: State<'_, Arc<ShellSessionManager>>,
@@ -309,10 +309,10 @@ pub async fn shell_close(
     if shell_manager.stop_session(&session_id).await {
         shell_manager.remove_session(&session_id).await;
         tracing::info!("Closed shell session {}", session_id);
-        Ok(())
     } else {
-        Err(format!("Session {} not found", session_id))
+        tracing::debug!("Shell session {} already closed", session_id);
     }
+    Ok(())
 }
 
 /// List active shell sessions

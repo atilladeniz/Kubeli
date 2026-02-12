@@ -33,6 +33,7 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
+import { getReconnectStartTime } from "@/lib/stores/portforward-store";
 import {
   useFavoritesStore,
   type FavoriteResource,
@@ -722,19 +723,29 @@ export function Sidebar({
                       <span
                         className={cn(
                           "size-1.5 rounded-full shrink-0",
+                          forward.status === "reconnecting" ? "self-start mt-[5px]" : "self-center",
                           forward.status === "connected"
                             ? "bg-green-400"
                             : forward.status === "connecting"
                             ? "bg-yellow-400 animate-pulse"
+                            : forward.status === "reconnecting"
+                            ? "bg-orange-400 animate-pulse"
                             : "bg-red-400"
                         )}
                       />
-                      <span className="truncate font-medium max-w-[80px]">
-                        {forward.name}
-                      </span>
-                      <span className="text-muted-foreground shrink-0 tabular-nums">
-                        :{forward.local_port}
-                      </span>
+                      <div className="min-w-0 flex-1 overflow-hidden">
+                        <div className="flex items-center gap-1">
+                          <span className="truncate font-medium max-w-[80px]">
+                            {forward.name}
+                          </span>
+                          <span className="text-muted-foreground shrink-0 tabular-nums">
+                            :{forward.local_port}
+                          </span>
+                        </div>
+                        {forward.status === "reconnecting" && (
+                          <ReconnectingTimer forwardId={forward.forward_id} />
+                        )}
+                      </div>
                     </div>
                     <div className="flex items-center gap-0.5 shrink-0 ml-1">
                       <Button
@@ -1209,5 +1220,28 @@ function FavoriteItem({
         </DropdownMenu>
       </div>
     </div>
+  );
+}
+
+function ReconnectingTimer({ forwardId }: { forwardId: string }) {
+  const [elapsed, setElapsed] = useState(() => {
+    const startTime = getReconnectStartTime(forwardId);
+    return startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
+  });
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const startTime = getReconnectStartTime(forwardId);
+      if (startTime) {
+        setElapsed(Math.floor((Date.now() - startTime) / 1000));
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [forwardId]);
+
+  return (
+    <span className="text-[10px] text-orange-400 leading-tight">
+      Reconnecting… {elapsed}s
+    </span>
   );
 }

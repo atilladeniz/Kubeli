@@ -152,7 +152,11 @@
     "reconnecting": "Verbinde erneut (Versuch {count})...",
     "unhealthy": "Verbindung fehlerhaft",
     "clickToSwitch": "Klicken zum Wechseln",
-    "latency": "{ms}ms"
+    "latency": "{ms}ms",
+    "searchClustersPlaceholder": "Cluster suchen...",
+    "noSearchResults": "Keine Cluster gefunden",
+    "noSearchResultsHint": "Keine Cluster für \"{query}\" gefunden. Versuche einen anderen Suchbegriff.",
+    "connecting": "Verbinde..."
   },
   "workloads": {
     "overview": "Workloads-Übersicht",
@@ -391,7 +395,12 @@
     "neverOpen": "Nie öffnen",
     "podName": "Pod-Name",
     "serviceName": "Service-Name",
-    "starting": "Starte..."
+    "starting": "Starte...",
+    "reconnecting": "Verbinde neu...",
+    "reconnected": "Neu verbunden",
+    "portForwardLost": "Port-Weiterleitung verloren",
+    "podRemoved": "Pod wurde entfernt",
+    "reconnectingTo": "Verbinde mit neuem Pod"
   },
   "settings": {
     "title": "Einstellungen",
@@ -841,6 +850,26 @@
     "exitCodeSignal": "Signal {signal}",
     "exitCodeGeneric": "Exit {code}"
   },
+  "createResource": {
+    "title": "Ressource erstellen",
+    "selectTemplate": "Vorlage auswählen...",
+    "apply": "Anwenden",
+    "applying": "Wird angewendet...",
+    "applySuccess": "Ressource erfolgreich erstellt",
+    "applyError": "Ressource konnte nicht erstellt werden",
+    "categories": {
+      "workloads": "Workloads",
+      "networking": "Netzwerk",
+      "configuration": "Konfiguration",
+      "storage": "Speicher",
+      "accessControl": "Zugriffskontrolle",
+      "administration": "Administration"
+    },
+    "lintErrors": "{count, plural, one {# Fehler} other {# Fehler}}",
+    "lintErrorLine": "Zeile {line}, Spalte {col}: {message}",
+    "copyError": "Fehlermeldung kopieren",
+    "copyAllErrors": "Alles kopieren"
+  },
   "shortcuts": {
     "title": "Tastenkürzel",
     "general": "Allgemein",
@@ -851,6 +880,7 @@
     "toggleAI": "KI-Panel umschalten",
     "refresh": "Aktualisieren",
     "search": "Suche fokussieren",
+    "createResource": "Ressource erstellen",
     "escape": "Schließen / Abbrechen",
     "tabs": "Tabs",
     "newTab": "Neuer Tab",

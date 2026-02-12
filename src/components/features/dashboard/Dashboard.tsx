@@ -5,6 +5,8 @@ import { useTranslations } from "next-intl";
 import { X } from "lucide-react";
 import { Sidebar, type ResourceType } from "@/components/layout/Sidebar";
 import { ResourceDetail, type ResourceData } from "../resources/ResourceDetail";
+import { CreateResourceFAB } from "../resources/CreateResourceFAB";
+import { CreateResourcePanel } from "../resources/CreateResourcePanel";
 import { AIAssistant } from "../ai/AIAssistant";
 import { TerminalTabsProvider, useTerminalTabs, TerminalTabs } from "../terminal";
 import { SettingsPanel } from "../settings/SettingsPanel";
@@ -14,6 +16,7 @@ import { Titlebar } from "@/components/layout/Titlebar";
 import { TabBar, useTabTitle } from "@/components/layout/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { Button } from "@/components/ui/button";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import {
@@ -96,7 +99,7 @@ function DashboardContent() {
     [navigateCurrentTab, getTabTitle]
   );
   const { isConnected, currentCluster, setCurrentNamespace } = useClusterStore();
-  const { tabs, isOpen, setIsOpen } = useTerminalTabs();
+  const { tabs, isOpen, closePanel } = useTerminalTabs();
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
 
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
@@ -104,7 +107,7 @@ function DashboardContent() {
   const [scaleDialog, setScaleDialog] = useState<ScaleDialogState | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const { getFavorites, removeFavorite } = useFavoritesStore();
-  const { setSettingsOpen, isAIAssistantOpen, toggleAIAssistant, pendingPodLogs, triggerRefresh, triggerSearchFocus } = useUIStore();
+  const { setSettingsOpen, isAIAssistantOpen, toggleAIAssistant, pendingPodLogs, triggerRefresh, triggerSearchFocus, isCreateResourceOpen, setCreateResourceOpen } = useUIStore();
   const { isThinking, isStreaming } = useAIStore();
   const isAIProcessing = isThinking || isStreaming;
   const detailRequestIdRef = useRef(0);
@@ -179,6 +182,7 @@ function DashboardContent() {
       name: string,
       namespace?: string
     ): Promise<OpenResourceDetailResult> => {
+      setCreateResourceOpen(false);
       const requestId = ++detailRequestIdRef.current;
       try {
         const [yamlData, events] = await Promise.all([
@@ -229,7 +233,7 @@ function DashboardContent() {
         return "error";
       }
     },
-    []
+    [setCreateResourceOpen]
   );
 
   const removeMissingFavorite = useCallback(
@@ -340,6 +344,8 @@ function DashboardContent() {
     { key: NAVIGATION_SHORTCUTS.FAVORITE_7, meta: true, handler: () => navigateToFavorite(6), description: "Go to Favorite 7" },
     { key: NAVIGATION_SHORTCUTS.FAVORITE_8, meta: true, handler: () => navigateToFavorite(7), description: "Go to Favorite 8" },
     { key: NAVIGATION_SHORTCUTS.FAVORITE_9, meta: true, handler: () => navigateToFavorite(8), description: "Go to Favorite 9" },
+    // Create resource
+    { key: NAVIGATION_SHORTCUTS.CREATE_RESOURCE, meta: true, handler: () => { setSelectedResource(null); setCreateResourceOpen(true); }, description: "Create Resource", global: true },
     // Tab shortcuts
     { key: "t", meta: true, handler: () => { if (resourceTabs.length < 10) { openTab("cluster-overview", getTabTitle("cluster-overview"), { newTab: true }); } else { toast.warning(t("tabs.limitToast")); } }, description: "New tab", global: true },
     { key: "w", meta: true, handler: () => { if (resourceTabs.length > 1) closeTab(activeTabId); }, description: "Close current tab", global: true },
@@ -353,7 +359,7 @@ function DashboardContent() {
       const prevIdx = (idx - 1 + resourceTabs.length) % resourceTabs.length;
       setActiveTab(resourceTabs[prevIdx].id);
     }, description: "Previous tab", global: true },
-  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, openTab, getTabTitle, closeTab, setActiveTab, setActiveResource, triggerRefresh, triggerSearchFocus, t]);
+  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, openTab, getTabTitle, closeTab, setActiveTab, setActiveResource, triggerRefresh, triggerSearchFocus, setCreateResourceOpen, t]);
 
   useKeyboardShortcuts(shortcuts, { enabled: isConnected });
 
@@ -452,34 +458,61 @@ function DashboardContent() {
               onOpenSettings={() => setSettingsOpen(true)}
             />
             {isConnected && <TabBar />}
-            <main className={cn("flex-1 overflow-hidden", isOpen && "h-[60%]")}>
-              {!isConnected ? (
-                <NotConnectedState />
-              ) : (
-                <ResourceView activeResource={activeResource} />
-              )}
-            </main>
-
-            {/* Terminal panel */}
-            {isOpen && tabs.length > 0 && (
-              <div className="h-[40%] border-t border-border">
-                <div className="flex h-full flex-col">
-                  <div className="flex items-center justify-between bg-muted/50 px-3 py-1 border-b border-border">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("terminal.title")}</span>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setIsOpen(false)}>
-                      <X className="size-4" />
-                    </Button>
+            {isOpen && tabs.length > 0 ? (
+              <ResizablePanelGroup orientation="vertical" className="flex-1 overflow-hidden">
+                <ResizablePanel defaultSize="65%" minSize="20%">
+                  <main className="h-full overflow-hidden relative group/main">
+                    {!isConnected ? (
+                      <NotConnectedState />
+                    ) : (
+                      <ResourceView activeResource={activeResource} />
+                    )}
+                    {isConnected && !isCreateResourceOpen && (
+                      <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
+                    )}
+                  </main>
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize="35%" minSize="15%" maxSize="70%">
+                  <div className="flex h-full flex-col border-t border-border">
+                    <div className="flex items-center justify-between bg-muted/50 px-3 py-1 border-b border-border">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("terminal.title")}</span>
+                      <Button variant="ghost" size="icon-sm" onClick={closePanel}>
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                    <div className="flex-1 min-h-0">
+                      <TerminalTabs />
+                    </div>
                   </div>
-                  <div className="flex-1 min-h-0">
-                    <TerminalTabs initialTabs={tabs} />
-                  </div>
-                </div>
-              </div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            ) : (
+              <main className="flex-1 overflow-hidden relative group/main">
+                {!isConnected ? (
+                  <NotConnectedState />
+                ) : (
+                  <ResourceView activeResource={activeResource} />
+                )}
+                {isConnected && !isCreateResourceOpen && (
+                  <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
+                )}
+              </main>
             )}
           </div>
 
+          {/* Create Resource Panel */}
+          {isCreateResourceOpen && (
+            <div className="w-[700px] border-l border-border flex-shrink-0">
+              <CreateResourcePanel
+                onClose={() => setCreateResourceOpen(false)}
+                onApplied={triggerRefresh}
+              />
+            </div>
+          )}
+
           {/* Resource Detail Panel */}
-          {selectedResource && (
+          {selectedResource && !isCreateResourceOpen && (
             <div className="w-[700px] border-l border-border flex-shrink-0">
               <ResourceDetail
                 resource={selectedResource.data}

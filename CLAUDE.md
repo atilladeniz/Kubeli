@@ -149,7 +149,7 @@ The `make minikube-start` command automatically creates sample Kubernetes resour
 
 | Resource Type | Count | Names |
 |--------------|-------|-------|
-| Deployments | 2 | demo-web, demo-api |
+| Deployments | 4 | demo-web, demo-api, demo-frontend, demo-auth |
 | StatefulSets | 1 | demo-db |
 | DaemonSets | 1 | demo-log-collector |
 | Jobs | 1 | demo-migration |

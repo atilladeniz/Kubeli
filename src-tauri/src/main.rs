@@ -12,7 +12,7 @@ use ai::commands::AIConfigState;
 use ai::session_store::create_session_store;
 use clap::Parser;
 use commands::logs::LogStreamManager;
-use commands::portforward::PortForwardManager;
+use commands::portforward::{PortForwardManager, PortForwardWatchManager};
 use commands::shell::ShellSessionManager;
 use commands::watch::WatchManager;
 use k8s::AppState;
@@ -117,6 +117,7 @@ fn main() {
         .manage(Arc::new(LogStreamManager::new()))
         .manage(Arc::new(ShellSessionManager::new()))
         .manage(Arc::new(PortForwardManager::new()))
+        .manage(Arc::new(PortForwardWatchManager::new()))
         .manage(AIConfigState::new())
         .manage(Arc::new(AgentManager::new()))
         .setup(|app| {

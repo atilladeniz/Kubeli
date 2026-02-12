@@ -48,6 +48,8 @@ export function PortForwardsView() {
         return "bg-green-400";
       case "connecting":
         return "bg-yellow-400 animate-pulse";
+      case "reconnecting":
+        return "bg-orange-400 animate-pulse";
       case "error":
         return "bg-red-400";
       default:
@@ -61,6 +63,8 @@ export function PortForwardsView() {
         return "Connected";
       case "connecting":
         return "Connecting...";
+      case "reconnecting":
+        return "Reconnecting...";
       case "error":
         return "Error";
       case "disconnected":

@@ -165,7 +165,7 @@ export interface PortForward {
 // Port forwarding types (matching Rust backend)
 export type PortForwardTargetType = "pod" | "service";
 
-export type PortForwardStatus = "connecting" | "connected" | "disconnected" | "error";
+export type PortForwardStatus = "connecting" | "connected" | "reconnecting" | "disconnected" | "error";
 
 export interface PortForwardOptions {
   namespace: string;
@@ -183,13 +183,18 @@ export interface PortForwardInfo {
   target_port: number;
   local_port: number;
   status: PortForwardStatus;
+  pod_name?: string;
+  pod_uid?: string;
 }
 
-export type PortForwardEventType = "Started" | "Connected" | "Disconnected" | "Error" | "Stopped";
+export type PortForwardEventType = "Started" | "Connected" | "Reconnecting" | "Reconnected" | "PodDied" | "Disconnected" | "Error" | "Stopped";
 
 export type PortForwardEvent =
   | { type: "Started"; data: { forward_id: string; local_port: number } }
   | { type: "Connected"; data: { forward_id: string } }
+  | { type: "Reconnecting"; data: { forward_id: string; reason: string } }
+  | { type: "Reconnected"; data: { forward_id: string; new_pod: string } }
+  | { type: "PodDied"; data: { forward_id: string; pod_name: string } }
   | { type: "Disconnected"; data: { forward_id: string } }
   | { type: "Error"; data: { forward_id: string; message: string } }
   | { type: "Stopped"; data: { forward_id: string } };

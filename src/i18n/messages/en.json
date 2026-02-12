@@ -152,7 +152,11 @@
     "reconnecting": "Reconnecting (attempt {count})...",
     "unhealthy": "Connection unhealthy",
     "clickToSwitch": "Click to switch cluster",
-    "latency": "{ms}ms"
+    "latency": "{ms}ms",
+    "searchClustersPlaceholder": "Search clusters...",
+    "noSearchResults": "No clusters found",
+    "noSearchResultsHint": "No clusters matching \"{query}\". Try a different search term.",
+    "connecting": "Connecting..."
   },
   "workloads": {
     "overview": "Workloads Overview",
@@ -391,7 +395,12 @@
     "neverOpen": "Never open",
     "podName": "Pod Name",
     "serviceName": "Service Name",
-    "starting": "Starting..."
+    "starting": "Starting...",
+    "reconnecting": "Reconnecting...",
+    "reconnected": "Reconnected",
+    "portForwardLost": "Port forward lost",
+    "podRemoved": "Pod was removed",
+    "reconnectingTo": "Reconnecting to new pod"
   },
   "settings": {
     "title": "Settings",
@@ -841,6 +850,26 @@
     "exitCodeSignal": "Signal {signal}",
     "exitCodeGeneric": "Exit {code}"
   },
+  "createResource": {
+    "title": "Create Resource",
+    "selectTemplate": "Select a template...",
+    "apply": "Apply",
+    "applying": "Applying...",
+    "applySuccess": "Resource created successfully",
+    "applyError": "Failed to create resource",
+    "categories": {
+      "workloads": "Workloads",
+      "networking": "Networking",
+      "configuration": "Configuration",
+      "storage": "Storage",
+      "accessControl": "Access Control",
+      "administration": "Administration"
+    },
+    "lintErrors": "{count, plural, one {# error} other {# errors}}",
+    "lintErrorLine": "Line {line}, Col {col}: {message}",
+    "copyError": "Copy Error",
+    "copyAllErrors": "Copy All"
+  },
   "shortcuts": {
     "title": "Keyboard Shortcuts",
     "general": "General",
@@ -851,6 +880,7 @@
     "toggleAI": "Toggle AI panel",
     "refresh": "Refresh",
     "search": "Focus search",
+    "createResource": "Create Resource",
     "escape": "Close / Cancel",
     "tabs": "Tabs",
     "newTab": "New tab",
