@@ -275,12 +275,18 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
         local_port: localPort,
       });
 
-      // Update with actual info (especially local_port if it was auto-assigned)
+      // Update with actual info from backend (local_port, resolved target_port, pod info)
       set((state) => ({
         isLoading: false,
         forwards: state.forwards.map((f) =>
           f.forward_id === forwardId
-            ? { ...f, local_port: info.local_port }
+            ? {
+                ...f,
+                local_port: info.local_port,
+                target_port: info.target_port,
+                pod_name: info.pod_name,
+                pod_uid: info.pod_uid,
+              }
             : f
         ),
       }));

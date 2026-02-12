@@ -461,12 +461,12 @@ pub async fn portforward_start(
     });
 
     tracing::info!(
-        "Started port forward {} (localhost:{} -> {}:{}/{})",
+        "Started port forward {} (localhost:{} -> {}:{}/pod-port:{})",
         forward_id,
         local_port,
         options.namespace,
         options.name,
-        options.target_port
+        resolved_target_port
     );
 
     Ok(info)
