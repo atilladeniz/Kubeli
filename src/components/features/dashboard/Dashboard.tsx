@@ -479,7 +479,7 @@ function DashboardContent() {
                     </Button>
                   </div>
                   <div className="flex-1 min-h-0">
-                    <TerminalTabs initialTabs={tabs} />
+                    <TerminalTabs />
                   </div>
                 </div>
               </div>

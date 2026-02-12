@@ -15,40 +15,9 @@ export interface TerminalTab {
   title?: string;
 }
 
-export interface TerminalTabsProps {
-  initialTabs?: TerminalTab[];
-  onTabsChange?: (tabs: TerminalTab[]) => void;
-  className?: string;
-}
-
-export function TerminalTabs({
-  initialTabs = [],
-  onTabsChange,
-  className = "",
-}: TerminalTabsProps) {
+export function TerminalTabs({ className = "" }: { className?: string }) {
   const t = useTranslations("terminal");
-  const [tabs, setTabs] = useState<TerminalTab[]>(initialTabs);
-  const [activeTabId, setActiveTabId] = useState<string | null>(
-    initialTabs[0]?.id || null
-  );
-
-  const removeTab = useCallback(
-    (id: string) => {
-      const newTabs = tabs.filter((tab) => tab.id !== id);
-      setTabs(newTabs);
-
-      // If we removed the active tab, switch to another
-      if (activeTabId === id) {
-        const removedIndex = tabs.findIndex((tab) => tab.id === id);
-        const newActiveTab =
-          newTabs[removedIndex] || newTabs[removedIndex - 1] || newTabs[0];
-        setActiveTabId(newActiveTab?.id || null);
-      }
-
-      onTabsChange?.(newTabs);
-    },
-    [tabs, activeTabId, onTabsChange]
-  );
+  const { tabs, activeTabId, setActiveTab, removeTab } = useTerminalTabs();
 
   if (tabs.length === 0) {
     return (
@@ -71,7 +40,7 @@ export function TerminalTabs({
                 ? "bg-background text-foreground"
                 : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
             )}
-            onClick={() => setActiveTabId(tab.id)}
+            onClick={() => setActiveTab(tab.id)}
           >
             <span className="text-sm truncate max-w-[150px]">
               {tab.title || tab.podName}
@@ -137,7 +106,7 @@ export function TerminalTabsProvider({ children }: { children: ReactNode }) {
 
   const addTab = useCallback(
     (namespace: string, podName: string, container?: string) => {
-      const id = `terminal-${Date.now()}`;
+      const id = `terminal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const newTab: TerminalTab = {
         id,
         namespace,
@@ -156,12 +125,10 @@ export function TerminalTabsProvider({ children }: { children: ReactNode }) {
   const removeTab = useCallback((id: string) => {
     setTabs((prev) => {
       const newTabs = prev.filter((tab) => tab.id !== id);
-      // Close panel if no tabs left
       if (newTabs.length === 0) {
         setIsOpen(false);
         setActiveTabId(null);
       } else {
-        // Switch to another tab
         setActiveTabId((currentId) => {
           if (currentId === id) {
             const removedIndex = prev.findIndex((tab) => tab.id === id);
