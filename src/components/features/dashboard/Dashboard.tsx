@@ -16,6 +16,7 @@ import { Titlebar } from "@/components/layout/Titlebar";
 import { TabBar, useTabTitle } from "@/components/layout/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { Button } from "@/components/ui/button";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import {
@@ -457,32 +458,46 @@ function DashboardContent() {
               onOpenSettings={() => setSettingsOpen(true)}
             />
             {isConnected && <TabBar />}
-            <main className={cn("flex-1 overflow-hidden relative group/main", isOpen && "h-[60%]")}>
-              {!isConnected ? (
-                <NotConnectedState />
-              ) : (
-                <ResourceView activeResource={activeResource} />
-              )}
-              {isConnected && !isCreateResourceOpen && (
-                <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
-              )}
-            </main>
-
-            {/* Terminal panel */}
-            {isOpen && tabs.length > 0 && (
-              <div className="h-[40%] border-t border-border">
-                <div className="flex h-full flex-col">
-                  <div className="flex items-center justify-between bg-muted/50 px-3 py-1 border-b border-border">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("terminal.title")}</span>
-                    <Button variant="ghost" size="icon-sm" onClick={() => setIsOpen(false)}>
-                      <X className="size-4" />
-                    </Button>
+            {isOpen && tabs.length > 0 ? (
+              <ResizablePanelGroup orientation="vertical" className="flex-1 overflow-hidden">
+                <ResizablePanel defaultSize="65%" minSize="20%">
+                  <main className="h-full overflow-hidden relative group/main">
+                    {!isConnected ? (
+                      <NotConnectedState />
+                    ) : (
+                      <ResourceView activeResource={activeResource} />
+                    )}
+                    {isConnected && !isCreateResourceOpen && (
+                      <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
+                    )}
+                  </main>
+                </ResizablePanel>
+                <ResizableHandle withHandle />
+                <ResizablePanel defaultSize="35%" minSize="15%" maxSize="70%">
+                  <div className="flex h-full flex-col border-t border-border">
+                    <div className="flex items-center justify-between bg-muted/50 px-3 py-1 border-b border-border">
+                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("terminal.title")}</span>
+                      <Button variant="ghost" size="icon-sm" onClick={() => setIsOpen(false)}>
+                        <X className="size-4" />
+                      </Button>
+                    </div>
+                    <div className="flex-1 min-h-0">
+                      <TerminalTabs />
+                    </div>
                   </div>
-                  <div className="flex-1 min-h-0">
-                    <TerminalTabs />
-                  </div>
-                </div>
-              </div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            ) : (
+              <main className="flex-1 overflow-hidden relative group/main">
+                {!isConnected ? (
+                  <NotConnectedState />
+                ) : (
+                  <ResourceView activeResource={activeResource} />
+                )}
+                {isConnected && !isCreateResourceOpen && (
+                  <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
+                )}
+              </main>
             )}
           </div>
 
