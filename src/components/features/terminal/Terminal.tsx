@@ -113,8 +113,10 @@ export function Terminal({
       // Open terminal in container
       terminal.open(containerRef.current);
 
-      // Fit terminal to container
-      fitAddon.fit();
+      // Fit terminal after layout settles
+      requestAnimationFrame(() => {
+        fitAddon?.fit();
+      });
 
       // Store refs
       terminalRef.current = terminal;
@@ -134,9 +136,15 @@ export function Terminal({
       onReady?.(terminal);
       setIsLoaded(true);
 
-      // Handle container resize
+      // Handle container resize with debounce to ensure layout is settled
+      let resizeTimer: ReturnType<typeof setTimeout> | null = null;
       resizeObserver = new ResizeObserver(() => {
-        fitAddon?.fit();
+        if (resizeTimer) clearTimeout(resizeTimer);
+        resizeTimer = setTimeout(() => {
+          if (containerRef.current && containerRef.current.offsetWidth > 0) {
+            fitAddon?.fit();
+          }
+        }, 50);
       });
       resizeObserver.observe(containerRef.current);
 
