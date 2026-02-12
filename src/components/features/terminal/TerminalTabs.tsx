@@ -93,6 +93,7 @@ interface TerminalTabsContextValue {
   addTab: (namespace: string, podName: string, container?: string) => string;
   removeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
+  closePanel: () => void;
   isOpen: boolean;
   setIsOpen: (open: boolean) => void;
 }
@@ -145,6 +146,12 @@ export function TerminalTabsProvider({ children }: { children: ReactNode }) {
     setActiveTabId(id);
   }, []);
 
+  const closePanel = useCallback(() => {
+    setTabs([]);
+    setActiveTabId(null);
+    setIsOpen(false);
+  }, []);
+
   return (
     <TerminalTabsContext.Provider
       value={{
@@ -153,6 +160,7 @@ export function TerminalTabsProvider({ children }: { children: ReactNode }) {
         addTab,
         removeTab,
         setActiveTab,
+        closePanel,
         isOpen,
         setIsOpen,
       }}

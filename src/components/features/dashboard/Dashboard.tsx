@@ -99,7 +99,7 @@ function DashboardContent() {
     [navigateCurrentTab, getTabTitle]
   );
   const { isConnected, currentCluster, setCurrentNamespace } = useClusterStore();
-  const { tabs, isOpen, setIsOpen } = useTerminalTabs();
+  const { tabs, isOpen, closePanel } = useTerminalTabs();
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
 
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
@@ -477,7 +477,7 @@ function DashboardContent() {
                   <div className="flex h-full flex-col border-t border-border">
                     <div className="flex items-center justify-between bg-muted/50 px-3 py-1 border-b border-border">
                       <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("terminal.title")}</span>
-                      <Button variant="ghost" size="icon-sm" onClick={() => setIsOpen(false)}>
+                      <Button variant="ghost" size="icon-sm" onClick={closePanel}>
                         <X className="size-4" />
                       </Button>
                     </div>
