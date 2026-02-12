@@ -113,6 +113,84 @@ spec:
                   name: demo-secret
                   key: DB_PASSWORD
 ---
+# Deployment - Frontend (simulates Next.js on port 3000)
+# Used for port forward testing: service port 80 → container port 3000
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-frontend
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        component: frontend
+    spec:
+      serviceAccountName: demo-service-account
+      containers:
+        - name: frontend
+          image: nginx:alpine
+          ports:
+            - name: http
+              containerPort: 3000
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+          # Override nginx to listen on 3000 instead of 80
+          command: ["sh", "-c", "sed -i 's/listen       80;/listen       3000;/' /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+---
+# Deployment - Auth service (simulates Keycloak on port 8080)
+# Used for port forward testing: service port 443 → container port 8443 (named port)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-auth
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: auth
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+      component: auth
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        component: auth
+    spec:
+      serviceAccountName: demo-service-account
+      containers:
+        - name: auth
+          image: nginx:alpine
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: https
+              containerPort: 8443
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+---
 # Services
 apiVersion: v1
 kind: Service
@@ -148,4 +226,51 @@ spec:
   ports:
     - port: 8080
       targetPort: 8080
+      protocol: TCP
+---
+# Service - Frontend (port mismatch: 80 → 3000)
+# This is the typical Next.js / Node.js scenario where the service
+# exposes port 80 but the container listens on port 3000
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-frontend-svc
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: frontend
+spec:
+  type: ClusterIP
+  selector:
+    app: demo-app
+    component: frontend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000
+      protocol: TCP
+---
+# Service - Auth (multi-port with named targets)
+# Tests named port resolution and multi-port services
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-auth-svc
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: auth
+spec:
+  type: ClusterIP
+  selector:
+    app: demo-app
+    component: auth
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      protocol: TCP
+    - name: https
+      port: 443
+      targetPort: https
       protocol: TCP
