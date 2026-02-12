@@ -48,7 +48,7 @@ export function TerminalTabs({ className = "" }: { className?: string }) {
             <Button
               variant="ghost"
               size="icon"
-              className="size-5 opacity-0 group-hover:opacity-100 transition-opacity"
+              className="size-5 opacity-60 hover:opacity-100 transition-opacity"
               onClick={(e) => {
                 e.stopPropagation();
                 removeTab(tab.id);
