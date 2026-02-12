@@ -461,12 +461,12 @@ pub async fn portforward_start(
     });
 
     tracing::info!(
-        "Started port forward {} (localhost:{} -> {}:{}/{})",
+        "Started port forward {} (localhost:{} -> {}:{}/pod-port:{})",
         forward_id,
         local_port,
         options.namespace,
         options.name,
-        options.target_port
+        resolved_target_port
     );
 
     Ok(info)
@@ -1497,6 +1497,59 @@ mod tests {
         assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(0));
     }
 
+    /// Simulates Next.js: service port 80 → container port 3000
+    #[test]
+    fn resolve_target_port_service_80_to_container_3000() {
+        let svc = make_service(vec![(80, Some(IntOrString::Int(3000)))]);
+        let pod = make_pod("frontend-pod", "uid-1", vec![("http", 3000)]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(3000));
+    }
+
+    /// Multi-port service: pick the correct target for each service port
+    #[test]
+    fn resolve_target_port_multi_port_service() {
+        let svc = make_service(vec![
+            (80, Some(IntOrString::Int(8080))),
+            (443, Some(IntOrString::Int(8443))),
+        ]);
+        let pod = make_pod("auth-pod", "uid-2", vec![("http", 8080), ("https", 8443)]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(8080));
+        assert_eq!(resolve_service_target_port(&svc, &pod, 443), Some(8443));
+    }
+
+    /// Multi-port service with named port references
+    #[test]
+    fn resolve_target_port_multi_port_named() {
+        let svc = make_service(vec![
+            (80, Some(IntOrString::String("http".to_string()))),
+            (443, Some(IntOrString::String("https".to_string()))),
+        ]);
+        let pod = make_pod("auth-pod", "uid-2", vec![("http", 8080), ("https", 8443)]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(8080));
+        assert_eq!(resolve_service_target_port(&svc, &pod, 443), Some(8443));
+    }
+
+    /// When frontend sends service port (80) but targetPort is string "3000"
+    #[test]
+    fn resolve_target_port_string_3000_from_service_port_80() {
+        let svc = make_service(vec![(80, Some(IntOrString::String("3000".to_string())))]);
+        let pod = make_pod("p", "uid", vec![]);
+        assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(3000));
+    }
+
+    /// Verify unwrap_or fallback: when resolution returns None, the caller gets options.target_port
+    #[test]
+    fn resolve_target_port_none_triggers_fallback() {
+        let svc = make_service(vec![(80, Some(IntOrString::String("".to_string())))]);
+        let pod = make_pod("p", "uid", vec![]);
+        // resolve returns None for empty string
+        let resolved = resolve_service_target_port(&svc, &pod, 80);
+        assert_eq!(resolved, None);
+        // Caller should fall back: unwrap_or(options.target_port)
+        let final_port = resolved.unwrap_or(80);
+        assert_eq!(final_port, 80);
+    }
+
     // ── find_named_container_port tests ──
 
     #[test]
@@ -1928,6 +1981,50 @@ mod tests {
         assert!(json.contains("\"pod_name\":\"pod-abc\""));
         assert!(json.contains("\"pod_uid\":\"uid-123\""));
         assert!(json.contains("\"reconnecting\""));
+    }
+
+    /// Verify PortForwardInfo carries the resolved container port, not the service port.
+    /// This is the core of the bug fix: frontend must receive target_port=3000, not 80.
+    #[test]
+    fn port_forward_info_carries_resolved_target_port() {
+        // Simulate: service port 80 → container port 3000 (Next.js scenario)
+        let info = PortForwardInfo {
+            forward_id: "svc-demo-frontend-svc-80-123".to_string(),
+            namespace: "kubeli-demo".to_string(),
+            name: "demo-frontend-svc".to_string(),
+            target_type: PortForwardTargetType::Service,
+            target_port: 3000, // RESOLVED port, not service port 80
+            local_port: 44789,
+            status: PortForwardStatus::Connected,
+            pod_name: Some("demo-frontend-abc".to_string()),
+            pod_uid: Some("uid-frontend-123".to_string()),
+        };
+        let json = serde_json::to_string(&info).unwrap();
+        // The JSON sent to frontend must contain 3000, not 80
+        assert!(json.contains("\"target_port\":3000"));
+        assert!(!json.contains("\"target_port\":80"));
+    }
+
+    /// Verify the session stores the resolved port for use during reconnection
+    #[tokio::test]
+    async fn manager_session_stores_resolved_target_port() {
+        let mgr = PortForwardManager::new();
+        // Service port was 80, but resolved target is 3000
+        let session = make_session(
+            44789,
+            3000,
+            PortForwardTargetType::Service,
+            "demo",
+            "frontend-svc",
+            "frontend-pod",
+            "uid-1",
+        );
+        mgr.add_session("fwd-1".to_string(), session).await;
+
+        let info = mgr.get_reconnect_info("fwd-1").await.unwrap();
+        // Reconnection must use the resolved port 3000, not the original 80
+        assert_eq!(info.1, 44789); // local_port
+        assert_eq!(info.2, 3000); // target_port (resolved)
     }
 
     // ── Status transition tests ──

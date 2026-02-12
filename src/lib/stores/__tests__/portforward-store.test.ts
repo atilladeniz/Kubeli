@@ -248,6 +248,34 @@ describe("PortForwardStore", () => {
       expect(state.forwards[0].local_port).toBe(55555);
     });
 
+    it("should update target_port from backend response (resolved port)", async () => {
+      // Simulate: frontend sends service port 80, backend resolves to container port 3000
+      mockPortforwardStart.mockResolvedValue({
+        ...mockForward,
+        forward_id: "svc-demo-frontend-svc-80-123",
+        name: "demo-frontend-svc",
+        target_port: 3000,  // Backend resolved: service 80 → container 3000
+        local_port: 44789,
+        pod_name: "demo-frontend-abc",
+        pod_uid: "uid-frontend-123",
+      });
+
+      await act(async () => {
+        await usePortForwardStore.getState().startForward(
+          "demo", "demo-frontend-svc", "service", 80  // Frontend sends service port 80
+        );
+      });
+
+      const state = usePortForwardStore.getState();
+      expect(state.forwards).toHaveLength(1);
+      const forward = state.forwards[0];
+      // Must show resolved container port, not service port
+      expect(forward.target_port).toBe(3000);
+      expect(forward.local_port).toBe(44789);
+      expect(forward.pod_name).toBe("demo-frontend-abc");
+      expect(forward.pod_uid).toBe("uid-frontend-123");
+    });
+
     it("should remove placeholder on error", async () => {
       mockPortforwardStart.mockRejectedValue(new Error("Port in use"));
 

@@ -483,7 +483,7 @@ minikube-setup-samples: ## Apply sample Kubernetes resources for testing
 		echo "$(GREEN)✓ Sample resources applied$(RESET)"; \
 		echo ""; \
 		echo "$(CYAN)Resources created in kubeli-demo namespace:$(RESET)"; \
-		echo "  - Deployments: demo-web (3), demo-api (2)"; \
+		echo "  - Deployments: demo-web (3), demo-api (2), demo-frontend (1), demo-auth (1)"; \
 		echo "  - StatefulSet: demo-db"; \
 		echo "  - DaemonSet: demo-log-collector"; \
 		echo "  - Job: demo-migration, CronJob: demo-cleanup"; \
