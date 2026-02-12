@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.35] - 2026-02-12
+
+- Fixed shell tab management issues
+
 ## [0.3.34] - 2026-02-12
 
 - Fixed port forward UI to display the resolved target port instead of the raw port value

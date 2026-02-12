@@ -1,6 +1,6 @@
 [package]
 name = "kubeli"
-version = "0.3.34"
+version = "0.3.35"
 description = "Kubeli - Modern Kubernetes Management Desktop Application"
 authors = ["Kubeli Team"]
 edition = "2021"
