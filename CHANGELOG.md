@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.34] - 2026-02-12
+
+- Fixed port forward UI to display the resolved target port instead of the raw port value
+
 ## [0.3.33] - 2026-02-11
 
 - Added port forward auto-cleanup and smart reconnect
