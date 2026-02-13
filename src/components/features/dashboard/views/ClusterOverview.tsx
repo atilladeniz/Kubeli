@@ -36,14 +36,14 @@ export function ClusterOverview() {
   const readyNodes = nodes.filter((n) => n.status === "Ready").length;
 
   return (
-    <div className="h-full overflow-auto p-6">
-      <div className="mb-6">
+    <div className="@container h-full overflow-auto p-4 @2xl:p-6">
+      <div className="mb-4 @2xl:mb-6">
         <h1 className="text-2xl font-bold">{t("navigation.overview")}</h1>
         <p className="text-muted-foreground">{currentCluster?.name || t("cluster.noCluster")}</p>
       </div>
 
       {/* Summary Cards */}
-      <div className="mb-8 grid grid-cols-4 gap-4">
+      <div className="mb-6 @2xl:mb-8 grid grid-cols-2 @3xl:grid-cols-4 gap-3 @2xl:gap-4">
         <SummaryCard
           title={t("navigation.nodes")}
           value={nodes.length}
@@ -70,7 +70,7 @@ export function ClusterOverview() {
 
       {/* Metrics Section */}
       {metricsAvailable && metrics && (
-        <div className="mb-8 grid grid-cols-2 gap-6">
+        <div className="mb-6 @2xl:mb-8 grid grid-cols-1 @xl:grid-cols-2 gap-4 @2xl:gap-6">
           <Card>
             <CardHeader className="pb-2">
               <CardTitle className="flex items-center gap-2 text-base">
@@ -108,7 +108,7 @@ export function ClusterOverview() {
       )}
 
       {!metricsAvailable && !metricsLoading && (
-        <Card className="mb-8 border-yellow-500/30 bg-yellow-500/5">
+        <Card className="mb-6 @2xl:mb-8 border-yellow-500/30 bg-yellow-500/5">
           <CardContent className="flex items-center gap-3 py-4">
             <Info className="size-5 text-yellow-500" />
             <div>
@@ -122,7 +122,7 @@ export function ClusterOverview() {
       )}
 
       {/* Resource Status */}
-      <div className="grid grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 @xl:grid-cols-2 gap-4 @2xl:gap-6 mb-6 @2xl:mb-8">
         <Card>
           <CardHeader>
             <CardTitle className="text-base">{t("navigation.pods")} {t("common.status")}</CardTitle>
@@ -153,7 +153,7 @@ export function ClusterOverview() {
 
       {/* Top Resource Consumers */}
       {metricsAvailable && metrics && (metrics.top_cpu_pods.length > 0 || metrics.top_memory_pods.length > 0) && (
-        <div className="grid grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 @xl:grid-cols-2 gap-4 @2xl:gap-6">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-base">
