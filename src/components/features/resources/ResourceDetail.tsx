@@ -54,7 +54,20 @@ export function ResourceDetail({
       const container = tabsContainerRef.current;
       const active = container?.querySelector<HTMLElement>(`[data-state="active"]`);
       if (active && container) {
-        active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+        const pad = 16;
+        const cRect = container.getBoundingClientRect();
+        const aRect = active.getBoundingClientRect();
+        if (aRect.right > cRect.right - pad) {
+          container.scrollTo({
+            left: container.scrollLeft + (aRect.right - cRect.right) + pad,
+            behavior: "smooth",
+          });
+        } else if (aRect.left < cRect.left + pad) {
+          container.scrollTo({
+            left: container.scrollLeft - (cRect.left - aRect.left) - pad,
+            behavior: "smooth",
+          });
+        }
       }
     });
   }, []);

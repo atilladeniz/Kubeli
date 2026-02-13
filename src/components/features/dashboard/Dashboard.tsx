@@ -17,7 +17,6 @@ import { TabBar, useTabTitle } from "@/components/layout/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { Button } from "@/components/ui/button";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import {
   useFavoritesStore,
@@ -504,7 +503,7 @@ function DashboardContent() {
             </ResizablePanel>
             {(selectedResource || isCreateResourceOpen) && <ResizableHandle withHandle />}
             {(selectedResource || isCreateResourceOpen) && (
-              <ResizablePanel id="detail-panel-content" defaultSize="40%" minSize="500px" maxSize="65%">
+              <ResizablePanel id="detail-panel-content" defaultSize="700px" minSize="500px" maxSize="65%">
                 <div className="h-full border-l border-border overflow-hidden">
                   {isCreateResourceOpen ? (
                     <CreateResourcePanel
