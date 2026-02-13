@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, memo } from "react";
 import { Cpu, HardDrive, RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
@@ -17,11 +17,21 @@ interface PodMetricsSectionProps {
   namespace: string;
 }
 
+function SectionHeader({ title }: { title: string }) {
+  return (
+    <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+      <Cpu className="size-4" />
+      {title}
+    </h3>
+  );
+}
+
 export function PodMetricsSection({ podName, namespace }: PodMetricsSectionProps) {
   const t = useTranslations();
   const { isConnected } = useClusterStore();
   const { available: metricsAvailable, checking } = useMetricsAvailability();
   const history = useMetricsHistory(podName, namespace);
+  const sectionTitle = t("resourceDetail.metrics");
 
   // One-time fetch for per-container breakdown (not available in history snapshots)
   const [containers, setContainers] = useState<ContainerMetricsInfo[] | null>(null);
@@ -39,65 +49,40 @@ export function PodMetricsSection({ podName, namespace }: PodMetricsSectionProps
   }, [isConnected, podName, namespace]);
 
   useEffect(() => {
-    const t = setTimeout(fetchContainers, 0);
-    return () => clearTimeout(t);
+    const timer = setTimeout(fetchContainers, 0);
+    return () => clearTimeout(timer);
   }, [fetchContainers]);
 
   // Derive current values from the latest history snapshot
   const latest = history.length > 0 ? history[history.length - 1] : null;
-  const hasData = history.length >= 1;
 
-  if (checking) {
+  if (checking || (!metricsAvailable && !checking) || history.length < 1) {
     return (
       <section>
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <Cpu className="size-4" />
-          {t("resourceDetail.metrics")}
-        </h3>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <RefreshCw className="size-3.5 animate-spin" />
-          <span>Loading metrics...</span>
-        </div>
-      </section>
-    );
-  }
-
-  if (!metricsAvailable) {
-    return (
-      <section>
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <Cpu className="size-4" />
-          {t("resourceDetail.metrics")}
-        </h3>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
-          <AlertCircle className="size-3.5" />
-          <span>Metrics server not available. Install metrics-server to see resource usage.</span>
-        </div>
-      </section>
-    );
-  }
-
-  if (!hasData) {
-    return (
-      <section>
-        <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-          <Cpu className="size-4" />
-          {t("resourceDetail.metrics")}
-        </h3>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          <RefreshCw className="size-3.5 animate-spin" />
-          <span>Loading metrics...</span>
-        </div>
+        <SectionHeader title={sectionTitle} />
+        {checking ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <RefreshCw className="size-3.5 animate-spin" />
+            <span>Loading metrics...</span>
+          </div>
+        ) : !metricsAvailable ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
+            <AlertCircle className="size-3.5" />
+            <span>Metrics server not available. Install metrics-server to see resource usage.</span>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <RefreshCw className="size-3.5 animate-spin" />
+            <span>Loading metrics...</span>
+          </div>
+        )}
       </section>
     );
   }
 
   return (
     <section>
-      <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-        <Cpu className="size-4" />
-        {t("resourceDetail.metrics")}
-      </h3>
+      <SectionHeader title={sectionTitle} />
 
       {/* Pod Total Metrics */}
       {latest && (
@@ -155,7 +140,7 @@ export function PodMetricsSection({ podName, namespace }: PodMetricsSectionProps
   );
 }
 
-function MetricCard({
+const MetricCard = memo(function MetricCard({
   icon,
   label,
   value,
@@ -178,9 +163,9 @@ function MetricCard({
       <span className="text-lg font-semibold tabular-nums">{value}</span>
     </div>
   );
-}
+});
 
-function ContainerMetricRow({ container }: { container: ContainerMetricsInfo }) {
+const ContainerMetricRow = memo(function ContainerMetricRow({ container }: { container: ContainerMetricsInfo }) {
   return (
     <div className="bg-muted/50 rounded-md p-2.5 text-xs">
       <div className="font-medium mb-1.5">{container.name}</div>
@@ -202,4 +187,4 @@ function ContainerMetricRow({ container }: { container: ContainerMetricsInfo }) 
       </div>
     </div>
   );
-}
+});

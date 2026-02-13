@@ -18,14 +18,18 @@ export const Sparkline = memo(function Sparkline({
   const points = useMemo(() => {
     if (values.length < 2) return null;
 
-    const min = Math.min(...values);
-    const max = Math.max(...values);
+    let min = values[0];
+    let max = values[0];
+    for (let i = 1; i < values.length; i++) {
+      if (values[i] < min) min = values[i];
+      if (values[i] > max) max = values[i];
+    }
     const range = max - min || 1;
-    const padding = 1; // 1px vertical padding
+    const pad = 1;
 
     const coords = values.map((v, i) => {
       const x = (i / (values.length - 1)) * width;
-      const y = padding + (1 - (v - min) / range) * (height - padding * 2);
+      const y = pad + (1 - (v - min) / range) * (height - pad * 2);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     });
 
@@ -34,16 +38,15 @@ export const Sparkline = memo(function Sparkline({
 
   if (!points) return null;
 
-  const fill = fillColor || color.replace(")", ",0.15)").replace("rgb(", "rgba(");
+  // Hex colors get 26 (hex) = ~15% opacity suffix; rgb() colors get rgba transform
+  const fill = fillColor || `${color}26`;
 
   return (
     <svg width={width} height={height} className="flex-shrink-0">
-      {/* Area fill */}
       <polygon
         points={`0,${height} ${points} ${width},${height}`}
         fill={fill}
       />
-      {/* Line */}
       <polyline
         points={points}
         fill="none"
@@ -54,4 +57,11 @@ export const Sparkline = memo(function Sparkline({
       />
     </svg>
   );
+}, (prev, next) => {
+  if (prev.width !== next.width || prev.height !== next.height
+    || prev.color !== next.color || prev.fillColor !== next.fillColor
+    || prev.values.length !== next.values.length) return false;
+  // Only compare last value -- if it hasn't changed, skip re-render
+  const len = prev.values.length;
+  return len === 0 || prev.values[len - 1] === next.values[len - 1];
 });

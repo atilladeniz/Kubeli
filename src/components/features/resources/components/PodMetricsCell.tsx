@@ -1,8 +1,8 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import type { PodMetrics } from "@/lib/types";
-import { getHistorySnapshot } from "@/lib/hooks/useMetricsHistory";
+import type { PodMetrics, ContainerMetricsInfo } from "@/lib/types";
+import { getHistorySnapshot, type MetricsSnapshot } from "@/lib/hooks/useMetricsHistory";
 import { Sparkline } from "./Sparkline";
 
 interface PodMetricsCellProps {
@@ -35,12 +35,36 @@ export function formatMemoryBytes(bytes: number): string {
   return `${bytes}B`;
 }
 
-export function PodMetricsCell({
-  podName,
-  namespace,
-  metricsMap,
-  type,
-}: PodMetricsCellProps) {
+interface MetricConfig {
+  getValue: (m: PodMetrics) => number;
+  getRequest: (containers: ContainerMetricsInfo[]) => number;
+  getSparkValue: (s: MetricsSnapshot) => number;
+  format: (v: number) => string;
+  sparkColor: string;
+  barColor: string;
+}
+
+const cpuConfig: MetricConfig = {
+  getValue: (m) => m.total_cpu_nano_cores,
+  getRequest: (containers) => containers.reduce((sum, c) =>
+    c.cpu.request ? sum + parseCpuToMilliCores(c.cpu.request) : sum, 0),
+  getSparkValue: (s) => s.cpuNanoCores,
+  format: formatCpuNanoCores,
+  sparkColor: "#3b82f6",
+  barColor: "bg-blue-500",
+};
+
+const memoryConfig: MetricConfig = {
+  getValue: (m) => m.total_memory_bytes,
+  getRequest: (containers) => containers.reduce((sum, c) =>
+    c.memory.request ? sum + parseMemoryToBytes(c.memory.request) : sum, 0),
+  getSparkValue: (s) => s.memoryBytes,
+  format: formatMemoryBytes,
+  sparkColor: "#a855f7",
+  barColor: "bg-purple-500",
+};
+
+export function PodMetricsCell({ podName, namespace, metricsMap, type }: PodMetricsCellProps) {
   const key = `${namespace}/${podName}`;
   const metrics = metricsMap.get(key);
 
@@ -48,98 +72,40 @@ export function PodMetricsCell({
     return <span className="text-muted-foreground text-xs">-</span>;
   }
 
-  const historyKey = key;
-
-  if (type === "cpu") {
-    return <CpuCell metrics={metrics} historyKey={historyKey} />;
-  }
-
-  return <MemoryCell metrics={metrics} historyKey={historyKey} />;
-}
-
-function CpuCell({ metrics, historyKey }: { metrics: PodMetrics; historyKey: string }) {
-  const nanoCores = metrics.total_cpu_nano_cores;
-  const milliCores = nanoCores / 1_000_000;
-
-  // Find total request/limit from containers
-  const totalRequest = metrics.containers.reduce((sum, c) => {
-    if (c.cpu.request) return sum + parseCpuToMilliCores(c.cpu.request);
-    return sum;
-  }, 0);
-
-  const percentage = totalRequest > 0 ? (milliCores / totalRequest) * 100 : 0;
-  const hasRequest = totalRequest > 0;
-  const history = getHistorySnapshot(historyKey);
-  const sparkValues = history.map((s) => s.cpuNanoCores);
-
   return (
-    <div className="flex items-center gap-2 min-w-[100px]">
-      {sparkValues.length >= 2 && (
-        <Sparkline values={sparkValues} color="#3b82f6" width={44} height={16} />
-      )}
-      <div className="flex flex-col gap-0.5 flex-1">
-        <div className="flex items-baseline justify-between">
-          <span className="text-xs font-medium tabular-nums">
-            {formatCpuNanoCores(nanoCores)}
-          </span>
-          {hasRequest && (
-            <span
-              className={cn(
-                "text-[10px] tabular-nums",
-                percentage > 90
-                  ? "text-destructive"
-                  : percentage > 80
-                    ? "text-yellow-500"
-                    : "text-muted-foreground"
-              )}
-            >
-              {percentage.toFixed(0)}%
-            </span>
-          )}
-        </div>
-        {hasRequest && (
-          <div className="h-1 rounded-full bg-muted overflow-hidden">
-            <div
-              className={cn(
-                "h-full rounded-full transition-all duration-300",
-                percentage > 90
-                  ? "bg-destructive"
-                  : percentage > 80
-                    ? "bg-yellow-500"
-                    : "bg-blue-500"
-              )}
-              style={{ width: `${Math.min(100, percentage)}%` }}
-            />
-          </div>
-        )}
-      </div>
-    </div>
+    <MetricCellInner
+      metrics={metrics}
+      historyKey={key}
+      config={type === "cpu" ? cpuConfig : memoryConfig}
+    />
   );
 }
 
-function MemoryCell({ metrics, historyKey }: { metrics: PodMetrics; historyKey: string }) {
-  const usageBytes = metrics.total_memory_bytes;
-
-  // Find total request from containers
-  const totalRequest = metrics.containers.reduce((sum, c) => {
-    if (c.memory.request) return sum + parseMemoryToBytes(c.memory.request);
-    return sum;
-  }, 0);
-
-  const percentage = totalRequest > 0 ? (usageBytes / totalRequest) * 100 : 0;
+function MetricCellInner({
+  metrics,
+  historyKey,
+  config,
+}: {
+  metrics: PodMetrics;
+  historyKey: string;
+  config: MetricConfig;
+}) {
+  const value = config.getValue(metrics);
+  const usage = config === cpuConfig ? value / 1_000_000 : value;
+  const totalRequest = config.getRequest(metrics.containers);
+  const percentage = totalRequest > 0 ? (usage / totalRequest) * 100 : 0;
   const hasRequest = totalRequest > 0;
-  const history = getHistorySnapshot(historyKey);
-  const sparkValues = history.map((s) => s.memoryBytes);
+  const sparkValues = getHistorySnapshot(historyKey).map(config.getSparkValue);
 
   return (
     <div className="flex items-center gap-2 min-w-[100px]">
       {sparkValues.length >= 2 && (
-        <Sparkline values={sparkValues} color="#a855f7" width={44} height={16} />
+        <Sparkline values={sparkValues} color={config.sparkColor} width={44} height={16} />
       )}
       <div className="flex flex-col gap-0.5 flex-1">
         <div className="flex items-baseline justify-between">
           <span className="text-xs font-medium tabular-nums">
-            {formatMemoryBytes(usageBytes)}
+            {config.format(value)}
           </span>
           {hasRequest && (
             <span
@@ -165,7 +131,7 @@ function MemoryCell({ metrics, historyKey }: { metrics: PodMetrics; historyKey: 
                   ? "bg-destructive"
                   : percentage > 80
                     ? "bg-yellow-500"
-                    : "bg-purple-500"
+                    : config.barColor
               )}
               style={{ width: `${Math.min(100, percentage)}%` }}
             />

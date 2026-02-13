@@ -32,13 +32,12 @@ function getHistory(key: string): MetricsSnapshot[] {
   return arr;
 }
 
-function pushSnapshot(key: string, snapshot: MetricsSnapshot): MetricsSnapshot[] {
+function pushSnapshot(key: string, snapshot: MetricsSnapshot): void {
   const arr = getHistory(key);
   arr.push(snapshot);
   if (arr.length > MAX_POINTS) {
     arr.shift();
   }
-  return [...arr];
 }
 
 /** Clear all history (e.g. on cluster disconnect) */
@@ -52,11 +51,9 @@ export function seedHistoryFromBulkMetrics(metrics: PodMetrics[]) {
   const now = Math.floor(Date.now() / 1000);
   for (const m of metrics) {
     const key = `${m.namespace}/${m.name}`;
-    const arr = getHistory(key);
-    const last = arr[arr.length - 1];
+    const last = getHistory(key).at(-1);
     if (last && now - last.timestamp < 5) continue;
-    arr.push({ timestamp: now, cpuNanoCores: m.total_cpu_nano_cores, memoryBytes: m.total_memory_bytes });
-    if (arr.length > MAX_POINTS) arr.shift();
+    pushSnapshot(key, { timestamp: now, cpuNanoCores: m.total_cpu_nano_cores, memoryBytes: m.total_memory_bytes });
   }
 }
 
@@ -86,12 +83,12 @@ export function useMetricsHistory(
         (m) => m.name === podName && m.namespace === namespace,
       );
       if (match) {
-        const updated = pushSnapshot(key, {
+        pushSnapshot(key, {
           timestamp: Math.floor(Date.now() / 1000),
           cpuNanoCores: match.total_cpu_nano_cores,
           memoryBytes: match.total_memory_bytes,
         });
-        setHistory(updated);
+        setHistory([...getHistory(key)]);
       }
     } catch {
       // Silently ignore polling errors
