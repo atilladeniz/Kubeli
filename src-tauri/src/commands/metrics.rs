@@ -666,3 +666,171 @@ pub async fn check_metrics_server(state: State<'_, AppState>) -> Result<bool, St
 
     Ok(check_metrics_available(&client).await)
 }
+
+// ── Kubelet direct metrics via /stats/summary ───────────────────────
+
+/// Serde types for the kubelet /stats/summary JSON response
+mod kubelet_stats {
+    use serde::Deserialize;
+
+    #[derive(Deserialize)]
+    pub struct Summary {
+        pub pods: Vec<PodStats>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct PodStats {
+        #[serde(rename = "podRef")]
+        pub pod_ref: PodRef,
+        pub cpu: Option<CpuStats>,
+        pub memory: Option<MemoryStats>,
+        pub containers: Option<Vec<ContainerStats>>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct PodRef {
+        pub name: String,
+        pub namespace: String,
+    }
+
+    #[derive(Deserialize)]
+    pub struct CpuStats {
+        #[serde(rename = "usageNanoCores")]
+        pub usage_nano_cores: Option<u64>,
+        pub time: Option<String>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct MemoryStats {
+        #[serde(rename = "workingSetBytes")]
+        pub working_set_bytes: Option<u64>,
+        pub time: Option<String>,
+    }
+
+    #[derive(Deserialize)]
+    pub struct ContainerStats {
+        pub name: String,
+        pub cpu: Option<CpuStats>,
+        pub memory: Option<MemoryStats>,
+    }
+}
+
+/// Get pod metrics directly from kubelet /stats/summary endpoint.
+/// This bypasses metrics-server and gets real-time data (~10s granularity)
+/// from cAdvisor embedded in the kubelet on each node.
+#[command]
+pub async fn get_pod_metrics_direct(
+    state: State<'_, AppState>,
+    namespace: Option<String>,
+) -> Result<Vec<PodMetrics>, String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+
+    // List all nodes to query each kubelet
+    use k8s_openapi::api::core::v1::Node;
+    let nodes_api: Api<Node> = Api::all(client.clone());
+    let nodes = nodes_api
+        .list(&ListParams::default())
+        .await
+        .map_err(|e| format!("Failed to list nodes: {}", e))?;
+
+    let mut all_pods: Vec<PodMetrics> = Vec::new();
+
+    for node in &nodes.items {
+        let node_name = match &node.metadata.name {
+            Some(n) => n.clone(),
+            None => continue,
+        };
+
+        // Query kubelet via API server proxy: /api/v1/nodes/{node}/proxy/stats/summary
+        let url = format!("/api/v1/nodes/{}/proxy/stats/summary", node_name);
+        let req = hyper::Request::builder()
+            .uri(&url)
+            .body(Vec::new())
+            .map_err(|e| format!("Failed to build request: {}", e))?;
+
+        let resp = client
+            .request::<Vec<u8>>(req)
+            .await
+            .map_err(|e| format!("Failed to query kubelet on node {}: {}", node_name, e))?;
+
+        let summary: kubelet_stats::Summary = serde_json::from_slice(&resp).map_err(|e| {
+            format!(
+                "Failed to parse kubelet stats from node {}: {}",
+                node_name, e
+            )
+        })?;
+
+        for pod in summary.pods {
+            // Filter by namespace if specified
+            if let Some(ns) = &namespace {
+                if &pod.pod_ref.namespace != ns {
+                    continue;
+                }
+            }
+
+            let pod_cpu_nano = pod
+                .cpu
+                .as_ref()
+                .and_then(|c| c.usage_nano_cores)
+                .unwrap_or(0);
+            let pod_mem_bytes = pod
+                .memory
+                .as_ref()
+                .and_then(|m| m.working_set_bytes)
+                .unwrap_or(0);
+            let timestamp = pod
+                .cpu
+                .as_ref()
+                .and_then(|c| c.time.clone())
+                .or_else(|| pod.memory.as_ref().and_then(|m| m.time.clone()))
+                .unwrap_or_default();
+
+            let containers: Vec<ContainerMetrics> = pod
+                .containers
+                .unwrap_or_default()
+                .into_iter()
+                .map(|c| {
+                    let cpu_nano = c
+                        .cpu
+                        .as_ref()
+                        .and_then(|cpu| cpu.usage_nano_cores)
+                        .unwrap_or(0);
+                    let mem_bytes = c
+                        .memory
+                        .as_ref()
+                        .and_then(|mem| mem.working_set_bytes)
+                        .unwrap_or(0);
+                    ContainerMetrics {
+                        name: c.name,
+                        cpu: ContainerCpuMetrics {
+                            usage: format_cpu(cpu_nano),
+                            usage_nano_cores: cpu_nano,
+                            request: None,
+                            limit: None,
+                        },
+                        memory: ContainerMemoryMetrics {
+                            usage: format_memory(mem_bytes),
+                            usage_bytes: mem_bytes,
+                            request: None,
+                            limit: None,
+                        },
+                    }
+                })
+                .collect();
+
+            all_pods.push(PodMetrics {
+                name: pod.pod_ref.name,
+                namespace: pod.pod_ref.namespace,
+                timestamp,
+                containers,
+                total_cpu: format_cpu(pod_cpu_nano),
+                total_cpu_nano_cores: pod_cpu_nano,
+                total_memory: format_memory(pod_mem_bytes),
+                total_memory_bytes: pod_mem_bytes,
+            });
+        }
+    }
+
+    tracing::info!("Got direct kubelet metrics for {} pods", all_pods.len());
+    Ok(all_pods)
+}

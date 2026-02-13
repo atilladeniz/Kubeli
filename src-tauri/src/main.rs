@@ -305,6 +305,7 @@ fn main() {
             // Metrics commands
             commands::metrics::get_node_metrics,
             commands::metrics::get_pod_metrics,
+            commands::metrics::get_pod_metrics_direct,
             commands::metrics::get_cluster_metrics_summary,
             commands::metrics::check_metrics_server,
             // Graph commands

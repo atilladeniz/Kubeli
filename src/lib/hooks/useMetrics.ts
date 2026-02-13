@@ -5,6 +5,7 @@ import { useClusterStore } from "../stores/cluster-store";
 import {
   getNodeMetrics,
   getPodMetrics,
+  getPodMetricsDirect,
   getClusterMetricsSummary,
   checkMetricsServer,
 } from "../tauri/commands";
@@ -141,13 +142,26 @@ export function usePodMetrics(
   const { isConnected, currentNamespace } = useClusterStore();
   const ns = namespace ?? currentNamespace;
   const pollCount = useRef(0);
+  /** Track whether kubelet direct endpoint is available */
+  const useDirectRef = useRef(true);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
     setIsLoading(true);
     setError(null);
     try {
-      const result = await getPodMetrics(ns || undefined);
+      let result: PodMetrics[];
+      if (useDirectRef.current) {
+        try {
+          result = await getPodMetricsDirect(ns || undefined);
+        } catch {
+          // Kubelet direct failed (e.g. RBAC) — fall back to metrics-server
+          useDirectRef.current = false;
+          result = await getPodMetrics(ns || undefined);
+        }
+      } else {
+        result = await getPodMetrics(ns || undefined);
+      }
       setData(result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to fetch pod metrics");
@@ -159,6 +173,7 @@ export function usePodMetrics(
   useEffect(() => {
     if (isConnected) {
       pollCount.current = 0;
+      useDirectRef.current = true; // retry direct on reconnect
       refresh();
     }
   }, [isConnected, refresh]);
@@ -169,7 +184,7 @@ export function usePodMetrics(
     if (!options.autoRefresh || !isConnected) return;
 
     const burstMs = options.initialRefreshInterval;
-    const normalMs = options.refreshInterval || 15000;
+    const normalMs = options.refreshInterval || 10000;
     const BURST_POLLS = burstMs ? 3 : 0;
     let timer: ReturnType<typeof setTimeout>;
 

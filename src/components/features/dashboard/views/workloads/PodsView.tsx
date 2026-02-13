@@ -48,7 +48,7 @@ export function PodsView() {
   const { data: services } = useServices({ autoRefresh: true, refreshInterval: 30000 });
   const { data: podMetricsData, isLoading: metricsLoading } = usePodMetrics(undefined, {
     autoRefresh: true,
-    refreshInterval: 15000,
+    refreshInterval: 10000,
     initialRefreshInterval: 3000,
   });
 
