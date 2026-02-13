@@ -448,7 +448,7 @@ function DashboardContent() {
         />
         <div className="flex flex-1 overflow-hidden overscroll-none">
           <ResizablePanelGroup orientation="horizontal" id="detail-panel">
-            <ResizablePanel id="main-content" minSize="35%">
+            <ResizablePanel id="main-content" minSize="400px">
               <div className="flex h-full flex-col overflow-hidden">
                 <Titlebar
                   isAIOpen={isAIAssistantOpen}
@@ -504,7 +504,7 @@ function DashboardContent() {
             </ResizablePanel>
             {(selectedResource || isCreateResourceOpen) && <ResizableHandle withHandle />}
             {(selectedResource || isCreateResourceOpen) && (
-              <ResizablePanel id="detail-panel-content" defaultSize="40%" minSize="25%" maxSize="65%">
+              <ResizablePanel id="detail-panel-content" defaultSize="40%" minSize="420px" maxSize="65%">
                 <div className="h-full border-l border-border overflow-hidden">
                   {isCreateResourceOpen ? (
                     <CreateResourcePanel
