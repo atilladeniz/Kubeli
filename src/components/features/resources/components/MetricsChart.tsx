@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import type { MetricsSnapshot } from "@/lib/hooks/useMetricsHistory";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
@@ -14,7 +14,9 @@ interface MetricsChartProps {
 function formatCpuValue(nanoCores: number): string {
   const milli = nanoCores / 1_000_000;
   if (milli >= 1000) return `${(milli / 1000).toFixed(1)}`;
-  return `${Math.round(milli)}m`;
+  if (milli >= 1) return `${Math.round(milli)}m`;
+  if (nanoCores > 0) return `${milli.toFixed(1)}m`;
+  return "0m";
 }
 
 function formatMemoryValue(bytes: number): string {
@@ -32,9 +34,11 @@ function formatTime(ts: number): string {
 export function MetricsChart({ history, type, height = 120 }: MetricsChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<uPlot | null>(null);
+  const [ready, setReady] = useState(false);
 
   const color = type === "cpu" ? "#3b82f6" : "#a855f7"; // blue-500 / purple-500
   const fillColor = type === "cpu" ? "rgba(59,130,246,0.1)" : "rgba(168,85,247,0.1)";
+  const hasData = history.length >= 2;
 
   const data = useMemo((): uPlot.AlignedData => {
     if (history.length === 0) return [[], []];
@@ -98,9 +102,16 @@ export function MetricsChart({ history, type, height = 120 }: MetricsChartProps)
     };
   }, [type, height, color, fillColor]);
 
-  // Create/destroy chart
+  // Track when container ref becomes available after transitioning from placeholder
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (hasData && containerRef.current) {
+      setReady(true);
+    }
+  }, [hasData]);
+
+  // Create/destroy chart - depends on opts, ready state, and data availability
+  useEffect(() => {
+    if (!containerRef.current || !ready || data[0].length < 2) return;
 
     // Clean up previous instance
     if (chartRef.current) {
@@ -108,10 +119,9 @@ export function MetricsChart({ history, type, height = 120 }: MetricsChartProps)
       chartRef.current = null;
     }
 
-    if (data[0].length < 2) return;
-
+    const width = containerRef.current.clientWidth || 300;
     const chart = new uPlot(
-      { ...opts, width: containerRef.current.clientWidth },
+      { ...opts, width },
       data,
       containerRef.current,
     );
@@ -121,9 +131,8 @@ export function MetricsChart({ history, type, height = 120 }: MetricsChartProps)
       chart.destroy();
       chartRef.current = null;
     };
-  // Re-create chart when opts change (type switch)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [opts]);
+  }, [opts, ready]);
 
   // Update data without re-creating the chart
   useEffect(() => {
@@ -146,9 +155,9 @@ export function MetricsChart({ history, type, height = 120 }: MetricsChartProps)
     });
     observer.observe(containerRef.current);
     return () => observer.disconnect();
-  }, [height]);
+  }, [height, ready]);
 
-  if (history.length < 2) {
+  if (!hasData) {
     return (
       <div
         className="flex items-center justify-center text-xs text-muted-foreground rounded-md bg-muted/30 border border-border/50"
@@ -163,6 +172,7 @@ export function MetricsChart({ history, type, height = 120 }: MetricsChartProps)
     <div
       ref={containerRef}
       className="rounded-md overflow-hidden bg-muted/30 border border-border/50"
+      style={{ height, minHeight: height }}
     />
   );
 }

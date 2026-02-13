@@ -167,10 +167,16 @@ fn format_cpu(nano_cores: u64) -> String {
         format!("{:.2}", nano_cores as f64 / 1_000_000_000.0)
     } else if nano_cores >= 1_000_000 {
         format!("{}m", nano_cores / 1_000_000)
-    } else if nano_cores >= 1000 {
-        format!("{}u", nano_cores / 1000)
+    } else if nano_cores > 0 {
+        // Sub-millicore: show as decimal millicores (e.g., 0.5m, 0.08m)
+        let milli = nano_cores as f64 / 1_000_000.0;
+        if milli >= 0.1 {
+            format!("{:.1}m", milli)
+        } else {
+            format!("{:.2}m", milli)
+        }
     } else {
-        format!("{}n", nano_cores)
+        "0m".to_string()
     }
 }
 

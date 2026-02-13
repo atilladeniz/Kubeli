@@ -7,6 +7,7 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { getPodMetrics, checkMetricsServer } from "@/lib/tauri/commands";
 import { useMetricsHistory } from "@/lib/hooks/useMetricsHistory";
 import { MetricsChart } from "./MetricsChart";
+import { formatCpuNanoCores, formatMemoryBytes } from "./PodMetricsCell";
 import type { PodMetrics, ContainerMetricsInfo } from "@/lib/types";
 import { useTranslations } from "next-intl";
 
@@ -99,13 +100,13 @@ export function PodMetricsSection({ podName, namespace }: PodMetricsSectionProps
         <MetricCard
           icon={<Cpu className="size-3.5" />}
           label="CPU"
-          value={metrics.total_cpu}
+          value={formatCpuNanoCores(metrics.total_cpu_nano_cores)}
           color="blue"
         />
         <MetricCard
           icon={<HardDrive className="size-3.5" />}
           label="Memory"
-          value={metrics.total_memory}
+          value={formatMemoryBytes(metrics.total_memory_bytes)}
           color="purple"
         />
       </div>

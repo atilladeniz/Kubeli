@@ -10,6 +10,29 @@ interface PodMetricsCellProps {
   type: "cpu" | "memory";
 }
 
+/** Format nanocores to human-readable CPU string */
+export function formatCpuNanoCores(nanoCores: number): string {
+  if (nanoCores >= 1_000_000_000) {
+    return `${(nanoCores / 1_000_000_000).toFixed(2)}`;
+  }
+  const milli = nanoCores / 1_000_000;
+  if (milli >= 1) {
+    return `${Math.round(milli)}m`;
+  }
+  if (nanoCores > 0) {
+    return milli >= 0.1 ? `${milli.toFixed(1)}m` : `${milli.toFixed(2)}m`;
+  }
+  return "0m";
+}
+
+/** Format bytes to human-readable memory string */
+export function formatMemoryBytes(bytes: number): string {
+  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)}Gi`;
+  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(2)}Mi`;
+  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)}Ki`;
+  return `${bytes}B`;
+}
+
 export function PodMetricsCell({
   podName,
   namespace,
@@ -48,7 +71,7 @@ function CpuCell({ metrics }: { metrics: PodMetrics }) {
       <div className="flex flex-col gap-0.5 flex-1">
         <div className="flex items-baseline justify-between">
           <span className="text-xs font-medium tabular-nums">
-            {metrics.total_cpu}
+            {formatCpuNanoCores(nanoCores)}
           </span>
           {hasRequest && (
             <span
@@ -102,7 +125,7 @@ function MemoryCell({ metrics }: { metrics: PodMetrics }) {
       <div className="flex flex-col gap-0.5 flex-1">
         <div className="flex items-baseline justify-between">
           <span className="text-xs font-medium tabular-nums">
-            {metrics.total_memory}
+            {formatMemoryBytes(usageBytes)}
           </span>
           {hasRequest && (
             <span
