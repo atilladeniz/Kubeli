@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.37] - 2026-02-13
+
+- Added resizable panels and responsive detail UI
+
 ## [0.3.36] - 2026-02-13
 
 - Added pod metrics with sparklines and direct kubelet fetching
