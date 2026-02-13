@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useClusterStore } from "../stores/cluster-store";
 import { getPodMetrics } from "../tauri/commands";
+import type { PodMetrics } from "../types";
 
 /** A single metrics snapshot for a pod */
 export interface MetricsSnapshot {
@@ -43,6 +44,26 @@ function pushSnapshot(key: string, snapshot: MetricsSnapshot): MetricsSnapshot[]
 /** Clear all history (e.g. on cluster disconnect) */
 export function clearMetricsHistory() {
   historyStore.clear();
+}
+
+/** Seed history from bulk pod metrics (e.g. from table polling).
+ *  Deduplicates by skipping if the last snapshot is within 5s. */
+export function seedHistoryFromBulkMetrics(metrics: PodMetrics[]) {
+  const now = Math.floor(Date.now() / 1000);
+  for (const m of metrics) {
+    const key = `${m.namespace}/${m.name}`;
+    const arr = getHistory(key);
+    const last = arr[arr.length - 1];
+    if (last && now - last.timestamp < 5) continue;
+    arr.push({ timestamp: now, cpuNanoCores: m.total_cpu_nano_cores, memoryBytes: m.total_memory_bytes });
+    if (arr.length > MAX_POINTS) arr.shift();
+  }
+}
+
+/** Non-reactive read of history for a pod key ("namespace/podName").
+ *  Returns the current snapshot array (or empty). */
+export function getHistorySnapshot(key: string): MetricsSnapshot[] {
+  return historyStore.get(key) || [];
 }
 
 /**

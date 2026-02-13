@@ -2,6 +2,8 @@
 
 import { cn } from "@/lib/utils";
 import type { PodMetrics } from "@/lib/types";
+import { getHistorySnapshot } from "@/lib/hooks/useMetricsHistory";
+import { Sparkline } from "./Sparkline";
 
 interface PodMetricsCellProps {
   podName: string;
@@ -46,14 +48,16 @@ export function PodMetricsCell({
     return <span className="text-muted-foreground text-xs">-</span>;
   }
 
+  const historyKey = key;
+
   if (type === "cpu") {
-    return <CpuCell metrics={metrics} />;
+    return <CpuCell metrics={metrics} historyKey={historyKey} />;
   }
 
-  return <MemoryCell metrics={metrics} />;
+  return <MemoryCell metrics={metrics} historyKey={historyKey} />;
 }
 
-function CpuCell({ metrics }: { metrics: PodMetrics }) {
+function CpuCell({ metrics, historyKey }: { metrics: PodMetrics; historyKey: string }) {
   const nanoCores = metrics.total_cpu_nano_cores;
   const milliCores = nanoCores / 1_000_000;
 
@@ -65,9 +69,14 @@ function CpuCell({ metrics }: { metrics: PodMetrics }) {
 
   const percentage = totalRequest > 0 ? (milliCores / totalRequest) * 100 : 0;
   const hasRequest = totalRequest > 0;
+  const history = getHistorySnapshot(historyKey);
+  const sparkValues = history.map((s) => s.cpuNanoCores);
 
   return (
     <div className="flex items-center gap-2 min-w-[100px]">
+      {sparkValues.length >= 2 && (
+        <Sparkline values={sparkValues} color="#3b82f6" width={44} height={16} />
+      )}
       <div className="flex flex-col gap-0.5 flex-1">
         <div className="flex items-baseline justify-between">
           <span className="text-xs font-medium tabular-nums">
@@ -108,7 +117,7 @@ function CpuCell({ metrics }: { metrics: PodMetrics }) {
   );
 }
 
-function MemoryCell({ metrics }: { metrics: PodMetrics }) {
+function MemoryCell({ metrics, historyKey }: { metrics: PodMetrics; historyKey: string }) {
   const usageBytes = metrics.total_memory_bytes;
 
   // Find total request from containers
@@ -119,9 +128,14 @@ function MemoryCell({ metrics }: { metrics: PodMetrics }) {
 
   const percentage = totalRequest > 0 ? (usageBytes / totalRequest) * 100 : 0;
   const hasRequest = totalRequest > 0;
+  const history = getHistorySnapshot(historyKey);
+  const sparkValues = history.map((s) => s.memoryBytes);
 
   return (
     <div className="flex items-center gap-2 min-w-[100px]">
+      {sparkValues.length >= 2 && (
+        <Sparkline values={sparkValues} color="#a855f7" width={44} height={16} />
+      )}
       <div className="flex flex-col gap-0.5 flex-1">
         <div className="flex items-baseline justify-between">
           <span className="text-xs font-medium tabular-nums">

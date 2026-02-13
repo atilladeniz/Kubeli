@@ -34,6 +34,7 @@ import {
 } from "../../../resources/columns";
 import { deleteResource } from "@/lib/tauri/commands";
 import { usePodMetrics } from "@/lib/hooks/useMetrics";
+import { seedHistoryFromBulkMetrics } from "@/lib/hooks/useMetricsHistory";
 import { useResourceDetail } from "../../context";
 import { useTabsStore } from "@/lib/stores/tabs-store";
 import type { PodInfo, PodMetrics, ServiceInfo } from "@/lib/types";
@@ -59,6 +60,14 @@ export function PodsView() {
     }
     return map;
   }, [podMetricsData]);
+
+  // Seed metrics history from table polling so detail view charts render immediately
+  useEffect(() => {
+    if (podMetricsData.length > 0) {
+      seedHistoryFromBulkMetrics(podMetricsData);
+    }
+  }, [podMetricsData]);
+
   const { forwards, startForward, stopForward } = usePortForward();
   const { addTab } = useTerminalTabs();
   const { openResourceDetail, handleDeleteFromContext, closeResourceDetail } = useResourceDetail();
