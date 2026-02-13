@@ -31,6 +31,8 @@ interface ResourceListProps<T> {
   sortKey?: string | null;
   sortDirection?: SortDirection;
   onSortChange?: (key: string | null, direction: SortDirection) => void;
+  /** Custom comparator for sort keys that don't map directly to item properties */
+  customSortComparator?: (a: T, b: T) => number;
 }
 
 export function ResourceList<T>({
@@ -54,6 +56,7 @@ export function ResourceList<T>({
   sortKey: controlledSortKey,
   sortDirection: controlledSortDirection,
   onSortChange,
+  customSortComparator,
 }: ResourceListProps<T>) {
   const t = useTranslations();
   const [searchQuery, setSearchQuery] = useState("");
@@ -98,6 +101,12 @@ export function ResourceList<T>({
 
     if (sortKey) {
       result.sort((a, b) => {
+        // Use custom comparator if provided (e.g. for metrics columns)
+        if (customSortComparator) {
+          const comparison = customSortComparator(a, b);
+          return sortDirection === "asc" ? comparison : -comparison;
+        }
+
         const aValue = (a as Record<string, unknown>)[sortKey];
         const bValue = (b as Record<string, unknown>)[sortKey];
 
@@ -128,7 +137,7 @@ export function ResourceList<T>({
     }
 
     return result;
-  }, [data, searchQuery, sortKey, sortDirection, activeFilter, filterOptions]);
+  }, [data, searchQuery, sortKey, sortDirection, activeFilter, filterOptions, customSortComparator]);
 
   const handleSort = (key: string) => {
     const newDirection =

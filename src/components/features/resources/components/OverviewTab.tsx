@@ -9,6 +9,7 @@ import { useLocale } from "@/components/providers/I18nProvider";
 import { MetadataItem } from "./MetadataItem";
 import { SecretDataSection } from "./SecretDataSection";
 import { ContainerStatusSection } from "./ContainerStatusSection";
+import { PodMetricsSection } from "./PodMetricsSection";
 import { AnnotationsSection } from "./AnnotationsSection";
 import { getPod } from "@/lib/tauri/commands";
 import type { ResourceData } from "../types";
@@ -103,6 +104,11 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
             )}
           </div>
         </section>
+
+        {/* Pod Metrics Section */}
+        {resourceType === "pod" && resource.namespace && (
+          <PodMetricsSection podName={resource.name} namespace={resource.namespace} />
+        )}
 
         {/* Container Status Section (for Pods only) */}
         {resourceType === "pod" && (initContainers.length > 0 || containers.length > 0) && (

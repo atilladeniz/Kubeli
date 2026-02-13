@@ -104,6 +104,8 @@ const columnLabelToKey: Record<string, string> = {
   "INTERNAL IP": "columns.internalIp",
   "LABELS": "columns.labels",
   "ACTIONS": "columns.actions",
+  "CPU": "columns.cpu",
+  "MEMORY": "columns.memory",
 };
 
 /** Translate column labels using the columnLabelToKey mapping */

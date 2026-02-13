@@ -24,6 +24,7 @@ import { useTerminalTabs } from "../../../terminal";
 import { ResourceList } from "../../../resources/ResourceList";
 import {
   podColumns,
+  getPodColumnsWithMetrics,
   translateColumns,
   getEffectivePodStatus,
   type SortDirection,
@@ -32,9 +33,10 @@ import {
   type ContextMenuItemDef,
 } from "../../../resources/columns";
 import { deleteResource } from "@/lib/tauri/commands";
+import { usePodMetrics } from "@/lib/hooks/useMetrics";
 import { useResourceDetail } from "../../context";
 import { useTabsStore } from "@/lib/stores/tabs-store";
-import type { PodInfo, ServiceInfo } from "@/lib/types";
+import type { PodInfo, PodMetrics, ServiceInfo } from "@/lib/types";
 
 export function PodsView() {
   const t = useTranslations();
@@ -44,6 +46,19 @@ export function PodsView() {
     refreshInterval: 10000,
   });
   const { data: services } = useServices({ autoRefresh: true, refreshInterval: 30000 });
+  const { data: podMetricsData } = usePodMetrics(undefined, {
+    autoRefresh: true,
+    refreshInterval: 15000,
+  });
+
+  // Build a lookup map for pod metrics: "namespace/name" -> PodMetrics
+  const metricsMap = useMemo(() => {
+    const map = new Map<string, PodMetrics>();
+    for (const m of podMetricsData) {
+      map.set(`${m.namespace}/${m.name}`, m);
+    }
+    return map;
+  }, [podMetricsData]);
   const { forwards, startForward, stopForward } = usePortForward();
   const { addTab } = useTerminalTabs();
   const { openResourceDetail, handleDeleteFromContext, closeResourceDetail } = useResourceDetail();
@@ -174,9 +189,13 @@ export function PodsView() {
     return "";
   };
 
-  // Add logs and shell action columns
+  // Build columns: base pod columns + metrics columns + action column
+  const baseColumns = metricsMap.size > 0
+    ? getPodColumnsWithMetrics(metricsMap)
+    : podColumns;
+
   const columnsWithActions = [
-    ...translateColumns(podColumns, t),
+    ...translateColumns(baseColumns, t),
     {
       key: "actions",
       label: t("columns.actions") || "ACTIONS",
@@ -340,6 +359,24 @@ export function PodsView() {
     ];
   };
 
+  // Custom sort comparator for metrics columns
+  const customSortComparator = useMemo(() => {
+    if (sortKey === "cpu_usage" || sortKey === "memory_usage") {
+      return (a: PodInfo, b: PodInfo) => {
+        const aMetrics = metricsMap.get(`${a.namespace}/${a.name}`);
+        const bMetrics = metricsMap.get(`${b.namespace}/${b.name}`);
+        const aVal = sortKey === "cpu_usage"
+          ? (aMetrics?.total_cpu_nano_cores ?? -1)
+          : (aMetrics?.total_memory_bytes ?? -1);
+        const bVal = sortKey === "cpu_usage"
+          ? (bMetrics?.total_cpu_nano_cores ?? -1)
+          : (bMetrics?.total_memory_bytes ?? -1);
+        return aVal - bVal;
+      };
+    }
+    return undefined;
+  }, [sortKey, metricsMap]);
+
   return (
     <ResourceList
       title={t("navigation.pods")}
@@ -364,6 +401,7 @@ export function PodsView() {
       sortKey={sortKey}
       sortDirection={sortDirection}
       onSortChange={(key, dir) => { setSortKey(key); setSortDirection(dir); }}
+      customSortComparator={customSortComparator}
     />
   );
 }

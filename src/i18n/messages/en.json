@@ -1027,7 +1027,9 @@
     "version": "VERSION",
     "internalIp": "INTERNAL IP",
     "labels": "LABELS",
-    "actions": "ACTIONS"
+    "actions": "ACTIONS",
+    "cpu": "CPU",
+    "memory": "MEMORY"
   },
   "empty": {
     "pods": "No pods found",

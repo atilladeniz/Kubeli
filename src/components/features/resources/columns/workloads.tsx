@@ -1,5 +1,6 @@
 import type {
   PodInfo,
+  PodMetrics,
   DeploymentInfo,
   ReplicaSetInfo,
   DaemonSetInfo,
@@ -13,6 +14,7 @@ import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { PodPhaseBadge } from "../components/badges/PodPhaseBadge";
 import { JobStatusBadge } from "../components/badges/JobStatusBadge";
 import { CronJobSuspendBadge } from "../components/badges/CronJobSuspendBadge";
+import { PodMetricsCell } from "../components/PodMetricsCell";
 import { formatAge, formatDuration } from "../lib/utils";
 import { getEffectivePodStatus } from "@/lib/utils/pod-status";
 
@@ -78,6 +80,41 @@ export const podColumns: Column<PodInfo>[] = [
     render: (pod) => (pod.created_at ? formatAge(pod.created_at) : "-"),
   },
 ];
+
+/** Creates pod columns with CPU/Memory metrics columns injected */
+export function getPodColumnsWithMetrics(
+  metricsMap: Map<string, PodMetrics>,
+): Column<PodInfo>[] {
+  return [
+    ...podColumns,
+    {
+      key: "cpu_usage",
+      label: "CPU",
+      sortable: true,
+      render: (pod) => (
+        <PodMetricsCell
+          podName={pod.name}
+          namespace={pod.namespace}
+          metricsMap={metricsMap}
+          type="cpu"
+        />
+      ),
+    },
+    {
+      key: "memory_usage",
+      label: "MEMORY",
+      sortable: true,
+      render: (pod) => (
+        <PodMetricsCell
+          podName={pod.name}
+          namespace={pod.namespace}
+          metricsMap={metricsMap}
+          type="memory"
+        />
+      ),
+    },
+  ];
+}
 
 export function getPodColumns(t: TranslateFunc): Column<PodInfo>[] {
   return [
