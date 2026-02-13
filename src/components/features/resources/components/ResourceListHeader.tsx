@@ -73,7 +73,7 @@ export function ResourceListHeader<T>({
 
           {/* Quick filters */}
           {filterOptions && filterOptions.length > 0 && (
-            <div className="flex items-center gap-1 flex-wrap">
+            <div className="flex items-center gap-x-1 gap-y-1.5 flex-wrap">
               <button
                 onClick={() => onFilterChange(null)}
                 aria-pressed={activeFilter === null}
