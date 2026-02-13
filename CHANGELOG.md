@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.36] - 2026-02-13
+
+- Added pod metrics with sparklines and direct kubelet fetching
+- Updated Rust `rand` dependency from 0.9 to 0.10
+- Reverted ESLint 10.0.0 and globals 17.3.0 bumps due to CI failures
+
 ## [0.3.35] - 2026-02-12
 
 - Fixed shell tab management issues
