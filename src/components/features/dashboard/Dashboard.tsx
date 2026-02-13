@@ -504,7 +504,7 @@ function DashboardContent() {
             </ResizablePanel>
             {(selectedResource || isCreateResourceOpen) && <ResizableHandle withHandle />}
             {(selectedResource || isCreateResourceOpen) && (
-              <ResizablePanel id="detail-panel-content" defaultSize="40%" minSize="420px" maxSize="65%">
+              <ResizablePanel id="detail-panel-content" defaultSize="40%" minSize="500px" maxSize="65%">
                 <div className="h-full border-l border-border overflow-hidden">
                   {isCreateResourceOpen ? (
                     <CreateResourcePanel
