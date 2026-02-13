@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState, useCallback, memo } from "react";
-import { Cpu, HardDrive, RefreshCw, AlertCircle } from "lucide-react";
+import { useEffect, useState, useRef, memo } from "react";
+import { Cpu, HardDrive } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { getPodMetrics } from "@/lib/tauri/commands";
@@ -29,56 +29,36 @@ function SectionHeader({ title }: { title: string }) {
 export function PodMetricsSection({ podName, namespace }: PodMetricsSectionProps) {
   const t = useTranslations();
   const { isConnected } = useClusterStore();
-  const { available: metricsAvailable, checking } = useMetricsAvailability();
-  const history = useMetricsHistory(podName, namespace);
+  const { available: metricsAvailable } = useMetricsAvailability();
+  const { history } = useMetricsHistory(podName, namespace);
   const sectionTitle = t("resourceDetail.metrics");
 
-  // One-time fetch for per-container breakdown (not available in history snapshots)
+  // Per-container breakdown (not available in history snapshots).
+  // Track the pod key via ref so stale fetches are ignored without
+  // calling setState synchronously inside the effect.
+  const containerKeyRef = useRef(`${namespace}/${podName}`);
   const [containers, setContainers] = useState<ContainerMetricsInfo[] | null>(null);
-  const fetchContainers = useCallback(async () => {
-    if (!isConnected) return;
-    try {
-      const result = await getPodMetrics(namespace, podName);
-      const match = result.find(
-        (m) => m.name === podName && m.namespace === namespace,
-      );
-      if (match) setContainers(match.containers);
-    } catch {
-      // Silently ignore - container breakdown is supplementary
-    }
-  }, [isConnected, podName, namespace]);
-
   useEffect(() => {
-    const timer = setTimeout(fetchContainers, 0);
-    return () => clearTimeout(timer);
-  }, [fetchContainers]);
+    const key = `${namespace}/${podName}`;
+    containerKeyRef.current = key;
+    if (!isConnected) return;
+    getPodMetrics(namespace, podName)
+      .then((result) => {
+        if (containerKeyRef.current !== key) return;
+        const match = result.find(
+          (m) => m.name === podName && m.namespace === namespace,
+        );
+        setContainers(match ? match.containers : null);
+      })
+      .catch(() => {});
+  }, [isConnected, podName, namespace]);
 
   // Derive current values from the latest history snapshot
   const latest = history.length > 0 ? history[history.length - 1] : null;
 
-  if (checking || (!metricsAvailable && !checking) || history.length < 1) {
-    return (
-      <section>
-        <SectionHeader title={sectionTitle} />
-        {checking ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <RefreshCw className="size-3.5 animate-spin" />
-            <span>Loading metrics...</span>
-          </div>
-        ) : !metricsAvailable ? (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground bg-muted/50 rounded-md p-3">
-            <AlertCircle className="size-3.5" />
-            <span>Metrics server not available. Install metrics-server to see resource usage.</span>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <RefreshCw className="size-3.5 animate-spin" />
-            <span>Loading metrics...</span>
-          </div>
-        )}
-      </section>
-    );
-  }
+  // Render nothing until we have actual data — avoids layout shift when
+  // switching between pods with/without metrics.
+  if (!metricsAvailable || history.length < 1) return null;
 
   return (
     <section>

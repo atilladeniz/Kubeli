@@ -127,10 +127,10 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
                 <Badge
                   key={key}
                   variant="secondary"
-                  className="font-mono text-xs max-w-full shrink truncate"
+                  className="font-mono text-xs max-w-full min-w-0"
                   title={`${key}=${value}`}
                 >
-                  {key}={value}
+                  <span className="truncate">{key}={value}</span>
                 </Badge>
               ))}
             </div>

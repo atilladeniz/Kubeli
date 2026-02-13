@@ -82,13 +82,27 @@ export function getHistorySnapshot(key: string): MetricsSnapshot[] {
  * Hook that polls pod metrics and accumulates history over the session.
  * Returns the history array for the specified pod.
  */
+export interface MetricsHistoryResult {
+  history: MetricsSnapshot[];
+  /** True after the first poll attempt has completed (whether data was found or not). */
+  polled: boolean;
+}
+
 export function useMetricsHistory(
   podName: string,
   namespace: string,
-): MetricsSnapshot[] {
+): MetricsHistoryResult {
   const { isConnected } = useClusterStore();
   const key = `${namespace}/${podName}`;
   const [history, setHistory] = useState<MetricsSnapshot[]>(() => [...getHistory(key)]);
+  const [polled, setPolled] = useState(() => getHistory(key).length > 0);
+
+  // Reset when pod changes (key changes)
+  useEffect(() => {
+    const existing = getHistory(key);
+    setHistory([...existing]);
+    setPolled(existing.length > 0);
+  }, [key]);
 
   const poll = useCallback(async () => {
     if (!isConnected) return;
@@ -107,6 +121,8 @@ export function useMetricsHistory(
       }
     } catch {
       // Silently ignore polling errors
+    } finally {
+      setPolled(true);
     }
   }, [isConnected, podName, namespace, key]);
 
@@ -120,5 +136,5 @@ export function useMetricsHistory(
     };
   }, [poll]);
 
-  return history;
+  return { history, polled };
 }

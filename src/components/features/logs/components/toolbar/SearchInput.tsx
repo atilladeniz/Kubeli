@@ -33,7 +33,7 @@ export function SearchInput({
   const searchInputRef = useRef<HTMLInputElement>(null);
 
   return (
-    <div className="relative w-48 shrink-0">
+    <div className="relative w-48 min-w-32 shrink">
       <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground pointer-events-none" />
       <Input
         ref={searchInputRef}

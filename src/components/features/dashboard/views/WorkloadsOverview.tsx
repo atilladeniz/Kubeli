@@ -55,8 +55,8 @@ export function WorkloadsOverview() {
   const suspendedCronJobs = cronJobs.filter((cj) => cj.suspend).length;
 
   return (
-    <div className="h-full overflow-auto p-6">
-      <div className="mb-6">
+    <div className="@container h-full overflow-auto p-4 @2xl:p-6">
+      <div className="mb-4 @2xl:mb-6">
         <h1 className="text-2xl font-bold">{t("overview")}</h1>
         <p className="text-muted-foreground">
           {currentNamespace ? t("namespaceLabel", { namespace: currentNamespace }) : t("allNamespaces")}
@@ -64,7 +64,7 @@ export function WorkloadsOverview() {
       </div>
 
       {/* Summary Cards */}
-      <div className="mb-8 grid grid-cols-4 gap-4">
+      <div className="mb-6 @2xl:mb-8 grid grid-cols-2 @3xl:grid-cols-4 gap-3 @2xl:gap-4">
         <SummaryCard
           title={t("pods")}
           value={pods.length}
@@ -92,7 +92,7 @@ export function WorkloadsOverview() {
       </div>
 
       {/* Detailed Status */}
-      <div className="grid grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 gap-4 @2xl:gap-6 mb-6 @2xl:mb-8">
         {/* Pod Status */}
         <Card>
           <CardHeader>
@@ -133,7 +133,7 @@ export function WorkloadsOverview() {
       </div>
 
       {/* Secondary Resources */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 @xl:grid-cols-2 @4xl:grid-cols-3 gap-4 @2xl:gap-6">
         {/* ReplicaSets */}
         <Card>
           <CardHeader>

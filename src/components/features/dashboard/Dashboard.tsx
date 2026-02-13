@@ -17,7 +17,6 @@ import { TabBar, useTabTitle } from "@/components/layout/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { Button } from "@/components/ui/button";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
-import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import {
   useFavoritesStore,
@@ -447,21 +446,49 @@ function DashboardContent() {
           }}
         />
         <div className="flex flex-1 overflow-hidden overscroll-none">
-          {/* Main content area */}
-          <div className="flex flex-1 flex-col overflow-hidden">
-            <Titlebar
-              isAIOpen={isAIAssistantOpen}
-              isAIProcessing={isAIProcessing}
-              isAIDisabled={isAICliAvailable === false}
-              onToggleAI={toggleAIAssistant}
-              onOpenShortcutsHelp={() => setShowShortcutsHelp(true)}
-              onOpenSettings={() => setSettingsOpen(true)}
-            />
-            {isConnected && <TabBar />}
-            {isOpen && tabs.length > 0 ? (
-              <ResizablePanelGroup orientation="vertical" className="flex-1 overflow-hidden">
-                <ResizablePanel defaultSize="65%" minSize="20%">
-                  <main className="h-full overflow-hidden relative group/main">
+          <ResizablePanelGroup orientation="horizontal" id="detail-panel">
+            <ResizablePanel id="main-content" minSize="400px">
+              <div className="flex h-full flex-col overflow-hidden">
+                <Titlebar
+                  isAIOpen={isAIAssistantOpen}
+                  isAIProcessing={isAIProcessing}
+                  isAIDisabled={isAICliAvailable === false}
+                  onToggleAI={toggleAIAssistant}
+                  onOpenShortcutsHelp={() => setShowShortcutsHelp(true)}
+                  onOpenSettings={() => setSettingsOpen(true)}
+                />
+                {isConnected && <TabBar />}
+                {isOpen && tabs.length > 0 ? (
+                  <ResizablePanelGroup orientation="vertical" className="flex-1 overflow-hidden">
+                    <ResizablePanel defaultSize="65%" minSize="20%">
+                      <main className="h-full overflow-hidden relative group/main">
+                        {!isConnected ? (
+                          <NotConnectedState />
+                        ) : (
+                          <ResourceView activeResource={activeResource} />
+                        )}
+                        {isConnected && !isCreateResourceOpen && (
+                          <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
+                        )}
+                      </main>
+                    </ResizablePanel>
+                    <ResizableHandle withHandle />
+                    <ResizablePanel defaultSize="35%" minSize="15%" maxSize="70%">
+                      <div className="flex h-full flex-col border-t border-border">
+                        <div className="flex items-center justify-between bg-muted/50 px-3 py-1 border-b border-border">
+                          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("terminal.title")}</span>
+                          <Button variant="ghost" size="icon-sm" onClick={closePanel}>
+                            <X className="size-4" />
+                          </Button>
+                        </div>
+                        <div className="flex-1 min-h-0">
+                          <TerminalTabs />
+                        </div>
+                      </div>
+                    </ResizablePanel>
+                  </ResizablePanelGroup>
+                ) : (
+                  <main className="flex-1 overflow-hidden relative group/main">
                     {!isConnected ? (
                       <NotConnectedState />
                     ) : (
@@ -471,70 +498,39 @@ function DashboardContent() {
                       <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
                     )}
                   </main>
-                </ResizablePanel>
-                <ResizableHandle withHandle />
-                <ResizablePanel defaultSize="35%" minSize="15%" maxSize="70%">
-                  <div className="flex h-full flex-col border-t border-border">
-                    <div className="flex items-center justify-between bg-muted/50 px-3 py-1 border-b border-border">
-                      <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("terminal.title")}</span>
-                      <Button variant="ghost" size="icon-sm" onClick={closePanel}>
-                        <X className="size-4" />
-                      </Button>
-                    </div>
-                    <div className="flex-1 min-h-0">
-                      <TerminalTabs />
-                    </div>
-                  </div>
-                </ResizablePanel>
-              </ResizablePanelGroup>
-            ) : (
-              <main className="flex-1 overflow-hidden relative group/main">
-                {!isConnected ? (
-                  <NotConnectedState />
-                ) : (
-                  <ResourceView activeResource={activeResource} />
                 )}
-                {isConnected && !isCreateResourceOpen && (
-                  <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
-                )}
-              </main>
-            )}
-          </div>
-
-          {/* Create Resource Panel */}
-          {isCreateResourceOpen && (
-            <div className="w-[700px] border-l border-border flex-shrink-0">
-              <CreateResourcePanel
-                onClose={() => setCreateResourceOpen(false)}
-                onApplied={triggerRefresh}
-              />
-            </div>
-          )}
-
-          {/* Resource Detail Panel */}
-          {selectedResource && !isCreateResourceOpen && (
-            <div className="w-[700px] border-l border-border flex-shrink-0">
-              <ResourceDetail
-                resource={selectedResource.data}
-                resourceType={selectedResource.type}
-                onClose={closeResourceDetail}
-                onSave={handleSaveResource}
-                onDelete={handleDeleteResource}
-              />
-            </div>
-          )}
-
-          {/* AI Assistant Panel */}
-          {isAIAssistantOpen && (
-            <div
-              className="min-w-[300px] max-w-[600px] border-l border-border flex-shrink-0 overflow-auto"
-              style={{ width: 400, resize: "horizontal", direction: "rtl" }}
-            >
-              <div style={{ direction: "ltr" }} className="h-full">
-                <AIAssistant />
               </div>
-            </div>
-          )}
+            </ResizablePanel>
+            {(selectedResource || isCreateResourceOpen) && <ResizableHandle withHandle />}
+            {(selectedResource || isCreateResourceOpen) && (
+              <ResizablePanel id="detail-panel-content" defaultSize="700px" minSize="500px" maxSize="65%">
+                <div className="h-full border-l border-border overflow-hidden">
+                  {isCreateResourceOpen ? (
+                    <CreateResourcePanel
+                      onClose={() => setCreateResourceOpen(false)}
+                      onApplied={triggerRefresh}
+                    />
+                  ) : selectedResource ? (
+                    <ResourceDetail
+                      resource={selectedResource.data}
+                      resourceType={selectedResource.type}
+                      onClose={closeResourceDetail}
+                      onSave={handleSaveResource}
+                      onDelete={handleDeleteResource}
+                    />
+                  ) : null}
+                </div>
+              </ResizablePanel>
+            )}
+          {isAIAssistantOpen && <ResizableHandle withHandle />}
+            {isAIAssistantOpen && (
+              <ResizablePanel id="ai-assistant-panel" defaultSize="400px" minSize="400px" maxSize="50%">
+                <div className="h-full border-l border-border overflow-auto">
+                  <AIAssistant />
+                </div>
+              </ResizablePanel>
+            )}
+          </ResizablePanelGroup>
         </div>
 
         {/* Dialogs */}

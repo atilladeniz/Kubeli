@@ -37,9 +37,9 @@ export function LogHeader({
   containerPlaceholder,
 }: LogHeaderProps) {
   return (
-    <div className="flex items-center justify-between border-b border-border px-4 py-2">
-      <div className="flex items-center gap-3">
-        <h3 className="font-medium">
+    <div className="flex items-center justify-between gap-3 border-b border-border px-4 py-2">
+      <div className="flex items-center gap-3 min-w-0">
+        <h3 className="font-medium truncate">
           {title}: {podName}
         </h3>
         <Badge variant="secondary">{namespace}</Badge>
@@ -57,7 +57,7 @@ export function LogHeader({
           value={selectedContainer || ""}
           onValueChange={(value) => onContainerChange(value || null)}
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-40 shrink-0">
             <SelectValue placeholder={containerPlaceholder} />
           </SelectTrigger>
           <SelectContent>
