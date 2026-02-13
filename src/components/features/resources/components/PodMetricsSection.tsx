@@ -5,6 +5,8 @@ import { Cpu, HardDrive, RefreshCw, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { getPodMetrics, checkMetricsServer } from "@/lib/tauri/commands";
+import { useMetricsHistory } from "@/lib/hooks/useMetricsHistory";
+import { MetricsChart } from "./MetricsChart";
 import type { PodMetrics, ContainerMetricsInfo } from "@/lib/types";
 import { useTranslations } from "next-intl";
 
@@ -20,6 +22,7 @@ export function PodMetricsSection({ podName, namespace }: PodMetricsSectionProps
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [metricsAvailable, setMetricsAvailable] = useState(true);
+  const history = useMetricsHistory(podName, namespace);
 
   const fetchMetrics = useCallback(async () => {
     if (!isConnected) return;
@@ -105,6 +108,24 @@ export function PodMetricsSection({ podName, namespace }: PodMetricsSectionProps
           value={metrics.total_memory}
           color="purple"
         />
+      </div>
+
+      {/* Time-Series Charts */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1.5">
+            <Cpu className="size-3" />
+            <span>CPU over time</span>
+          </div>
+          <MetricsChart history={history} type="cpu" height={120} />
+        </div>
+        <div>
+          <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1.5">
+            <HardDrive className="size-3" />
+            <span>Memory over time</span>
+          </div>
+          <MetricsChart history={history} type="memory" height={120} />
+        </div>
       </div>
 
       {/* Per-Container Metrics */}
