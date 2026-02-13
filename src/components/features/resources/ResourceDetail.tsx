@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   X,
   Trash2,
@@ -45,7 +45,19 @@ export function ResourceDetail({
   // regardless of whether the detail was opened from a list or a favorite shortcut.
   const resourceType = rawResourceType.replace(/s$/, "");
   const yamlTabRef = useRef<YamlTabHandle>(null);
+  const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState("overview");
+
+  const handleTabChange = useCallback((value: string) => {
+    setActiveTab(value);
+    requestAnimationFrame(() => {
+      const container = tabsContainerRef.current;
+      const active = container?.querySelector<HTMLElement>(`[data-state="active"]`);
+      if (active && container) {
+        active.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      }
+    });
+  }, []);
   const [yamlContent, setYamlContent] = useState("");
   const [originalYaml, setOriginalYaml] = useState("");
   const [isSaving, setIsSaving] = useState(false);
@@ -170,10 +182,10 @@ export function ResourceDetail({
       {/* Tabs */}
       <Tabs
         value={activeTab}
-        onValueChange={setActiveTab}
+        onValueChange={handleTabChange}
         className="flex-1 flex flex-col overflow-hidden"
       >
-        <div className="border-b border-border px-4 py-2 overflow-x-auto hide-scrollbar">
+        <div ref={tabsContainerRef} className="border-b border-border px-4 py-2 overflow-x-auto hide-scrollbar">
           <TabsList className="h-10 w-max">
             <TabsTrigger value="overview" className="gap-2">
               <Info className="size-4" />
