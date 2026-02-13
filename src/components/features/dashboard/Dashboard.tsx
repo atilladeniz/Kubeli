@@ -522,19 +522,15 @@ function DashboardContent() {
                 </div>
               </ResizablePanel>
             )}
+          {isAIAssistantOpen && <ResizableHandle withHandle />}
+            {isAIAssistantOpen && (
+              <ResizablePanel id="ai-assistant-panel" defaultSize="400px" minSize="400px" maxSize="50%">
+                <div className="h-full border-l border-border overflow-auto">
+                  <AIAssistant />
+                </div>
+              </ResizablePanel>
+            )}
           </ResizablePanelGroup>
-
-          {/* AI Assistant Panel */}
-          {isAIAssistantOpen && (
-            <div
-              className="min-w-[300px] max-w-[600px] border-l border-border flex-shrink-0 overflow-auto"
-              style={{ width: 400, resize: "horizontal", direction: "rtl" }}
-            >
-              <div style={{ direction: "ltr" }} className="h-full">
-                <AIAssistant />
-              </div>
-            </div>
-          )}
         </div>
 
         {/* Dialogs */}
