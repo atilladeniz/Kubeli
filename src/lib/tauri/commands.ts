@@ -493,6 +493,13 @@ export async function getPodMetrics(
   return invoke<PodMetrics[]>("get_pod_metrics", { namespace, podName });
 }
 
+/** Get pod metrics directly from kubelet /stats/summary (faster, ~10s updates) */
+export async function getPodMetricsDirect(
+  namespace?: string,
+): Promise<PodMetrics[]> {
+  return invoke<PodMetrics[]>("get_pod_metrics_direct", { namespace });
+}
+
 export async function getClusterMetricsSummary(): Promise<ClusterMetricsSummary> {
   return invoke<ClusterMetricsSummary>("get_cluster_metrics_summary");
 }
