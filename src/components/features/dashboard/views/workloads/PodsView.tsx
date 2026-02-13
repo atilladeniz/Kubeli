@@ -23,7 +23,6 @@ import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import { useTerminalTabs } from "../../../terminal";
 import { ResourceList } from "../../../resources/ResourceList";
 import {
-  podColumns,
   getPodColumnsWithMetrics,
   translateColumns,
   getEffectivePodStatus,
@@ -47,25 +46,23 @@ export function PodsView() {
     refreshInterval: 10000,
   });
   const { data: services } = useServices({ autoRefresh: true, refreshInterval: 30000 });
-  const { data: podMetricsData } = usePodMetrics(undefined, {
+  const { data: podMetricsData, isLoading: metricsLoading } = usePodMetrics(undefined, {
     autoRefresh: true,
     refreshInterval: 15000,
   });
 
-  // Build a lookup map for pod metrics: "namespace/name" -> PodMetrics
+  // Build a lookup map for pod metrics AND seed sparkline history.
+  // Seeding inside useMemo (not useEffect) ensures history is populated
+  // BEFORE PodMetricsCell renders and calls getHistorySnapshot().
   const metricsMap = useMemo(() => {
+    if (podMetricsData.length > 0) {
+      seedHistoryFromBulkMetrics(podMetricsData);
+    }
     const map = new Map<string, PodMetrics>();
     for (const m of podMetricsData) {
       map.set(`${m.namespace}/${m.name}`, m);
     }
     return map;
-  }, [podMetricsData]);
-
-  // Seed metrics history from table polling so detail view charts render immediately
-  useEffect(() => {
-    if (podMetricsData.length > 0) {
-      seedHistoryFromBulkMetrics(podMetricsData);
-    }
   }, [podMetricsData]);
 
   const { forwards, startForward, stopForward } = usePortForward();
@@ -198,10 +195,8 @@ export function PodsView() {
     return "";
   };
 
-  // Build columns: base pod columns + metrics columns + action column
-  const baseColumns = metricsMap.size > 0
-    ? getPodColumnsWithMetrics(metricsMap)
-    : podColumns;
+  // Always show metrics columns — skeleton shimmer while loading, no layout shift
+  const baseColumns = getPodColumnsWithMetrics(metricsMap, metricsLoading && metricsMap.size === 0);
 
   const columnsWithActions = [
     ...translateColumns(baseColumns, t),

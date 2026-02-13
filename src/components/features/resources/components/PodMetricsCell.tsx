@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 import type { PodMetrics, ContainerMetricsInfo } from "@/lib/types";
 import { getHistorySnapshot, type MetricsSnapshot } from "@/lib/hooks/useMetricsHistory";
 import { Sparkline } from "./Sparkline";
@@ -10,6 +11,7 @@ interface PodMetricsCellProps {
   namespace: string;
   metricsMap: Map<string, PodMetrics>;
   type: "cpu" | "memory";
+  loading?: boolean;
 }
 
 /** Format nanocores to human-readable CPU string */
@@ -64,9 +66,18 @@ const memoryConfig: MetricConfig = {
   barColor: "bg-purple-500",
 };
 
-export function PodMetricsCell({ podName, namespace, metricsMap, type }: PodMetricsCellProps) {
+export function PodMetricsCell({ podName, namespace, metricsMap, type, loading }: PodMetricsCellProps) {
   const key = `${namespace}/${podName}`;
   const metrics = metricsMap.get(key);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 min-w-[100px]">
+        <Skeleton className="h-4 w-11 rounded" />
+        <Skeleton className="h-3 w-8 rounded" />
+      </div>
+    );
+  }
 
   if (!metrics) {
     return <span className="text-muted-foreground text-xs">-</span>;

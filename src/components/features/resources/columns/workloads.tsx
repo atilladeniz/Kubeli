@@ -84,6 +84,7 @@ export const podColumns: Column<PodInfo>[] = [
 /** Creates pod columns with CPU/Memory metrics columns injected */
 export function getPodColumnsWithMetrics(
   metricsMap: Map<string, PodMetrics>,
+  metricsLoading = false,
 ): Column<PodInfo>[] {
   return [
     ...podColumns,
@@ -97,6 +98,7 @@ export function getPodColumnsWithMetrics(
           namespace={pod.namespace}
           metricsMap={metricsMap}
           type="cpu"
+          loading={metricsLoading}
         />
       ),
     },
@@ -110,6 +112,7 @@ export function getPodColumnsWithMetrics(
           namespace={pod.namespace}
           metricsMap={metricsMap}
           type="memory"
+          loading={metricsLoading}
         />
       ),
     },
