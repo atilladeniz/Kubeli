@@ -64,15 +64,15 @@ export function ResourceListHeader<T>({
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border px-4 py-3">
-      <div className="flex items-center gap-3">
-        <h2 className="text-lg font-semibold">{title}</h2>
+      <div className="flex items-center gap-3 min-w-0 flex-wrap">
+        <h2 className="text-lg font-semibold whitespace-nowrap">{title}</h2>
         <Badge variant="secondary" className="rounded-full">
           {filteredCount}
         </Badge>
 
         {/* Quick filters */}
         {filterOptions && filterOptions.length > 0 && (
-          <div className="flex items-center gap-1 ml-2">
+          <div className="flex items-center gap-1 ml-2 flex-wrap">
             <button
               onClick={() => onFilterChange(null)}
               aria-pressed={activeFilter === null}
