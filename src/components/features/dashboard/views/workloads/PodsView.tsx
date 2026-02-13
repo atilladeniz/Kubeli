@@ -49,6 +49,7 @@ export function PodsView() {
   const { data: podMetricsData, isLoading: metricsLoading } = usePodMetrics(undefined, {
     autoRefresh: true,
     refreshInterval: 15000,
+    initialRefreshInterval: 3000,
   });
 
   // Build a lookup map for pod metrics AND seed sparkline history.

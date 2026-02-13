@@ -24,12 +24,15 @@ export const Sparkline = memo(function Sparkline({
       if (values[i] < min) min = values[i];
       if (values[i] > max) max = values[i];
     }
-    const range = max - min || 1;
+    const range = max - min;
     const pad = 1;
 
     const coords = values.map((v, i) => {
       const x = (i / (values.length - 1)) * width;
-      const y = pad + (1 - (v - min) / range) * (height - pad * 2);
+      // Flat data (range=0): draw line at vertical center instead of bottom
+      const y = range === 0
+        ? height / 2
+        : pad + (1 - (v - min) / range) * (height - pad * 2);
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     });
 

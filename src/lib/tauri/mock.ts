@@ -87,13 +87,15 @@ const mockPodDefs: MockPodDef[] = [
   { name: "demo-auth-4e5f6a7b8-p1l2k", cpuNano: 45_000_000, memBytes: 125_829_120, cpuRequest: "200m", cpuLimit: "500m", memRequest: "256Mi", memLimit: "512Mi" },
   { name: "demo-db-0", cpuNano: 200_000_000, memBytes: 419_430_400, cpuRequest: "500m", cpuLimit: "2", memRequest: "512Mi", memLimit: "2Gi" },
   { name: "demo-log-collector-8b9c0d1e2-h5g6f", cpuNano: 10_000_000, memBytes: 52_428_800, cpuRequest: "50m", cpuLimit: "100m", memRequest: "64Mi", memLimit: "128Mi" },
+  { name: "demo-stress-test-3f2a1b0c9-z8y7x", cpuNano: 250_000_000, memBytes: 314_572_800, cpuRequest: "500m", cpuLimit: "1", memRequest: "512Mi", memLimit: "1Gi" },
 ];
 
 function buildMockPodMetrics(): PodMetrics[] {
   const ts = new Date().toISOString();
   return mockPodDefs.map((d) => {
-    const cpu = jitter(d.cpuNano);
-    const mem = jitter(d.memBytes);
+    const isStress = d.name.includes("stress-test");
+    const cpu = jitter(d.cpuNano, isStress ? 0.4 : 0.1);
+    const mem = jitter(d.memBytes, isStress ? 0.3 : 0.1);
     return {
       name: d.name,
       namespace: "kubeli-demo",

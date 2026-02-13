@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useClusterStore } from "../stores/cluster-store";
 import {
   getNodeMetrics,
@@ -17,6 +17,8 @@ import type {
 interface UseMetricsOptions {
   autoRefresh?: boolean;
   refreshInterval?: number;
+  /** Faster interval for the first few polls to build sparkline data quickly */
+  initialRefreshInterval?: number;
 }
 
 interface UseClusterMetricsReturn {
@@ -138,6 +140,7 @@ export function usePodMetrics(
   const [error, setError] = useState<string | null>(null);
   const { isConnected, currentNamespace } = useClusterStore();
   const ns = namespace ?? currentNamespace;
+  const pollCount = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -155,15 +158,33 @@ export function usePodMetrics(
 
   useEffect(() => {
     if (isConnected) {
+      pollCount.current = 0;
       refresh();
     }
   }, [isConnected, refresh]);
 
+  // Burst-then-normal polling: fast initial polls to build sparkline data
+  // quickly with real values, then settle to normal interval.
   useEffect(() => {
     if (!options.autoRefresh || !isConnected) return;
-    const interval = setInterval(refresh, options.refreshInterval || 15000);
-    return () => clearInterval(interval);
-  }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
+
+    const burstMs = options.initialRefreshInterval;
+    const normalMs = options.refreshInterval || 15000;
+    const BURST_POLLS = burstMs ? 3 : 0;
+    let timer: ReturnType<typeof setTimeout>;
+
+    const scheduleNext = () => {
+      const ms = pollCount.current < BURST_POLLS ? burstMs! : normalMs;
+      timer = setTimeout(() => {
+        pollCount.current++;
+        refresh();
+        scheduleNext();
+      }, ms);
+    };
+
+    scheduleNext();
+    return () => clearTimeout(timer);
+  }, [options.autoRefresh, options.refreshInterval, options.initialRefreshInterval, isConnected, refresh]);
 
   return {
     data,

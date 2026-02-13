@@ -41,7 +41,7 @@ describe("useMetricsHistory module", () => {
   });
 
   describe("seedHistoryFromBulkMetrics", () => {
-    it("populates history for multiple pods with 2 initial points each", () => {
+    it("populates history with flat baseline on first seed", () => {
       const metrics = [
         makePodMetrics("web", 100_000_000, 200_000_000),
         makePodMetrics("api", 50_000_000, 100_000_000),
@@ -50,21 +50,23 @@ describe("useMetricsHistory module", () => {
 
       seedHistoryFromBulkMetrics(metrics);
 
-      // First seed creates 2 points (synthetic historical + current) for instant sparklines
+      // First seed creates 2 points (flat baseline + current) for instant sparkline
       expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(2);
       expect(getHistorySnapshot("kubeli-demo/api")).toHaveLength(2);
       expect(getHistorySnapshot("kubeli-demo/db")).toHaveLength(2);
     });
 
-    it("synthetic initial point has earlier timestamp", () => {
+    it("flat baseline has identical values to real point", () => {
       const metrics = [makePodMetrics("web", 100_000_000, 200_000_000)];
       seedHistoryFromBulkMetrics(metrics);
 
       const history = getHistorySnapshot("kubeli-demo/web");
+      expect(history[0].cpuNanoCores).toBe(history[1].cpuNanoCores);
+      expect(history[0].memoryBytes).toBe(history[1].memoryBytes);
       expect(history[0].timestamp).toBeLessThan(history[1].timestamp);
     });
 
-    it("deduplicates calls within 5 seconds", () => {
+    it("deduplicates calls within 3 seconds", () => {
       jest.useFakeTimers();
 
       const metrics = [makePodMetrics("web", 100_000_000, 200_000_000)];
@@ -72,22 +74,20 @@ describe("useMetricsHistory module", () => {
       seedHistoryFromBulkMetrics(metrics);
       seedHistoryFromBulkMetrics(metrics);
 
-      // First call: 2 points (synthetic + real), second call: deduped
       expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(2);
     });
 
-    it("allows new entry after 5 second gap", () => {
+    it("allows new entry after 3 second gap", () => {
       jest.useFakeTimers();
 
       const metrics = [makePodMetrics("web", 100_000_000, 200_000_000)];
 
       seedHistoryFromBulkMetrics(metrics);
-      expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(2); // synthetic + real
+      expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(2);
 
-      // Advance 6 seconds
-      jest.advanceTimersByTime(6_000);
+      jest.advanceTimersByTime(4_000);
       seedHistoryFromBulkMetrics(metrics);
-      expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(3); // +1 new point
+      expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(3);
     });
   });
 
@@ -123,28 +123,14 @@ describe("useMetricsHistory module", () => {
   });
 
   describe("snapshot values", () => {
-    it("stores correct cpu and memory values for the real point", () => {
+    it("stores correct cpu and memory values", () => {
       const metrics = [makePodMetrics("web", 125_000_000, 268_435_456)];
       seedHistoryFromBulkMetrics(metrics);
 
       const snapshot = getHistorySnapshot("kubeli-demo/web");
-      // Index 0 is synthetic (jittered), index 1 is the real value
       expect(snapshot[1].cpuNanoCores).toBe(125_000_000);
       expect(snapshot[1].memoryBytes).toBe(268_435_456);
       expect(snapshot[1].timestamp).toBeGreaterThan(0);
-    });
-
-    it("synthetic point has jittered values close to real values", () => {
-      const metrics = [makePodMetrics("web", 100_000_000, 200_000_000)];
-      seedHistoryFromBulkMetrics(metrics);
-
-      const snapshot = getHistorySnapshot("kubeli-demo/web");
-      const synthetic = snapshot[0];
-      // Jitter is ±5%, so values should be within 10% of the original
-      expect(synthetic.cpuNanoCores).toBeGreaterThan(90_000_000);
-      expect(synthetic.cpuNanoCores).toBeLessThan(110_000_000);
-      expect(synthetic.memoryBytes).toBeGreaterThan(180_000_000);
-      expect(synthetic.memoryBytes).toBeLessThan(220_000_000);
     });
   });
 });

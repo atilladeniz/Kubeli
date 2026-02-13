@@ -45,34 +45,30 @@ export function clearMetricsHistory() {
   historyStore.clear();
 }
 
-/** Small random jitter (±5%) so the initial 2-point sparkline isn't a flat line */
-function jitterValue(value: number): number {
-  return Math.round(value * (1 + (Math.random() - 0.5) * 0.1));
-}
+/** Min seconds between snapshots to avoid duplicate entries */
+const DEDUP_INTERVAL = 3;
 
 /** Seed history from bulk pod metrics (e.g. from table polling).
- *  Deduplicates by skipping if the last snapshot is within 5s.
- *  On first seed for a pod, adds a synthetic historical point so
- *  sparklines render immediately (they need >= 2 data points). */
+ *  Deduplicates by skipping if the last snapshot is within DEDUP_INTERVAL.
+ *  On first seed, pushes a flat baseline so the sparkline renders
+ *  immediately (needs >= 2 points). Burst polling at 3s fills in
+ *  real trend data quickly. */
 export function seedHistoryFromBulkMetrics(metrics: PodMetrics[]) {
   const now = Math.floor(Date.now() / 1000);
   for (const m of metrics) {
     const key = `${m.namespace}/${m.name}`;
     const history = getHistory(key);
     const last = history.at(-1);
-    if (last && now - last.timestamp < 5) continue;
+    if (last && now - last.timestamp < DEDUP_INTERVAL) continue;
 
-    // First time seeing this pod: seed a synthetic point 10s in the past
-    // so the sparkline has 2 points and renders immediately
+    const snapshot = { timestamp: now, cpuNanoCores: m.total_cpu_nano_cores, memoryBytes: m.total_memory_bytes };
+
+    // First time: push a flat baseline so sparkline renders immediately
     if (history.length === 0) {
-      pushSnapshot(key, {
-        timestamp: now - 10,
-        cpuNanoCores: jitterValue(m.total_cpu_nano_cores),
-        memoryBytes: jitterValue(m.total_memory_bytes),
-      });
+      pushSnapshot(key, { ...snapshot, timestamp: now - DEDUP_INTERVAL });
     }
 
-    pushSnapshot(key, { timestamp: now, cpuNanoCores: m.total_cpu_nano_cores, memoryBytes: m.total_memory_bytes });
+    pushSnapshot(key, snapshot);
   }
 }
 
