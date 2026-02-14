@@ -2,20 +2,16 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { X } from "lucide-react";
 import { Sidebar, type ResourceType } from "@/components/layout/Sidebar";
 import { ResourceDetail, type ResourceData } from "../resources/ResourceDetail";
-import { CreateResourceFAB } from "../resources/CreateResourceFAB";
 import { CreateResourcePanel } from "../resources/CreateResourcePanel";
 import { AIAssistant } from "../ai/AIAssistant";
-import { TerminalTabsProvider, useTerminalTabs, TerminalTabs } from "../terminal";
+import { TerminalTabsProvider, useTerminalTabs } from "../terminal";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { BrowserOpenDialog } from "../portforward/BrowserOpenDialog";
 import { RestartDialog } from "../updates/RestartDialog";
-import { Titlebar } from "@/components/layout/Titlebar";
-import { TabBar, useTabTitle } from "@/components/layout/TabBar";
+import { useTabTitle } from "@/components/layout/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
-import { Button } from "@/components/ui/button";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import {
@@ -25,7 +21,6 @@ import {
 import { useTabsStore } from "@/lib/stores/tabs-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useAIStore } from "@/lib/stores/ai-store";
-import { useKeyboardShortcuts, NAVIGATION_SHORTCUTS } from "@/lib/hooks/useKeyboardShortcuts";
 import { useDeepLinkNavigation } from "@/lib/hooks/useDeepLinkNavigation";
 import { toast } from "sonner";
 import {
@@ -41,8 +36,7 @@ import {
   ResourceDetailContext,
   type OpenResourceDetailResult,
 } from "./context";
-import { ResourceView } from "./views";
-import { NotConnectedState } from "./components";
+import { DashboardMainWorkspace } from "./components";
 import {
   DeleteConfirmDialog,
   UninstallHelmDialog,
@@ -51,6 +45,7 @@ import {
   type UninstallDialogState,
   type ScaleDialogState,
 } from "./dialogs";
+import { useDashboardShortcuts } from "./hooks/useDashboardShortcuts";
 
 export function Dashboard() {
   return (
@@ -318,49 +313,29 @@ function DashboardContent() {
     }
   }, [favorites, handleFavoriteSelect]);
 
-  // Keyboard shortcuts
-  const shortcuts = useMemo(() => [
-    { key: NAVIGATION_SHORTCUTS.GOTO_OVERVIEW, handler: () => setActiveResource("cluster-overview"), description: "Go to Overview" },
-    { key: NAVIGATION_SHORTCUTS.GOTO_DIAGRAM, handler: () => setActiveResource("resource-diagram"), description: "Go to Diagram" },
-    { key: NAVIGATION_SHORTCUTS.GOTO_PODS, handler: () => setActiveResource("pods"), description: "Go to Pods" },
-    { key: NAVIGATION_SHORTCUTS.GOTO_DEPLOYMENTS, handler: () => setActiveResource("deployments"), description: "Go to Deployments" },
-    { key: NAVIGATION_SHORTCUTS.GOTO_SERVICES, handler: () => setActiveResource("services"), description: "Go to Services" },
-    { key: NAVIGATION_SHORTCUTS.GOTO_NODES, handler: () => setActiveResource("nodes"), description: "Go to Nodes" },
-    { key: NAVIGATION_SHORTCUTS.GOTO_CONFIGMAPS, handler: () => setActiveResource("configmaps"), description: "Go to ConfigMaps" },
-    { key: NAVIGATION_SHORTCUTS.GOTO_SECRETS, handler: () => setActiveResource("secrets"), description: "Go to Secrets" },
-    { key: NAVIGATION_SHORTCUTS.GOTO_NAMESPACES, handler: () => setActiveResource("namespaces"), description: "Go to Namespaces" },
-    { key: NAVIGATION_SHORTCUTS.FOCUS_SEARCH, handler: () => triggerSearchFocus(), description: "Focus search" },
-    { key: NAVIGATION_SHORTCUTS.REFRESH, handler: () => triggerRefresh(), description: "Refresh view" },
-    { key: NAVIGATION_SHORTCUTS.HELP, handler: () => setShowShortcutsHelp(true), description: "Show shortcuts help" },
-    { key: NAVIGATION_SHORTCUTS.TOGGLE_AI, handler: () => { if (isAICliAvailable !== false) toggleAIAssistant(); }, description: "Toggle AI Assistant" },
-    // Favorite shortcuts (Cmd+1 through Cmd+9)
-    { key: NAVIGATION_SHORTCUTS.FAVORITE_1, meta: true, handler: () => navigateToFavorite(0), description: "Go to Favorite 1" },
-    { key: NAVIGATION_SHORTCUTS.FAVORITE_2, meta: true, handler: () => navigateToFavorite(1), description: "Go to Favorite 2" },
-    { key: NAVIGATION_SHORTCUTS.FAVORITE_3, meta: true, handler: () => navigateToFavorite(2), description: "Go to Favorite 3" },
-    { key: NAVIGATION_SHORTCUTS.FAVORITE_4, meta: true, handler: () => navigateToFavorite(3), description: "Go to Favorite 4" },
-    { key: NAVIGATION_SHORTCUTS.FAVORITE_5, meta: true, handler: () => navigateToFavorite(4), description: "Go to Favorite 5" },
-    { key: NAVIGATION_SHORTCUTS.FAVORITE_6, meta: true, handler: () => navigateToFavorite(5), description: "Go to Favorite 6" },
-    { key: NAVIGATION_SHORTCUTS.FAVORITE_7, meta: true, handler: () => navigateToFavorite(6), description: "Go to Favorite 7" },
-    { key: NAVIGATION_SHORTCUTS.FAVORITE_8, meta: true, handler: () => navigateToFavorite(7), description: "Go to Favorite 8" },
-    { key: NAVIGATION_SHORTCUTS.FAVORITE_9, meta: true, handler: () => navigateToFavorite(8), description: "Go to Favorite 9" },
-    // Create resource
-    { key: NAVIGATION_SHORTCUTS.CREATE_RESOURCE, meta: true, handler: () => { setSelectedResource(null); setCreateResourceOpen(true); }, description: "Create Resource", global: true },
-    // Tab shortcuts
-    { key: "t", meta: true, handler: () => { if (resourceTabs.length < 10) { openTab("cluster-overview", getTabTitle("cluster-overview"), { newTab: true }); } else { toast.warning(t("tabs.limitToast")); } }, description: "New tab", global: true },
-    { key: "w", meta: true, handler: () => { if (resourceTabs.length > 1) closeTab(activeTabId); }, description: "Close current tab", global: true },
-    { key: "Tab", meta: true, handler: () => {
-      const idx = resourceTabs.findIndex((t) => t.id === activeTabId);
-      const nextIdx = (idx + 1) % resourceTabs.length;
-      setActiveTab(resourceTabs[nextIdx].id);
-    }, description: "Next tab", global: true },
-    { key: "Tab", meta: true, shift: true, handler: () => {
-      const idx = resourceTabs.findIndex((t) => t.id === activeTabId);
-      const prevIdx = (idx - 1 + resourceTabs.length) % resourceTabs.length;
-      setActiveTab(resourceTabs[prevIdx].id);
-    }, description: "Previous tab", global: true },
-  ], [navigateToFavorite, toggleAIAssistant, isAICliAvailable, resourceTabs, activeTabId, openTab, getTabTitle, closeTab, setActiveTab, setActiveResource, triggerRefresh, triggerSearchFocus, setCreateResourceOpen, t]);
+  const openCreateResource = useCallback(() => {
+    setSelectedResource(null);
+    setCreateResourceOpen(true);
+  }, [setCreateResourceOpen]);
 
-  useKeyboardShortcuts(shortcuts, { enabled: isConnected });
+  useDashboardShortcuts({
+    enabled: isConnected,
+    activeTabId,
+    isAICliAvailable,
+    resourceTabs,
+    tabLimitToast: t("tabs.limitToast"),
+    closeTab,
+    getTabTitle,
+    navigateToFavorite,
+    openCreateResource,
+    openShortcutsHelp: () => setShowShortcutsHelp(true),
+    openTab,
+    setActiveResource,
+    setActiveTab,
+    toggleAIAssistant,
+    triggerRefresh,
+    triggerSearchFocus,
+  });
 
   const handleSaveResource = async (yaml: string) => {
     await applyResourceYaml(yaml);
@@ -447,60 +422,25 @@ function DashboardContent() {
         />
         <div className="flex flex-1 overflow-hidden overscroll-none">
           <ResizablePanelGroup orientation="horizontal" id="detail-panel">
-            <ResizablePanel id="main-content" minSize="400px">
-              <div className="flex h-full flex-col overflow-hidden">
-                <Titlebar
-                  isAIOpen={isAIAssistantOpen}
-                  isAIProcessing={isAIProcessing}
-                  isAIDisabled={isAICliAvailable === false}
-                  onToggleAI={toggleAIAssistant}
-                  onOpenShortcutsHelp={() => setShowShortcutsHelp(true)}
-                  onOpenSettings={() => setSettingsOpen(true)}
-                />
-                {isConnected && <TabBar />}
-                {isOpen && tabs.length > 0 ? (
-                  <ResizablePanelGroup orientation="vertical" className="flex-1 overflow-hidden">
-                    <ResizablePanel defaultSize="65%" minSize="20%">
-                      <main className="h-full overflow-hidden relative group/main">
-                        {!isConnected ? (
-                          <NotConnectedState />
-                        ) : (
-                          <ResourceView activeResource={activeResource} />
-                        )}
-                        {isConnected && !isCreateResourceOpen && (
-                          <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
-                        )}
-                      </main>
-                    </ResizablePanel>
-                    <ResizableHandle withHandle />
-                    <ResizablePanel defaultSize="35%" minSize="15%" maxSize="70%">
-                      <div className="flex h-full flex-col border-t border-border">
-                        <div className="flex items-center justify-between bg-muted/50 px-3 py-1 border-b border-border">
-                          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">{t("terminal.title")}</span>
-                          <Button variant="ghost" size="icon-sm" onClick={closePanel}>
-                            <X className="size-4" />
-                          </Button>
-                        </div>
-                        <div className="flex-1 min-h-0">
-                          <TerminalTabs />
-                        </div>
-                      </div>
-                    </ResizablePanel>
-                  </ResizablePanelGroup>
-                ) : (
-                  <main className="flex-1 overflow-hidden relative group/main">
-                    {!isConnected ? (
-                      <NotConnectedState />
-                    ) : (
-                      <ResourceView activeResource={activeResource} />
-                    )}
-                    {isConnected && !isCreateResourceOpen && (
-                      <CreateResourceFAB activeResource={activeResource} onClick={() => { closeResourceDetail(); setCreateResourceOpen(true); }} />
-                    )}
-                  </main>
-                )}
-              </div>
-            </ResizablePanel>
+            <DashboardMainWorkspace
+              activeResource={activeResource}
+              isAIAssistantOpen={isAIAssistantOpen}
+              isAIProcessing={isAIProcessing}
+              isAIDisabled={isAICliAvailable === false}
+              isConnected={isConnected}
+              isCreateResourceOpen={isCreateResourceOpen}
+              isTerminalOpen={isOpen}
+              terminalTabCount={tabs.length}
+              terminalTitle={t("terminal.title")}
+              onCloseTerminal={closePanel}
+              onOpenCreateResource={() => {
+                closeResourceDetail();
+                openCreateResource();
+              }}
+              onOpenSettings={() => setSettingsOpen(true)}
+              onOpenShortcutsHelp={() => setShowShortcutsHelp(true)}
+              onToggleAI={toggleAIAssistant}
+            />
             {(selectedResource || isCreateResourceOpen) && <ResizableHandle withHandle />}
             {(selectedResource || isCreateResourceOpen) && (
               <ResizablePanel id="detail-panel-content" defaultSize="700px" minSize="500px" maxSize="65%">
