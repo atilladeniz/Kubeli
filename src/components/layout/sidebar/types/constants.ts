@@ -64,7 +64,10 @@ export function readSidebarUiState(): SidebarUiState {
 export function saveSidebarUiState(state: SidebarUiState): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(SIDEBAR_UI_STATE_STORAGE_KEY, JSON.stringify(state));
+    window.localStorage.setItem(
+      SIDEBAR_UI_STATE_STORAGE_KEY,
+      JSON.stringify(state),
+    );
   } catch {
     // Ignore storage errors
   }

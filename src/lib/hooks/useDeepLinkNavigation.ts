@@ -1,8 +1,8 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
-import { useTabTitle } from "@/components/layout/TabBar";
+import { useTabTitle } from "@/components/layout/tabbar/TabBar";
 import { useTabsStore } from "@/lib/stores/tabs-store";
-import type { ResourceType } from "@/components/layout/Sidebar";
+import type { ResourceType } from "@/components/layout/sidebar/Sidebar";
 
 /**
  * Listens for deep-link navigation events (kubeli://view/<resource-type>)

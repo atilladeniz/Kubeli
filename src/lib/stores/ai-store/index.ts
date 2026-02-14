@@ -1,18 +1,18 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import {
-  STORE_NAME,
-  createControlActions,
-  createMessageActions,
-  createSessionActions,
-  initialAIState,
-  type AIState,
-  type ChatMessage,
-  type Conversation,
-  type MessageRole,
-  type PendingAnalysis,
-  type ToolCall,
-} from "./ai-store-modules";
+import { createControlActions } from "./actions/control-actions";
+import { createMessageActions } from "./actions/message-actions";
+import { createSessionActions } from "./actions/session-actions";
+import { STORE_NAME } from "./helpers";
+import { initialAIState } from "./state";
+import type {
+  AIState,
+  ChatMessage,
+  Conversation,
+  MessageRole,
+  PendingAnalysis,
+  ToolCall,
+} from "./types";
 
 export const useAIStore = create<AIState>()(
   persist(

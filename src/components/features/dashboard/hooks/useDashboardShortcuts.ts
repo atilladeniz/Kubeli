@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { toast } from "sonner";
-import type { ResourceType } from "@/components/layout/Sidebar";
+import type { ResourceType } from "@/components/layout/sidebar/Sidebar";
 import {
   NAVIGATION_SHORTCUTS,
   useKeyboardShortcuts,

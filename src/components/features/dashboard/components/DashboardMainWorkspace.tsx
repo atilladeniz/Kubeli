@@ -1,9 +1,9 @@
 "use client";
 
 import { X } from "lucide-react";
-import type { ResourceType } from "@/components/layout/Sidebar";
-import { TabBar } from "@/components/layout/TabBar";
-import { Titlebar } from "@/components/layout/Titlebar";
+import type { ResourceType } from "@/components/layout/sidebar/Sidebar";
+import { TabBar } from "@/components/layout/tabbar/TabBar";
+import { Titlebar } from "@/components/layout/titlebar/Titlebar";
 import { Button } from "@/components/ui/button";
 import {
   ResizableHandle,
