@@ -11,18 +11,9 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import type { Cluster } from "@/lib/types";
+import type { ClusterCardProps } from "./cluster-card-types";
 
-interface ClusterCardProps {
-  cluster: Cluster;
-  isActive: boolean;
-  isConnecting: boolean;
-  disabled: boolean;
-  onConnect: (context: string) => void;
-  forwardsCount: number;
-}
-
-export function ClusterCard({
+export function ClusterGridCard({
   cluster,
   isActive,
   isConnecting,
