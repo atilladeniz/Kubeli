@@ -12,7 +12,6 @@ import { ConnectionErrorAlert } from "./components/ConnectionErrorAlert";
 import { ClusterGrid } from "./components/ClusterGrid";
 import { WelcomeSection } from "./components/WelcomeSection";
 import { HomeFooter } from "./components/HomeFooter";
-import packageJson from "../../../../package.json";
 
 interface HomePageProps {
   isTauri: boolean;
@@ -98,7 +97,7 @@ export function HomePage({ isTauri, isReady }: HomePageProps) {
         )}
       </main>
 
-      <HomeFooter version={packageJson.version} />
+      <HomeFooter />
 
       <SettingsPanel />
       <RestartDialog />
