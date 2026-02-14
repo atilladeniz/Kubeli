@@ -10,8 +10,8 @@ import {
 } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { FavoriteItem } from "./FavoriteItem";
-import type { FavoritesSectionProps, ResourceType } from "./types";
+import { FavoriteItem } from "../components/FavoriteItem";
+import type { FavoritesSectionProps, ResourceType } from "../types/types";
 
 export function FavoritesSection({
   isConnected,
@@ -45,7 +45,7 @@ export function FavoritesSection({
               type="button"
               className={cn(
                 "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
-                isFavoritesSectionOpen && "mb-2"
+                isFavoritesSectionOpen && "mb-2",
               )}
               aria-label={t("common.toggleSection", {
                 section: tNav("pinnedResources"),
@@ -62,7 +62,7 @@ export function FavoritesSection({
                 <ChevronRight
                   className={cn(
                     "size-3.5 transition-transform",
-                    isFavoritesSectionOpen && "rotate-90"
+                    isFavoritesSectionOpen && "rotate-90",
                   )}
                 />
               </span>
@@ -71,7 +71,7 @@ export function FavoritesSection({
           <CollapsibleContent
             className={cn(
               "space-y-1",
-              favorites.length > 4 && "max-h-[176px] overflow-y-auto pr-1"
+              favorites.length > 4 && "max-h-[176px] overflow-y-auto pr-1",
             )}
           >
             {favorites.map((fav, index) => (

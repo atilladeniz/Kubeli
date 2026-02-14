@@ -9,8 +9,8 @@ import {
   aiStopSession,
   aiUpdateSessionTitle,
   type AiCliProvider,
-} from "../../tauri/commands";
-import { useUIStore } from "../ui-store";
+} from "../../../tauri/commands";
+import { useUIStore } from "../../ui-store";
 import {
   buildFallbackSystemPrompt,
   findConversationById,
@@ -18,8 +18,8 @@ import {
   getErrorMessage,
   removeConversationByClusterContext,
   toChatMessages,
-} from "./helpers";
-import type { AIGetState, AISetState, AIState, ChatMessage } from "./types";
+} from "../helpers";
+import type { AIGetState, AISetState, AIState, ChatMessage } from "../types";
 
 type SessionActions = Pick<
   AIState,

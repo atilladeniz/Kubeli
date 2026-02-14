@@ -3,9 +3,9 @@ import {
   aiGetPermissionMode,
   aiRejectAction,
   aiSetPermissionMode,
-} from "../../tauri/commands";
-import { getErrorMessage } from "./helpers";
-import type { AIGetState, AISetState, AIState } from "./types";
+} from "../../../tauri/commands";
+import { getErrorMessage } from "../helpers";
+import type { AIGetState, AISetState, AIState } from "../types";
 
 type ControlActions = Pick<
   AIState,

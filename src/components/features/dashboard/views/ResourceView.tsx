@@ -1,6 +1,6 @@
 "use client";
 
-import type { ResourceType } from "@/components/layout/Sidebar";
+import type { ResourceType } from "@/components/layout/sidebar/Sidebar";
 import { ResourceDiagram } from "../../visualization";
 import { ComingSoon } from "../components";
 
