@@ -1,71 +1,39 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useMemo } from "react";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 import { useTranslations } from "next-intl";
 
-import {
-  ChevronRight,
-  Layers,
-  Cog,
-  ArrowRightLeft,
-  X,
-  ExternalLink,
-  Maximize2,
-  Star,
-  Clock,
-  Check,
-  ChevronsUpDown,
-} from "lucide-react";
+import { Layers, Cog } from "lucide-react";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
-import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { getNamespaceColor } from "@/lib/utils/colors";
 import { Kbd } from "@/components/ui/kbd";
 import {
-  FavoriteItem,
+  FavoritesSection,
   NavSectionCollapsible,
-  ReconnectingTimer,
-  implementedViews,
-  readSidebarUiState,
-  saveSidebarUiState,
+  NamespaceSection,
+  PortForwardsSection,
+  QuickAccessSection,
+  RecentSection,
   useNavigationSections,
+  useSidebarUiState,
   type ResourceType,
   type SidebarProps,
-} from "./sidebar-parts";
+} from "./sidebar-modules";
 
-export type { ResourceType } from "./sidebar-parts";
+export type { ResourceType } from "./sidebar-modules";
 
 export function Sidebar({
   activeResource,
@@ -75,7 +43,6 @@ export function Sidebar({
   onFavoriteSelect,
   onFavoriteOpenLogs,
 }: SidebarProps) {
-  const t = useTranslations();
   const tNav = useTranslations("navigation");
   const tCluster = useTranslations("cluster");
 
@@ -96,47 +63,23 @@ export function Sidebar({
   const { forwards, stopForward } = usePortForward();
   const { getFavorites, removeFavorite, getRecentResources } =
     useFavoritesStore();
-  const initialSidebarUiState = useMemo(() => readSidebarUiState(), []);
-  const [namespaceOpen, setNamespaceOpen] = useState(false);
-  const [isNamespaceSectionOpen, setIsNamespaceSectionOpen] = useState(
-    typeof initialSidebarUiState.namespaceOpen === "boolean"
-      ? initialSidebarUiState.namespaceOpen
-      : true
-  );
-  const [isPortForwardsSectionOpen, setIsPortForwardsSectionOpen] =
-    useState(
-      typeof initialSidebarUiState.portForwardsOpen === "boolean"
-        ? initialSidebarUiState.portForwardsOpen
-        : true
-    );
-  const [isFavoritesSectionOpen, setIsFavoritesSectionOpen] = useState(
-    typeof initialSidebarUiState.favoritesOpen === "boolean"
-      ? initialSidebarUiState.favoritesOpen
-      : true
-  );
-  const [isRecentSectionOpen, setIsRecentSectionOpen] = useState(
-    typeof initialSidebarUiState.recentOpen === "boolean"
-      ? initialSidebarUiState.recentOpen
-      : true
-  );
-  const [isNavFavoritesSectionOpen, setIsNavFavoritesSectionOpen] = useState(
-    typeof initialSidebarUiState.navFavoritesOpen === "boolean"
-      ? initialSidebarUiState.navFavoritesOpen
-      : true
-  );
-  const [navFavorites, setNavFavorites] = useState<ResourceType[]>(() => {
-    if (!Array.isArray(initialSidebarUiState.navFavorites)) return [];
-    const unique = new Set<ResourceType>();
-    for (const value of initialSidebarUiState.navFavorites) {
-      if (
-        typeof value === "string" &&
-        implementedViews.includes(value as ResourceType)
-      ) {
-        unique.add(value as ResourceType);
-      }
-    }
-    return Array.from(unique);
-  });
+  const {
+    namespaceOpen,
+    setNamespaceOpen,
+    isNamespaceSectionOpen,
+    setIsNamespaceSectionOpen,
+    isPortForwardsSectionOpen,
+    setIsPortForwardsSectionOpen,
+    isFavoritesSectionOpen,
+    setIsFavoritesSectionOpen,
+    isRecentSectionOpen,
+    setIsRecentSectionOpen,
+    isNavFavoritesSectionOpen,
+    setIsNavFavoritesSectionOpen,
+    navFavorites,
+    isNavFavorite,
+    toggleNavFavorite,
+  } = useSidebarUiState();
   const navigationSections = useNavigationSections();
   const { modKeySymbol } = usePlatform();
 
@@ -160,36 +103,6 @@ export function Sidebar({
       console.error("Failed to open browser:", err);
       window.open(`http://localhost:${port}`, "_blank");
     }
-  };
-
-  useEffect(() => {
-    saveSidebarUiState({
-      namespaceOpen: isNamespaceSectionOpen,
-      portForwardsOpen: isPortForwardsSectionOpen,
-      favoritesOpen: isFavoritesSectionOpen,
-      recentOpen: isRecentSectionOpen,
-      navFavoritesOpen: isNavFavoritesSectionOpen,
-      navFavorites,
-    });
-  }, [
-    isNamespaceSectionOpen,
-    isPortForwardsSectionOpen,
-    isFavoritesSectionOpen,
-    isRecentSectionOpen,
-    isNavFavoritesSectionOpen,
-    navFavorites,
-  ]);
-
-  const isNavFavorite = (resource: ResourceType): boolean => {
-    return navFavorites.includes(resource);
-  };
-
-  const toggleNavFavorite = (resource: ResourceType) => {
-    setNavFavorites((prev) =>
-      prev.includes(resource)
-        ? prev.filter((r) => r !== resource)
-        : [...prev, resource]
-    );
   };
 
   return (
@@ -254,445 +167,61 @@ export function Sidebar({
 
       <Separator />
 
-      {/* Namespace Selector */}
-      {isConnected && namespaces.length > 0 && (
-        <>
-          <div className="p-3 overflow-hidden">
-            <Collapsible
-              open={isNamespaceSectionOpen}
-              onOpenChange={setIsNamespaceSectionOpen}
-            >
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
-                    isNamespaceSectionOpen && "mb-2"
-                  )}
-                  aria-label={t("common.toggleSection", {
-                    section: tCluster("namespace"),
-                  })}
-                >
-                  <span>{tCluster("namespace")}</span>
-                  <span className="flex items-center gap-2">
-                    {!isNamespaceSectionOpen && (
-                      <Badge
-                        variant="secondary"
-                        className="max-w-[130px] px-2 py-0 text-[10px]"
-                      >
-                        <span className="truncate">
-                          {currentNamespace || tCluster("allNamespaces")}
-                        </span>
-                      </Badge>
-                    )}
-                    <ChevronRight
-                      className={cn(
-                        "size-3.5 transition-transform",
-                        isNamespaceSectionOpen && "rotate-90"
-                      )}
-                    />
-                  </span>
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="space-y-1">
-                <Popover open={namespaceOpen} onOpenChange={setNamespaceOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={namespaceOpen}
-                      className="w-full justify-between"
-                    >
-                      {currentNamespace ? (
-                        <span className="flex items-center gap-2 min-w-0">
-                          <span
-                            className={cn(
-                              "size-2 rounded-full shrink-0",
-                              getNamespaceColor(currentNamespace).dot
-                            )}
-                          />
-                          <span className="truncate">{currentNamespace}</span>
-                        </span>
-                      ) : (
-                        tCluster("allNamespaces")
-                      )}
-                      <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    className="min-w-(--radix-popover-trigger-width) p-0"
-                    align="start"
-                  >
-                    <Command>
-                      <CommandInput placeholder={`${t("common.search")}...`} />
-                      <CommandList>
-                        <CommandEmpty>{t("common.noData")}</CommandEmpty>
-                        <CommandGroup>
-                          <CommandItem
-                            value="all"
-                            onSelect={(value) => {
-                              setCurrentNamespace(value === "all" ? "" : value);
-                              setNamespaceOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 size-4",
-                                currentNamespace ? "opacity-0" : "opacity-100"
-                              )}
-                            />
-                            {tCluster("allNamespaces")}
-                          </CommandItem>
-                          {namespaces.map((ns) => {
-                            const color = getNamespaceColor(ns);
-                            return (
-                              <CommandItem
-                                key={ns}
-                                value={ns}
-                                onSelect={(value) => {
-                                  setCurrentNamespace(value);
-                                  setNamespaceOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 size-4",
-                                    currentNamespace === ns
-                                      ? "opacity-100"
-                                      : "opacity-0"
-                                  )}
-                                />
-                                <span className="flex items-center gap-2">
-                                  <span
-                                    className={cn(
-                                      "size-2 rounded-full shrink-0",
-                                      color.dot
-                                    )}
-                                  />
-                                  <span>{ns}</span>
-                                </span>
-                              </CommandItem>
-                            );
-                          })}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-          <Separator />
-        </>
-      )}
+      <NamespaceSection
+        isConnected={isConnected}
+        namespaces={namespaces}
+        currentNamespace={currentNamespace}
+        namespaceOpen={namespaceOpen}
+        isNamespaceSectionOpen={isNamespaceSectionOpen}
+        setNamespaceOpen={setNamespaceOpen}
+        setIsNamespaceSectionOpen={setIsNamespaceSectionOpen}
+        setCurrentNamespace={setCurrentNamespace}
+      />
 
-      {/* Port Forwards */}
-      {isConnected && forwards.length > 0 && (
-        <>
-          <div className="p-3 overflow-hidden">
-            <Collapsible
-              open={isPortForwardsSectionOpen}
-              onOpenChange={setIsPortForwardsSectionOpen}
-            >
-              <div
-                className={cn(
-                  "flex items-center justify-between",
-                  isPortForwardsSectionOpen && "mb-2"
-                )}
-              >
-                <button
-                  onClick={() => onResourceSelect("port-forwards")}
-                  className="text-xs font-medium text-muted-foreground flex items-center gap-1.5 hover:text-foreground transition-colors"
-                >
-                  <ArrowRightLeft className="size-3" />
-                  {tNav("portForwards")}
-                  <Maximize2 className="size-2.5" />
-                </button>
-                <div className="flex items-center gap-1">
-                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                    {forwards.length}
-                  </Badge>
-                  <CollapsibleTrigger asChild>
-                    <Button
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-5 p-0 text-muted-foreground hover:text-foreground"
-                      aria-label={t("common.toggleSection", {
-                        section: tNav("portForwards"),
-                      })}
-                    >
-                      <ChevronRight
-                        className={cn(
-                          "size-3.5 transition-transform",
-                          isPortForwardsSectionOpen && "rotate-90"
-                        )}
-                      />
-                    </Button>
-                  </CollapsibleTrigger>
-                </div>
-              </div>
-              <CollapsibleContent
-                className={cn(
-                  "space-y-1",
-                  forwards.length > 3 && "max-h-[132px] overflow-y-auto pr-1"
-                )}
-              >
-                {forwards.map((forward) => (
-                  <div
-                    key={forward.forward_id}
-                    className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden"
-                  >
-                    <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
-                      <span
-                        className={cn(
-                          "size-1.5 rounded-full shrink-0",
-                          forward.status === "reconnecting" ? "self-start mt-[5px]" : "self-center",
-                          forward.status === "connected"
-                            ? "bg-green-400"
-                            : forward.status === "connecting"
-                            ? "bg-yellow-400 animate-pulse"
-                            : forward.status === "reconnecting"
-                            ? "bg-orange-400 animate-pulse"
-                            : "bg-red-400"
-                        )}
-                      />
-                      <div className="min-w-0 flex-1 overflow-hidden">
-                        <div className="flex items-center gap-1">
-                          <span className="truncate font-medium max-w-[80px]">
-                            {forward.name}
-                          </span>
-                          <span className="text-muted-foreground shrink-0 tabular-nums">
-                            :{forward.local_port}
-                          </span>
-                        </div>
-                        {forward.status === "reconnecting" && (
-                          <ReconnectingTimer forwardId={forward.forward_id} />
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-0.5 shrink-0 ml-1">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-foreground"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void handleOpenForwardInBrowser(forward.local_port);
-                        }}
-                        aria-label={`Open localhost:${forward.local_port}`}
-                      >
-                        <ExternalLink className="size-3" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        className="size-5 p-0 rounded hover:bg-background text-muted-foreground hover:text-destructive"
-                        onClick={() => stopForward(forward.forward_id)}
-                        aria-label={`Stop ${forward.name} port forward`}
-                      >
-                        <X className="size-3" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-          <Separator />
-        </>
-      )}
+      <PortForwardsSection
+        isConnected={isConnected}
+        forwards={forwards}
+        isPortForwardsSectionOpen={isPortForwardsSectionOpen}
+        setIsPortForwardsSectionOpen={setIsPortForwardsSectionOpen}
+        onResourceSelect={onResourceSelect}
+        onOpenForwardInBrowser={handleOpenForwardInBrowser}
+        stopForward={stopForward}
+      />
 
-      {/* Favorites */}
-      {isConnected && favorites.length > 0 && (
-        <>
-          <div className="p-3 overflow-hidden">
-            <Collapsible
-              open={isFavoritesSectionOpen}
-              onOpenChange={setIsFavoritesSectionOpen}
-            >
-              <CollapsibleTrigger asChild>
-                <button
-                  type="button"
-                  className={cn(
-                    "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
-                    isFavoritesSectionOpen && "mb-2"
-                  )}
-                  aria-label={t("common.toggleSection", {
-                    section: tNav("pinnedResources"),
-                  })}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Star className="size-3 text-muted-foreground" />
-                    {tNav("pinnedResources")}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                      {favorites.length}
-                    </Badge>
-                    <ChevronRight
-                      className={cn(
-                        "size-3.5 transition-transform",
-                        isFavoritesSectionOpen && "rotate-90"
-                      )}
-                    />
-                  </span>
-                </button>
-              </CollapsibleTrigger>
-              <CollapsibleContent
-                className={cn(
-                  "space-y-1",
-                  favorites.length > 4 && "max-h-[176px] overflow-y-auto pr-1"
-                )}
-              >
-                {favorites.map((fav, index) => (
-                  <FavoriteItem
-                    key={fav.id}
-                    favorite={fav}
-                    index={index}
-                    onSelect={() => {
-                      if (onFavoriteSelect) {
-                        void onFavoriteSelect(fav);
-                        return;
-                      }
-                      onResourceSelect(fav.resourceType as ResourceType);
-                    }}
-                    onRemove={() => removeFavorite(clusterContext, fav.id)}
-                    onOpenLogs={
-                      onFavoriteOpenLogs
-                        ? () => onFavoriteOpenLogs(fav)
-                        : undefined
-                    }
-                    isActive={activeFavoriteId === fav.id}
-                    modKey={modKeySymbol}
-                  />
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-          <Separator />
-        </>
-      )}
+      <FavoritesSection
+        isConnected={isConnected}
+        favorites={favorites}
+        activeFavoriteId={activeFavoriteId}
+        clusterContext={clusterContext}
+        isFavoritesSectionOpen={isFavoritesSectionOpen}
+        setIsFavoritesSectionOpen={setIsFavoritesSectionOpen}
+        modKeySymbol={modKeySymbol}
+        onResourceSelect={onResourceSelect}
+        onFavoriteSelect={onFavoriteSelect}
+        onFavoriteOpenLogs={onFavoriteOpenLogs}
+        removeFavorite={removeFavorite}
+      />
 
-      {/* Recent Resources */}
-      {isConnected && recentResources.length > 0 && (
-        <>
-          <div className="p-3 overflow-hidden">
-            <Collapsible
-              open={isRecentSectionOpen}
-              onOpenChange={setIsRecentSectionOpen}
-            >
-              <div
-                className={cn(
-                  "flex items-center justify-between",
-                  isRecentSectionOpen && "mb-2"
-                )}
-              >
-                <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                  <Clock className="size-3" />
-                  {tNav("recent")}
-                </span>
-                <CollapsibleTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    className="size-5 p-0 text-muted-foreground hover:text-foreground"
-                    aria-label={t("common.toggleSection", {
-                      section: tNav("recent"),
-                    })}
-                  >
-                    <ChevronRight
-                      className={cn(
-                        "size-3.5 transition-transform",
-                        isRecentSectionOpen && "rotate-90"
-                      )}
-                    />
-                  </Button>
-                </CollapsibleTrigger>
-              </div>
-              <CollapsibleContent className="space-y-1">
-                {recentResources.map((recent) => (
-                  <button
-                    key={`${recent.resourceType}-${recent.name}-${
-                      recent.namespace || ""
-                    }`}
-                    onClick={() =>
-                      onResourceSelect(recent.resourceType as ResourceType)
-                    }
-                    className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                  >
-                    <span className="truncate font-medium">{recent.name}</span>
-                    {recent.namespace && (
-                      <span className="text-[10px] text-muted-foreground/60 truncate">
-                        {recent.namespace}
-                      </span>
-                    )}
-                  </button>
-                ))}
-              </CollapsibleContent>
-            </Collapsible>
-          </div>
-          <Separator />
-        </>
-      )}
+      <RecentSection
+        isConnected={isConnected}
+        recentResources={recentResources}
+        isRecentSectionOpen={isRecentSectionOpen}
+        setIsRecentSectionOpen={setIsRecentSectionOpen}
+        onResourceSelect={onResourceSelect}
+      />
 
       {/* Navigation */}
       <ScrollArea className="flex-1 min-h-0">
         <nav className="p-2 pr-3 pb-4">
-          {navFavorites.length > 0 && (
-            <Collapsible
-              open={isNavFavoritesSectionOpen}
-              onOpenChange={setIsNavFavoritesSectionOpen}
-              className="mb-1"
-            >
-              <CollapsibleTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="w-full justify-start gap-2 px-2 font-medium text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
-                >
-                  <Star className="size-4 text-muted-foreground" />
-                  <span className="flex-1 text-left">{tNav("quickAccess")}</span>
-                  <ChevronRight className="chevron size-3.5 transition-transform" />
-                </Button>
-              </CollapsibleTrigger>
-              <CollapsibleContent className="ml-4 mt-0.5 space-y-0.5">
-                {navFavorites.map((resource) => {
-                  const label = navLabelById.get(resource);
-                  if (!label) return null;
-                  return (
-                    <div key={resource} className="group relative">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => onResourceSelect(resource)}
-                        className={cn(
-                          "w-full justify-start px-2 pr-9 font-normal",
-                          activeResource === resource
-                            ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
-                            : "text-muted-foreground hover:text-foreground"
-                        )}
-                      >
-                        {label}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        onClick={() => toggleNavFavorite(resource)}
-                        className="absolute right-1 top-1/2 size-7 -translate-y-1/2 text-yellow-500 opacity-0 transition-opacity hover:text-yellow-400 group-hover:opacity-100 group-focus-within:opacity-100"
-                        aria-label={t("common.removeFromFavorites", {
-                          name: label,
-                        })}
-                      >
-                        <Star className="size-3.5 fill-yellow-500 text-yellow-500" />
-                      </Button>
-                    </div>
-                  );
-                })}
-              </CollapsibleContent>
-            </Collapsible>
-          )}
+          <QuickAccessSection
+            navFavorites={navFavorites}
+            navLabelById={navLabelById}
+            activeResource={activeResource}
+            isNavFavoritesSectionOpen={isNavFavoritesSectionOpen}
+            setIsNavFavoritesSectionOpen={setIsNavFavoritesSectionOpen}
+            onResourceSelect={onResourceSelect}
+            onToggleNavFavorite={toggleNavFavorite}
+          />
           {navigationSections.map((section) => (
             <NavSectionCollapsible
               key={section.id}
