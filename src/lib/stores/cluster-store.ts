@@ -129,7 +129,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   },
 
   connect: async (context: string) => {
-    set({ isLoading: true, error: null, isReconnecting: false });
+    set({ isLoading: true, isReconnecting: false });
     try {
       const status = await connectCluster(context);
       if (status.connected) {
