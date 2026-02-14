@@ -1,10 +1,8 @@
-import { useClusterStore } from "@/lib/stores/cluster-store";
 import { SettingsPanel } from "@/components/features/settings/SettingsPanel";
 import { RestartDialog } from "@/components/features/updater/RestartDialog";
 import { HomeTitlebar } from "./components/HomeTitlebar";
 import { ConnectionErrorAlert } from "./components/ConnectionErrorAlert";
 import { ClusterGrid } from "./components/ClusterGrid";
-import { WelcomeSection } from "./components/WelcomeSection";
 import { HomeFooter } from "./components/HomeFooter";
 
 interface HomePageProps {
@@ -13,8 +11,6 @@ interface HomePageProps {
 }
 
 export function HomePage({ isTauri, isReady }: HomePageProps) {
-  const { clusters } = useClusterStore();
-
   return (
     <div
       className={`flex h-screen flex-col bg-background text-foreground transition-opacity duration-200 ${
@@ -27,10 +23,6 @@ export function HomePage({ isTauri, isReady }: HomePageProps) {
         <ConnectionErrorAlert isTauri={isTauri} />
 
         {isTauri && <ClusterGrid />}
-
-        {(!isTauri || clusters.length === 0) && (
-          <WelcomeSection isTauri={isTauri} />
-        )}
       </main>
 
       <HomeFooter />
