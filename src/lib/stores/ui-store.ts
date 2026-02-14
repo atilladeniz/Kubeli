@@ -53,6 +53,9 @@ export interface AppSettings {
 
   // AI Assistant
   aiCliProvider: AiCliProvider;
+
+  // Home screen
+  clusterViewLayout: "grid" | "list";
 }
 
 export const defaultSettings: AppSettings = {
@@ -76,6 +79,7 @@ export const defaultSettings: AppSettings = {
   proxyUsername: "",
   proxyPassword: "",
   aiCliProvider: "claude",
+  clusterViewLayout: "grid",
 };
 
 interface UIState {
