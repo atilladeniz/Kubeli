@@ -1,22 +1,69 @@
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertCircle, Loader2 } from "lucide-react";
+import { save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useClusterStore } from "@/lib/stores/cluster-store";
+import { generateDebugLog } from "@/lib/tauri/commands";
 
 interface ConnectionErrorAlertProps {
-  error: string;
-  canDownloadDebugLog: boolean;
-  isDownloadingDebugLog: boolean;
-  onDownloadDebugLog: () => void;
+  isTauri: boolean;
 }
 
-export function ConnectionErrorAlert({
-  error,
-  canDownloadDebugLog,
-  isDownloadingDebugLog,
-  onDownloadDebugLog,
-}: ConnectionErrorAlertProps) {
+export function ConnectionErrorAlert({ isTauri }: ConnectionErrorAlertProps) {
   const td = useTranslations("debug");
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  const { error, lastConnectionErrorContext, lastConnectionErrorMessage } =
+    useClusterStore();
+
+  const canDownloadDebugLog = Boolean(
+    isTauri &&
+      error &&
+      lastConnectionErrorContext &&
+      lastConnectionErrorMessage &&
+      error === lastConnectionErrorMessage,
+  );
+
+  const handleDownloadDebugLog = async () => {
+    if (!lastConnectionErrorContext || !canDownloadDebugLog) {
+      toast.error(td("onlyAvailable"));
+      return;
+    }
+
+    setIsDownloading(true);
+    try {
+      const logContent = await generateDebugLog(
+        lastConnectionErrorContext,
+        lastConnectionErrorMessage ?? error ?? undefined,
+      );
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const defaultName = `kubeli-debug-${timestamp}.log`;
+      const filePath = await save({
+        defaultPath: defaultName,
+        filters: [{ name: "Log Files", extensions: ["log", "txt"] }],
+      });
+
+      if (!filePath) {
+        return;
+      }
+
+      await writeTextFile(filePath, logContent);
+      const filename = filePath.split(/[/\\]/).pop() ?? filePath;
+      toast.success(td("logSaved"), { description: filename });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast.error(td("logFailed"), { description: message });
+      console.error("Failed to generate debug log:", err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
+  if (!error) return null;
 
   return (
     <Alert variant="destructive" className="flex flex-col gap-2">
@@ -29,11 +76,11 @@ export function ConnectionErrorAlert({
           <Button
             variant="outline"
             size="sm"
-            onClick={onDownloadDebugLog}
-            disabled={isDownloadingDebugLog}
+            onClick={handleDownloadDebugLog}
+            disabled={isDownloading}
             className="gap-2"
           >
-            {isDownloadingDebugLog ? (
+            {isDownloading ? (
               <>
                 <Loader2 className="size-4 animate-spin" />
                 {td("saving")}
