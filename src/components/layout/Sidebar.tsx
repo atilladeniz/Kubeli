@@ -1,19 +1,12 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 import { useTranslations } from "next-intl";
 
 import {
   ChevronRight,
   Layers,
-  Box,
-  Globe,
-  Settings,
-  Database,
-  Shield,
-  Wrench,
-  Package,
   Cog,
   ArrowRightLeft,
   X,
@@ -21,23 +14,14 @@ import {
   Maximize2,
   Star,
   Clock,
-  Trash2,
-  MoreHorizontal,
-  FileText,
-  Eye,
   Check,
   ChevronsUpDown,
-  GitBranch,
 } from "lucide-react";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
-import { getReconnectStartTime } from "@/lib/stores/portforward-store";
-import {
-  useFavoritesStore,
-  type FavoriteResource,
-} from "@/lib/stores/favorites-store";
+import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import { Badge } from "@/components/ui/badge";
 import {
   Tooltip,
@@ -66,275 +50,22 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { getNamespaceColor } from "@/lib/utils/colors";
 import { Kbd } from "@/components/ui/kbd";
+import {
+  FavoriteItem,
+  NavSectionCollapsible,
+  ReconnectingTimer,
+  implementedViews,
+  readSidebarUiState,
+  saveSidebarUiState,
+  useNavigationSections,
+  type ResourceType,
+  type SidebarProps,
+} from "./sidebar-parts";
 
-const SIDEBAR_UI_STATE_STORAGE_KEY = "kubeli-sidebar-ui-state";
-
-interface SidebarUiState {
-  namespaceOpen?: boolean;
-  portForwardsOpen?: boolean;
-  favoritesOpen?: boolean;
-  recentOpen?: boolean;
-  navFavoritesOpen?: boolean;
-  navFavorites?: ResourceType[];
-}
-
-function readSidebarUiState(): SidebarUiState {
-  if (typeof window === "undefined") return {};
-  try {
-    const raw = window.localStorage.getItem(SIDEBAR_UI_STATE_STORAGE_KEY);
-    if (!raw) return {};
-    return JSON.parse(raw) as SidebarUiState;
-  } catch {
-    return {};
-  }
-}
-
-export type ResourceType =
-  // Cluster
-  | "cluster-overview"
-  | "resource-diagram"
-  | "nodes"
-  | "events"
-  | "namespaces"
-  | "leases"
-  // Helm
-  | "helm-releases"
-  // Flux
-  | "flux-kustomizations"
-  // Workloads
-  | "workloads-overview"
-  | "deployments"
-  | "pods"
-  | "replicasets"
-  | "daemonsets"
-  | "statefulsets"
-  | "jobs"
-  | "cronjobs"
-  // Networking
-  | "port-forwards"
-  | "services"
-  | "ingresses"
-  | "endpoint-slices"
-  | "network-policies"
-  | "ingress-classes"
-  // Configuration
-  | "secrets"
-  | "configmaps"
-  | "hpa"
-  | "limit-ranges"
-  | "resource-quotas"
-  | "pod-disruption-budgets"
-  // Storage
-  | "persistent-volumes"
-  | "persistent-volume-claims"
-  | "volume-attachments"
-  | "storage-classes"
-  | "csi-drivers"
-  | "csi-nodes"
-  // Access Control
-  | "service-accounts"
-  | "roles"
-  | "role-bindings"
-  | "cluster-roles"
-  | "cluster-role-bindings"
-  // Administration
-  | "crds"
-  | "priority-classes"
-  | "runtime-classes"
-  | "mutating-webhooks"
-  | "validating-webhooks"
-  // Special views
-  | "pod-logs";
-
-interface NavItem {
-  id: ResourceType;
-  label: string;
-}
-
-interface NavSection {
-  id: string;
-  title: string;
-  icon: React.ReactNode;
-  items: NavItem[];
-}
-
-// Views that are implemented (not "coming soon")
-const implementedViews: ResourceType[] = [
-  "cluster-overview",
-  "resource-diagram",
-  "nodes",
-  "namespaces",
-  "events",
-  "leases",
-  "workloads-overview",
-  "pods",
-  "deployments",
-  "replicasets",
-  "daemonsets",
-  "statefulsets",
-  "jobs",
-  "cronjobs",
-  "port-forwards",
-  "services",
-  "ingresses",
-  "endpoint-slices",
-  "network-policies",
-  "ingress-classes",
-  "configmaps",
-  "secrets",
-  "hpa",
-  "limit-ranges",
-  "resource-quotas",
-  "pod-disruption-budgets",
-  "persistent-volumes",
-  "persistent-volume-claims",
-  "storage-classes",
-  "csi-drivers",
-  "csi-nodes",
-  "volume-attachments",
-  "service-accounts",
-  "roles",
-  "role-bindings",
-  "cluster-roles",
-  "cluster-role-bindings",
-  "crds",
-  "priority-classes",
-  "runtime-classes",
-  "mutating-webhooks",
-  "validating-webhooks",
-  "helm-releases",
-  "flux-kustomizations",
-];
-
-// Hook to get translated navigation sections
-function useNavigationSections(): NavSection[] {
-  const t = useTranslations("navigation");
-
-  return useMemo(() => [
-    {
-      id: "cluster",
-      title: t("cluster"),
-      icon: <Layers className="size-4" />,
-      items: [
-        { id: "cluster-overview", label: t("overview") },
-        { id: "resource-diagram", label: t("resourceDiagram") },
-        { id: "nodes", label: t("nodes") },
-        { id: "events", label: t("events") },
-        { id: "namespaces", label: t("namespaces") },
-        { id: "leases", label: t("leases") },
-      ],
-    },
-    {
-      id: "helm",
-      title: t("helm"),
-      icon: <Package className="size-4" />,
-      items: [{ id: "helm-releases", label: t("releases") }],
-    },
-    {
-      id: "flux",
-      title: "Flux",
-      icon: <GitBranch className="size-4" />,
-      items: [{ id: "flux-kustomizations", label: "Kustomizations" }],
-    },
-    {
-      id: "workloads",
-      title: t("workloads"),
-      icon: <Box className="size-4" />,
-      items: [
-        { id: "workloads-overview", label: t("overview") },
-        { id: "deployments", label: t("deployments") },
-        { id: "pods", label: t("pods") },
-        { id: "replicasets", label: t("replicaSets") },
-        { id: "daemonsets", label: t("daemonSets") },
-        { id: "statefulsets", label: t("statefulSets") },
-        { id: "jobs", label: t("jobs") },
-        { id: "cronjobs", label: t("cronJobs") },
-      ],
-    },
-    {
-      id: "networking",
-      title: t("networking"),
-      icon: <Globe className="size-4" />,
-      items: [
-        { id: "port-forwards", label: t("portForwards") },
-        { id: "services", label: t("services") },
-        { id: "ingresses", label: t("ingresses") },
-        { id: "endpoint-slices", label: t("endpointSlices") },
-        { id: "network-policies", label: t("networkPolicies") },
-        { id: "ingress-classes", label: t("ingressClasses") },
-      ],
-    },
-    {
-      id: "configuration",
-      title: t("configuration"),
-      icon: <Settings className="size-4" />,
-      items: [
-        { id: "secrets", label: t("secrets") },
-        { id: "configmaps", label: t("configMaps") },
-        { id: "hpa", label: t("hpa") },
-        { id: "limit-ranges", label: t("limitRanges") },
-        { id: "resource-quotas", label: t("resourceQuotas") },
-        { id: "pod-disruption-budgets", label: t("podDisruptionBudgets") },
-      ],
-    },
-    {
-      id: "storage",
-      title: t("storage"),
-      icon: <Database className="size-4" />,
-      items: [
-        { id: "persistent-volumes", label: t("persistentVolumes") },
-        { id: "persistent-volume-claims", label: t("persistentVolumeClaims") },
-        { id: "volume-attachments", label: t("volumeAttachments") },
-        { id: "storage-classes", label: t("storageClasses") },
-        { id: "csi-drivers", label: t("csiDrivers") },
-        { id: "csi-nodes", label: t("csiNodes") },
-      ],
-    },
-    {
-      id: "access-control",
-      title: t("accessControl"),
-      icon: <Shield className="size-4" />,
-      items: [
-        { id: "service-accounts", label: t("serviceAccounts") },
-        { id: "roles", label: t("roles") },
-        { id: "role-bindings", label: t("roleBindings") },
-        { id: "cluster-roles", label: t("clusterRoles") },
-        { id: "cluster-role-bindings", label: t("clusterRoleBindings") },
-      ],
-    },
-    {
-      id: "administration",
-      title: t("administration"),
-      icon: <Wrench className="size-4" />,
-      items: [
-        { id: "crds", label: t("crds") },
-        { id: "priority-classes", label: t("priorityClasses") },
-        { id: "runtime-classes", label: t("runtimeClasses") },
-        { id: "mutating-webhooks", label: t("mutatingWebhooks") },
-        { id: "validating-webhooks", label: t("validatingWebhooks") },
-      ],
-    },
-  ], [t]);
-}
-
-interface SidebarProps {
-  activeResource: ResourceType;
-  activeFavoriteId?: string | null;
-  onResourceSelect: (resource: ResourceType) => void;
-  onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
-  onFavoriteSelect?: (favorite: FavoriteResource) => void | Promise<void>;
-  onFavoriteOpenLogs?: (favorite: FavoriteResource) => void | Promise<void>;
-}
+export type { ResourceType } from "./sidebar-parts";
 
 export function Sidebar({
   activeResource,
@@ -432,22 +163,14 @@ export function Sidebar({
   };
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    try {
-      window.localStorage.setItem(
-        SIDEBAR_UI_STATE_STORAGE_KEY,
-        JSON.stringify({
-          namespaceOpen: isNamespaceSectionOpen,
-          portForwardsOpen: isPortForwardsSectionOpen,
-          favoritesOpen: isFavoritesSectionOpen,
-          recentOpen: isRecentSectionOpen,
-          navFavoritesOpen: isNavFavoritesSectionOpen,
-          navFavorites,
-        } satisfies SidebarUiState)
-      );
-    } catch {
-      // Ignore storage errors
-    }
+    saveSidebarUiState({
+      namespaceOpen: isNamespaceSectionOpen,
+      portForwardsOpen: isPortForwardsSectionOpen,
+      favoritesOpen: isFavoritesSectionOpen,
+      recentOpen: isRecentSectionOpen,
+      navFavoritesOpen: isNavFavoritesSectionOpen,
+      navFavorites,
+    });
   }, [
     isNamespaceSectionOpen,
     isPortForwardsSectionOpen,
@@ -1007,241 +730,5 @@ export function Sidebar({
         </Button>
       </div>
     </aside>
-  );
-}
-
-interface NavSectionCollapsibleProps {
-  section: NavSection;
-  activeResource: ResourceType;
-  onResourceSelect: (resource: ResourceType) => void;
-  onResourceSelectNewTab?: (resource: ResourceType, title: string) => void;
-  isNavFavorite: (resource: ResourceType) => boolean;
-  onToggleNavFavorite: (resource: ResourceType) => void;
-  defaultOpen?: boolean;
-  soonLabel: string;
-}
-
-function NavSectionCollapsible({
-  section,
-  activeResource,
-  onResourceSelect,
-  onResourceSelectNewTab,
-  isNavFavorite,
-  onToggleNavFavorite,
-  defaultOpen = false,
-  soonLabel,
-}: NavSectionCollapsibleProps) {
-  const t = useTranslations();
-  return (
-    <Collapsible defaultOpen={defaultOpen} className="mb-1">
-      <CollapsibleTrigger asChild>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="w-full justify-start gap-2 px-2 font-medium text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
-        >
-          {section.icon}
-          <span className="flex-1 text-left">{section.title}</span>
-          <ChevronRight className="chevron size-3.5 transition-transform" />
-        </Button>
-      </CollapsibleTrigger>
-      <CollapsibleContent className="ml-4 mt-0.5 space-y-0.5">
-        {section.items.map((item) => {
-          const isImplemented = implementedViews.includes(item.id);
-          const favoriteActive = isNavFavorite(item.id);
-          return (
-            <div key={item.id} className="group relative">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  if (!isImplemented) return;
-                  if ((e.metaKey || e.ctrlKey) && onResourceSelectNewTab) {
-                    onResourceSelectNewTab(item.id, item.label);
-                  } else {
-                    onResourceSelect(item.id);
-                  }
-                }}
-                disabled={!isImplemented}
-                className={cn(
-                  "w-full justify-between px-2 pr-9 font-normal",
-                  activeResource === item.id
-                    ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
-                    : isImplemented
-                    ? "text-muted-foreground hover:text-foreground"
-                    : "text-muted-foreground/50 cursor-not-allowed"
-                )}
-              >
-                <span>{item.label}</span>
-                {!isImplemented && (
-                  <Badge
-                    variant="outline"
-                    className="text-[9px] px-1 py-0 h-4 font-normal opacity-60"
-                  >
-                    {soonLabel}
-                  </Badge>
-                )}
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                disabled={!isImplemented}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onToggleNavFavorite(item.id);
-                }}
-                className={cn(
-                  "absolute right-1 top-1/2 size-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
-                  favoriteActive
-                    ? "text-yellow-500 hover:text-yellow-400"
-                    : "text-muted-foreground hover:text-yellow-400"
-                )}
-                aria-label={
-                  favoriteActive
-                    ? t("common.removeFromFavorites", { name: item.label })
-                    : t("common.addToFavorites", { name: item.label })
-                }
-              >
-                <Star
-                  className={cn(
-                    "size-3.5",
-                    favoriteActive && "fill-yellow-500 text-yellow-500"
-                  )}
-                />
-              </Button>
-            </div>
-          );
-        })}
-      </CollapsibleContent>
-    </Collapsible>
-  );
-}
-
-// Favorite item with keyboard shortcut indicator
-interface FavoriteItemProps {
-  favorite: FavoriteResource;
-  index: number;
-  onSelect: () => void;
-  onRemove: () => void;
-  onOpenLogs?: () => void | Promise<void>;
-  isActive?: boolean;
-  modKey: string;
-}
-
-function FavoriteItem({
-  favorite,
-  index,
-  onSelect,
-  onRemove,
-  onOpenLogs,
-  isActive = false,
-  modKey,
-}: FavoriteItemProps) {
-  const t = useTranslations();
-  const itemRef = useRef<HTMLDivElement>(null);
-  const shortcutKey = index < 9 ? index + 1 : null;
-  const canOpenLogs = favorite.resourceType === "pods" && !!favorite.namespace;
-
-  useEffect(() => {
-    if (isActive && itemRef.current) {
-      itemRef.current.scrollIntoView({ block: "nearest", behavior: "smooth" });
-    }
-  }, [isActive]);
-
-  return (
-    <div
-      ref={itemRef}
-      className={cn(
-        "flex items-start justify-between rounded-md border px-2 py-2 text-xs group overflow-hidden",
-        isActive ? "bg-primary/10 border-primary/40" : "bg-muted/50 border-border/50"
-      )}
-    >
-      <button
-        onClick={onSelect}
-        className={cn(
-          "flex min-w-0 flex-1 flex-col items-start gap-0.5 overflow-hidden text-left transition-colors",
-          isActive ? "text-foreground" : "hover:text-foreground"
-        )}
-      >
-        <span className="w-full truncate text-xs font-medium leading-tight">
-          {favorite.name}
-        </span>
-        {favorite.namespace && (
-          <span
-            className={cn(
-              "w-full truncate text-[10px] leading-tight",
-              isActive ? "text-muted-foreground" : "text-muted-foreground/60"
-            )}
-          >
-            {favorite.namespace}
-          </span>
-        )}
-      </button>
-      <div className="ml-1 flex shrink-0 items-center gap-1 self-start">
-        {shortcutKey && (
-          <Kbd
-            className={cn(
-              "text-[9px] transition-opacity",
-              isActive ? "opacity-100" : "opacity-50 group-hover:opacity-100"
-            )}
-          >
-            {modKey}{shortcutKey}
-          </Kbd>
-        )}
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              aria-label={t("common.actions")}
-              className={cn(
-                "p-1 rounded hover:bg-background transition-opacity",
-                isActive ? "opacity-100" : "opacity-0 group-hover:opacity-100"
-              )}
-            >
-              <MoreHorizontal className="size-3 text-muted-foreground" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onSelect()}>
-              <Eye className="size-4" />
-              {t("favorites.openDetails")}
-            </DropdownMenuItem>
-            {canOpenLogs && onOpenLogs && (
-              <DropdownMenuItem onClick={() => onOpenLogs()}>
-                <FileText className="size-4" />
-                {t("favorites.openLogs")}
-              </DropdownMenuItem>
-            )}
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onClick={() => onRemove()}>
-              <Trash2 className="size-4" />
-              {t("favorites.remove")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
-  );
-}
-
-function ReconnectingTimer({ forwardId }: { forwardId: string }) {
-  const [elapsed, setElapsed] = useState(() => {
-    const startTime = getReconnectStartTime(forwardId);
-    return startTime ? Math.floor((Date.now() - startTime) / 1000) : 0;
-  });
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const startTime = getReconnectStartTime(forwardId);
-      if (startTime) {
-        setElapsed(Math.floor((Date.now() - startTime) / 1000));
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [forwardId]);
-
-  return (
-    <span className="text-[10px] text-orange-400 leading-tight">
-      Reconnecting… {elapsed}s
-    </span>
   );
 }
