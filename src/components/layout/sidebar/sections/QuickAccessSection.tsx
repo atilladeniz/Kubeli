@@ -9,7 +9,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import type { QuickAccessSectionProps } from "./types";
+import type { QuickAccessSectionProps } from "../types/types";
 
 export function QuickAccessSection({
   navFavorites,
@@ -59,7 +59,7 @@ export function QuickAccessSection({
                   "w-full justify-start px-2 pr-9 font-normal",
                   activeResource === resource
                     ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
-                    : "text-muted-foreground hover:text-foreground"
+                    : "text-muted-foreground hover:text-foreground",
                 )}
               >
                 {label}

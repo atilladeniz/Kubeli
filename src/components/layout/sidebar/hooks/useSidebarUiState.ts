@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { implementedViews, readSidebarUiState, saveSidebarUiState } from "./constants";
-import type { ResourceType, SidebarUiStateHook } from "./types";
+import {
+  implementedViews,
+  readSidebarUiState,
+  saveSidebarUiState,
+} from "../types/constants";
+import type { ResourceType, SidebarUiStateHook } from "../types/types";
 
 export function useSidebarUiState(): SidebarUiStateHook {
   const initialSidebarUiState = useMemo(() => readSidebarUiState(), []);
@@ -11,27 +15,27 @@ export function useSidebarUiState(): SidebarUiStateHook {
   const [isNamespaceSectionOpen, setIsNamespaceSectionOpen] = useState(
     typeof initialSidebarUiState.namespaceOpen === "boolean"
       ? initialSidebarUiState.namespaceOpen
-      : true
+      : true,
   );
   const [isPortForwardsSectionOpen, setIsPortForwardsSectionOpen] = useState(
     typeof initialSidebarUiState.portForwardsOpen === "boolean"
       ? initialSidebarUiState.portForwardsOpen
-      : true
+      : true,
   );
   const [isFavoritesSectionOpen, setIsFavoritesSectionOpen] = useState(
     typeof initialSidebarUiState.favoritesOpen === "boolean"
       ? initialSidebarUiState.favoritesOpen
-      : true
+      : true,
   );
   const [isRecentSectionOpen, setIsRecentSectionOpen] = useState(
     typeof initialSidebarUiState.recentOpen === "boolean"
       ? initialSidebarUiState.recentOpen
-      : true
+      : true,
   );
   const [isNavFavoritesSectionOpen, setIsNavFavoritesSectionOpen] = useState(
     typeof initialSidebarUiState.navFavoritesOpen === "boolean"
       ? initialSidebarUiState.navFavoritesOpen
-      : true
+      : true,
   );
   const [navFavorites, setNavFavorites] = useState<ResourceType[]>(() => {
     if (!Array.isArray(initialSidebarUiState.navFavorites)) return [];
@@ -75,7 +79,7 @@ export function useSidebarUiState(): SidebarUiStateHook {
     setNavFavorites((prev) =>
       prev.includes(resource)
         ? prev.filter((r) => r !== resource)
-        : [...prev, resource]
+        : [...prev, resource],
     );
   };
 

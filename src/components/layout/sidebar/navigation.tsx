@@ -14,7 +14,7 @@ import {
   GitBranch,
 } from "lucide-react";
 
-import type { NavSection } from "./types";
+import type { NavSection } from "./types/types";
 
 // Hook to get translated navigation sections
 export function useNavigationSections(): NavSection[] {
@@ -129,6 +129,6 @@ export function useNavigationSections(): NavSection[] {
         ],
       },
     ],
-    [t]
+    [t],
   );
 }

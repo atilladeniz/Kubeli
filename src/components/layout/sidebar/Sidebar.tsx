@@ -31,9 +31,9 @@ import {
   useSidebarUiState,
   type ResourceType,
   type SidebarProps,
-} from "./sidebar-modules";
+} from "./index";
 
-export type { ResourceType } from "./sidebar-modules";
+export type { ResourceType } from "./index";
 
 export function Sidebar({
   activeResource,

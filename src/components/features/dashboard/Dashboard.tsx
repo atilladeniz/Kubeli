@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { Sidebar, type ResourceType } from "@/components/layout/Sidebar";
+import { Sidebar, type ResourceType } from "@/components/layout/sidebar/Sidebar";
 import { ResourceDetail, type ResourceData } from "../resources/ResourceDetail";
 import { CreateResourcePanel } from "../resources/CreateResourcePanel";
 import { AIAssistant } from "../ai/AIAssistant";
@@ -10,7 +10,7 @@ import { TerminalTabsProvider, useTerminalTabs } from "../terminal";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { BrowserOpenDialog } from "../portforward/BrowserOpenDialog";
 import { RestartDialog } from "../updates/RestartDialog";
-import { useTabTitle } from "@/components/layout/TabBar";
+import { useTabTitle } from "@/components/layout/tabbar/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { useClusterStore } from "@/lib/stores/cluster-store";

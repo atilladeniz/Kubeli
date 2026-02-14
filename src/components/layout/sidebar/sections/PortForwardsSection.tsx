@@ -17,8 +17,8 @@ import {
 } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import { ReconnectingTimer } from "./ReconnectingTimer";
-import type { PortForwardsSectionProps } from "./types";
+import { ReconnectingTimer } from "../components/ReconnectingTimer";
+import type { PortForwardsSectionProps } from "../types/types";
 
 export function PortForwardsSection({
   isConnected,
@@ -46,7 +46,7 @@ export function PortForwardsSection({
           <div
             className={cn(
               "flex items-center justify-between",
-              isPortForwardsSectionOpen && "mb-2"
+              isPortForwardsSectionOpen && "mb-2",
             )}
           >
             <button
@@ -73,7 +73,7 @@ export function PortForwardsSection({
                   <ChevronRight
                     className={cn(
                       "size-3.5 transition-transform",
-                      isPortForwardsSectionOpen && "rotate-90"
+                      isPortForwardsSectionOpen && "rotate-90",
                     )}
                   />
                 </Button>
@@ -83,7 +83,7 @@ export function PortForwardsSection({
           <CollapsibleContent
             className={cn(
               "space-y-1",
-              forwards.length > 3 && "max-h-[132px] overflow-y-auto pr-1"
+              forwards.length > 3 && "max-h-[132px] overflow-y-auto pr-1",
             )}
           >
             {forwards.map((forward) => (
@@ -101,10 +101,10 @@ export function PortForwardsSection({
                       forward.status === "connected"
                         ? "bg-green-400"
                         : forward.status === "connecting"
-                        ? "bg-yellow-400 animate-pulse"
-                        : forward.status === "reconnecting"
-                        ? "bg-orange-400 animate-pulse"
-                        : "bg-red-400"
+                          ? "bg-yellow-400 animate-pulse"
+                          : forward.status === "reconnecting"
+                            ? "bg-orange-400 animate-pulse"
+                            : "bg-red-400",
                     )}
                   />
                   <div className="min-w-0 flex-1 overflow-hidden">

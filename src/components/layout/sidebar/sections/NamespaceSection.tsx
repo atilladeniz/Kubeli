@@ -25,7 +25,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
 import { getNamespaceColor } from "@/lib/utils/colors";
-import type { NamespaceSectionProps } from "./types";
+import type { NamespaceSectionProps } from "../types/types";
 
 export function NamespaceSection({
   isConnected,
@@ -56,7 +56,7 @@ export function NamespaceSection({
               type="button"
               className={cn(
                 "flex w-full items-center justify-between text-left text-xs font-medium text-muted-foreground transition-colors hover:text-foreground",
-                isNamespaceSectionOpen && "mb-2"
+                isNamespaceSectionOpen && "mb-2",
               )}
               aria-label={t("common.toggleSection", {
                 section: tCluster("namespace"),
@@ -77,7 +77,7 @@ export function NamespaceSection({
                 <ChevronRight
                   className={cn(
                     "size-3.5 transition-transform",
-                    isNamespaceSectionOpen && "rotate-90"
+                    isNamespaceSectionOpen && "rotate-90",
                   )}
                 />
               </span>
@@ -97,7 +97,7 @@ export function NamespaceSection({
                       <span
                         className={cn(
                           "size-2 rounded-full shrink-0",
-                          getNamespaceColor(currentNamespace).dot
+                          getNamespaceColor(currentNamespace).dot,
                         )}
                       />
                       <span className="truncate">{currentNamespace}</span>
@@ -127,7 +127,7 @@ export function NamespaceSection({
                         <Check
                           className={cn(
                             "mr-2 size-4",
-                            currentNamespace ? "opacity-0" : "opacity-100"
+                            currentNamespace ? "opacity-0" : "opacity-100",
                           )}
                         />
                         {tCluster("allNamespaces")}
@@ -146,14 +146,16 @@ export function NamespaceSection({
                             <Check
                               className={cn(
                                 "mr-2 size-4",
-                                currentNamespace === ns ? "opacity-100" : "opacity-0"
+                                currentNamespace === ns
+                                  ? "opacity-100"
+                                  : "opacity-0",
                               )}
                             />
                             <span className="flex items-center gap-2">
                               <span
                                 className={cn(
                                   "size-2 rounded-full shrink-0",
-                                  color.dot
+                                  color.dot,
                                 )}
                               />
                               <span>{ns}</span>
