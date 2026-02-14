@@ -58,7 +58,7 @@ jest.mock("@/components/features/settings/SettingsPanel", () => ({
   SettingsPanel: () => <div>SettingsPanel</div>,
 }));
 
-jest.mock("@/components/features/updates/RestartDialog", () => ({
+jest.mock("@/components/features/updater/RestartDialog", () => ({
   RestartDialog: () => <div>RestartDialog</div>,
 }));
 
