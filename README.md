@@ -60,7 +60,7 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 | UI Components | Radix UI, Lucide Icons |
 | Editor | Monaco Editor |
 | Terminal | XTerm.js |
-| Charts | Recharts |
+| Charts | uPlot |
 
 ## Installation
 
