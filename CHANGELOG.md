@@ -2,6 +2,15 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.38] - 2026-02-14
+
+- Refactored home page, sidebar, dashboard, and titlebar into modular feature components
+- Refactored Tauri command client into domain-specific modules
+- Refactored AI store into modular state and action concerns
+- Reorganized layout and tabbar into feature-slice folder structure
+- Consolidated updater folder structure
+- Updated tech stack documentation from Recharts to uPlot
+
 ## [0.3.37] - 2026-02-13
 
 - Added resizable panels and responsive detail UI
