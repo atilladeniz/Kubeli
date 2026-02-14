@@ -1,9 +1,18 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Server, RefreshCw, Search, SearchX, X } from "lucide-react";
+import {
+  Server,
+  RefreshCw,
+  Search,
+  SearchX,
+  X,
+  LayoutGrid,
+  List,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Empty,
   EmptyDescription,
@@ -12,9 +21,12 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { usePlatform } from "@/lib/hooks/usePlatform";
-import { ClusterCard } from "./ClusterCard";
+import { ConnectionErrorAlert } from "./ConnectionErrorAlert";
+import { ClusterGridCard } from "./ClusterGridCard";
+import { ClusterListCard } from "./ClusterListCard";
 
 export function ClusterGrid() {
   const t = useTranslations("cluster");
@@ -23,6 +35,8 @@ export function ClusterGrid() {
   const [connectingContext, setConnectingContext] = useState<string | null>(
     null,
   );
+  const viewLayout = useUIStore((s) => s.settings.clusterViewLayout);
+  const updateSettings = useUIStore((s) => s.updateSettings);
 
   const {
     clusters,
@@ -55,8 +69,11 @@ export function ClusterGrid() {
   };
 
   return (
-    <section className="mx-auto w-full max-w-4xl space-y-8">
-      <div className="flex items-center justify-between gap-4">
+    <section className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col">
+      <div className="shrink-0 px-6 pt-2">
+        <ConnectionErrorAlert />
+      </div>
+      <div className="flex shrink-0 items-center justify-between gap-4 px-6 py-4">
         <div>
           <h2 className="text-xl font-semibold">{t("selectCluster")}</h2>
           <p className="text-sm text-muted-foreground">
@@ -84,6 +101,25 @@ export function ClusterGrid() {
               </Button>
             )}
           </div>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            size="sm"
+            value={viewLayout}
+            onValueChange={(v) => {
+              if (v)
+                updateSettings({
+                  clusterViewLayout: v as "grid" | "list",
+                });
+            }}
+          >
+            <ToggleGroupItem value="grid" aria-label="Grid view">
+              <LayoutGrid className="size-4" />
+            </ToggleGroupItem>
+            <ToggleGroupItem value="list" aria-label="List view">
+              <List className="size-4" />
+            </ToggleGroupItem>
+          </ToggleGroup>
           <Button
             variant="outline"
             size="sm"
@@ -98,49 +134,60 @@ export function ClusterGrid() {
         </div>
       </div>
 
-      {clusters.length === 0 && !isLoading ? (
-        <Card className="text-center">
-          <CardContent className="py-12">
-            <Server className="mx-auto size-12 text-muted-foreground/50" />
-            <p className="mt-4 text-muted-foreground">{t("noClusters")}</p>
-            <p className="mt-1 text-sm text-muted-foreground/70">
-              {t("noClustersHint", { path: kubeconfigPath })}
-            </p>
-          </CardContent>
-        </Card>
-      ) : filteredClusters.length === 0 ? (
-        <Empty>
-          <EmptyHeader>
-            <EmptyMedia variant="icon">
-              <SearchX className="size-5" />
-            </EmptyMedia>
-            <EmptyTitle>{t("noSearchResults")}</EmptyTitle>
-            <EmptyDescription>
-              {t("noSearchResultsHint", { query: searchQuery })}
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
-      ) : (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {filteredClusters.map((cluster) => {
-            const isActive =
-              isConnected && currentCluster?.context === cluster.context;
-            const showForwards =
-              currentCluster?.context === cluster.context;
-            return (
-              <ClusterCard
-                key={cluster.id}
-                cluster={cluster}
-                isActive={isActive}
-                isConnecting={connectingContext === cluster.context}
-                disabled={connectingContext !== null || isActive}
-                onConnect={handleConnect}
-                forwardsCount={showForwards ? forwards.length : 0}
-              />
-            );
-          })}
-        </div>
-      )}
+      <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6">
+        {clusters.length === 0 && !isLoading ? (
+          <Card className="text-center">
+            <CardContent className="py-12">
+              <Server className="mx-auto size-12 text-muted-foreground/50" />
+              <p className="mt-4 text-muted-foreground">{t("noClusters")}</p>
+              <p className="mt-1 text-sm text-muted-foreground/70">
+                {t("noClustersHint", { path: kubeconfigPath })}
+              </p>
+            </CardContent>
+          </Card>
+        ) : filteredClusters.length === 0 ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <SearchX className="size-5" />
+              </EmptyMedia>
+              <EmptyTitle>{t("noSearchResults")}</EmptyTitle>
+              <EmptyDescription>
+                {t("noSearchResultsHint", { query: searchQuery })}
+              </EmptyDescription>
+            </EmptyHeader>
+          </Empty>
+        ) : (
+          <div
+            className={
+              viewLayout === "grid"
+                ? "grid gap-3 md:grid-cols-2 lg:grid-cols-3"
+                : "overflow-hidden rounded-lg border"
+            }
+          >
+            {filteredClusters.map((cluster) => {
+              const isActive =
+                isConnected && currentCluster?.context === cluster.context;
+              const showForwards =
+                currentCluster?.context === cluster.context;
+              const cardProps = {
+                key: cluster.id,
+                cluster,
+                isActive,
+                isConnecting: connectingContext === cluster.context,
+                disabled: connectingContext !== null || isActive,
+                onConnect: handleConnect,
+                forwardsCount: showForwards ? forwards.length : 0,
+              };
+              return viewLayout === "list" ? (
+                <ClusterListCard {...cardProps} />
+              ) : (
+                <ClusterGridCard {...cardProps} />
+              );
+            })}
+          </div>
+        )}
+      </div>
     </section>
   );
 }
