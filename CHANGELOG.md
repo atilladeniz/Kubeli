@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.39] - 2026-02-14
+
+- Fixed cluster view layout validation on store rehydration
+
 ## [0.3.38] - 2026-02-14
 
 - Refactored home page, sidebar, dashboard, and titlebar into modular feature components
