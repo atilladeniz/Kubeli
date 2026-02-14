@@ -1,6 +1,6 @@
-import { aiUpdateMessage } from "../../tauri/commands";
-import { findConversationById } from "./helpers";
-import type { AIGetState, AISetState, AIState, ToolCall } from "./types";
+import { aiUpdateMessage } from "../../../tauri/commands";
+import { findConversationById } from "../helpers";
+import type { AIGetState, AISetState, AIState, ToolCall } from "../types";
 
 type MessageActions = Pick<
   AIState,

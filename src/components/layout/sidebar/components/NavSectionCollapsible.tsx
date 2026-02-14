@@ -10,8 +10,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { implementedViews } from "./constants";
-import type { NavSection, ResourceType } from "./types";
+import { implementedViews } from "../types/constants";
+import type { NavSection, ResourceType } from "../types/types";
 
 interface NavSectionCollapsibleProps {
   section: NavSection;
@@ -73,8 +73,8 @@ export function NavSectionCollapsible({
                   activeResource === item.id
                     ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                     : isImplemented
-                    ? "text-muted-foreground hover:text-foreground"
-                    : "text-muted-foreground/50 cursor-not-allowed"
+                      ? "text-muted-foreground hover:text-foreground"
+                      : "text-muted-foreground/50 cursor-not-allowed",
                 )}
               >
                 <span>{item.label}</span>
@@ -99,7 +99,7 @@ export function NavSectionCollapsible({
                   "absolute right-1 top-1/2 size-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
                   favoriteActive
                     ? "text-yellow-500 hover:text-yellow-400"
-                    : "text-muted-foreground hover:text-yellow-400"
+                    : "text-muted-foreground hover:text-yellow-400",
                 )}
                 aria-label={
                   favoriteActive
@@ -110,7 +110,7 @@ export function NavSectionCollapsible({
                 <Star
                   className={cn(
                     "size-3.5",
-                    favoriteActive && "fill-yellow-500 text-yellow-500"
+                    favoriteActive && "fill-yellow-500 text-yellow-500",
                   )}
                 />
               </Button>

@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { ResourceType } from "@/components/layout/Sidebar";
+import type { ResourceType } from "@/components/layout/sidebar/Sidebar";
 import { useLogStore } from "./log-store";
 
 export interface TabMetadata {

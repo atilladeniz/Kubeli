@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
-import type { RecentSectionProps, ResourceType } from "./types";
+import type { RecentSectionProps, ResourceType } from "../types/types";
 
 export function RecentSection({
   isConnected,
@@ -29,11 +29,14 @@ export function RecentSection({
   return (
     <>
       <div className="p-3 overflow-hidden">
-        <Collapsible open={isRecentSectionOpen} onOpenChange={setIsRecentSectionOpen}>
+        <Collapsible
+          open={isRecentSectionOpen}
+          onOpenChange={setIsRecentSectionOpen}
+        >
           <div
             className={cn(
               "flex items-center justify-between",
-              isRecentSectionOpen && "mb-2"
+              isRecentSectionOpen && "mb-2",
             )}
           >
             <span className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
@@ -52,7 +55,7 @@ export function RecentSection({
                 <ChevronRight
                   className={cn(
                     "size-3.5 transition-transform",
-                    isRecentSectionOpen && "rotate-90"
+                    isRecentSectionOpen && "rotate-90",
                   )}
                 />
               </Button>
@@ -62,7 +65,9 @@ export function RecentSection({
             {recentResources.map((recent) => (
               <button
                 key={`${recent.resourceType}-${recent.name}-${recent.namespace || ""}`}
-                onClick={() => onResourceSelect(recent.resourceType as ResourceType)}
+                onClick={() =>
+                  onResourceSelect(recent.resourceType as ResourceType)
+                }
                 className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
                 <span className="truncate font-medium">{recent.name}</span>
