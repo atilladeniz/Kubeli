@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { AlertCircle, Loader2 } from "lucide-react";
+import { AlertCircle, Loader2, X } from "lucide-react";
 import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
@@ -13,7 +13,7 @@ export function ConnectionErrorAlert() {
   const td = useTranslations("debug");
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const { error, lastConnectionErrorContext, lastConnectionErrorMessage } =
+  const { error, lastConnectionErrorContext, lastConnectionErrorMessage, setError } =
     useClusterStore();
 
   const canDownloadDebugLog = Boolean(
@@ -61,8 +61,8 @@ export function ConnectionErrorAlert() {
   if (!error) return null;
 
   return (
-    <Alert variant="destructive" className="flex flex-col gap-2">
-      <div className="flex items-start gap-2">
+    <Alert variant="destructive" className="relative flex flex-col gap-2">
+      <div className="flex items-start gap-2 pr-6">
         <AlertCircle className="mt-0.5 size-4 shrink-0" />
         <AlertDescription>
           {lastConnectionErrorContext && (
@@ -71,6 +71,14 @@ export function ConnectionErrorAlert() {
           {error}
         </AlertDescription>
       </div>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="absolute right-1.5 top-1.5 size-6 rounded text-muted-foreground/70 hover:text-foreground"
+        onClick={() => setError(null)}
+      >
+        <X className="size-3.5" />
+      </Button>
       {canDownloadDebugLog && (
         <div className="flex flex-wrap gap-2 pl-6">
           <Button
