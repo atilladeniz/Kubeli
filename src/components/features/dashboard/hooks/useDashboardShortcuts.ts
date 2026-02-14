@@ -120,60 +120,12 @@ export function useDashboardShortcuts({
         description: "Toggle AI Assistant",
       },
       // Favorite shortcuts (Cmd+1 through Cmd+9)
-      {
-        key: NAVIGATION_SHORTCUTS.FAVORITE_1,
+      ...Array.from({ length: 9 }, (_, i) => ({
+        key: NAVIGATION_SHORTCUTS[`FAVORITE_${i + 1}` as keyof typeof NAVIGATION_SHORTCUTS],
         meta: true,
-        handler: () => navigateToFavorite(0),
-        description: "Go to Favorite 1",
-      },
-      {
-        key: NAVIGATION_SHORTCUTS.FAVORITE_2,
-        meta: true,
-        handler: () => navigateToFavorite(1),
-        description: "Go to Favorite 2",
-      },
-      {
-        key: NAVIGATION_SHORTCUTS.FAVORITE_3,
-        meta: true,
-        handler: () => navigateToFavorite(2),
-        description: "Go to Favorite 3",
-      },
-      {
-        key: NAVIGATION_SHORTCUTS.FAVORITE_4,
-        meta: true,
-        handler: () => navigateToFavorite(3),
-        description: "Go to Favorite 4",
-      },
-      {
-        key: NAVIGATION_SHORTCUTS.FAVORITE_5,
-        meta: true,
-        handler: () => navigateToFavorite(4),
-        description: "Go to Favorite 5",
-      },
-      {
-        key: NAVIGATION_SHORTCUTS.FAVORITE_6,
-        meta: true,
-        handler: () => navigateToFavorite(5),
-        description: "Go to Favorite 6",
-      },
-      {
-        key: NAVIGATION_SHORTCUTS.FAVORITE_7,
-        meta: true,
-        handler: () => navigateToFavorite(6),
-        description: "Go to Favorite 7",
-      },
-      {
-        key: NAVIGATION_SHORTCUTS.FAVORITE_8,
-        meta: true,
-        handler: () => navigateToFavorite(7),
-        description: "Go to Favorite 8",
-      },
-      {
-        key: NAVIGATION_SHORTCUTS.FAVORITE_9,
-        meta: true,
-        handler: () => navigateToFavorite(8),
-        description: "Go to Favorite 9",
-      },
+        handler: () => navigateToFavorite(i),
+        description: `Go to Favorite ${i + 1}`,
+      })),
       // Create resource
       {
         key: NAVIGATION_SHORTCUTS.CREATE_RESOURCE,

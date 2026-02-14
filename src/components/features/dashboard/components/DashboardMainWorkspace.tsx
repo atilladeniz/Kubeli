@@ -37,12 +37,13 @@ function MainResourceArea({
   isConnected,
   isCreateResourceOpen,
   onOpenCreateResource,
+  className = "h-full",
 }: Pick<
   DashboardMainWorkspaceProps,
   "activeResource" | "isConnected" | "isCreateResourceOpen" | "onOpenCreateResource"
->) {
+> & { className?: string }) {
   return (
-    <main className="h-full overflow-hidden relative group/main">
+    <main className={`${className} overflow-hidden relative group/main`}>
       {!isConnected ? (
         <NotConnectedState />
       ) : (
@@ -117,19 +118,13 @@ export function DashboardMainWorkspace({
             </ResizablePanel>
           </ResizablePanelGroup>
         ) : (
-          <main className="flex-1 overflow-hidden relative group/main">
-            {!isConnected ? (
-              <NotConnectedState />
-            ) : (
-              <ResourceView activeResource={activeResource} />
-            )}
-            {isConnected && !isCreateResourceOpen && (
-              <CreateResourceFAB
-                activeResource={activeResource}
-                onClick={onOpenCreateResource}
-              />
-            )}
-          </main>
+          <MainResourceArea
+            activeResource={activeResource}
+            isConnected={isConnected}
+            isCreateResourceOpen={isCreateResourceOpen}
+            onOpenCreateResource={onOpenCreateResource}
+            className="flex-1"
+          />
         )}
       </div>
     </ResizablePanel>
