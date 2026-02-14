@@ -231,6 +231,8 @@ export const useUIStore = create<UIState>()(
           locale: isValidLocale(persistedSettings.locale as string)
             ? persistedSettings.locale!
             : defaultSettings.locale,
+          // Validate clusterViewLayout (new field, may not exist in old stores)
+          clusterViewLayout: persistedSettings.clusterViewLayout === "list" ? "list" : "grid",
         };
 
         // Initialize resolved theme after rehydration
