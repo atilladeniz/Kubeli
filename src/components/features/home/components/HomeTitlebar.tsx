@@ -21,7 +21,7 @@ export function HomeTitlebar() {
   return (
     <div
       data-tauri-drag-region
-      className="flex h-7 shrink-0 items-center justify-center border-b border-border px-6"
+      className="relative flex h-7 shrink-0 items-center justify-center border-b border-border px-6"
     >
       <span
         className="text-xs text-muted-foreground/70"

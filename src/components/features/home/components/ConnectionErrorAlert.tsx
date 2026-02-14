@@ -9,11 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { generateDebugLog } from "@/lib/tauri/commands";
 
-interface ConnectionErrorAlertProps {
-  isTauri: boolean;
-}
-
-export function ConnectionErrorAlert({ isTauri }: ConnectionErrorAlertProps) {
+export function ConnectionErrorAlert() {
   const td = useTranslations("debug");
   const [isDownloading, setIsDownloading] = useState(false);
 
@@ -21,8 +17,7 @@ export function ConnectionErrorAlert({ isTauri }: ConnectionErrorAlertProps) {
     useClusterStore();
 
   const canDownloadDebugLog = Boolean(
-    isTauri &&
-      error &&
+    error &&
       lastConnectionErrorContext &&
       lastConnectionErrorMessage &&
       error === lastConnectionErrorMessage,
@@ -68,8 +63,13 @@ export function ConnectionErrorAlert({ isTauri }: ConnectionErrorAlertProps) {
   return (
     <Alert variant="destructive" className="flex flex-col gap-2">
       <div className="flex items-start gap-2">
-        <AlertCircle className="mt-0.5 size-4" />
-        <AlertDescription>{error}</AlertDescription>
+        <AlertCircle className="mt-0.5 size-4 shrink-0" />
+        <AlertDescription>
+          {lastConnectionErrorContext && (
+            <span className="font-medium">{lastConnectionErrorContext}: </span>
+          )}
+          {error}
+        </AlertDescription>
       </div>
       {canDownloadDebugLog && (
         <div className="flex flex-wrap gap-2 pl-6">
