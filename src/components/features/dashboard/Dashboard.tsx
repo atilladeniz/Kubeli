@@ -9,7 +9,7 @@ import { AIAssistant } from "../ai/AIAssistant";
 import { TerminalTabsProvider, useTerminalTabs } from "../terminal";
 import { SettingsPanel } from "../settings/SettingsPanel";
 import { BrowserOpenDialog } from "../portforward/BrowserOpenDialog";
-import { RestartDialog } from "../updater/RestartDialog";
+import { RestartDialog } from "../updates/RestartDialog";
 import { useTabTitle } from "@/components/layout/tabbar/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";

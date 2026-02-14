@@ -32,7 +32,7 @@ import { useKubeconfigWatcher } from "@/lib/hooks/useKubeconfigWatcher";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 import { Dashboard } from "@/components/features/dashboard";
 import { SettingsPanel } from "@/components/features/settings/SettingsPanel";
-import { RestartDialog } from "@/components/features/updater/RestartDialog";
+import { RestartDialog } from "@/components/features/updates/RestartDialog";
 import { Button } from "@/components/ui/button";
 import {
   Card,
