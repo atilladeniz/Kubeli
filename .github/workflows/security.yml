@@ -67,7 +67,7 @@ jobs:
           mv sbom-rust.json ../sbom-rust.json
 
       - name: Scan npm SBOM with Trivy
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@0.34.0
         with:
           scan-type: 'sbom'
           scan-ref: 'sbom-npm.json'
@@ -79,7 +79,7 @@ jobs:
           cache-dir: ${{ env.TRIVY_CACHE_DIR }}
 
       - name: Scan Rust SBOM with Trivy
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@0.34.0
         with:
           scan-type: 'sbom'
           scan-ref: 'sbom-rust.json'
@@ -91,7 +91,7 @@ jobs:
           cache-dir: ${{ env.TRIVY_CACHE_DIR }}
 
       - name: Scan filesystem for secrets and misconfigs
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@0.34.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
