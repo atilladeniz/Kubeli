@@ -75,7 +75,7 @@ percent-encoding = "2.3"
 rusqlite = { version = "0.38", features = ["bundled"] }
 
 # MCP (Model Context Protocol) Server
-rmcp = { version = "0.14", features = ["server", "transport-io", "macros"] }
+rmcp = { version = "0.15", features = ["server", "transport-io", "macros"] }
 clap = { version = "4.5", features = ["derive"] }
 
 # TOML for Codex config
