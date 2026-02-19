@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { useClusterStore } from "../../stores/cluster-store";
+import { useResourceCacheStore } from "../../stores/resource-cache-store";
 import { stopWatch } from "../../tauri/commands";
 import type { ListOptions, WatchEvent } from "../../types";
 import type { UseK8sResourcesOptions, UseK8sResourcesReturn, ResourceHookConfig } from "./types";
@@ -15,16 +16,18 @@ export function useK8sResource<T>(
   config: ResourceHookConfig<T>,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
-  const [data, setData] = useState<T[]>([]);
+  const { isConnected, currentNamespace } = useClusterStore();
+  const namespace = options.namespace ?? currentNamespace;
+  const { getCache, setCache } = useResourceCacheStore();
+  const cacheKey = `${config.displayName}:${namespace || ""}`;
+
+  const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWatching, setIsWatching] = useState(false);
   const [watchId, setWatchId] = useState<string | null>(null);
   const watchRetryUntilRef = useRef<number | null>(null);
   const watchNamespaceRef = useRef<string | undefined>(undefined);
-
-  const { isConnected, currentNamespace } = useClusterStore();
-  const namespace = options.namespace ?? currentNamespace;
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -48,12 +51,13 @@ export function useK8sResource<T>(
       }
 
       setData(result);
+      setCache(cacheKey, result);
     } catch (e) {
       setError(e instanceof Error ? e.message : `Failed to fetch ${config.displayName}`);
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, namespace, config]);
+  }, [isConnected, namespace, config, cacheKey, setCache]);
 
   const startWatch = useCallback(async () => {
     if (!isConnected || watchId || !config.supportsWatch) return;
@@ -157,6 +161,11 @@ export function useK8sResource<T>(
     };
   }, [watchId, config.supportsWatch, config.watchEventPrefix]);
 
+  // Reset data from cache when cache key changes (e.g. namespace switch)
+  useEffect(() => {
+    setData(getCache<T>(cacheKey));
+  }, [cacheKey, getCache]);
+
   // Initial fetch
   useEffect(() => {
     if (isConnected) {
@@ -249,10 +258,13 @@ export function useClusterScopedResource<T>(
   listFn: () => Promise<T[]>,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
-  const [data, setData] = useState<T[]>([]);
+  const { isConnected } = useClusterStore();
+  const { getCache, setCache } = useResourceCacheStore();
+  const cacheKey = `${displayName}:`;
+
+  const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { isConnected } = useClusterStore();
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -261,12 +273,13 @@ export function useClusterScopedResource<T>(
     try {
       const result = await listFn();
       setData(result);
+      setCache(cacheKey, result);
     } catch (e) {
       setError(e instanceof Error ? e.message : `Failed to fetch ${displayName}`);
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, listFn, displayName]);
+  }, [isConnected, listFn, displayName, cacheKey, setCache]);
 
   useEffect(() => {
     if (isConnected) {
@@ -299,11 +312,14 @@ export function useOptionalNamespaceResource<T>(
   listFn: (namespace?: string) => Promise<T[]>,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
-  const [data, setData] = useState<T[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const { isConnected, currentNamespace } = useClusterStore();
   const namespace = options.namespace ?? currentNamespace;
+  const { getCache, setCache } = useResourceCacheStore();
+  const cacheKey = `${displayName}:${namespace || ""}`;
+
+  const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -312,12 +328,18 @@ export function useOptionalNamespaceResource<T>(
     try {
       const result = await listFn(namespace || undefined);
       setData(result);
+      setCache(cacheKey, result);
     } catch (e) {
       setError(e instanceof Error ? e.message : `Failed to fetch ${displayName}`);
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, namespace, listFn, displayName]);
+  }, [isConnected, namespace, listFn, displayName, cacheKey, setCache]);
+
+  // Reset data from cache when cache key changes (e.g. namespace switch)
+  useEffect(() => {
+    setData(getCache<T>(cacheKey));
+  }, [cacheKey, getCache]);
 
   useEffect(() => {
     if (isConnected) {

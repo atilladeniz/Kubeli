@@ -11,6 +11,7 @@ import {
   watchNamespaces,
   stopWatch,
 } from "../tauri/commands";
+import { useResourceCacheStore } from "./resource-cache-store";
 import type { WatchEvent } from "../types";
 
 // Debug logger - only logs in development
@@ -130,6 +131,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
 
   connect: async (context: string) => {
     set({ isLoading: true, isReconnecting: false });
+    useResourceCacheStore.getState().clearCache();
     try {
       const status = await connectCluster(context);
       if (status.connected) {
@@ -184,6 +186,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
     // Stop health monitoring and namespace watch before disconnecting
     get().stopHealthMonitoring();
     get().stopNamespaceWatch();
+    useResourceCacheStore.getState().clearCache();
     try {
       await disconnectCluster();
       // Keep currentCluster so port forward badge still shows on the correct cluster card
