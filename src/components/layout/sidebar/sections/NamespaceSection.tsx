@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, ChevronRight, ChevronsUpDown, Minus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,7 @@ export function NamespaceSection({
   const tCluster = useTranslations("cluster");
 
   const [search, setSearch] = useState("");
+  const popoverWasOpenRef = useRef(false);
 
   if (!isConnected || namespaces.length === 0) {
     return null;
@@ -71,7 +72,13 @@ export function NamespaceSection({
       <div className="p-3 overflow-hidden">
         <Collapsible
           open={isNamespaceSectionOpen}
-          onOpenChange={setIsNamespaceSectionOpen}
+          onOpenChange={(open) => {
+            if (popoverWasOpenRef.current) {
+              popoverWasOpenRef.current = false;
+              return;
+            }
+            setIsNamespaceSectionOpen(open);
+          }}
         >
           <CollapsibleTrigger asChild>
             <button
@@ -83,10 +90,9 @@ export function NamespaceSection({
               aria-label={t("common.toggleSection", {
                 section: tCluster("namespace"),
               })}
-              onClick={(e) => {
+              onPointerDown={() => {
                 if (namespaceOpen) {
-                  e.preventDefault();
-                  setNamespaceOpen(false);
+                  popoverWasOpenRef.current = true;
                 }
               }}
             >
