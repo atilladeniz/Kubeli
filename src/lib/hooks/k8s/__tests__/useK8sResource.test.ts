@@ -34,6 +34,7 @@ describe("useK8sResource", () => {
 
     useClusterStore.setState({
       isConnected: true,
+      selectedNamespaces: ["default"],
       currentNamespace: "default",
     });
   });
@@ -78,7 +79,7 @@ describe("useK8sResource", () => {
 
       // Change namespace to "kube-system"
       await act(async () => {
-        useClusterStore.setState({ currentNamespace: "kube-system" });
+        useClusterStore.setState({ selectedNamespaces: ["kube-system"], currentNamespace: "kube-system" });
         await flushPromises();
       });
 
@@ -108,7 +109,7 @@ describe("useK8sResource", () => {
 
       // Set the same namespace again (no actual change)
       await act(async () => {
-        useClusterStore.setState({ currentNamespace: "default" });
+        useClusterStore.setState({ selectedNamespaces: ["default"], currentNamespace: "default" });
         await flushPromises();
       });
 
@@ -132,7 +133,7 @@ describe("useK8sResource", () => {
       mockListFn.mockResolvedValueOnce(kubePods);
 
       await act(async () => {
-        useClusterStore.setState({ currentNamespace: "kube-system" });
+        useClusterStore.setState({ selectedNamespaces: ["kube-system"], currentNamespace: "kube-system" });
         await flushPromises();
       });
 
@@ -149,7 +150,7 @@ describe("useK8sResource", () => {
 
       // Switch to "All Namespaces" (empty string in store)
       await act(async () => {
-        useClusterStore.setState({ currentNamespace: "" });
+        useClusterStore.setState({ selectedNamespaces: [], currentNamespace: "" });
         await flushPromises();
       });
 
@@ -183,7 +184,7 @@ describe("useK8sResource", () => {
     });
 
     it("should pass empty options when no namespace is selected", async () => {
-      useClusterStore.setState({ currentNamespace: "" });
+      useClusterStore.setState({ selectedNamespaces: [], currentNamespace: "" });
 
       renderHook(() => useK8sResource(watchConfig));
 

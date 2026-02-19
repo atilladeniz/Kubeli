@@ -48,9 +48,10 @@ export function Sidebar({
 
   const {
     currentCluster,
-    currentNamespace,
+    selectedNamespaces,
     namespaces,
-    setCurrentNamespace,
+    toggleNamespace,
+    selectAllNamespaces,
     isConnected,
     disconnect,
     latencyMs,
@@ -170,12 +171,13 @@ export function Sidebar({
       <NamespaceSection
         isConnected={isConnected}
         namespaces={namespaces}
-        currentNamespace={currentNamespace}
+        selectedNamespaces={selectedNamespaces}
         namespaceOpen={namespaceOpen}
         isNamespaceSectionOpen={isNamespaceSectionOpen}
         setNamespaceOpen={setNamespaceOpen}
         setIsNamespaceSectionOpen={setIsNamespaceSectionOpen}
-        setCurrentNamespace={setCurrentNamespace}
+        toggleNamespace={toggleNamespace}
+        selectAllNamespaces={selectAllNamespaces}
       />
 
       <PortForwardsSection

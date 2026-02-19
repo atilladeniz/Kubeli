@@ -1,7 +1,8 @@
 "use client";
 
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Check, ChevronRight, ChevronsUpDown } from "lucide-react";
+import { Check, ChevronRight, ChevronsUpDown, Minus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,26 +31,54 @@ import type { NamespaceSectionProps } from "../types/types";
 export function NamespaceSection({
   isConnected,
   namespaces,
-  currentNamespace,
+  selectedNamespaces,
   namespaceOpen,
   isNamespaceSectionOpen,
   setNamespaceOpen,
   setIsNamespaceSectionOpen,
-  setCurrentNamespace,
+  toggleNamespace,
+  selectAllNamespaces,
 }: NamespaceSectionProps) {
   const t = useTranslations();
   const tCluster = useTranslations("cluster");
 
+  const [search, setSearch] = useState("");
+  const popoverWasOpenRef = useRef(false);
+
   if (!isConnected || namespaces.length === 0) {
     return null;
   }
+
+  const isAllSelected = selectedNamespaces.length === 0;
+  const isSingleSelected = selectedNamespaces.length === 1;
+  const isMultiSelected = selectedNamespaces.length > 1;
+
+  // Trigger button label
+  const triggerLabel = isAllSelected
+    ? tCluster("allNamespaces")
+    : isSingleSelected
+      ? selectedNamespaces[0]
+      : `${selectedNamespaces.length} namespaces`;
+
+  // Collapsed badge label
+  const badgeLabel = isAllSelected
+    ? tCluster("allNamespaces")
+    : isSingleSelected
+      ? selectedNamespaces[0]
+      : `${selectedNamespaces.length} namespaces`;
 
   return (
     <>
       <div className="p-3 overflow-hidden">
         <Collapsible
           open={isNamespaceSectionOpen}
-          onOpenChange={setIsNamespaceSectionOpen}
+          onOpenChange={(open) => {
+            if (popoverWasOpenRef.current) {
+              popoverWasOpenRef.current = false;
+              return;
+            }
+            setIsNamespaceSectionOpen(open);
+          }}
         >
           <CollapsibleTrigger asChild>
             <button
@@ -61,6 +90,11 @@ export function NamespaceSection({
               aria-label={t("common.toggleSection", {
                 section: tCluster("namespace"),
               })}
+              onPointerDown={() => {
+                if (namespaceOpen) {
+                  popoverWasOpenRef.current = true;
+                }
+              }}
             >
               <span>{tCluster("namespace")}</span>
               <span className="flex items-center gap-2">
@@ -69,9 +103,7 @@ export function NamespaceSection({
                     variant="secondary"
                     className="max-w-[130px] px-2 py-0 text-[10px]"
                   >
-                    <span className="truncate">
-                      {currentNamespace || tCluster("allNamespaces")}
-                    </span>
+                    <span className="truncate">{badgeLabel}</span>
                   </Badge>
                 )}
                 <ChevronRight
@@ -92,20 +124,56 @@ export function NamespaceSection({
                   aria-expanded={namespaceOpen}
                   className="w-full justify-between"
                 >
-                  {currentNamespace ? (
+                  {isSingleSelected ? (
                     <span className="flex items-center gap-2 min-w-0">
                       <span
                         className={cn(
                           "size-2 rounded-full shrink-0",
-                          getNamespaceColor(currentNamespace).dot,
+                          getNamespaceColor(selectedNamespaces[0]).dot,
                         )}
                       />
-                      <span className="truncate">{currentNamespace}</span>
+                      <span className="truncate">{selectedNamespaces[0]}</span>
+                    </span>
+                  ) : isMultiSelected ? (
+                    <span className="flex items-center gap-2 min-w-0">
+                      <span className="flex items-center gap-0.5 shrink-0">
+                        {selectedNamespaces.slice(0, 3).map((ns) => (
+                          <span
+                            key={ns}
+                            className={cn(
+                              "size-2 rounded-full",
+                              getNamespaceColor(ns).dot,
+                            )}
+                          />
+                        ))}
+                      </span>
+                      <span className="truncate">{triggerLabel}</span>
                     </span>
                   ) : (
                     tCluster("allNamespaces")
                   )}
-                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  {!isAllSelected ? (
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      aria-label="Clear selection"
+                      className="ml-2 shrink-0 rounded-sm p-0.5 opacity-50 hover:opacity-100 hover:bg-muted transition-colors"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        selectAllNamespaces();
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.stopPropagation();
+                          selectAllNamespaces();
+                        }
+                      }}
+                    >
+                      <X className="size-3.5" />
+                    </span>
+                  ) : (
+                    <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                  )}
                 </Button>
               </PopoverTrigger>
               <PopoverContent
@@ -113,42 +181,56 @@ export function NamespaceSection({
                 align="start"
               >
                 <Command>
-                  <CommandInput placeholder={`${t("common.search")}...`} />
+                  <div className="relative">
+                    <CommandInput
+                      placeholder={`${t("common.search")}...`}
+                      value={search}
+                      onValueChange={setSearch}
+                    />
+                    {search && (
+                      <button
+                        type="button"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 opacity-50 hover:opacity-100 transition-opacity"
+                        onClick={() => setSearch("")}
+                        aria-label="Clear search"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <CommandList>
                     <CommandEmpty>{t("common.noData")}</CommandEmpty>
                     <CommandGroup>
                       <CommandItem
                         value="all"
-                        onSelect={(value) => {
-                          setCurrentNamespace(value === "all" ? "" : value);
-                          setNamespaceOpen(false);
+                        onSelect={() => {
+                          selectAllNamespaces();
                         }}
                       >
-                        <Check
-                          className={cn(
-                            "mr-2 size-4",
-                            currentNamespace ? "opacity-0" : "opacity-100",
-                          )}
-                        />
+                        {isAllSelected ? (
+                          <Check className="mr-2 size-4 opacity-100" />
+                        ) : isMultiSelected ? (
+                          <Minus className="mr-2 size-4 opacity-60" />
+                        ) : (
+                          <Check className="mr-2 size-4 opacity-0" />
+                        )}
                         {tCluster("allNamespaces")}
                       </CommandItem>
                       {namespaces.map((ns) => {
                         const color = getNamespaceColor(ns);
+                        const isSelected = selectedNamespaces.includes(ns);
                         return (
                           <CommandItem
                             key={ns}
                             value={ns}
-                            onSelect={(value) => {
-                              setCurrentNamespace(value);
-                              setNamespaceOpen(false);
+                            onSelect={() => {
+                              toggleNamespace(ns);
                             }}
                           >
                             <Check
                               className={cn(
                                 "mr-2 size-4",
-                                currentNamespace === ns
-                                  ? "opacity-100"
-                                  : "opacity-0",
+                                isSelected ? "opacity-100" : "opacity-0",
                               )}
                             />
                             <span className="flex items-center gap-2">

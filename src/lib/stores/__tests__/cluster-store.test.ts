@@ -52,6 +52,7 @@ const mockClusters = [
 const defaultState = {
   clusters: [],
   currentCluster: null,
+  selectedNamespaces: [] as string[],
   currentNamespace: "",
   namespaces: [],
   isConnected: false,
@@ -415,6 +416,7 @@ describe("ClusterStore", () => {
 
       useClusterStore.setState({
         namespaces: ["default", "kube-system", "active-ns"],
+        selectedNamespaces: ["active-ns"],
         currentNamespace: "active-ns",
       });
 
@@ -442,6 +444,7 @@ describe("ClusterStore", () => {
 
       useClusterStore.setState({
         namespaces: ["default", "kube-system", "other-ns"],
+        selectedNamespaces: ["default"],
         currentNamespace: "default",
       });
 
