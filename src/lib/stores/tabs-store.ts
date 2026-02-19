@@ -17,6 +17,8 @@ export interface Tab {
 interface TabsState {
   tabs: Tab[];
   activeTabId: string;
+  searchQueries: Record<string, string>;
+  activeFilters: Record<string, string | null>;
 
   // Actions
   openTab: (type: ResourceType, title: string, opts?: { newTab?: boolean; metadata?: TabMetadata }) => void;
@@ -28,6 +30,8 @@ interface TabsState {
   reorderTabs: (activeId: string, overId: string) => void;
   restoreTabs: (clusterContext: string) => void;
   resetTabs: () => void;
+  setTabSearch: (tabId: string, query: string) => void;
+  setTabFilter: (tabId: string, filter: string | null) => void;
 }
 
 const MAX_TABS = 10;
@@ -79,6 +83,8 @@ export const useTabsStore = create<TabsState>((set, get) => {
   return {
     tabs: [DEFAULT_TAB],
     activeTabId: DEFAULT_TAB.id,
+    searchQueries: {},
+    activeFilters: {},
 
     openTab: (type, title, opts) => {
       const { tabs } = get();
@@ -103,7 +109,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
     },
 
     closeTab: (id) => {
-      const { tabs, activeTabId } = get();
+      const { tabs, activeTabId, searchQueries, activeFilters } = get();
       if (tabs.length <= 1) return; // Can't close last tab
 
       const closedTab = tabs.find((t) => t.id === id);
@@ -117,7 +123,9 @@ export const useTabsStore = create<TabsState>((set, get) => {
         newActiveId = newTabs[newIdx].id;
       }
 
-      set({ tabs: newTabs, activeTabId: newActiveId });
+      const { [id]: _sq, ...restQueries } = searchQueries;
+      const { [id]: _af, ...restFilters } = activeFilters;
+      set({ tabs: newTabs, activeTabId: newActiveId, searchQueries: restQueries, activeFilters: restFilters });
       persistTabs(newTabs, newActiveId);
       syncActiveTabId(newActiveId);
 
@@ -127,13 +135,15 @@ export const useTabsStore = create<TabsState>((set, get) => {
     },
 
     closeOtherTabs: (id) => {
-      const { tabs } = get();
+      const { tabs, searchQueries, activeFilters } = get();
       const tab = tabs.find((t) => t.id === id);
       if (!tab) return;
 
       const removedTabs = tabs.filter((t) => t.id !== id);
       const newTabs = [tab];
-      set({ tabs: newTabs, activeTabId: id });
+      const keptQueries = id in searchQueries ? { [id]: searchQueries[id] } : {};
+      const keptFilters = id in activeFilters ? { [id]: activeFilters[id] } : {};
+      set({ tabs: newTabs, activeTabId: id, searchQueries: keptQueries, activeFilters: keptFilters });
       persistTabs(newTabs, id);
       syncActiveTabId(id);
 
@@ -145,14 +155,21 @@ export const useTabsStore = create<TabsState>((set, get) => {
     },
 
     closeTabsToRight: (id) => {
-      const { tabs, activeTabId } = get();
+      const { tabs, activeTabId, searchQueries, activeFilters } = get();
       const idx = tabs.findIndex((t) => t.id === id);
       const newTabs = tabs.slice(0, idx + 1);
       const removedTabs = tabs.slice(idx + 1);
       const newActiveId = newTabs.find((t) => t.id === activeTabId)
         ? activeTabId
         : id;
-      set({ tabs: newTabs, activeTabId: newActiveId });
+      const keptIds = new Set(newTabs.map((t) => t.id));
+      const newQueries: Record<string, string> = {};
+      const newFilters: Record<string, string | null> = {};
+      for (const tid of keptIds) {
+        if (tid in searchQueries) newQueries[tid] = searchQueries[tid];
+        if (tid in activeFilters) newFilters[tid] = activeFilters[tid];
+      }
+      set({ tabs: newTabs, activeTabId: newActiveId, searchQueries: newQueries, activeFilters: newFilters });
       persistTabs(newTabs, newActiveId);
       syncActiveTabId(newActiveId);
 
@@ -173,11 +190,13 @@ export const useTabsStore = create<TabsState>((set, get) => {
     },
 
     navigateCurrentTab: (type, title) => {
-      const { tabs, activeTabId } = get();
+      const { tabs, activeTabId, searchQueries, activeFilters } = get();
       const newTabs = tabs.map((t) =>
         t.id === activeTabId ? { ...t, type, title } : t
       );
-      set({ tabs: newTabs });
+      const { [activeTabId]: _sq, ...restQueries } = searchQueries;
+      const { [activeTabId]: _af, ...restFilters } = activeFilters;
+      set({ tabs: newTabs, searchQueries: restQueries, activeFilters: restFilters });
       persistTabs(newTabs, activeTabId);
     },
 
@@ -219,7 +238,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
 
     resetTabs: () => {
       const { tabs } = get();
-      set({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id });
+      set({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id, searchQueries: {}, activeFilters: {} });
       syncActiveTabId(DEFAULT_TAB.id);
       try {
         const ctx = getClusterContext();
@@ -232,6 +251,26 @@ export const useTabsStore = create<TabsState>((set, get) => {
         if (t.type === "pod-logs") {
           useLogStore.getState().cleanupLogTab(t.id);
         }
+      }
+    },
+
+    setTabSearch: (tabId, query) => {
+      const { searchQueries } = get();
+      if (query) {
+        set({ searchQueries: { ...searchQueries, [tabId]: query } });
+      } else {
+        const { [tabId]: _, ...rest } = searchQueries;
+        set({ searchQueries: rest });
+      }
+    },
+
+    setTabFilter: (tabId, filter) => {
+      const { activeFilters } = get();
+      if (filter !== null) {
+        set({ activeFilters: { ...activeFilters, [tabId]: filter } });
+      } else {
+        const { [tabId]: _, ...rest } = activeFilters;
+        set({ activeFilters: rest });
       }
     },
   };

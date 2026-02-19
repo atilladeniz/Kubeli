@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { RefreshCw, Circle, AlertCircle } from "lucide-react";
+import { useTabsStore } from "@/lib/stores/tabs-store";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTranslations } from "next-intl";
 import { parseQuantityToBytes } from "./lib/utils";
@@ -59,8 +60,13 @@ export function ResourceList<T>({
   customSortComparator,
 }: ResourceListProps<T>) {
   const t = useTranslations();
-  const [searchQuery, setSearchQuery] = useState("");
-  const [activeFilter, setActiveFilter] = useState<string | null>(null);
+  const activeTabId = useTabsStore((s) => s.activeTabId);
+  const searchQuery = useTabsStore((s) => s.searchQueries[s.activeTabId] ?? "");
+  const activeFilter = useTabsStore((s) => s.activeFilters[s.activeTabId] ?? null);
+  const setTabSearch = useTabsStore((s) => s.setTabSearch);
+  const setTabFilter = useTabsStore((s) => s.setTabFilter);
+  const setSearchQuery = useCallback((q: string) => setTabSearch(activeTabId, q), [activeTabId, setTabSearch]);
+  const setActiveFilter = useCallback((f: string | null) => setTabFilter(activeTabId, f), [activeTabId, setTabFilter]);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [internalSortKey, setInternalSortKey] = useState<string | null>(null);
   const [internalSortDirection, setInternalSortDirection] =
