@@ -23,6 +23,8 @@ const debug = (...args: unknown[]) => {
 interface ClusterState {
   clusters: Cluster[];
   currentCluster: Cluster | null;
+  selectedNamespaces: string[];
+  /** @deprecated Use selectedNamespaces. Derived: single selected ns or "" */
   currentNamespace: string;
   namespaces: string[];
   isConnected: boolean;
@@ -54,6 +56,10 @@ interface ClusterState {
   disconnect: () => Promise<void>;
   refreshConnectionStatus: () => Promise<void>;
   fetchNamespaces: () => Promise<void>;
+  setSelectedNamespaces: (namespaces: string[]) => void;
+  toggleNamespace: (ns: string) => void;
+  selectAllNamespaces: () => void;
+  /** @deprecated Use setSelectedNamespaces. Kept for backward compatibility. */
   setCurrentNamespace: (namespace: string) => void;
   setError: (error: string | null) => void;
 
@@ -78,9 +84,14 @@ const getBackoffDelay = (attempt: number, baseDelay = 1000, maxDelay = 30000): n
   return Math.floor(delay + jitter);
 };
 
+// Helper: derive currentNamespace from selectedNamespaces for backward compat
+const deriveCurrentNamespace = (selectedNamespaces: string[]): string =>
+  selectedNamespaces.length === 1 ? selectedNamespaces[0] : "";
+
 export const useClusterStore = create<ClusterState>((set, get) => ({
   clusters: [],
   currentCluster: null,
+  selectedNamespaces: [],
   currentNamespace: "",
   namespaces: [],
   isConnected: false,
@@ -118,7 +129,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       set({
         clusters,
         currentCluster,
-        currentNamespace: "",
+        selectedNamespaces: [],
         isLoading: false,
       });
     } catch (e) {
@@ -140,7 +151,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         set({
           isConnected: true,
           currentCluster,
-          currentNamespace: "",
+          selectedNamespaces: [],
           error: null,
           isLoading: false,
           latencyMs: status.latency_ms,
@@ -192,6 +203,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       // Keep currentCluster so port forward badge still shows on the correct cluster card
       set({
         isConnected: false,
+        selectedNamespaces: [],
         namespaces: [],
         error: null,
         isHealthy: false,
@@ -227,7 +239,20 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
     }
   },
 
-  setCurrentNamespace: (namespace) => set({ currentNamespace: namespace }),
+  setSelectedNamespaces: (namespaces) =>
+    set({ selectedNamespaces: namespaces, currentNamespace: deriveCurrentNamespace(namespaces) }),
+  toggleNamespace: (ns) => {
+    const { selectedNamespaces } = get();
+    const next = selectedNamespaces.includes(ns)
+      ? selectedNamespaces.filter((n) => n !== ns)
+      : [...selectedNamespaces, ns];
+    set({ selectedNamespaces: next, currentNamespace: deriveCurrentNamespace(next) });
+  },
+  selectAllNamespaces: () => set({ selectedNamespaces: [], currentNamespace: "" }),
+  setCurrentNamespace: (namespace) => {
+    const next = namespace ? [namespace] : [];
+    set({ selectedNamespaces: next, currentNamespace: deriveCurrentNamespace(next) });
+  },
   setError: (error) =>
     set((state) => ({
       error,
@@ -261,12 +286,15 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
             }
             case "Deleted": {
               const name = (watchEvent.data as { name: string }).name;
+              const { selectedNamespaces } = get();
               const updates: Partial<ClusterState> = {
                 namespaces: namespaces.filter((ns) => ns !== name),
               };
-              // Reset to "All Namespaces" if the active namespace was deleted
-              if (get().currentNamespace === name) {
-                updates.currentNamespace = "";
+              // Remove deleted namespace from selection
+              if (selectedNamespaces.includes(name)) {
+                const next = selectedNamespaces.filter((ns) => ns !== name);
+                updates.selectedNamespaces = next;
+                updates.currentNamespace = deriveCurrentNamespace(next);
               }
               set(updates);
               break;

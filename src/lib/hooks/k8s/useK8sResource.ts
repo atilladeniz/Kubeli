@@ -16,10 +16,11 @@ export function useK8sResource<T>(
   config: ResourceHookConfig<T>,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
-  const { isConnected, currentNamespace } = useClusterStore();
-  const namespace = options.namespace ?? currentNamespace;
+  const { isConnected, selectedNamespaces } = useClusterStore();
+  const isMultiNs = !options.namespace && selectedNamespaces.length > 1;
+  const namespace = options.namespace ?? (selectedNamespaces.length === 1 ? selectedNamespaces[0] : "");
   const { getCache, setCache } = useResourceCacheStore();
-  const cacheKey = `${config.displayName}:${namespace || ""}`;
+  const cacheKey = `${config.displayName}:${options.namespace ?? (isMultiNs ? selectedNamespaces.slice().sort().join(",") : namespace)}`;
 
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
@@ -39,8 +40,16 @@ export function useK8sResource<T>(
       if (config.clusterScoped) {
         // Cluster-scoped resources don't need namespace
         result = await config.listFn({});
+      } else if (isMultiNs) {
+        // Multi-namespace: fetch all, then filter client-side
+        result = await config.listFn({});
+        const nsSet = new Set(selectedNamespaces);
+        result = result.filter((item) => {
+          const ns = (item as unknown as { namespace?: string }).namespace;
+          return ns != null && nsSet.has(ns);
+        });
       } else {
-        // Namespaced resources
+        // Single or all namespaces
         const listOptions: ListOptions = namespace ? { namespace } : {};
         result = await config.listFn(listOptions);
       }
@@ -57,7 +66,7 @@ export function useK8sResource<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, namespace, config, cacheKey, setCache]);
+  }, [isConnected, namespace, isMultiNs, selectedNamespaces, config, cacheKey, setCache]);
 
   const startWatch = useCallback(async () => {
     if (!isConnected || watchId || !config.supportsWatch) return;
@@ -312,10 +321,11 @@ export function useOptionalNamespaceResource<T>(
   listFn: (namespace?: string) => Promise<T[]>,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
-  const { isConnected, currentNamespace } = useClusterStore();
-  const namespace = options.namespace ?? currentNamespace;
+  const { isConnected, selectedNamespaces } = useClusterStore();
+  const isMultiNs = !options.namespace && selectedNamespaces.length > 1;
+  const namespace = options.namespace ?? (selectedNamespaces.length === 1 ? selectedNamespaces[0] : "");
   const { getCache, setCache } = useResourceCacheStore();
-  const cacheKey = `${displayName}:${namespace || ""}`;
+  const cacheKey = `${displayName}:${options.namespace ?? (isMultiNs ? selectedNamespaces.slice().sort().join(",") : namespace)}`;
 
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
@@ -326,7 +336,18 @@ export function useOptionalNamespaceResource<T>(
     setIsLoading(true);
     setError(null);
     try {
-      const result = await listFn(namespace || undefined);
+      let result: T[];
+      if (isMultiNs) {
+        // Multi-namespace: fetch all, then filter client-side
+        result = await listFn(undefined);
+        const nsSet = new Set(selectedNamespaces);
+        result = result.filter((item) => {
+          const ns = (item as unknown as { namespace?: string }).namespace;
+          return ns != null && nsSet.has(ns);
+        });
+      } else {
+        result = await listFn(namespace || undefined);
+      }
       setData(result);
       setCache(cacheKey, result);
     } catch (e) {
@@ -334,7 +355,7 @@ export function useOptionalNamespaceResource<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, namespace, listFn, displayName, cacheKey, setCache]);
+  }, [isConnected, namespace, isMultiNs, selectedNamespaces, listFn, displayName, cacheKey, setCache]);
 
   // Reset data from cache when cache key changes (e.g. namespace switch)
   useEffect(() => {

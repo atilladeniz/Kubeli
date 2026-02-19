@@ -110,12 +110,13 @@ export interface SidebarUiStateHook {
 export interface NamespaceSectionProps {
   isConnected: boolean;
   namespaces: string[];
-  currentNamespace: string;
+  selectedNamespaces: string[];
   namespaceOpen: boolean;
   isNamespaceSectionOpen: boolean;
   setNamespaceOpen: (open: boolean) => void;
   setIsNamespaceSectionOpen: (open: boolean) => void;
-  setCurrentNamespace: (namespace: string) => void;
+  toggleNamespace: (ns: string) => void;
+  selectAllNamespaces: () => void;
 }
 
 export interface PortForwardsSectionProps {
