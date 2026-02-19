@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.41] - 2026-02-19
+
+- Added multi-namespace selection support
+
 ## [0.3.40] - 2026-02-19
 
 - Fixed cached resource data not showing on tab switch
