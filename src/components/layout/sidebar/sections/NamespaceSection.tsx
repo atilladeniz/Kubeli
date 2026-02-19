@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, ChevronRight, ChevronsUpDown, Minus, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -41,6 +42,8 @@ export function NamespaceSection({
   const t = useTranslations();
   const tCluster = useTranslations("cluster");
 
+  const [search, setSearch] = useState("");
+
   if (!isConnected || namespaces.length === 0) {
     return null;
   }
@@ -80,6 +83,12 @@ export function NamespaceSection({
               aria-label={t("common.toggleSection", {
                 section: tCluster("namespace"),
               })}
+              onClick={(e) => {
+                if (namespaceOpen) {
+                  e.preventDefault();
+                  setNamespaceOpen(false);
+                }
+              }}
             >
               <span>{tCluster("namespace")}</span>
               <span className="flex items-center gap-2">
@@ -166,7 +175,23 @@ export function NamespaceSection({
                 align="start"
               >
                 <Command>
-                  <CommandInput placeholder={`${t("common.search")}...`} />
+                  <div className="relative">
+                    <CommandInput
+                      placeholder={`${t("common.search")}...`}
+                      value={search}
+                      onValueChange={setSearch}
+                    />
+                    {search && (
+                      <button
+                        type="button"
+                        className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 opacity-50 hover:opacity-100 transition-opacity"
+                        onClick={() => setSearch("")}
+                        aria-label="Clear search"
+                      >
+                        <X className="size-3.5" />
+                      </button>
+                    )}
+                  </div>
                   <CommandList>
                     <CommandEmpty>{t("common.noData")}</CommandEmpty>
                     <CommandGroup>
