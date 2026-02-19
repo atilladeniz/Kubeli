@@ -2,6 +2,16 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.40] - 2026-02-19
+
+- Fixed cached resource data not showing on tab switch
+- Fixed search query and filter not persisting per tab
+- Updated rmcp from 0.14 to 0.15
+- Updated monaco-editor from 0.52.2 to 0.55.1
+- Updated toml requirement from 0.9 to 1.0 in Rust backend
+- Updated globals from 16.5.0 to 17.3.0
+- Updated trivy-action from 0.33.1 to 0.34.0
+
 ## [0.3.39] - 2026-02-14
 
 - Fixed cluster view layout validation on store rehydration
