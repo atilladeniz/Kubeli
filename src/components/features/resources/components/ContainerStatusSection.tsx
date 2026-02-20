@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { AlertTriangle, Box, CheckCircle2, Check, ChevronDown, ChevronRight, Clock, Copy, Eye, EyeOff, XCircle } from "lucide-react";
+import { AlertTriangle, Box, CheckCircle2, Check, ChevronDown, ChevronRight, Clock, Copy, Eye, EyeOff, Key, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
@@ -164,27 +164,29 @@ function EnvVarsSection({
   if (!envVars || envVars.length === 0) return null;
 
   return (
-    <div className="mt-2 p-3 rounded-md bg-muted/50 border border-muted">
+    <div className="mt-4 pt-3 border-t border-muted">
       <button
         type="button"
         onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-1.5 w-full text-left"
+        className="flex items-center gap-2 w-full text-left group"
       >
+        <Key className="size-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
+          {t("podDetail.environmentVariables")}
+        </span>
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+          {envVars.length}
+        </Badge>
+        <div className="flex-1" />
         {expanded ? (
           <ChevronDown className="size-3.5 text-muted-foreground" />
         ) : (
           <ChevronRight className="size-3.5 text-muted-foreground" />
         )}
-        <span className="text-xs font-medium text-muted-foreground">
-          {t("podDetail.environmentVariables")}
-        </span>
-        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-1">
-          {envVars.length}
-        </Badge>
       </button>
 
       {expanded && (
-        <div className="mt-3 space-y-2.5">
+        <div className="mt-2 space-y-2">
           {envVars.map((env) => (
             <EnvVarRow key={env.name} env={env} t={t} />
           ))}
@@ -220,7 +222,7 @@ function ContainerCard({
         {container.image}
       </div>
 
-      <div className="flex items-center gap-4 text-sm">
+      <div className="flex items-center gap-4 text-xs">
         <div className="flex items-center gap-1.5">
           <span className="text-muted-foreground">{t("columns.restarts")}:</span>
           <span
@@ -233,7 +235,7 @@ function ContainerCard({
             {container.restart_count}
           </span>
           {container.restart_count > 10 && (
-            <AlertTriangle className="size-3.5 text-red-500" />
+            <AlertTriangle className="size-3 text-red-500" />
           )}
         </div>
 
