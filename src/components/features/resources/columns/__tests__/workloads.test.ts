@@ -12,6 +12,7 @@ const createMockContainer = (overrides: Partial<ContainerInfo> = {}): ContainerI
   last_state_reason: null,
   last_exit_code: null,
   last_finished_at: null,
+  env_vars: [],
   ...overrides,
 });
 

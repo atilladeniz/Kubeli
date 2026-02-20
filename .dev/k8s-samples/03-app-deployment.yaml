@@ -71,6 +71,26 @@ spec:
           envFrom:
             - configMapRef:
                 name: demo-config
+          env:
+            - name: APP_NAME
+              value: "kubeli-web"
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: demo-config
+                  key: APP_ENV
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
 ---
 # Deployment - API Backend
 apiVersion: apps/v1
@@ -107,11 +127,44 @@ spec:
               cpu: 500m
               memory: 256Mi
           env:
+            - name: APP_NAME
+              value: "kubeli-api"
+            - name: APP_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: demo-config
+                  key: APP_ENV
+            - name: LOG_LEVEL
+              valueFrom:
+                configMapKeyRef:
+                  name: demo-config
+                  key: LOG_LEVEL
             - name: DB_PASSWORD
               valueFrom:
                 secretKeyRef:
                   name: demo-secret
                   key: DB_PASSWORD
+            - name: API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: demo-secret
+                  key: API_KEY
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: POD_IP
+              valueFrom:
+                fieldRef:
+                  fieldPath: status.podIP
+            - name: CPU_LIMIT
+              valueFrom:
+                resourceFieldRef:
+                  resource: limits.cpu
 ---
 # Deployment - Frontend (simulates Next.js on port 3000)
 # Used for port forward testing: service port 80 → container port 3000
@@ -190,6 +243,16 @@ spec:
             limits:
               cpu: 500m
               memory: 256Mi
+          env:
+            - name: AUTH_PROVIDER
+              value: "keycloak"
+            - name: AUTH_REALM
+              value: "kubeli"
+            - name: CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: demo-secret
+                  key: API_KEY
           # Override nginx to listen on 8080 instead of 80
           command: ["sh", "-c", "sed -i 's/listen       80;/listen       8080;/' /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
 ---

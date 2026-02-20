@@ -1,6 +1,7 @@
 "use client";
 
-import { AlertTriangle, Box, CheckCircle2, Clock, XCircle } from "lucide-react";
+import { useState } from "react";
+import { AlertTriangle, Box, CheckCircle2, ChevronDown, ChevronRight, Clock, Eye, EyeOff, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
@@ -70,6 +71,96 @@ function StateBadge({ state, reason }: { state: string; reason?: string | null }
     >
       {displayText}
     </Badge>
+  );
+}
+
+function EnvVarsSection({
+  envVars,
+  t,
+}: {
+  envVars: ContainerInfo["env_vars"];
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [showValues, setShowValues] = useState(false);
+
+  if (!envVars || envVars.length === 0) return null;
+
+  return (
+    <div className="mt-2 p-3 rounded-md bg-muted/50 border border-muted">
+      <button
+        type="button"
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-1.5 w-full text-left"
+      >
+        {expanded ? (
+          <ChevronDown className="size-3.5 text-muted-foreground" />
+        ) : (
+          <ChevronRight className="size-3.5 text-muted-foreground" />
+        )}
+        <span className="text-xs font-medium text-muted-foreground">
+          {t("podDetail.environmentVariables")}
+        </span>
+        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4 ml-1">
+          {envVars.length}
+        </Badge>
+      </button>
+
+      {expanded && (
+        <div className="mt-2 space-y-0.5">
+          <div className="flex justify-end mb-1">
+            <button
+              type="button"
+              onClick={() => setShowValues(!showValues)}
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {showValues ? (
+                <EyeOff className="size-3" />
+              ) : (
+                <Eye className="size-3" />
+              )}
+              {showValues ? t("podDetail.hideValues") : t("podDetail.showValues")}
+            </button>
+          </div>
+          {envVars.map((env) => {
+            const isSecret = env.value_from?.startsWith("secretKeyRef:");
+            const isConfigMap = env.value_from?.startsWith("configMapKeyRef:");
+            const isFieldRef = env.value_from?.startsWith("fieldRef:");
+            const isResourceRef = env.value_from?.startsWith("resourceFieldRef:");
+
+            return (
+              <div
+                key={env.name}
+                className="flex items-center gap-2 text-xs font-mono py-1 px-2 rounded hover:bg-muted/80"
+              >
+                <span className="text-muted-foreground shrink-0">{env.name}:</span>
+                <span className="text-foreground break-all min-w-0 flex-1">
+                  {env.value_from ? (
+                    <span className="text-blue-400 italic">{env.value_from}</span>
+                  ) : showValues ? (
+                    env.value ?? ""
+                  ) : (
+                    <span className="text-muted-foreground/60">{"*".repeat(Math.min(env.value?.length ?? 8, 20))}</span>
+                  )}
+                </span>
+                {isSecret && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-yellow-500/50 text-yellow-500">s</Badge>
+                )}
+                {isConfigMap && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-blue-500/50 text-blue-500">cm</Badge>
+                )}
+                {isFieldRef && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-purple-500/50 text-purple-500">field</Badge>
+                )}
+                {isResourceRef && (
+                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-green-500/50 text-green-500">res</Badge>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -158,6 +249,8 @@ function ContainerCard({
           </div>
         </div>
       )}
+
+      <EnvVarsSection envVars={container.env_vars} t={t} />
     </div>
   );
 }

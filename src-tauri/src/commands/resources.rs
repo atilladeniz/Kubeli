@@ -83,6 +83,35 @@ pub fn extract_container_info(
         )
     };
 
+    let env_vars = container
+        .env
+        .as_ref()
+        .map(|envs| {
+            envs.iter()
+                .map(|env| {
+                    let value_from = env.value_from.as_ref().map(|vf| {
+                        if let Some(ref cm) = vf.config_map_key_ref {
+                            format!("configMapKeyRef: {}:{}", cm.name, cm.key)
+                        } else if let Some(ref secret) = vf.secret_key_ref {
+                            format!("secretKeyRef: {}:{}", secret.name, secret.key)
+                        } else if let Some(ref field) = vf.field_ref {
+                            format!("fieldRef: {}", field.field_path)
+                        } else if let Some(ref resource) = vf.resource_field_ref {
+                            format!("resourceFieldRef: {}", resource.resource)
+                        } else {
+                            "valueFrom".to_string()
+                        }
+                    });
+                    ContainerEnvVar {
+                        name: env.name.clone(),
+                        value: env.value.clone(),
+                        value_from,
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
     ContainerInfo {
         name: container.name.clone(),
         image: container.image.clone().unwrap_or_default(),
@@ -94,6 +123,7 @@ pub fn extract_container_info(
         last_state_reason,
         last_exit_code,
         last_finished_at,
+        env_vars,
     }
 }
 
@@ -158,6 +188,13 @@ pub struct PodInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContainerEnvVar {
+    pub name: String,
+    pub value: Option<String>,
+    pub value_from: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContainerInfo {
     pub name: String,
     pub image: String,
@@ -169,6 +206,7 @@ pub struct ContainerInfo {
     pub last_state_reason: Option<String>,
     pub last_exit_code: Option<i32>,
     pub last_finished_at: Option<String>,
+    pub env_vars: Vec<ContainerEnvVar>,
 }
 
 /// Deployment-specific information
