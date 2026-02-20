@@ -164,34 +164,36 @@ function EnvVarsSection({
   if (!envVars || envVars.length === 0) return null;
 
   return (
-    <div className="mt-4 pt-3 border-t border-muted">
-      <button
-        type="button"
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center gap-2 w-full text-left group"
-      >
-        <Key className="size-3.5 text-muted-foreground" />
-        <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
-          {t("podDetail.environmentVariables")}
-        </span>
-        <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
-          {envVars.length}
-        </Badge>
-        <div className="flex-1" />
-        {expanded ? (
-          <ChevronDown className="size-3.5 text-muted-foreground" />
-        ) : (
-          <ChevronRight className="size-3.5 text-muted-foreground" />
-        )}
-      </button>
+    <div className="mt-5 pt-4 border-t border-muted">
+      <div className="rounded-lg border border-muted bg-muted/30">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="flex items-center gap-2 w-full text-left group px-3 py-2.5"
+        >
+          <Key className="size-3.5 text-muted-foreground" />
+          <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
+            {t("podDetail.environmentVariables")}
+          </span>
+          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+            {envVars.length}
+          </Badge>
+          <div className="flex-1" />
+          {expanded ? (
+            <ChevronDown className="size-3.5 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="size-3.5 text-muted-foreground" />
+          )}
+        </button>
 
-      {expanded && (
-        <div className="mt-2 space-y-2">
-          {envVars.map((env) => (
-            <EnvVarRow key={env.name} env={env} t={t} />
-          ))}
-        </div>
-      )}
+        {expanded && (
+          <div className="px-3 pb-3 space-y-2">
+            {envVars.map((env) => (
+              <EnvVarRow key={env.name} env={env} t={t} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
