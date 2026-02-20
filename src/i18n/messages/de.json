@@ -848,7 +848,8 @@
     "exitCodeCommandNotFound": "Befehl nicht gefunden",
     "exitCodeSigint": "SIGINT (Strg+C)",
     "exitCodeSignal": "Signal {signal}",
-    "exitCodeGeneric": "Exit {code}"
+    "exitCodeGeneric": "Exit {code}",
+    "environmentVariables": "Umgebungsvariablen"
   },
   "createResource": {
     "title": "Ressource erstellen",

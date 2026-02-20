@@ -83,6 +83,47 @@ pub fn extract_container_info(
         )
     };
 
+    let env_vars = container
+        .env
+        .as_ref()
+        .map(|envs| {
+            envs.iter()
+                .map(|env| {
+                    let (value_from_kind, value_from) = if let Some(ref vf) = env.value_from {
+                        if let Some(ref cm) = vf.config_map_key_ref {
+                            (
+                                Some("configMap".to_string()),
+                                Some(format!("{}:{}", cm.name, cm.key)),
+                            )
+                        } else if let Some(ref secret) = vf.secret_key_ref {
+                            (
+                                Some("secret".to_string()),
+                                Some(format!("{}:{}", secret.name, secret.key)),
+                            )
+                        } else if let Some(ref field) = vf.field_ref {
+                            (Some("field".to_string()), Some(field.field_path.clone()))
+                        } else if let Some(ref resource) = vf.resource_field_ref {
+                            (
+                                Some("resource".to_string()),
+                                Some(resource.resource.clone()),
+                            )
+                        } else {
+                            (Some("unknown".to_string()), None)
+                        }
+                    } else {
+                        (None, None)
+                    };
+                    ContainerEnvVar {
+                        name: env.name.clone(),
+                        value: env.value.clone(),
+                        value_from_kind,
+                        value_from,
+                    }
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
     ContainerInfo {
         name: container.name.clone(),
         image: container.image.clone().unwrap_or_default(),
@@ -94,6 +135,7 @@ pub fn extract_container_info(
         last_state_reason,
         last_exit_code,
         last_finished_at,
+        env_vars,
     }
 }
 
@@ -158,6 +200,14 @@ pub struct PodInfo {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContainerEnvVar {
+    pub name: String,
+    pub value: Option<String>,
+    pub value_from_kind: Option<String>,
+    pub value_from: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContainerInfo {
     pub name: String,
     pub image: String,
@@ -169,6 +219,7 @@ pub struct ContainerInfo {
     pub last_state_reason: Option<String>,
     pub last_exit_code: Option<i32>,
     pub last_finished_at: Option<String>,
+    pub env_vars: Vec<ContainerEnvVar>,
 }
 
 /// Deployment-specific information

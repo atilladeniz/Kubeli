@@ -224,6 +224,15 @@ export interface PodInfo {
   ready_containers: string;
 }
 
+export type EnvVarSourceKind = "secret" | "configMap" | "field" | "resource" | "unknown";
+
+export interface ContainerEnvVar {
+  name: string;
+  value: string | null;
+  value_from_kind: EnvVarSourceKind | null;
+  value_from: string | null;
+}
+
 export interface ContainerInfo {
   name: string;
   image: string;
@@ -235,6 +244,7 @@ export interface ContainerInfo {
   last_state_reason: string | null;
   last_exit_code: number | null;
   last_finished_at: string | null;
+  env_vars: ContainerEnvVar[];
 }
 
 export interface DeploymentInfo {
