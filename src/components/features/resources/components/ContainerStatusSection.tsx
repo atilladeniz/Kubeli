@@ -4,6 +4,7 @@ import { useState, useCallback } from "react";
 import { AlertTriangle, Box, CheckCircle2, Check, ChevronDown, ChevronRight, Clock, Copy, Eye, EyeOff, Key, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Separator } from "@/components/ui/separator";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -164,7 +165,8 @@ function EnvVarsSection({
   if (!envVars || envVars.length === 0) return null;
 
   return (
-    <div className="mt-5 pt-4 border-t border-muted">
+    <div className="mt-4">
+      <Separator className="mb-4" />
       <div className="rounded-lg border border-muted bg-muted/30">
         <button
           type="button"
