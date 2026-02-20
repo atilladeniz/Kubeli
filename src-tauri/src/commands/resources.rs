@@ -89,22 +89,34 @@ pub fn extract_container_info(
         .map(|envs| {
             envs.iter()
                 .map(|env| {
-                    let value_from = env.value_from.as_ref().map(|vf| {
+                    let (value_from_kind, value_from) = if let Some(ref vf) = env.value_from {
                         if let Some(ref cm) = vf.config_map_key_ref {
-                            format!("configMapKeyRef: {}:{}", cm.name, cm.key)
+                            (
+                                Some("configMap".to_string()),
+                                Some(format!("{}:{}", cm.name, cm.key)),
+                            )
                         } else if let Some(ref secret) = vf.secret_key_ref {
-                            format!("secretKeyRef: {}:{}", secret.name, secret.key)
+                            (
+                                Some("secret".to_string()),
+                                Some(format!("{}:{}", secret.name, secret.key)),
+                            )
                         } else if let Some(ref field) = vf.field_ref {
-                            format!("fieldRef: {}", field.field_path)
+                            (Some("field".to_string()), Some(field.field_path.clone()))
                         } else if let Some(ref resource) = vf.resource_field_ref {
-                            format!("resourceFieldRef: {}", resource.resource)
+                            (
+                                Some("resource".to_string()),
+                                Some(resource.resource.clone()),
+                            )
                         } else {
-                            "valueFrom".to_string()
+                            (Some("unknown".to_string()), None)
                         }
-                    });
+                    } else {
+                        (None, None)
+                    };
                     ContainerEnvVar {
                         name: env.name.clone(),
                         value: env.value.clone(),
+                        value_from_kind,
                         value_from,
                     }
                 })
@@ -191,6 +203,7 @@ pub struct PodInfo {
 pub struct ContainerEnvVar {
     pub name: String,
     pub value: Option<String>,
+    pub value_from_kind: Option<String>,
     pub value_from: Option<String>,
 }
 

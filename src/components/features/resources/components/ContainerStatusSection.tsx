@@ -77,28 +77,26 @@ function StateBadge({ state, reason }: { state: string; reason?: string | null }
   );
 }
 
-function EnvVarSourceBadge({ valueFrom }: { valueFrom: string }) {
-  if (valueFrom.startsWith("secretKeyRef:")) {
-    return <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-yellow-500/50 text-yellow-500">secret</Badge>;
-  }
-  if (valueFrom.startsWith("configMapKeyRef:")) {
-    return <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-blue-500/50 text-blue-500">configMap</Badge>;
-  }
-  if (valueFrom.startsWith("fieldRef:")) {
-    return <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-purple-500/50 text-purple-500">field</Badge>;
-  }
-  if (valueFrom.startsWith("resourceFieldRef:")) {
-    return <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-green-500/50 text-green-500">resource</Badge>;
-  }
-  return null;
+function EnvVarSourceBadge({ kind }: { kind: string }) {
+  const styles: Record<string, string> = {
+    secret: "border-yellow-500/50 text-yellow-500",
+    configMap: "border-blue-500/50 text-blue-500",
+    field: "border-purple-500/50 text-purple-500",
+    resource: "border-green-500/50 text-green-500",
+  };
+  return (
+    <Badge variant="outline" className={cn("text-[9px] px-1 py-0 h-3.5 shrink-0", styles[kind])}>
+      {kind}
+    </Badge>
+  );
 }
 
 function EnvVarRow({ env, t }: { env: ContainerInfo["env_vars"][number]; t: ReturnType<typeof useTranslations> }) {
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  const isRef = !!env.value_from_kind;
   const displayValue = env.value_from ?? env.value ?? "";
-  const isRef = !!env.value_from;
 
   const toggleReveal = useCallback(() => {
     if (revealed) {
@@ -122,7 +120,7 @@ function EnvVarRow({ env, t }: { env: ContainerInfo["env_vars"][number]; t: Retu
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">{env.name}</span>
-          {isRef && <EnvVarSourceBadge valueFrom={env.value_from!} />}
+          {isRef && <EnvVarSourceBadge kind={env.value_from_kind!} />}
         </div>
         <div className="flex items-center gap-0.5">
           <Button variant="ghost" size="sm" onClick={copyValue} className="h-6 w-6 p-0">

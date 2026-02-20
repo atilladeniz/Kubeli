@@ -224,9 +224,12 @@ export interface PodInfo {
   ready_containers: string;
 }
 
+export type EnvVarSourceKind = "secret" | "configMap" | "field" | "resource" | "unknown";
+
 export interface ContainerEnvVar {
   name: string;
   value: string | null;
+  value_from_kind: EnvVarSourceKind | null;
   value_from: string | null;
 }
 
