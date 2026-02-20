@@ -849,9 +849,7 @@
     "exitCodeSigint": "SIGINT (Strg+C)",
     "exitCodeSignal": "Signal {signal}",
     "exitCodeGeneric": "Exit {code}",
-    "environmentVariables": "Umgebungsvariablen",
-    "showValues": "Werte anzeigen",
-    "hideValues": "Werte ausblenden"
+    "environmentVariables": "Umgebungsvariablen"
   },
   "createResource": {
     "title": "Ressource erstellen",

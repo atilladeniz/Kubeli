@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { AlertTriangle, Box, CheckCircle2, ChevronDown, ChevronRight, Clock, Eye, EyeOff, XCircle } from "lucide-react";
+import { useState, useCallback } from "react";
+import { AlertTriangle, Box, CheckCircle2, Check, ChevronDown, ChevronRight, Clock, Copy, Eye, EyeOff, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type { ContainerInfo } from "@/lib/types";
 
@@ -74,6 +76,82 @@ function StateBadge({ state, reason }: { state: string; reason?: string | null }
   );
 }
 
+function EnvVarSourceBadge({ valueFrom }: { valueFrom: string }) {
+  if (valueFrom.startsWith("secretKeyRef:")) {
+    return <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-yellow-500/50 text-yellow-500">secret</Badge>;
+  }
+  if (valueFrom.startsWith("configMapKeyRef:")) {
+    return <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-blue-500/50 text-blue-500">configMap</Badge>;
+  }
+  if (valueFrom.startsWith("fieldRef:")) {
+    return <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-purple-500/50 text-purple-500">field</Badge>;
+  }
+  if (valueFrom.startsWith("resourceFieldRef:")) {
+    return <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-green-500/50 text-green-500">resource</Badge>;
+  }
+  return null;
+}
+
+function EnvVarRow({ env, t }: { env: ContainerInfo["env_vars"][number]; t: ReturnType<typeof useTranslations> }) {
+  const [revealed, setRevealed] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const displayValue = env.value_from ?? env.value ?? "";
+  const isRef = !!env.value_from;
+
+  const toggleReveal = useCallback(() => {
+    if (revealed) {
+      setRevealed(false);
+    } else {
+      setRevealed(true);
+      // Auto-hide after 10 seconds (like secrets)
+      setTimeout(() => setRevealed(false), 10000);
+    }
+  }, [revealed]);
+
+  const copyValue = useCallback(async () => {
+    await navigator.clipboard.writeText(displayValue);
+    setCopied(true);
+    toast.success(t("messages.copySuccess"));
+    setTimeout(() => setCopied(false), 2000);
+  }, [displayValue, t]);
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs font-medium text-muted-foreground">{env.name}</span>
+          {isRef && <EnvVarSourceBadge valueFrom={env.value_from!} />}
+        </div>
+        <div className="flex items-center gap-0.5">
+          <Button variant="ghost" size="sm" onClick={copyValue} className="h-6 w-6 p-0">
+            {copied ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
+          </Button>
+          {!isRef && (
+            <Button variant="ghost" size="sm" onClick={toggleReveal} className="h-6 w-6 p-0">
+              {revealed ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
+            </Button>
+          )}
+        </div>
+      </div>
+      <div
+        className="bg-muted/50 rounded-lg px-2.5 py-1.5 text-xs font-mono cursor-pointer hover:bg-muted/70 transition-colors"
+        onClick={isRef ? undefined : toggleReveal}
+        style={isRef ? undefined : {
+          filter: revealed ? "blur(0px)" : "blur(2px)",
+          transition: "filter 300ms ease-in-out",
+          borderRadius: "8px",
+          userSelect: revealed ? "text" : "none",
+        }}
+      >
+        <span className={cn("break-all", isRef && "text-blue-400 italic text-[11px]")}>
+          {isRef ? displayValue : (revealed ? displayValue : "••••••••")}
+        </span>
+      </div>
+    </div>
+  );
+}
+
 function EnvVarsSection({
   envVars,
   t,
@@ -82,7 +160,6 @@ function EnvVarsSection({
   t: ReturnType<typeof useTranslations>;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const [showValues, setShowValues] = useState(false);
 
   if (!envVars || envVars.length === 0) return null;
 
@@ -107,57 +184,10 @@ function EnvVarsSection({
       </button>
 
       {expanded && (
-        <div className="mt-2 space-y-0.5">
-          <div className="flex justify-end mb-1">
-            <button
-              type="button"
-              onClick={() => setShowValues(!showValues)}
-              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
-            >
-              {showValues ? (
-                <EyeOff className="size-3" />
-              ) : (
-                <Eye className="size-3" />
-              )}
-              {showValues ? t("podDetail.hideValues") : t("podDetail.showValues")}
-            </button>
-          </div>
-          {envVars.map((env) => {
-            const isSecret = env.value_from?.startsWith("secretKeyRef:");
-            const isConfigMap = env.value_from?.startsWith("configMapKeyRef:");
-            const isFieldRef = env.value_from?.startsWith("fieldRef:");
-            const isResourceRef = env.value_from?.startsWith("resourceFieldRef:");
-
-            return (
-              <div
-                key={env.name}
-                className="flex items-center gap-2 text-xs font-mono py-1 px-2 rounded hover:bg-muted/80"
-              >
-                <span className="text-muted-foreground shrink-0">{env.name}:</span>
-                <span className="text-foreground break-all min-w-0 flex-1">
-                  {env.value_from ? (
-                    <span className="text-blue-400 italic">{env.value_from}</span>
-                  ) : showValues ? (
-                    env.value ?? ""
-                  ) : (
-                    <span className="text-muted-foreground/60">{"*".repeat(Math.min(env.value?.length ?? 8, 20))}</span>
-                  )}
-                </span>
-                {isSecret && (
-                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-yellow-500/50 text-yellow-500">s</Badge>
-                )}
-                {isConfigMap && (
-                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-blue-500/50 text-blue-500">cm</Badge>
-                )}
-                {isFieldRef && (
-                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-purple-500/50 text-purple-500">field</Badge>
-                )}
-                {isResourceRef && (
-                  <Badge variant="outline" className="text-[9px] px-1 py-0 h-3.5 shrink-0 border-green-500/50 text-green-500">res</Badge>
-                )}
-              </div>
-            );
-          })}
+        <div className="mt-3 space-y-2.5">
+          {envVars.map((env) => (
+            <EnvVarRow key={env.name} env={env} t={t} />
+          ))}
         </div>
       )}
     </div>
