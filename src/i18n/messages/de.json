@@ -157,7 +157,15 @@
     "searchClustersPlaceholder": "Cluster suchen...",
     "noSearchResults": "Keine Cluster gefunden",
     "noSearchResultsHint": "Keine Cluster für \"{query}\" gefunden. Versuche einen anderen Suchbegriff.",
-    "connecting": "Verbinde..."
+    "connecting": "Verbinde...",
+    "configureNamespaces": "Namespaces konfigurieren",
+    "configureNamespacesDesc": "Geben Sie die Namespaces ein, auf die Sie Zugriff haben, einen pro Zeile. Dies ist nützlich für RBAC-eingeschränkte Cluster, bei denen die Namespace-Auflistung nicht erlaubt ist.",
+    "namespacesPlaceholder": "team-a\nteam-b\nshared",
+    "namespacesConfigured": "konfiguriert",
+    "namespaceListingNotPermitted": "Namespace-Auflistung nicht erlaubt",
+    "configureAccessibleNamespaces": "Zugängliche Namespaces konfigurieren",
+    "clearConfiguration": "Zurücksetzen",
+    "invalidNamespaceWarning": "Möglicherweise kein gültiger Kubernetes-Namespace-Name"
   },
   "workloads": {
     "overview": "Workloads-Übersicht",

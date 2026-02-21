@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Server,
@@ -24,9 +24,11 @@ import {
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
+import { getClusterSettings } from "@/lib/tauri/commands";
 import { ConnectionErrorAlert } from "./ConnectionErrorAlert";
 import { ClusterGridCard } from "./ClusterGridCard";
 import { ClusterListCard } from "./ClusterListCard";
+import { ConfigureNamespacesDialog } from "./ConfigureNamespacesDialog";
 
 export function ClusterGrid() {
   const t = useTranslations("cluster");
@@ -46,8 +48,63 @@ export function ClusterGrid() {
     isLoading,
     fetchClusters,
     connect,
+    saveAccessibleNamespaces,
+    clearAccessibleNamespaces,
   } = useClusterStore();
   const { forwards } = usePortForward();
+
+  // Configure namespaces dialog state
+  const [configureNsOpen, setConfigureNsOpen] = useState(false);
+  const [configureNsContext, setConfigureNsContext] = useState("");
+  const [configureNsExisting, setConfigureNsExisting] = useState<string[] | undefined>();
+  // Track which contexts have configured namespaces
+  const [configuredContexts, setConfiguredContexts] = useState<Set<string>>(new Set());
+
+  // Load configured contexts on mount and when clusters change
+  useEffect(() => {
+    let cancelled = false;
+    async function loadConfigured() {
+      const configured = new Set<string>();
+      for (const cluster of clusters) {
+        try {
+          const settings = await getClusterSettings(cluster.context);
+          if (settings && settings.accessible_namespaces.length > 0) {
+            configured.add(cluster.context);
+          }
+        } catch {
+          // Ignore errors
+        }
+      }
+      if (!cancelled) setConfiguredContexts(configured);
+    }
+    if (clusters.length > 0) loadConfigured();
+    return () => { cancelled = true; };
+  }, [clusters]);
+
+  const handleConfigureNamespaces = useCallback(async (context: string) => {
+    try {
+      const settings = await getClusterSettings(context);
+      setConfigureNsExisting(settings?.accessible_namespaces);
+    } catch {
+      setConfigureNsExisting(undefined);
+    }
+    setConfigureNsContext(context);
+    setConfigureNsOpen(true);
+  }, []);
+
+  const handleSaveNamespaces = useCallback(async (context: string, namespaces: string[]) => {
+    await saveAccessibleNamespaces(context, namespaces);
+    setConfiguredContexts((prev) => new Set(prev).add(context));
+  }, [saveAccessibleNamespaces]);
+
+  const handleClearNamespaces = useCallback(async (context: string) => {
+    await clearAccessibleNamespaces(context);
+    setConfiguredContexts((prev) => {
+      const next = new Set(prev);
+      next.delete(context);
+      return next;
+    });
+  }, [clearAccessibleNamespaces]);
 
   // Track whether the initial fetch has completed to avoid showing
   // the empty state before we know if clusters exist
@@ -191,7 +248,9 @@ export function ClusterGrid() {
                 isConnecting: connectingContext === cluster.context,
                 disabled: connectingContext !== null || isActive,
                 onConnect: handleConnect,
+                onConfigureNamespaces: handleConfigureNamespaces,
                 forwardsCount: showForwards ? forwards.length : 0,
+                hasConfiguredNamespaces: configuredContexts.has(cluster.context),
               };
               return viewLayout === "list" ? (
                 <ClusterListCard {...cardProps} />
@@ -202,6 +261,16 @@ export function ClusterGrid() {
           </div>
         )}
       </div>
+
+      <ConfigureNamespacesDialog
+        open={configureNsOpen}
+        onOpenChange={setConfigureNsOpen}
+        context={configureNsContext}
+        defaultNamespace={clusters.find((c) => c.context === configureNsContext)?.namespace}
+        existingNamespaces={configureNsExisting}
+        onSave={handleSaveNamespaces}
+        onClear={handleClearNamespaces}
+      />
     </section>
   );
 }

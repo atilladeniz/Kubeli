@@ -157,7 +157,15 @@
     "searchClustersPlaceholder": "Search clusters...",
     "noSearchResults": "No clusters found",
     "noSearchResultsHint": "No clusters matching \"{query}\". Try a different search term.",
-    "connecting": "Connecting..."
+    "connecting": "Connecting...",
+    "configureNamespaces": "Configure Namespaces",
+    "configureNamespacesDesc": "Enter the namespaces you have access to, one per line. This is useful for RBAC-restricted clusters where namespace listing is not permitted.",
+    "namespacesPlaceholder": "team-a\nteam-b\nshared",
+    "namespacesConfigured": "configured",
+    "namespaceListingNotPermitted": "Namespace listing not permitted",
+    "configureAccessibleNamespaces": "Configure accessible namespaces",
+    "clearConfiguration": "Clear",
+    "invalidNamespaceWarning": "May not be a valid Kubernetes namespace name"
   },
   "workloads": {
     "overview": "Workloads Overview",

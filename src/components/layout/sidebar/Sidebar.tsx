@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 import { useTranslations } from "next-intl";
 
 import { Layers, Cog } from "lucide-react";
+import { ConfigureNamespacesDialog } from "@/components/features/home/components/ConfigureNamespacesDialog";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import { useUIStore } from "@/lib/stores/ui-store";
@@ -50,6 +51,7 @@ export function Sidebar({
     currentCluster,
     selectedNamespaces,
     namespaces,
+    namespaceSource,
     toggleNamespace,
     selectAllNamespaces,
     isConnected,
@@ -58,7 +60,12 @@ export function Sidebar({
     isReconnecting,
     reconnectAttempts,
     isHealthy,
+    saveAccessibleNamespaces,
+    clearAccessibleNamespaces,
   } = useClusterStore();
+
+  const [configureNsOpen, setConfigureNsOpen] = useState(false);
+  const handleConfigureNamespaces = useCallback(() => setConfigureNsOpen(true), []);
 
   const { setSettingsOpen } = useUIStore();
   const { forwards, stopForward } = usePortForward();
@@ -172,12 +179,14 @@ export function Sidebar({
         isConnected={isConnected}
         namespaces={namespaces}
         selectedNamespaces={selectedNamespaces}
+        namespaceSource={namespaceSource}
         namespaceOpen={namespaceOpen}
         isNamespaceSectionOpen={isNamespaceSectionOpen}
         setNamespaceOpen={setNamespaceOpen}
         setIsNamespaceSectionOpen={setIsNamespaceSectionOpen}
         toggleNamespace={toggleNamespace}
         selectAllNamespaces={selectAllNamespaces}
+        onConfigureNamespaces={handleConfigureNamespaces}
       />
 
       <PortForwardsSection
@@ -260,6 +269,16 @@ export function Sidebar({
           <Kbd className="text-[10px]">{modKeySymbol},</Kbd>
         </Button>
       </div>
+
+      <ConfigureNamespacesDialog
+        open={configureNsOpen}
+        onOpenChange={setConfigureNsOpen}
+        context={clusterContext}
+        defaultNamespace={currentCluster?.namespace}
+        existingNamespaces={namespaceSource === "configured" ? namespaces : undefined}
+        onSave={saveAccessibleNamespaces}
+        onClear={clearAccessibleNamespaces}
+      />
     </aside>
   );
 }

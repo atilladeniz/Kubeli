@@ -1,3 +1,4 @@
+pub mod cluster_settings;
 pub mod clusters;
 pub mod debug;
 pub mod flux;

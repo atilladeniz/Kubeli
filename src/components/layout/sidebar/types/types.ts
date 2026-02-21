@@ -111,12 +111,14 @@ export interface NamespaceSectionProps {
   isConnected: boolean;
   namespaces: string[];
   selectedNamespaces: string[];
+  namespaceSource: "auto" | "configured" | "none";
   namespaceOpen: boolean;
   isNamespaceSectionOpen: boolean;
   setNamespaceOpen: (open: boolean) => void;
   setIsNamespaceSectionOpen: (open: boolean) => void;
   toggleNamespace: (ns: string) => void;
   selectAllNamespaces: () => void;
+  onConfigureNamespaces: () => void;
 }
 
 export interface PortForwardsSectionProps {

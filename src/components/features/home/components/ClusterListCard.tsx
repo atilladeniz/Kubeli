@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { CheckCircle2, ArrowRightLeft } from "lucide-react";
+import { CheckCircle2, ArrowRightLeft, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
@@ -12,7 +12,9 @@ export function ClusterListCard({
   isConnecting,
   disabled,
   onConnect,
+  onConfigureNamespaces,
   forwardsCount,
+  hasConfiguredNamespaces,
 }: ClusterCardProps) {
   const t = useTranslations("cluster");
 
@@ -43,8 +45,13 @@ export function ClusterListCard({
           {cluster.server}
         </p>
       </div>
-      <span className="hidden shrink-0 text-xs text-muted-foreground/70 md:block">
+      <span className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground/70 md:flex">
         {cluster.namespace || "default"}
+        {hasConfiguredNamespaces && (
+          <Badge variant="outline" className="px-1 py-0 text-[9px] font-normal">
+            NS
+          </Badge>
+        )}
       </span>
       <span className="hidden shrink-0 text-xs text-muted-foreground/70 sm:block">
         {cluster.auth_type}
@@ -61,6 +68,15 @@ export function ClusterListCard({
         {isActive && (
           <CheckCircle2 className="size-3.5 text-green-500" />
         )}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          className="size-7"
+          onClick={() => onConfigureNamespaces(cluster.context)}
+          title={t("configureNamespaces")}
+        >
+          <Settings2 className="size-3.5" />
+        </Button>
         <Button
           onClick={() => onConnect(cluster.context)}
           disabled={disabled}

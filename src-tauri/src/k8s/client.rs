@@ -319,14 +319,19 @@ impl KubeClientManager {
         self.client.read().await.is_some()
     }
 
-    /// Test connection to cluster
+    /// Test connection to cluster using the /version endpoint.
+    /// This works even on RBAC-restricted clusters where namespace listing is forbidden,
+    /// because GET /version is accessible to all users via the system:public-info-viewer ClusterRole.
     pub async fn test_connection(&self) -> Result<bool> {
         let client = self.get_client().await?;
-        let namespaces: Api<Namespace> = Api::all(client);
 
-        // Try to list namespaces as a connection test
-        match namespaces.list(&ListParams::default().limit(1)).await {
+        match client.apiserver_version().await {
             Ok(_) => Ok(true),
+            Err(kube::Error::Api(ref status)) if status.code == 403 => {
+                // Unusual for /version, but server IS reachable
+                tracing::info!("Connection test: /version returned 403, but server is reachable");
+                Ok(true)
+            }
             Err(e) => {
                 tracing::warn!("Connection test failed: {}", e);
                 Ok(false)

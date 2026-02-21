@@ -6,5 +6,7 @@ export interface ClusterCardProps {
   isConnecting: boolean;
   disabled: boolean;
   onConnect: (context: string) => void;
+  onConfigureNamespaces: (context: string) => void;
   forwardsCount: number;
+  hasConfiguredNamespaces?: boolean;
 }

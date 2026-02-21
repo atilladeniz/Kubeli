@@ -1,5 +1,5 @@
 import { create } from "zustand";
-import type { Cluster, ConnectionStatus, HealthCheckResult } from "../types";
+import type { Cluster, ConnectionStatus, HealthCheckResult, NamespaceSource } from "../types";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import {
   listClusters,
@@ -10,6 +10,8 @@ import {
   checkConnectionHealth,
   watchNamespaces,
   stopWatch,
+  setClusterAccessibleNamespaces,
+  clearClusterSettings,
 } from "../tauri/commands";
 import { useResourceCacheStore } from "./resource-cache-store";
 import type { WatchEvent } from "../types";
@@ -27,6 +29,7 @@ interface ClusterState {
   /** @deprecated Use selectedNamespaces. Derived: single selected ns or "" */
   currentNamespace: string;
   namespaces: string[];
+  namespaceSource: NamespaceSource;
   isConnected: boolean;
   isLoading: boolean;
   error: string | null;
@@ -63,6 +66,10 @@ interface ClusterState {
   setCurrentNamespace: (namespace: string) => void;
   setError: (error: string | null) => void;
 
+  // Accessible namespace actions
+  saveAccessibleNamespaces: (context: string, namespaces: string[]) => Promise<void>;
+  clearAccessibleNamespaces: (context: string) => Promise<void>;
+
   // Namespace watch actions
   startNamespaceWatch: () => Promise<void>;
   stopNamespaceWatch: () => Promise<void>;
@@ -94,6 +101,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   selectedNamespaces: [],
   currentNamespace: "",
   namespaces: [],
+  namespaceSource: "none",
   isConnected: false,
   isLoading: false,
   error: null,
@@ -163,8 +171,11 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
           lastConnectionErrorMessage: null,
         });
         // Fetch namespaces after connecting, then start watch for live updates
-        get().fetchNamespaces();
-        get().startNamespaceWatch();
+        await get().fetchNamespaces();
+        // Only start namespace watch for auto-discovered namespaces (not configured)
+        if (get().namespaceSource === "auto") {
+          get().startNamespaceWatch();
+        }
         // Start health monitoring
         get().startHealthMonitoring();
       } else {
@@ -205,6 +216,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         isConnected: false,
         selectedNamespaces: [],
         namespaces: [],
+        namespaceSource: "none",
         error: null,
         isHealthy: false,
         latencyMs: null,
@@ -232,8 +244,11 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   fetchNamespaces: async () => {
     if (!get().isConnected) return;
     try {
-      const namespaces = await getNamespaces();
-      set({ namespaces });
+      const result = await getNamespaces();
+      set({
+        namespaces: result.namespaces,
+        namespaceSource: result.source as NamespaceSource,
+      });
     } catch (e) {
       console.error("Failed to fetch namespaces:", e);
     }
@@ -259,6 +274,28 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       lastConnectionErrorContext: error ? state.lastConnectionErrorContext : null,
       lastConnectionErrorMessage: error ? state.lastConnectionErrorMessage : null,
     })),
+
+  saveAccessibleNamespaces: async (context, namespaces) => {
+    await setClusterAccessibleNamespaces(context, namespaces);
+    // Stop any active namespace watch (configured namespaces are static)
+    await get().stopNamespaceWatch();
+    set({
+      namespaces,
+      namespaceSource: "configured",
+      selectedNamespaces: [],
+      currentNamespace: "",
+    });
+  },
+
+  clearAccessibleNamespaces: async (context) => {
+    await clearClusterSettings(context);
+    set({ namespaceSource: "none", namespaces: [], selectedNamespaces: [], currentNamespace: "" });
+    // Re-fetch namespaces via auto-discovery
+    await get().fetchNamespaces();
+    if (get().namespaceSource === "auto") {
+      get().startNamespaceWatch();
+    }
+  },
 
   startNamespaceWatch: async () => {
     // Stop any existing watch first
