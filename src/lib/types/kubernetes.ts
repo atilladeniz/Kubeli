@@ -12,6 +12,18 @@ export interface Cluster {
 
 export type AuthType = "certificate" | "token" | "exec" | "oidc" | "unknown";
 
+// Namespace source types
+export type NamespaceSource = "auto" | "configured" | "none";
+
+export interface NamespaceResult {
+  namespaces: string[];
+  source: NamespaceSource;
+}
+
+export interface ClusterSettings {
+  accessible_namespaces: string[];
+}
+
 export interface ConnectionStatus {
   connected: boolean;
   context: string | null;

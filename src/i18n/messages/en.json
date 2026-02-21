@@ -157,7 +157,19 @@
     "searchClustersPlaceholder": "Search clusters...",
     "noSearchResults": "No clusters found",
     "noSearchResultsHint": "No clusters matching \"{query}\". Try a different search term.",
-    "connecting": "Connecting..."
+    "connecting": "Connecting...",
+    "configureNamespaces": "Configure Namespaces",
+    "configureNamespacesDesc": "Enter the namespaces you have access to, one per line. Example: Your cluster admin gave you access to \"team-frontend\" and \"staging\" but not permission to list all namespaces.",
+    "namespacesPlaceholder": "team-a\nteam-b\nshared",
+    "namespacesConfigured": "configured",
+    "namespaceListingNotPermitted": "Namespace listing not permitted",
+    "configureAccessibleNamespaces": "Configure accessible namespaces",
+    "clearConfiguration": "Clear",
+    "configureNamespacesWhyTitle": "Why do I need this?",
+    "configureNamespacesWhy1": "Kubeli normally discovers all namespaces automatically. This works when your account has cluster-wide permissions.",
+    "configureNamespacesWhy2": "On some clusters, your admin only grants access to specific namespaces (e.g. \"team-frontend\", \"staging\") without permission to list all of them. In that case, Kubeli can't discover namespaces and shows an empty list.",
+    "configureNamespacesWhy3": "By entering your namespaces here, Kubeli skips the discovery step and directly uses the ones you specified. If you have full access, you don't need this.",
+    "invalidNamespaceWarning": "May not be a valid Kubernetes namespace name"
   },
   "workloads": {
     "overview": "Workloads Overview",

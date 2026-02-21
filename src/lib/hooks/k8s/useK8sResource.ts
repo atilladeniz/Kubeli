@@ -16,11 +16,12 @@ export function useK8sResource<T>(
   config: ResourceHookConfig<T>,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
-  const { isConnected, selectedNamespaces } = useClusterStore();
+  const { isConnected, selectedNamespaces, namespaceSource, namespaces: configuredNamespaces } = useClusterStore();
   const isMultiNs = !options.namespace && selectedNamespaces.length > 1;
+  const isConfiguredAllNs = namespaceSource === "configured" && !options.namespace && selectedNamespaces.length === 0;
   const namespace = options.namespace ?? (selectedNamespaces.length === 1 ? selectedNamespaces[0] : "");
   const { getCache, setCache } = useResourceCacheStore();
-  const cacheKey = `${config.displayName}:${options.namespace ?? (isMultiNs ? selectedNamespaces.slice().sort().join(",") : namespace)}`;
+  const cacheKey = `${config.displayName}:${options.namespace ?? (isConfiguredAllNs ? `configured:${configuredNamespaces.slice().sort().join(",")}` : isMultiNs ? selectedNamespaces.slice().sort().join(",") : namespace)}`;
 
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
@@ -40,6 +41,24 @@ export function useK8sResource<T>(
       if (config.clusterScoped) {
         // Cluster-scoped resources don't need namespace
         result = await config.listFn({});
+      } else if (isConfiguredAllNs && configuredNamespaces.length > 0) {
+        // Configured mode "All Namespaces": fetch each namespace individually
+        // to avoid 403 from Api::all() on RBAC-restricted clusters
+        const outcomes = await Promise.allSettled(
+          configuredNamespaces.map((ns) => config.listFn({ namespace: ns }))
+        );
+        result = [];
+        const errors: string[] = [];
+        outcomes.forEach((outcome, i) => {
+          if (outcome.status === "fulfilled") {
+            result.push(...outcome.value);
+          } else {
+            errors.push(`${configuredNamespaces[i]}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
+          }
+        });
+        if (errors.length > 0 && result.length === 0) {
+          throw new Error(`Failed to fetch ${config.displayName}: ${errors.join("; ")}`);
+        }
       } else if (isMultiNs) {
         // Multi-namespace: fetch all, then filter client-side
         result = await config.listFn({});
@@ -66,7 +85,7 @@ export function useK8sResource<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, namespace, isMultiNs, selectedNamespaces, config, cacheKey, setCache]);
+  }, [isConnected, namespace, isMultiNs, isConfiguredAllNs, configuredNamespaces, selectedNamespaces, config, cacheKey, setCache]);
 
   const startWatch = useCallback(async () => {
     if (!isConnected || watchId || !config.supportsWatch) return;
@@ -321,11 +340,12 @@ export function useOptionalNamespaceResource<T>(
   listFn: (namespace?: string) => Promise<T[]>,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
-  const { isConnected, selectedNamespaces } = useClusterStore();
+  const { isConnected, selectedNamespaces, namespaceSource, namespaces: configuredNamespaces } = useClusterStore();
   const isMultiNs = !options.namespace && selectedNamespaces.length > 1;
+  const isConfiguredAllNs = namespaceSource === "configured" && !options.namespace && selectedNamespaces.length === 0;
   const namespace = options.namespace ?? (selectedNamespaces.length === 1 ? selectedNamespaces[0] : "");
   const { getCache, setCache } = useResourceCacheStore();
-  const cacheKey = `${displayName}:${options.namespace ?? (isMultiNs ? selectedNamespaces.slice().sort().join(",") : namespace)}`;
+  const cacheKey = `${displayName}:${options.namespace ?? (isConfiguredAllNs ? `configured:${configuredNamespaces.slice().sort().join(",")}` : isMultiNs ? selectedNamespaces.slice().sort().join(",") : namespace)}`;
 
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
@@ -337,7 +357,24 @@ export function useOptionalNamespaceResource<T>(
     setError(null);
     try {
       let result: T[];
-      if (isMultiNs) {
+      if (isConfiguredAllNs && configuredNamespaces.length > 0) {
+        // Configured mode "All Namespaces": fetch each namespace individually
+        const outcomes = await Promise.allSettled(
+          configuredNamespaces.map((ns) => listFn(ns))
+        );
+        result = [];
+        const errors: string[] = [];
+        outcomes.forEach((outcome, i) => {
+          if (outcome.status === "fulfilled") {
+            result.push(...outcome.value);
+          } else {
+            errors.push(`${configuredNamespaces[i]}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
+          }
+        });
+        if (errors.length > 0 && result.length === 0) {
+          throw new Error(`Failed to fetch ${displayName}: ${errors.join("; ")}`);
+        }
+      } else if (isMultiNs) {
         // Multi-namespace: fetch all, then filter client-side
         result = await listFn(undefined);
         const nsSet = new Set(selectedNamespaces);
@@ -355,7 +392,7 @@ export function useOptionalNamespaceResource<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, namespace, isMultiNs, selectedNamespaces, listFn, displayName, cacheKey, setCache]);
+  }, [isConnected, namespace, isMultiNs, isConfiguredAllNs, configuredNamespaces, selectedNamespaces, listFn, displayName, cacheKey, setCache]);
 
   // Reset data from cache when cache key changes (e.g. namespace switch)
   useEffect(() => {

@@ -1,4 +1,4 @@
-import type { Cluster, ConnectionStatus, HealthCheckResult } from "../../types";
+import type { Cluster, ClusterSettings, ConnectionStatus, HealthCheckResult, NamespaceResult } from "../../types";
 
 import { invoke } from "./core";
 
@@ -27,8 +27,24 @@ export async function checkConnectionHealth(): Promise<HealthCheckResult> {
   return invoke<HealthCheckResult>("check_connection_health");
 }
 
-export async function getNamespaces(): Promise<string[]> {
-  return invoke<string[]>("get_namespaces");
+export async function getNamespaces(): Promise<NamespaceResult> {
+  return invoke<NamespaceResult>("get_namespaces");
+}
+
+// Cluster settings commands
+export async function getClusterSettings(context: string): Promise<ClusterSettings | null> {
+  return invoke<ClusterSettings | null>("get_cluster_settings", { context });
+}
+
+export async function setClusterAccessibleNamespaces(
+  context: string,
+  namespaces: string[]
+): Promise<void> {
+  return invoke("set_cluster_accessible_namespaces", { context, namespaces });
+}
+
+export async function clearClusterSettings(context: string): Promise<void> {
+  return invoke("clear_cluster_settings", { context });
 }
 
 export async function addCluster(kubeconfigContent: string): Promise<void> {

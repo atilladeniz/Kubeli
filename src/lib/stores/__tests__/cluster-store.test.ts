@@ -136,7 +136,7 @@ describe("ClusterStore", () => {
         context: "test-context",
         latency_ms: 50,
       });
-      mockGetNamespaces.mockResolvedValue(["default", "kube-system"]);
+      mockGetNamespaces.mockResolvedValue({ namespaces: ["default", "kube-system"], source: "auto" });
       mockCheckConnectionHealth.mockResolvedValue({ healthy: true, latency_ms: 50 });
       mockWatchNamespaces.mockResolvedValue(undefined);
 
@@ -159,7 +159,7 @@ describe("ClusterStore", () => {
         context: "test-context",
         latency_ms: 50,
       });
-      mockGetNamespaces.mockResolvedValue(["default"]);
+      mockGetNamespaces.mockResolvedValue({ namespaces: ["default"], source: "auto" });
       mockCheckConnectionHealth.mockResolvedValue({ healthy: true, latency_ms: 50 });
       mockWatchNamespaces.mockResolvedValue(undefined);
 
@@ -290,7 +290,7 @@ describe("ClusterStore", () => {
   describe("fetchNamespaces", () => {
     it("should fetch namespaces when connected", async () => {
       useClusterStore.setState({ isConnected: true });
-      mockGetNamespaces.mockResolvedValue(["default", "kube-system", "monitoring"]);
+      mockGetNamespaces.mockResolvedValue({ namespaces: ["default", "kube-system", "monitoring"], source: "auto" });
 
       await act(async () => {
         await useClusterStore.getState().fetchNamespaces();

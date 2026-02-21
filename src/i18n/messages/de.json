@@ -157,7 +157,19 @@
     "searchClustersPlaceholder": "Cluster suchen...",
     "noSearchResults": "Keine Cluster gefunden",
     "noSearchResultsHint": "Keine Cluster für \"{query}\" gefunden. Versuche einen anderen Suchbegriff.",
-    "connecting": "Verbinde..."
+    "connecting": "Verbinde...",
+    "configureNamespaces": "Namespaces konfigurieren",
+    "configureNamespacesDesc": "Geben Sie die Namespaces ein, auf die Sie Zugriff haben, einen pro Zeile. Beispiel: Ihr Cluster-Admin hat Ihnen Zugriff auf \"team-frontend\" und \"staging\" gegeben, aber keine Berechtigung, alle Namespaces aufzulisten.",
+    "namespacesPlaceholder": "team-a\nteam-b\nshared",
+    "namespacesConfigured": "konfiguriert",
+    "namespaceListingNotPermitted": "Namespace-Auflistung nicht erlaubt",
+    "configureAccessibleNamespaces": "Zugängliche Namespaces konfigurieren",
+    "clearConfiguration": "Zurücksetzen",
+    "configureNamespacesWhyTitle": "Wozu brauche ich das?",
+    "configureNamespacesWhy1": "Kubeli erkennt normalerweise alle Namespaces automatisch. Das funktioniert, wenn Ihr Konto clusterweite Berechtigungen hat.",
+    "configureNamespacesWhy2": "Auf manchen Clustern gewährt der Admin nur Zugriff auf bestimmte Namespaces (z.B. \"team-frontend\", \"staging\"), ohne die Berechtigung, alle aufzulisten. In dem Fall kann Kubeli keine Namespaces erkennen und zeigt eine leere Liste.",
+    "configureNamespacesWhy3": "Wenn Sie Ihre Namespaces hier eintragen, überspringt Kubeli die Erkennung und nutzt direkt die angegebenen. Bei vollem Zugriff brauchen Sie das nicht.",
+    "invalidNamespaceWarning": "Möglicherweise kein gültiger Kubernetes-Namespace-Name"
   },
   "workloads": {
     "overview": "Workloads-Übersicht",

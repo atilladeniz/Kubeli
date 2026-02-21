@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 use tauri::{command, AppHandle, State};
 use tauri_plugin_store::StoreExt;
 
+use super::cluster_settings::ClusterSettings;
+
 /// Cluster information returned to frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ClusterInfo {
@@ -336,18 +338,81 @@ pub async fn disconnect_cluster(_state: State<'_, AppState>) -> Result<(), Strin
     Ok(())
 }
 
-/// Get list of namespaces in the current cluster
+/// Namespace resolution result with source indicator
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NamespaceResult {
+    pub namespaces: Vec<String>,
+    /// "auto" = discovered from API, "configured" = from cluster settings, "none" = empty
+    pub source: String,
+}
+
+/// Get list of namespaces in the current cluster.
+/// Resolution order: configured namespaces → API discovery → fallback to configured on 403.
 #[command]
-pub async fn get_namespaces(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+pub async fn get_namespaces(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<NamespaceResult, String> {
     if !state.k8s.is_connected().await {
         return Err("Not connected to any cluster".to_string());
     }
 
-    state
-        .k8s
-        .list_namespaces()
-        .await
-        .map_err(|e| format!("Failed to list namespaces: {}", e))
+    let context = state.k8s.get_current_context().await.unwrap_or_default();
+
+    // Check configured namespaces first
+    let configured = load_configured_namespaces(&app, &context);
+
+    if !configured.is_empty() {
+        tracing::info!(
+            "Using {} configured namespaces for context '{}'",
+            configured.len(),
+            context
+        );
+        return Ok(NamespaceResult {
+            namespaces: configured,
+            source: "configured".to_string(),
+        });
+    }
+
+    // Try API discovery
+    match state.k8s.list_namespaces().await {
+        Ok(namespaces) => Ok(NamespaceResult {
+            namespaces,
+            source: "auto".to_string(),
+        }),
+        Err(e) => {
+            let err_str = format!("{}", e);
+            // Check if this is a 403 Forbidden (RBAC restriction)
+            if err_str.contains("403") || err_str.to_lowercase().contains("forbidden") {
+                tracing::info!(
+                    "Namespace listing forbidden for context '{}', RBAC restricted",
+                    context
+                );
+                // Return empty with "none" source — UI will prompt configuration
+                Ok(NamespaceResult {
+                    namespaces: vec![],
+                    source: "none".to_string(),
+                })
+            } else {
+                Err(format!("Failed to list namespaces: {}", e))
+            }
+        }
+    }
+}
+
+/// Load configured namespaces from the cluster settings store
+fn load_configured_namespaces(app: &AppHandle, context: &str) -> Vec<String> {
+    let store = match app.store("cluster-settings.json") {
+        Ok(s) => s,
+        Err(_) => return vec![],
+    };
+
+    match store.get(context) {
+        Some(value) => serde_json::from_value::<ClusterSettings>(value.clone())
+            .map(|s| s.accessible_namespaces)
+            .unwrap_or_default(),
+        None => vec![],
+    }
 }
 
 /// Add a new cluster from kubeconfig content

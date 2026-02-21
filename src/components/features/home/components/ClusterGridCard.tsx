@@ -1,5 +1,5 @@
 import { useTranslations } from "next-intl";
-import { CheckCircle2, ArrowRightLeft } from "lucide-react";
+import { CheckCircle2, ArrowRightLeft, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
@@ -19,7 +19,9 @@ export function ClusterGridCard({
   isConnecting,
   disabled,
   onConnect,
+  onConfigureNamespaces,
   forwardsCount,
+  hasConfiguredNamespaces,
 }: ClusterCardProps) {
   const t = useTranslations("cluster");
 
@@ -67,14 +69,29 @@ export function ClusterGridCard({
       <CardContent className="flex flex-1 flex-col space-y-3">
         <div className="text-sm text-muted-foreground">
           <p className="truncate">{cluster.server}</p>
-          <p className="text-xs text-muted-foreground/70">
-            {cluster.namespace || "default"} | {cluster.auth_type}
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+            <span>{cluster.namespace || "default"} | {cluster.auth_type}</span>
+            {hasConfiguredNamespaces && (
+              <Badge variant="outline" className="px-1 py-0 text-[9px] font-normal">
+                NS
+              </Badge>
+            )}
           </p>
         </div>
+        <div className="flex gap-2 mt-auto">
+        <Button
+          variant="outline"
+          size="icon"
+          className="shrink-0 size-9"
+          onClick={() => onConfigureNamespaces(cluster.context)}
+          title={t("configureNamespaces")}
+        >
+          <Settings2 className="size-4" />
+        </Button>
         <Button
           onClick={() => onConnect(cluster.context)}
           disabled={disabled}
-          className="mt-auto w-full"
+          className="flex-1"
           variant={isActive ? "secondary" : "default"}
         >
           {isConnecting ? (
@@ -88,6 +105,7 @@ export function ClusterGridCard({
             t("connect")
           )}
         </Button>
+        </div>
       </CardContent>
     </Card>
   );

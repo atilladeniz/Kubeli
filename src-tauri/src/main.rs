@@ -219,6 +219,10 @@ fn main() {
             commands::clusters::get_connection_status,
             commands::clusters::check_connection_health,
             commands::clusters::has_kubeconfig,
+            // Cluster settings commands
+            commands::cluster_settings::get_cluster_settings,
+            commands::cluster_settings::set_cluster_accessible_namespaces,
+            commands::cluster_settings::clear_cluster_settings,
             // Kubeconfig source commands
             commands::kubeconfig::get_kubeconfig_sources,
             commands::kubeconfig::set_kubeconfig_sources,

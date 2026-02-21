@@ -512,6 +512,13 @@ summary *,
   cursor: grabbing !important;
 }
 
+/* Text inputs inside interactive containers must keep text cursor */
+[data-state] input,
+[data-state] textarea,
+[data-state] [contenteditable="true"] {
+  cursor: text !important;
+}
+
 /* Disabled elements */
 [disabled],
 [disabled] *,

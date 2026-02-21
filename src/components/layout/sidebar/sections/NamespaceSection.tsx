@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Check, ChevronRight, ChevronsUpDown, Minus, X } from "lucide-react";
+import { Check, ChevronRight, ChevronsUpDown, Minus, Settings2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -32,12 +32,14 @@ export function NamespaceSection({
   isConnected,
   namespaces,
   selectedNamespaces,
+  namespaceSource,
   namespaceOpen,
   isNamespaceSectionOpen,
   setNamespaceOpen,
   setIsNamespaceSectionOpen,
   toggleNamespace,
   selectAllNamespaces,
+  onConfigureNamespaces,
 }: NamespaceSectionProps) {
   const t = useTranslations();
   const tCluster = useTranslations("cluster");
@@ -45,8 +47,36 @@ export function NamespaceSection({
   const [search, setSearch] = useState("");
   const popoverWasOpenRef = useRef(false);
 
-  if (!isConnected || namespaces.length === 0) {
+  if (!isConnected) {
     return null;
+  }
+
+  // Show configure prompt when connected but no namespaces available
+  if (namespaces.length === 0) {
+    return (
+      <>
+        <div className="p-3 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-muted-foreground">
+              {tCluster("namespace")}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground/70">
+            {tCluster("namespaceListingNotPermitted")}
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full text-xs"
+            onClick={onConfigureNamespaces}
+          >
+            <Settings2 className="mr-1.5 size-3.5" />
+            {tCluster("configureAccessibleNamespaces")}
+          </Button>
+        </div>
+        <Separator />
+      </>
+    );
   }
 
   const isAllSelected = selectedNamespaces.length === 0;
@@ -96,7 +126,14 @@ export function NamespaceSection({
                 }
               }}
             >
-              <span>{tCluster("namespace")}</span>
+              <span className="flex items-center gap-1.5">
+                {tCluster("namespace")}
+                {namespaceSource === "configured" && (
+                  <Badge variant="outline" className="px-1.5 py-0 text-[9px] font-normal text-muted-foreground">
+                    {tCluster("namespacesConfigured")}
+                  </Badge>
+                )}
+              </span>
               <span className="flex items-center gap-2">
                 {!isNamespaceSectionOpen && (
                   <Badge

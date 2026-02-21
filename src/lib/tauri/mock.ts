@@ -198,7 +198,7 @@ export function mockInvoke(command: string, payload?: Record<string, unknown>) {
     case "check_connection_health":
       return Promise.resolve(mockHealth);
     case "get_namespaces":
-      return Promise.resolve(mockNamespaces);
+      return Promise.resolve({ namespaces: mockNamespaces, source: "auto" });
     case "get_kubeconfig_sources":
       return Promise.resolve(mockKubeconfigSourcesConfig);
     case "list_kubeconfig_sources":
