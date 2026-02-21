@@ -215,13 +215,13 @@ async fn build_kubeconfig_for_connect(app: &AppHandle) -> Result<Kubeconfig, Str
 }
 
 /// Read and merge multiple kubeconfig files into a single kube-rs Kubeconfig.
+/// Uses `Kubeconfig::read_from` to correctly resolve relative certificate paths.
 /// Returns Err if no valid files could be parsed.
 fn merge_kubeconfig_files(files: &[std::path::PathBuf]) -> Result<Kubeconfig, String> {
-    let mut merged = Kubeconfig::default();
-    let mut found_any = false;
+    let mut merged: Option<Kubeconfig> = None;
 
     for file in files {
-        let content = match std::fs::read_to_string(file) {
+        let cfg = match Kubeconfig::read_from(file) {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!("Skipping kubeconfig {:?}: {}", file, e);
@@ -229,29 +229,15 @@ fn merge_kubeconfig_files(files: &[std::path::PathBuf]) -> Result<Kubeconfig, St
             }
         };
 
-        let cfg: Kubeconfig = match serde_yaml::from_str(&content) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!("Skipping invalid kubeconfig {:?}: {}", file, e);
-                continue;
-            }
-        };
-
-        if !found_any {
-            merged.current_context = cfg.current_context;
-            found_any = true;
-        }
-
-        merged.clusters.extend(cfg.clusters);
-        merged.auth_infos.extend(cfg.auth_infos);
-        merged.contexts.extend(cfg.contexts);
+        merged = Some(match merged {
+            Some(existing) => existing
+                .merge(cfg)
+                .map_err(|e| format!("Failed to merge kubeconfig {:?}: {}", file, e))?,
+            None => cfg,
+        });
     }
 
-    if !found_any {
-        return Err("No valid kubeconfig files could be parsed".to_string());
-    }
-
-    Ok(merged)
+    merged.ok_or_else(|| "No valid kubeconfig files could be parsed".to_string())
 }
 
 /// Connect to a cluster using a specific context
@@ -263,10 +249,22 @@ pub async fn connect_cluster(
 ) -> Result<ConnectionStatus, String> {
     tracing::info!("Connecting to cluster with context: {}", context);
 
+    // Resolve source_file for this context before building the merged kubeconfig
+    let source_file = load_kubeconfig_from_sources(&app).await.and_then(|cfg| {
+        cfg.contexts
+            .iter()
+            .find(|c| c.name == context)
+            .and_then(|c| c.source_file.clone())
+    });
+
     // Build merged kubeconfig from all configured sources
     let kubeconfig = build_kubeconfig_for_connect(&app).await?;
 
-    match state.k8s.init_with_context(&context, kubeconfig).await {
+    match state
+        .k8s
+        .init_with_context(&context, kubeconfig, source_file.as_deref())
+        .await
+    {
         Ok(_) => {
             // Test the connection with latency measurement
             let start = std::time::Instant::now();
