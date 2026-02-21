@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.43] - 2026-02-21
+
+- Fixed kubeconfig source path resolution for multi-file setups
+
 ## [0.3.42] - 2026-02-20
 
 - Added environment variables display in pod detail panel
