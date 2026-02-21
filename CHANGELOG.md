@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.44] - 2026-02-21
+
+- Added configurable accessible namespaces per cluster
+
 ## [0.3.43] - 2026-02-21
 
 - Fixed kubeconfig source path resolution for multi-file setups
