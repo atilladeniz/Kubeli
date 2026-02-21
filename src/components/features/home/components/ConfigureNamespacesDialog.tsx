@@ -59,8 +59,6 @@ export function ConfigureNamespacesDialog({
     if (open) {
       if (existingNamespaces && existingNamespaces.length > 0) {
         setInput(existingNamespaces.join("\n"));
-      } else if (defaultNamespace) {
-        setInput(defaultNamespace);
       } else {
         setInput("");
       }
@@ -103,10 +101,14 @@ export function ConfigureNamespacesDialog({
 
         <div className="space-y-3">
           <textarea
-            className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
+            className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono cursor-text placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-y"
             placeholder={t("namespacesPlaceholder")}
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            spellCheck={false}
+            autoCorrect="off"
+            autoCapitalize="off"
+            data-1p-ignore
           />
 
           {invalidNames.length > 0 && (

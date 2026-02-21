@@ -159,7 +159,7 @@
     "noSearchResultsHint": "No clusters matching \"{query}\". Try a different search term.",
     "connecting": "Connecting...",
     "configureNamespaces": "Configure Namespaces",
-    "configureNamespacesDesc": "Enter the namespaces you have access to, one per line. This is useful for RBAC-restricted clusters where namespace listing is not permitted.",
+    "configureNamespacesDesc": "Enter the namespaces you have access to, one per line. Example: Your cluster admin gave you access to \"team-frontend\" and \"staging\" but not permission to list all namespaces.",
     "namespacesPlaceholder": "team-a\nteam-b\nshared",
     "namespacesConfigured": "configured",
     "namespaceListingNotPermitted": "Namespace listing not permitted",
