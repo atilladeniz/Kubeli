@@ -384,3 +384,21 @@ impl Default for AppState {
         Self::new()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_path_hint_prefers_source_file() {
+        let hint = KubeClientManager::kubeconfig_path_hint(Some("/custom/path/cluster.yaml"));
+        assert_eq!(hint, Some("/custom/path/cluster.yaml".to_string()));
+    }
+
+    #[test]
+    fn test_path_hint_falls_back_without_source() {
+        let hint = KubeClientManager::kubeconfig_path_hint(None);
+        // Should return something (KUBECONFIG env or ~/.kube/config)
+        assert!(hint.is_some(), "must return a default path");
+    }
+}
