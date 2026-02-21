@@ -20,9 +20,16 @@ jest.mock("@/lib/stores/cluster-store", () => ({
 }));
 
 jest.mock("@/lib/stores/ui-store", () => ({
-  useUIStore: () => ({
-    setSettingsOpen: jest.fn(),
-  }),
+  useUIStore: (selector?: (state: Record<string, unknown>) => unknown) => {
+    const state = {
+      setSettingsOpen: jest.fn(),
+      openSettingsTab: jest.fn(),
+      settingsInitialTab: "appearance",
+      settings: { clusterViewLayout: "grid" },
+      updateSettings: jest.fn(),
+    };
+    return selector ? selector(state) : state;
+  },
 }));
 
 jest.mock("@/lib/hooks/usePortForward", () => ({
