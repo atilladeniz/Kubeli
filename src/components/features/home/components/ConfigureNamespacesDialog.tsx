@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, ChevronDown, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { cn } from "@/lib/utils";
 import {
   Dialog,
   DialogContent,
@@ -53,6 +59,7 @@ export function ConfigureNamespacesDialog({
   const tCommon = useTranslations("common");
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
 
   // Pre-fill textarea when dialog opens
   useEffect(() => {
@@ -98,6 +105,26 @@ export function ConfigureNamespacesDialog({
             {t("configureNamespacesDesc")}
           </DialogDescription>
         </DialogHeader>
+
+        <Collapsible open={helpOpen} onOpenChange={setHelpOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <HelpCircle className="size-3.5" />
+              <span>{t("configureNamespacesWhyTitle")}</span>
+              <ChevronDown className={cn("size-3 transition-transform", helpOpen && "rotate-180")} />
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <div className="mt-2 rounded-md bg-muted/50 p-3 text-xs text-muted-foreground space-y-2">
+              <p>{t("configureNamespacesWhy1")}</p>
+              <p>{t("configureNamespacesWhy2")}</p>
+              <p>{t("configureNamespacesWhy3")}</p>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
 
         <div className="space-y-3">
           <textarea

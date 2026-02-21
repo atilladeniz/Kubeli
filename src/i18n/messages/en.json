@@ -165,6 +165,10 @@
     "namespaceListingNotPermitted": "Namespace listing not permitted",
     "configureAccessibleNamespaces": "Configure accessible namespaces",
     "clearConfiguration": "Clear",
+    "configureNamespacesWhyTitle": "Why do I need this?",
+    "configureNamespacesWhy1": "Kubeli normally discovers all namespaces automatically. This works when your account has cluster-wide permissions.",
+    "configureNamespacesWhy2": "On some clusters, your admin only grants access to specific namespaces (e.g. \"team-frontend\", \"staging\") without permission to list all of them. In that case, Kubeli can't discover namespaces and shows an empty list.",
+    "configureNamespacesWhy3": "By entering your namespaces here, Kubeli skips the discovery step and directly uses the ones you specified. If you have full access, you don't need this.",
     "invalidNamespaceWarning": "May not be a valid Kubernetes namespace name"
   },
   "workloads": {
