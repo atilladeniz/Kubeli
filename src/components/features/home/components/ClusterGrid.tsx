@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Server,
@@ -48,6 +48,13 @@ export function ClusterGrid() {
     connect,
   } = useClusterStore();
   const { forwards } = usePortForward();
+
+  // Track whether the initial fetch has completed to avoid showing
+  // the empty state before we know if clusters exist
+  const hasFetchedRef = useRef(false);
+  if (!isLoading && !hasFetchedRef.current) {
+    hasFetchedRef.current = true;
+  }
 
   const searchLower = searchQuery.toLowerCase();
   const filteredClusters = clusters.filter(
@@ -132,7 +139,7 @@ export function ClusterGrid() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6">
-        {clusters.length === 0 && !isLoading ? (
+        {clusters.length === 0 && hasFetchedRef.current ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
