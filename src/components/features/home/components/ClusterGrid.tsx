@@ -1,20 +1,21 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Server,
   RefreshCw,
   Search,
   SearchX,
+  Settings,
   X,
   LayoutGrid,
   List,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   Empty,
+  EmptyContent,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
@@ -23,7 +24,6 @@ import {
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
-import { usePlatform } from "@/lib/hooks/usePlatform";
 import { ConnectionErrorAlert } from "./ConnectionErrorAlert";
 import { ClusterGridCard } from "./ClusterGridCard";
 import { ClusterListCard } from "./ClusterListCard";
@@ -37,6 +37,7 @@ export function ClusterGrid() {
   );
   const viewLayout = useUIStore((s) => s.settings.clusterViewLayout);
   const updateSettings = useUIStore((s) => s.updateSettings);
+  const openSettingsTab = useUIStore((s) => s.openSettingsTab);
 
   const {
     clusters,
@@ -47,10 +48,13 @@ export function ClusterGrid() {
     connect,
   } = useClusterStore();
   const { forwards } = usePortForward();
-  const { isWindows } = usePlatform();
-  const kubeconfigPath = isWindows
-    ? "C:\\Users\\<username>\\.kube\\config"
-    : "~/.kube/config";
+
+  // Track whether the initial fetch has completed to avoid showing
+  // the empty state before we know if clusters exist
+  const hasFetchedRef = useRef(false);
+  if (!isLoading && !hasFetchedRef.current) {
+    hasFetchedRef.current = true;
+  }
 
   const searchLower = searchQuery.toLowerCase();
   const filteredClusters = clusters.filter(
@@ -135,17 +139,27 @@ export function ClusterGrid() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6">
-        {clusters.length === 0 && !isLoading ? (
-          <Card className="text-center">
-            <CardContent className="py-12">
-              <Server className="mx-auto size-12 text-muted-foreground/50" />
-              <p className="mt-4 text-muted-foreground">{t("noClusters")}</p>
-              <p className="mt-1 text-sm text-muted-foreground/70">
-                {t("noClustersHint", { path: kubeconfigPath })}
-              </p>
-            </CardContent>
-          </Card>
-        ) : filteredClusters.length === 0 ? (
+        {clusters.length === 0 && hasFetchedRef.current ? (
+          <Empty>
+            <EmptyHeader>
+              <EmptyMedia variant="icon">
+                <Server className="size-5" />
+              </EmptyMedia>
+              <EmptyTitle>{t("noClusters")}</EmptyTitle>
+              <EmptyDescription>{t("noClustersHint")}</EmptyDescription>
+            </EmptyHeader>
+            <EmptyContent>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => openSettingsTab("kubeconfig")}
+              >
+                <Settings className="size-4" />
+                {t("noClustersConfigureButton")}
+              </Button>
+            </EmptyContent>
+          </Empty>
+        ) : filteredClusters.length === 0 && searchQuery.trim().length > 0 ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">

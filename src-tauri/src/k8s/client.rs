@@ -26,7 +26,11 @@ pub struct KubeClientManager {
 
 #[allow(dead_code)] // Some methods may be used in future features (e.g., Resource Detail Views, Settings)
 impl KubeClientManager {
-    fn kubeconfig_path_hint() -> Option<String> {
+    fn kubeconfig_path_hint(source_file: Option<&str>) -> Option<String> {
+        if let Some(source) = source_file {
+            return Some(source.to_string());
+        }
+
         if let Ok(path) = env::var("KUBECONFIG") {
             if !path.is_empty() {
                 return Some(path);
@@ -41,6 +45,7 @@ impl KubeClientManager {
     async fn persist_connection_log(
         &self,
         context_name: &str,
+        source_file: Option<&str>,
         mut steps: Vec<String>,
         error: Option<String>,
         duration_ms: Option<u128>,
@@ -60,7 +65,7 @@ impl KubeClientManager {
             std::env::consts::ARCH
         ));
 
-        if let Some(path) = Self::kubeconfig_path_hint() {
+        if let Some(path) = Self::kubeconfig_path_hint(source_file) {
             log.push_str(&format!("Kubeconfig Path: {}\n", path));
         } else {
             log.push_str("Kubeconfig Path: <unknown>\n");
@@ -124,6 +129,7 @@ impl KubeClientManager {
         &self,
         context_name: &str,
         kubeconfig: Kubeconfig,
+        source_file: Option<&str>,
     ) -> Result<()> {
         tracing::info!("Attempting to connect to context: {}", context_name);
         let attempt_start = Instant::now();
@@ -142,6 +148,7 @@ impl KubeClientManager {
                 steps.push(err_msg.clone());
                 self.persist_connection_log(
                     context_name,
+                    source_file,
                     steps,
                     Some(err_msg.clone()),
                     Some(attempt_start.elapsed().as_millis()),
@@ -218,6 +225,7 @@ impl KubeClientManager {
                 }
                 self.persist_connection_log(
                     context_name,
+                    source_file,
                     steps,
                     Some(err_msg.clone()),
                     Some(attempt_start.elapsed().as_millis()),
@@ -243,6 +251,7 @@ impl KubeClientManager {
                 steps.push(err_msg.clone());
                 self.persist_connection_log(
                     context_name,
+                    source_file,
                     steps,
                     Some(err_msg.clone()),
                     Some(attempt_start.elapsed().as_millis()),
@@ -259,6 +268,7 @@ impl KubeClientManager {
 
         self.persist_connection_log(
             context_name,
+            source_file,
             steps,
             None,
             Some(attempt_start.elapsed().as_millis()),
@@ -274,8 +284,14 @@ impl KubeClientManager {
 
     /// Switch to a different context
     #[allow(dead_code)] // May be used in future features (e.g., Resource Detail Views)
-    pub async fn switch_context(&self, context_name: &str, kubeconfig: Kubeconfig) -> Result<()> {
-        self.init_with_context(context_name, kubeconfig).await
+    pub async fn switch_context(
+        &self,
+        context_name: &str,
+        kubeconfig: Kubeconfig,
+        source_file: Option<&str>,
+    ) -> Result<()> {
+        self.init_with_context(context_name, kubeconfig, source_file)
+            .await
     }
 
     /// Get the current client
@@ -366,5 +382,23 @@ impl AppState {
 impl Default for AppState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_path_hint_prefers_source_file() {
+        let hint = KubeClientManager::kubeconfig_path_hint(Some("/custom/path/cluster.yaml"));
+        assert_eq!(hint, Some("/custom/path/cluster.yaml".to_string()));
+    }
+
+    #[test]
+    fn test_path_hint_falls_back_without_source() {
+        let hint = KubeClientManager::kubeconfig_path_hint(None);
+        // Should return something (KUBECONFIG env or ~/.kube/config)
+        assert!(hint.is_some(), "must return a default path");
     }
 }

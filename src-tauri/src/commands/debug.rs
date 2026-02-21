@@ -1,7 +1,7 @@
-use crate::k8s::{AppState, KubeConfig};
+use crate::k8s::{AppState, KubeConfig, KubeconfigSourceType};
 use serde::{Deserialize, Serialize};
 use std::env;
-use tauri::{command, State};
+use tauri::{command, AppHandle, State};
 
 /// Debug info for troubleshooting connection issues
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -40,9 +40,34 @@ pub struct EnvironmentInfo {
     pub path_contains_aws: bool,
 }
 
+/// Resolve the effective kubeconfig paths from configured sources
+fn resolve_kubeconfig_paths(app: &AppHandle) -> Vec<String> {
+    let sources_config = super::kubeconfig::load_sources_config(app);
+    let mut paths = Vec::new();
+
+    for source in &sources_config.sources {
+        let path = std::path::PathBuf::from(&source.path);
+        match source.source_type {
+            KubeconfigSourceType::File => {
+                if path.exists() {
+                    paths.push(source.path.clone());
+                }
+            }
+            KubeconfigSourceType::Folder => {
+                if path.is_dir() {
+                    paths.push(format!("{}/* (folder)", source.path));
+                }
+            }
+        }
+    }
+
+    paths
+}
+
 /// Export debug information for troubleshooting
 #[command]
 pub async fn export_debug_info(
+    app: AppHandle,
     state: State<'_, AppState>,
     failed_context: Option<String>,
     error_message: Option<String>,
@@ -53,13 +78,31 @@ pub async fn export_debug_info(
     let os = std::env::consts::OS.to_string();
     let arch = std::env::consts::ARCH.to_string();
 
-    // Get kubeconfig path
+    // Get kubeconfig path - use configured sources if available
     let home = env::var("HOME").unwrap_or_default();
     let kubeconfig_env = env::var("KUBECONFIG").ok();
-    let kubeconfig_path = kubeconfig_env
-        .clone()
-        .unwrap_or_else(|| format!("{}/.kube/config", home));
-    let kubeconfig_exists = std::path::Path::new(&kubeconfig_path).exists();
+
+    let configured_paths = resolve_kubeconfig_paths(&app);
+    let kubeconfig_path = if !configured_paths.is_empty() {
+        configured_paths.join(", ")
+    } else {
+        kubeconfig_env
+            .clone()
+            .unwrap_or_else(|| format!("{}/.kube/config", home))
+    };
+
+    // Check if any of the configured sources exist
+    let kubeconfig_exists = if !configured_paths.is_empty() {
+        configured_paths.iter().any(|p| {
+            let clean = p.trim_end_matches(" (folder)").trim_end_matches("/*");
+            std::path::Path::new(clean).exists()
+        })
+    } else {
+        let default_path = kubeconfig_env
+            .clone()
+            .unwrap_or_else(|| format!("{}/.kube/config", home));
+        std::path::Path::new(&default_path).exists()
+    };
 
     // Get PATH info for cloud CLIs
     let path = env::var("PATH").unwrap_or_default();
@@ -90,9 +133,17 @@ pub async fn export_debug_info(
         "Not connected".to_string()
     };
 
-    // Get context info
+    // Get context info - use configured sources if available
     let mut contexts = Vec::new();
-    if let Ok(kubeconfig) = KubeConfig::load().await {
+    let kubeconfig_result = {
+        let sources_config = super::kubeconfig::load_sources_config(&app);
+        if !sources_config.sources.is_empty() {
+            KubeConfig::load_from_sources(&sources_config.sources, sources_config.merge_mode).await
+        } else {
+            KubeConfig::load().await
+        }
+    };
+    if let Ok(kubeconfig) = kubeconfig_result {
         for ctx in &kubeconfig.contexts {
             let cluster = kubeconfig.get_cluster(&ctx.cluster);
             let user = kubeconfig.users.iter().find(|u| u.name == ctx.user);
@@ -172,11 +223,12 @@ pub async fn export_debug_info(
 /// Generate a debug log file content
 #[command]
 pub async fn generate_debug_log(
+    app: AppHandle,
     state: State<'_, AppState>,
     failed_context: Option<String>,
     error_message: Option<String>,
 ) -> Result<String, String> {
-    let debug_info = export_debug_info(state.clone(), failed_context, error_message).await?;
+    let debug_info = export_debug_info(app, state.clone(), failed_context, error_message).await?;
 
     let mut log = String::new();
     log.push_str("=== Kubeli Debug Log ===\n");

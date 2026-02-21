@@ -91,6 +91,7 @@ interface UIState {
 
   // Settings panel state
   isSettingsOpen: boolean;
+  settingsInitialTab: string;
 
   // AI panel state
   isAIAssistantOpen: boolean;
@@ -115,6 +116,7 @@ interface UIState {
   updateSettings: (settings: Partial<AppSettings>) => void;
   resetSettings: () => void;
   setSettingsOpen: (open: boolean) => void;
+  openSettingsTab: (tab: string) => void;
   setResolvedTheme: (theme: "light" | "dark" | "classic-dark") => void;
   setAIAssistantOpen: (open: boolean) => void;
   toggleAIAssistant: () => void;
@@ -142,6 +144,7 @@ export const useUIStore = create<UIState>()(
       settings: defaultSettings,
       resolvedTheme: "classic-dark",
       isSettingsOpen: false,
+      settingsInitialTab: "appearance",
       isAIAssistantOpen: false,
       pendingPodLogs: null,
       resourceDeleteTrigger: 0,
@@ -193,7 +196,11 @@ export const useUIStore = create<UIState>()(
         set({ settings: defaultSettings, resolvedTheme });
       },
 
-      setSettingsOpen: (open) => set({ isSettingsOpen: open }),
+      setSettingsOpen: (open) =>
+        set({ isSettingsOpen: open, ...(!open && { settingsInitialTab: "appearance" }) }),
+
+      openSettingsTab: (tab) =>
+        set({ isSettingsOpen: true, settingsInitialTab: tab }),
 
       setResolvedTheme: (theme) => set({ resolvedTheme: theme }),
 

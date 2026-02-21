@@ -215,13 +215,13 @@ async fn build_kubeconfig_for_connect(app: &AppHandle) -> Result<Kubeconfig, Str
 }
 
 /// Read and merge multiple kubeconfig files into a single kube-rs Kubeconfig.
+/// Uses `Kubeconfig::read_from` to correctly resolve relative certificate paths.
 /// Returns Err if no valid files could be parsed.
 fn merge_kubeconfig_files(files: &[std::path::PathBuf]) -> Result<Kubeconfig, String> {
-    let mut merged = Kubeconfig::default();
-    let mut found_any = false;
+    let mut merged: Option<Kubeconfig> = None;
 
     for file in files {
-        let content = match std::fs::read_to_string(file) {
+        let cfg = match Kubeconfig::read_from(file) {
             Ok(c) => c,
             Err(e) => {
                 tracing::warn!("Skipping kubeconfig {:?}: {}", file, e);
@@ -229,29 +229,15 @@ fn merge_kubeconfig_files(files: &[std::path::PathBuf]) -> Result<Kubeconfig, St
             }
         };
 
-        let cfg: Kubeconfig = match serde_yaml::from_str(&content) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!("Skipping invalid kubeconfig {:?}: {}", file, e);
-                continue;
-            }
-        };
-
-        if !found_any {
-            merged.current_context = cfg.current_context;
-            found_any = true;
-        }
-
-        merged.clusters.extend(cfg.clusters);
-        merged.auth_infos.extend(cfg.auth_infos);
-        merged.contexts.extend(cfg.contexts);
+        merged = Some(match merged {
+            Some(existing) => existing
+                .merge(cfg)
+                .map_err(|e| format!("Failed to merge kubeconfig {:?}: {}", file, e))?,
+            None => cfg,
+        });
     }
 
-    if !found_any {
-        return Err("No valid kubeconfig files could be parsed".to_string());
-    }
-
-    Ok(merged)
+    merged.ok_or_else(|| "No valid kubeconfig files could be parsed".to_string())
 }
 
 /// Connect to a cluster using a specific context
@@ -263,10 +249,22 @@ pub async fn connect_cluster(
 ) -> Result<ConnectionStatus, String> {
     tracing::info!("Connecting to cluster with context: {}", context);
 
+    // Resolve source_file for this context before building the merged kubeconfig
+    let source_file = load_kubeconfig_from_sources(&app).await.and_then(|cfg| {
+        cfg.contexts
+            .iter()
+            .find(|c| c.name == context)
+            .and_then(|c| c.source_file.clone())
+    });
+
     // Build merged kubeconfig from all configured sources
     let kubeconfig = build_kubeconfig_for_connect(&app).await?;
 
-    match state.k8s.init_with_context(&context, kubeconfig).await {
+    match state
+        .k8s
+        .init_with_context(&context, kubeconfig, source_file.as_deref())
+        .await
+    {
         Ok(_) => {
             // Test the connection with latency measurement
             let start = std::time::Instant::now();
@@ -542,5 +540,102 @@ users:
         let user_b = merged.auth_infos.iter().find(|u| u.name == "user-b");
         assert!(user_a.is_some(), "user-a must be findable");
         assert!(user_b.is_some(), "user-b must be findable");
+    }
+
+    #[test]
+    fn test_merge_duplicate_context_first_wins() {
+        let dir = tempfile::tempdir().unwrap();
+        let f1 = write_kubeconfig(dir.path(), "first.yaml", KUBECONFIG_A);
+        // Second file reuses context name "ctx-a" but with a different cluster
+        let duplicate = r#"
+apiVersion: v1
+kind: Config
+current-context: ctx-a
+clusters:
+- name: other-cluster
+  cluster:
+    server: https://other:6443
+contexts:
+- name: ctx-a
+  context:
+    cluster: other-cluster
+    user: other-user
+users:
+- name: other-user
+  user:
+    token: other-token
+"#;
+        let f2 = write_kubeconfig(dir.path(), "second.yaml", duplicate);
+
+        let merged = merge_kubeconfig_files(&[f1, f2]).unwrap();
+        // Only one context with name "ctx-a" (first file wins)
+        let matching: Vec<_> = merged
+            .contexts
+            .iter()
+            .filter(|c| c.name == "ctx-a")
+            .collect();
+        assert_eq!(matching.len(), 1);
+        // The cluster reference should be from the first file
+        assert_eq!(
+            matching[0].context.as_ref().unwrap().cluster,
+            "cluster-a",
+            "first file's cluster reference must win"
+        );
+    }
+
+    #[test]
+    fn test_merge_resolves_relative_cert_paths() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Write a CA file next to the kubeconfig
+        let ca_path = dir.path().join("ca.crt");
+        std::fs::write(&ca_path, "fake-ca-data").unwrap();
+
+        // Kubeconfig with relative certificate-authority path
+        let config_with_relative = r#"
+apiVersion: v1
+kind: Config
+clusters:
+- name: rel-cluster
+  cluster:
+    server: https://rel:6443
+    certificate-authority: ca.crt
+contexts:
+- name: rel-ctx
+  context:
+    cluster: rel-cluster
+    user: rel-user
+users:
+- name: rel-user
+  user:
+    token: rel-token
+"#;
+        let f = write_kubeconfig(dir.path(), "rel.yaml", config_with_relative);
+
+        let merged = merge_kubeconfig_files(&[f]).unwrap();
+        let cluster = merged
+            .clusters
+            .iter()
+            .find(|c| c.name == "rel-cluster")
+            .unwrap();
+        let ca = cluster
+            .cluster
+            .as_ref()
+            .unwrap()
+            .certificate_authority
+            .as_ref()
+            .unwrap();
+
+        // The relative path "ca.crt" must be resolved to an absolute path
+        assert!(
+            std::path::Path::new(ca).is_absolute(),
+            "certificate-authority must be resolved to absolute path, got: {}",
+            ca
+        );
+        assert!(
+            ca.ends_with("ca.crt"),
+            "resolved path must still point to ca.crt, got: {}",
+            ca
+        );
     }
 }

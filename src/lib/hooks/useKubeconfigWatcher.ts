@@ -4,7 +4,9 @@ import { getKubeconfigSources } from "../tauri/commands";
 
 /**
  * Watches configured kubeconfig source paths (files and folders) for filesystem changes.
- * Automatically refreshes the cluster list when kubeconfig files are added, modified, or removed.
+ * Also watches parent directories so that file renames, additions, and deletions are detected.
+ * Falls back to watching ~/.kube/ when no sources are configured.
+ * Automatically refreshes the cluster list when kubeconfig files change.
  */
 export function useKubeconfigWatcher() {
   const fetchClusters = useClusterStore((s) => s.fetchClusters);
@@ -24,17 +26,48 @@ export function useKubeconfigWatcher() {
 
     try {
       const { watch } = await import("@tauri-apps/plugin-fs");
+      const { homeDir } = await import("@tauri-apps/api/path");
       const config = await getKubeconfigSources();
-      const paths = config.sources.map((s) => s.path);
+      const sourcePaths = config.sources.map((s) => s.path);
 
-      if (paths.length === 0) return;
+      // Collect unique parent directories of file sources so we detect
+      // renames/additions in those directories (not just modifications)
+      const watchPaths = new Set<string>();
+
+      for (const source of config.sources) {
+        // Always watch the source itself (file or folder)
+        watchPaths.add(source.path);
+
+        // For file sources, also watch the parent directory
+        if (source.source_type === "file") {
+          const lastSep = Math.max(
+            source.path.lastIndexOf("/"),
+            source.path.lastIndexOf("\\"),
+          );
+          if (lastSep > 0) {
+            watchPaths.add(source.path.substring(0, lastSep));
+          }
+        }
+      }
+
+      // If no sources configured, watch the default ~/.kube/ directory
+      if (sourcePaths.length === 0) {
+        try {
+          const home = await homeDir();
+          watchPaths.add(`${home}.kube`);
+        } catch {
+          // homeDir may fail outside Tauri
+        }
+      }
+
+      if (watchPaths.size === 0) return;
 
       const unwatch = await watch(
-        paths,
+        Array.from(watchPaths),
         () => {
           fetchClusters();
         },
-        { recursive: false, delayMs: 2000 }
+        { recursive: false, delayMs: 2000 },
       );
 
       unwatchRef.current = unwatch;

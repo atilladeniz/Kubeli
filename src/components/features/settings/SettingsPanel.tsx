@@ -25,11 +25,19 @@ import {
 
 export function SettingsPanel() {
   const t = useTranslations("settings");
-  const { isSettingsOpen, setSettingsOpen } = useUIStore();
+  const { isSettingsOpen, setSettingsOpen, settingsInitialTab } = useUIStore();
+  const [activeTab, setActiveTab] = useState("appearance");
   const [appVersion, setAppVersion] = useState<string>("0.1.0");
 
   const aiCli = useAiCli(isSettingsOpen);
   const mcp = useMcpIdes(isSettingsOpen);
+
+  // Sync active tab when settings panel opens with a specific tab
+  useEffect(() => {
+    if (isSettingsOpen) {
+      setActiveTab(settingsInitialTab);
+    }
+  }, [isSettingsOpen, settingsInitialTab]);
 
   useEffect(() => {
     const getVersion = async () => {
@@ -56,7 +64,8 @@ export function SettingsPanel() {
         </DialogHeader>
 
         <Tabs
-          defaultValue="appearance"
+          value={activeTab}
+          onValueChange={setActiveTab}
           className="flex-1 flex flex-col min-h-0"
         >
           <TabsList className="shrink-0 w-full justify-start gap-1">
