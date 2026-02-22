@@ -253,15 +253,8 @@ function buildNodes(
         isHighlighted,
         isSelected,
       };
-    } else if (lodLevel === "low") {
-      nodeType = "dot";
-      data = {
-        name: node.name,
-        status: node.status,
-        isHighlighted,
-        isSelected,
-      };
     } else {
+      // Always use ResourceNode — contextual zoom handles compact vs full view
       nodeType = "resource";
       data = {
         name: node.name,
