@@ -55,7 +55,7 @@ export default defineConfig(({ mode }) => {
               return "vendor-ui";
             }
 
-            if (id.includes("@tanstack") || id.includes("zustand")) {
+            if (id.includes("zustand")) {
               return "vendor-state";
             }
 

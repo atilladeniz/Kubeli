@@ -1,6 +1,6 @@
 ---
 name: refactor
-description: Refactors code following Ousterhout's design principles. Analyzes complexity, creates prioritized refactoring plan, and executes with safety-first approach. Optimized for Next.js, Tauri/Rust, Zustand stack.
+description: Refactors code following Ousterhout's design principles. Analyzes complexity, creates prioritized refactoring plan, and executes with safety-first approach. Optimized for Vite/React, Tauri/Rust, Zustand stack.
 argument-hint: [file_or_directory_path]
 ---
 
@@ -12,7 +12,7 @@ You are a senior software architect performing strategic refactoring based on Jo
 
 ## Kubeli Tech Stack
 
-- **Frontend**: Next.js 16 (App Router), React 19, TypeScript
+- **Frontend**: Vite 7+, React 19, TypeScript
 - **Desktop**: Tauri 2.0 (Rust backend)
 - **State**: Zustand
 - **Styling**: Tailwind CSS
@@ -214,47 +214,37 @@ Every time you touch code:
 
 ## Phase 4: Stack-Specific Refactoring Patterns
 
-### Next.js App Router (Frontend)
+### Vite/React (Frontend)
 
-**Server/Client Component Separation:**
+**Component Organization:**
 
 ```typescript
-// BEFORE: Everything client-side
-'use client';
+// BEFORE: Monolithic component with mixed concerns
 export function PodList({ namespace }: Props) {
   const [pods, setPods] = useState([]);
+  const [filter, setFilter] = useState('');
   useEffect(() => { fetchPods().then(setPods); }, []);
-  return <ul>{pods.map(p => <PodItem pod={p} />)}</ul>;
+  return (
+    <div>
+      <input value={filter} onChange={e => setFilter(e.target.value)} />
+      <ul>{pods.filter(p => p.name.includes(filter)).map(p => <PodItem pod={p} />)}</ul>
+    </div>
+  );
 }
 
-// AFTER: Server component with client islands
-// app/pods/page.tsx (Server Component - no 'use client')
-export default async function PodsPage({ params }) {
-  const pods = await getPods(params.namespace); // Server-side fetch
-  return <PodList pods={pods} />;
-}
+// AFTER: Separate data from presentation, use Zustand
+// stores/resource-store.ts
+export const useResourceStore = create((set) => ({
+  pods: [],
+  fetchPods: async (ns) => { /* ... */ },
+}));
 
 // components/PodList.tsx
-'use client'; // Only interactive parts
-export function PodList({ pods }: { pods: Pod[] }) {
-  const [selected, setSelected] = useState<string | null>(null);
-  return <ul>{pods.map(p => <PodItem pod={p} selected={selected === p.id} />)}</ul>;
+export function PodList() {
+  const pods = useResourceStore(s => s.pods);
+  const [filter, setFilter] = useState('');
+  return <ul>{pods.filter(p => p.name.includes(filter)).map(p => <PodItem pod={p} />)}</ul>;
 }
-```
-
-**Route Group Organization:**
-
-```
-app/
-├── (dashboard)/           # Grouped routes share layout
-│   ├── layout.tsx         # Dashboard layout
-│   ├── pods/page.tsx
-│   ├── deployments/page.tsx
-│   └── services/page.tsx
-├── (settings)/            # Different layout group
-│   ├── layout.tsx
-│   └── preferences/page.tsx
-└── layout.tsx             # Root layout
 ```
 
 **Anti-Patterns to Fix:**
@@ -263,9 +253,8 @@ app/
 |-------|-------------|
 | Props drilling through 3+ levels | Use Zustand store or Context |
 | Giant `utils.ts` file | Split into logical modules in `lib/` |
-| Nested 5+ directories deep | Flatten with route groups |
-| `'use client'` on everything | Extract server components |
-| `getServerSideProps` (Pages Router) | Migrate to App Router fetch |
+| Inline Tauri `invoke()` calls | Centralize in `lib/tauri/commands/` |
+| State in components that should be global | Move to Zustand store |
 
 ---
 
@@ -1174,7 +1163,7 @@ For each P0/P1 item:
 
 ### Web Resources
 
-- [Next.js App Router Guides](https://nextjs.org/docs/app/guides)
+- [Vite Documentation](https://vite.dev/guide/)
 - [Rust Design Patterns](https://rust-unofficial.github.io/patterns/)
 - [Idiomatic Rust](https://github.com/mre/idiomatic-rust)
 - [Tauri Architecture](https://v2.tauri.app/concept/architecture/)

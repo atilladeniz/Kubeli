@@ -14,7 +14,7 @@ Your goal is to **fight complexity**. Complexity is defined as anything that mak
 
 This codebase uses:
 
-- **Frontend**: Next.js 16 (App Router), React, TypeScript
+- **Frontend**: Vite 7+, React 19, TypeScript
 - **Desktop**: Tauri 2.0 with Rust backend
 - **State**: Zustand stores
 - **Styling**: Tailwind CSS

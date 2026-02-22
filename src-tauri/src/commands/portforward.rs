@@ -1497,7 +1497,7 @@ mod tests {
         assert_eq!(resolve_service_target_port(&svc, &pod, 80), Some(0));
     }
 
-    /// Simulates Next.js: service port 80 → container port 3000
+    /// Simulates web app: service port 80 → container port 3000
     #[test]
     fn resolve_target_port_service_80_to_container_3000() {
         let svc = make_service(vec![(80, Some(IntOrString::Int(3000)))]);
@@ -1987,7 +1987,7 @@ mod tests {
     /// This is the core of the bug fix: frontend must receive target_port=3000, not 80.
     #[test]
     fn port_forward_info_carries_resolved_target_port() {
-        // Simulate: service port 80 → container port 3000 (Next.js scenario)
+        // Simulate: service port 80 → container port 3000 (web app scenario)
         let info = PortForwardInfo {
             forward_id: "svc-demo-frontend-svc-80-123".to_string(),
             namespace: "kubeli-demo".to_string(),
