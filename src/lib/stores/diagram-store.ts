@@ -29,7 +29,7 @@ interface DiagramState {
   visibleNodeTypes: Set<string>;
 
   // Actions
-  fetchGraph: (namespace?: string) => Promise<void>;
+  fetchGraph: (namespaces?: string[]) => Promise<void>;
   setNodePositionsAndSizes: (
     positions: Map<string, { x: number; y: number }>,
     sizes: Map<string, { width: number; height: number }>
@@ -56,10 +56,10 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   highlightedNodeIds: new Set(),
   visibleNodeTypes: new Set(ALL_NODE_TYPES),
 
-  fetchGraph: async (namespace?: string) => {
+  fetchGraph: async (namespaces?: string[]) => {
     set({ isLoading: true, error: null });
     try {
-      const data: GraphData = await generateResourceGraph(namespace);
+      const data: GraphData = await generateResourceGraph(namespaces ?? []);
 
       // Convert GraphNodes to DiagramNodes with initial positions (0,0)
       // Layout will be calculated by the Web Worker

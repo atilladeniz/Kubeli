@@ -25,7 +25,7 @@ const DEFAULT_EXTENT: [[number, number], [number, number]] = [
 export function useDiagramLayout(
   setNodes: (nodes: Node<FlowNodeData>[]) => void,
 ) {
-  const { currentNamespace, isConnected } = useClusterStore();
+  const { selectedNamespaces, isConnected } = useClusterStore();
   const {
     nodes: storeNodes,
     edges: storeEdges,
@@ -67,24 +67,24 @@ export function useDiagramLayout(
     layoutReadyRef.current = false;
     prevNodeCountRef.current = 0;
     prevEdgeCountRef.current = 0;
-    fetchGraph(currentNamespace || undefined);
-  }, [isConnected, currentNamespace, fetchGraph, setNodes]);
+    fetchGraph(selectedNamespaces);
+  }, [isConnected, selectedNamespaces, fetchGraph, setNodes]);
 
   // Initial fetch on mount + watch connection/namespace changes
   useEffect(() => {
-    const { isConnected: connected, currentNamespace: ns } =
+    const { isConnected: connected, selectedNamespaces: nsList } =
       useClusterStore.getState();
     if (connected && storeNodes.length === 0) {
-      fetchGraph(ns || undefined);
+      fetchGraph(nsList);
     }
 
-    let prevNs = ns;
+    let prevNsList = nsList;
     let prevConnected = connected;
 
     const unsub = useClusterStore.subscribe((state) => {
-      const nsChanged = state.currentNamespace !== prevNs;
+      const nsChanged = state.selectedNamespaces !== prevNsList;
       const connChanged = state.isConnected !== prevConnected;
-      prevNs = state.currentNamespace;
+      prevNsList = state.selectedNamespaces;
       prevConnected = state.isConnected;
 
       if (state.isConnected && (nsChanged || connChanged)) {
@@ -93,7 +93,7 @@ export function useDiagramLayout(
           layoutReadyRef.current = false;
           prevNodeCountRef.current = 0;
           prevEdgeCountRef.current = 0;
-          fetchGraph(state.currentNamespace || undefined);
+          fetchGraph(state.selectedNamespaces);
         });
       }
     });
