@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Server,
@@ -54,11 +54,42 @@ export function ClusterGrid() {
   const { forwards } = usePortForward();
 
   // Configure namespaces dialog state
-  const [configureNsOpen, setConfigureNsOpen] = useState(false);
-  const [configureNsContext, setConfigureNsContext] = useState("");
-  const [configureNsExisting, setConfigureNsExisting] = useState<string[] | undefined>();
-  // Track which contexts have configured namespaces
-  const [configuredContexts, setConfiguredContexts] = useState<Set<string>>(new Set());
+  type NsDialogState = {
+    open: boolean;
+    context: string;
+    existing: string[] | undefined;
+    configuredContexts: Set<string>;
+  };
+  type NsDialogAction =
+    | { type: "open"; context: string; existing: string[] | undefined }
+    | { type: "close" }
+    | { type: "setOpen"; open: boolean }
+    | { type: "addConfigured"; context: string }
+    | { type: "removeConfigured"; context: string }
+    | { type: "setConfigured"; contexts: Set<string> };
+
+  const [nsDialog, nsDialogDispatch] = useReducer(
+    (state: NsDialogState, action: NsDialogAction): NsDialogState => {
+      switch (action.type) {
+        case "open":
+          return { ...state, open: true, context: action.context, existing: action.existing };
+        case "close":
+          return { ...state, open: false };
+        case "setOpen":
+          return { ...state, open: action.open };
+        case "addConfigured":
+          return { ...state, configuredContexts: new Set(state.configuredContexts).add(action.context) };
+        case "removeConfigured": {
+          const next = new Set(state.configuredContexts);
+          next.delete(action.context);
+          return { ...state, configuredContexts: next };
+        }
+        case "setConfigured":
+          return { ...state, configuredContexts: action.contexts };
+      }
+    },
+    { open: false, context: "", existing: undefined, configuredContexts: new Set<string>() },
+  );
 
   // Load configured contexts on mount and when clusters change
   useEffect(() => {
@@ -75,35 +106,31 @@ export function ClusterGrid() {
           // Ignore errors
         }
       }
-      if (!cancelled) setConfiguredContexts(configured);
+      if (!cancelled) nsDialogDispatch({ type: "setConfigured", contexts: configured });
     }
     if (clusters.length > 0) loadConfigured();
     return () => { cancelled = true; };
   }, [clusters]);
 
   const handleConfigureNamespaces = useCallback(async (context: string) => {
+    let existing: string[] | undefined;
     try {
       const settings = await getClusterSettings(context);
-      setConfigureNsExisting(settings?.accessible_namespaces);
+      existing = settings?.accessible_namespaces;
     } catch {
-      setConfigureNsExisting(undefined);
+      existing = undefined;
     }
-    setConfigureNsContext(context);
-    setConfigureNsOpen(true);
+    nsDialogDispatch({ type: "open", context, existing });
   }, []);
 
   const handleSaveNamespaces = useCallback(async (context: string, namespaces: string[]) => {
     await saveAccessibleNamespaces(context, namespaces);
-    setConfiguredContexts((prev) => new Set(prev).add(context));
+    nsDialogDispatch({ type: "addConfigured", context });
   }, [saveAccessibleNamespaces]);
 
   const handleClearNamespaces = useCallback(async (context: string) => {
     await clearAccessibleNamespaces(context);
-    setConfiguredContexts((prev) => {
-      const next = new Set(prev);
-      next.delete(context);
-      return next;
-    });
+    nsDialogDispatch({ type: "removeConfigured", context });
   }, [clearAccessibleNamespaces]);
 
   // Track whether the initial fetch has completed to avoid showing
@@ -242,7 +269,6 @@ export function ClusterGrid() {
               const showForwards =
                 currentCluster?.context === cluster.context;
               const cardProps = {
-                key: cluster.id,
                 cluster,
                 isActive,
                 isConnecting: connectingContext === cluster.context,
@@ -250,12 +276,12 @@ export function ClusterGrid() {
                 onConnect: handleConnect,
                 onConfigureNamespaces: handleConfigureNamespaces,
                 forwardsCount: showForwards ? forwards.length : 0,
-                hasConfiguredNamespaces: configuredContexts.has(cluster.context),
+                hasConfiguredNamespaces: nsDialog.configuredContexts.has(cluster.context),
               };
               return viewLayout === "list" ? (
-                <ClusterListCard {...cardProps} />
+                <ClusterListCard key={cluster.id} {...cardProps} />
               ) : (
-                <ClusterGridCard {...cardProps} />
+                <ClusterGridCard key={cluster.id} {...cardProps} />
               );
             })}
           </div>
@@ -263,11 +289,11 @@ export function ClusterGrid() {
       </div>
 
       <ConfigureNamespacesDialog
-        open={configureNsOpen}
-        onOpenChange={setConfigureNsOpen}
-        context={configureNsContext}
-        defaultNamespace={clusters.find((c) => c.context === configureNsContext)?.namespace}
-        existingNamespaces={configureNsExisting}
+        open={nsDialog.open}
+        onOpenChange={(open) => nsDialogDispatch({ type: "setOpen", open })}
+        context={nsDialog.context}
+        defaultNamespace={clusters.find((c) => c.context === nsDialog.context)?.namespace}
+        existingNamespaces={nsDialog.existing}
         onSave={handleSaveNamespaces}
         onClear={handleClearNamespaces}
       />

@@ -1,7 +1,7 @@
 "use client"
 
-import React, { useMemo, useRef } from "react"
-import { motion, useInView, type UseInViewOptions } from "motion/react"
+import React, { useRef } from "react"
+import { m, useInView, useReducedMotion, LazyMotion, domAnimation, type UseInViewOptions } from "motion/react"
 
 import { cn } from "@/lib/utils"
 
@@ -48,17 +48,16 @@ export function ShimmeringText({
 }: ShimmeringTextProps) {
   const ref = useRef<HTMLSpanElement>(null)
   const isInView = useInView(ref, { once, margin: inViewMargin })
+  const prefersReducedMotion = useReducedMotion()
 
-  // Calculate dynamic spread based on text length
-  const dynamicSpread = useMemo(() => {
-    return text.length * spread
-  }, [text, spread])
+  const dynamicSpread = text.length * spread
 
   // Determine if we should start animation
-  const shouldAnimate = !startOnView || isInView
+  const shouldAnimate = !prefersReducedMotion && (!startOnView || isInView)
 
   return (
-    <motion.span
+    <LazyMotion features={domAnimation}>
+    <m.span
       ref={ref}
       className={cn(
         "relative inline-block bg-[length:250%_100%,auto] bg-clip-text text-transparent",
@@ -76,7 +75,7 @@ export function ShimmeringText({
           backgroundImage: `var(--shimmer-bg), linear-gradient(var(--base-color), var(--base-color))`,
         } as React.CSSProperties
       }
-      initial={{
+      initial={prefersReducedMotion ? { opacity: 1 } : {
         backgroundPosition: "100% center",
         opacity: 0,
       }}
@@ -103,6 +102,7 @@ export function ShimmeringText({
       }}
     >
       {text}
-    </motion.span>
+    </m.span>
+    </LazyMotion>
   )
 }

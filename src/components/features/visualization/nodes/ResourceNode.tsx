@@ -50,8 +50,6 @@ function ResourceNodeComponent({ data }: ResourceNodeProps) {
   const label = nodeLabels[nodeType] || nodeType;
   const statusColor = statusColors[status];
   const namespaceColor = getNamespaceColor(namespace);
-
-  // Truncate name if too long
   const displayName = name.length > 24 ? `${name.slice(0, 22)}...` : name;
 
   return (
@@ -80,7 +78,6 @@ function ResourceNodeComponent({ data }: ResourceNodeProps) {
             <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
               {label}
             </span>
-            {/* Ready status or replicas */}
             {(readyStatus || replicas) && (
               <span className="text-[10px] text-muted-foreground ml-auto tabular-nums">
                 {readyStatus || replicas}

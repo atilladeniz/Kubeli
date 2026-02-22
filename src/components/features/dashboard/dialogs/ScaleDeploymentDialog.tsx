@@ -114,7 +114,7 @@ export function ScaleDeploymentDialog({ state, onClose }: ScaleDeploymentDialogP
                   onChange={(e) => setNewReplicas(Math.max(0, parseInt(e.target.value) || 0))}
                   className="w-20 text-center [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
-                <Button variant="outline" size="icon" onClick={() => setNewReplicas(newReplicas + 1)}>
+                <Button variant="outline" size="icon" onClick={() => setNewReplicas((prev) => prev + 1)}>
                   <Plus className="size-4" />
                 </Button>
               </div>

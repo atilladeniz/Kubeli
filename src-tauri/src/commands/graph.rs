@@ -126,7 +126,7 @@ fn get_deployment_status(deployment: &Deployment) -> NodeStatus {
 #[command]
 pub async fn generate_resource_graph(
     state: State<'_, AppState>,
-    namespace: Option<String>,
+    namespaces: Vec<String>,
 ) -> Result<GraphData, String> {
     let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
 
@@ -142,47 +142,49 @@ pub async fn generate_resource_graph(
         HashMap::new();
 
     let list_params = ListParams::default();
+    let filter_ns = !namespaces.is_empty();
+    let ns_set: std::collections::HashSet<&str> = namespaces.iter().map(|s| s.as_str()).collect();
 
     // 1. Fetch Namespaces (top-level group nodes)
-    if namespace.is_none() {
-        let ns_api: Api<Namespace> = Api::all(client.clone());
-        if let Ok(ns_list) = ns_api.list(&list_params).await {
-            for ns in ns_list.items {
-                let name = ns.name_any();
-                let uid = ns.metadata.uid.clone().unwrap_or_default();
-                let id = format!("ns-{}", name);
-
-                ns_child_count.insert(id.clone(), 0);
-
-                nodes.push(GraphNode {
-                    id,
-                    uid,
-                    name,
-                    namespace: None,
-                    node_type: NodeType::Namespace,
-                    status: NodeStatus::Healthy,
-                    labels: btree_to_hashmap(ns.metadata.labels),
-                    parent_id: None,
-                    ready_status: None,
-                    replicas: None,
-                    is_group: true,
-                    child_count: None,
-                });
+    let ns_api: Api<Namespace> = Api::all(client.clone());
+    if let Ok(ns_list) = ns_api.list(&list_params).await {
+        for ns in ns_list.items {
+            let name = ns.name_any();
+            if filter_ns && !ns_set.contains(name.as_str()) {
+                continue;
             }
+            let uid = ns.metadata.uid.clone().unwrap_or_default();
+            let id = format!("ns-{}", name);
+
+            ns_child_count.insert(id.clone(), 0);
+
+            nodes.push(GraphNode {
+                id,
+                uid,
+                name,
+                namespace: None,
+                node_type: NodeType::Namespace,
+                status: NodeStatus::Healthy,
+                labels: btree_to_hashmap(ns.metadata.labels),
+                parent_id: None,
+                ready_status: None,
+                replicas: None,
+                is_group: true,
+                child_count: None,
+            });
         }
     }
 
     // 2. Fetch Deployments (nested group nodes inside namespaces)
-    let deployments: Api<Deployment> = if let Some(ref ns) = namespace {
-        Api::namespaced(client.clone(), ns)
-    } else {
-        Api::all(client.clone())
-    };
+    let deployments: Api<Deployment> = Api::all(client.clone());
 
     if let Ok(deployment_list) = deployments.list(&list_params).await {
         for deployment in deployment_list.items {
-            let name = deployment.name_any();
             let ns = deployment.namespace().unwrap_or_default();
+            if filter_ns && !ns_set.contains(ns.as_str()) {
+                continue;
+            }
+            let name = deployment.name_any();
             let uid = deployment.metadata.uid.clone().unwrap_or_default();
             let id = format!("deploy-{}-{}", ns, name);
 
@@ -211,14 +213,10 @@ pub async fn generate_resource_graph(
             // Initialize child count for this deployment
             deploy_child_count.insert(id.clone(), 0);
 
-            // Parent is the namespace (if not filtering by namespace)
-            let parent_id = if namespace.is_none() {
-                let ns_id = format!("ns-{}", ns);
-                *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
-                Some(ns_id)
-            } else {
-                None
-            };
+            // Parent is always the namespace group node
+            let ns_id = format!("ns-{}", ns);
+            *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
+            let parent_id = Some(ns_id);
 
             // Deployments are ALSO groups (they contain pods)
             nodes.push(GraphNode {
@@ -239,16 +237,15 @@ pub async fn generate_resource_graph(
     }
 
     // 3. Fetch Pods (leaf nodes inside deployments)
-    let pods: Api<Pod> = if let Some(ref ns) = namespace {
-        Api::namespaced(client.clone(), ns)
-    } else {
-        Api::all(client.clone())
-    };
+    let pods: Api<Pod> = Api::all(client.clone());
 
     if let Ok(pod_list) = pods.list(&list_params).await {
         for pod in pod_list.items {
-            let name = pod.name_any();
             let ns = pod.namespace().unwrap_or_default();
+            if filter_ns && !ns_set.contains(ns.as_str()) {
+                continue;
+            }
+            let name = pod.name_any();
             let uid = pod.metadata.uid.clone().unwrap_or_default();
             let id = format!("pod-{}-{}", ns, name);
 
@@ -278,16 +275,13 @@ pub async fn generate_resource_graph(
                 }
             }
 
-            // Parent is the deployment if found, otherwise the namespace
+            // Parent is the deployment if found, otherwise the namespace directly
             let parent_id = if let Some(deploy_id) = parent_deployment_id {
                 Some(deploy_id)
-            } else if namespace.is_none() {
-                // Orphan pod - parent is namespace directly
+            } else {
                 let ns_id = format!("ns-{}", ns);
                 *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
                 Some(ns_id)
-            } else {
-                None
             };
 
             nodes.push(GraphNode {

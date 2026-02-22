@@ -5,7 +5,7 @@ import { useDiagramStore, type LODLevel } from "../diagram-store";
 const mockGenerateResourceGraph = jest.fn();
 
 jest.mock("../../tauri/commands", () => ({
-  generateResourceGraph: (namespace?: string) => mockGenerateResourceGraph(namespace),
+  generateResourceGraph: (namespaces: string[]) => mockGenerateResourceGraph(namespaces),
 }));
 
 // Test data
@@ -75,14 +75,14 @@ describe("DiagramStore", () => {
       expect(state.error).toBeNull();
     });
 
-    it("should fetch graph for specific namespace", async () => {
+    it("should fetch graph for specific namespaces", async () => {
       mockGenerateResourceGraph.mockResolvedValue(mockGraphData);
 
       await act(async () => {
-        await useDiagramStore.getState().fetchGraph("kube-system");
+        await useDiagramStore.getState().fetchGraph(["kube-system"]);
       });
 
-      expect(mockGenerateResourceGraph).toHaveBeenCalledWith("kube-system");
+      expect(mockGenerateResourceGraph).toHaveBeenCalledWith(["kube-system"]);
     });
 
     it("should set loading state while fetching", async () => {
