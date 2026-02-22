@@ -150,7 +150,7 @@ export function useDiagramLayout(
       maxY = -Infinity;
 
     for (const node of flowNodes) {
-      if (!node.parentId && (node.position.x !== 0 || node.position.y !== 0)) {
+      if (!node.parentId) {
         const w = (node.style?.width as number) || 200;
         const h = (node.style?.height as number) || 100;
         minX = Math.min(minX, node.position.x);
@@ -178,13 +178,7 @@ export function useDiagramLayout(
   // Sync flow nodes to React Flow after layout
   useEffect(() => {
     if (layoutReadyRef.current && flowNodes.length > 0) {
-      const topLevel = flowNodes.filter((n) => !n.parentId);
-      const valid = topLevel.some(
-        (n) => n.position.x !== 0 || n.position.y !== 0,
-      );
-      if (valid || topLevel.length === 0) {
-        setNodes(flowNodes);
-      }
+      setNodes(flowNodes);
     } else if (flowNodes.length === 0) {
       setNodes([]);
     }
