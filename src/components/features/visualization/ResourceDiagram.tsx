@@ -348,9 +348,6 @@ function ResourceDiagramInner() {
     selectedNodeId,
   ]);
 
-  // No edges - sub-flows provide visual grouping
-  const flowEdges = useMemo(() => [], []);
-
   // Calculate translate extent to limit panning based on node positions
   // Updates cached value when layout is ready with valid positions
   useEffect(() => {
@@ -418,10 +415,6 @@ function ResourceDiagramInner() {
     }
     // Keep showing old nodes while new layout is calculating
   }, [flowNodes, setNodes, layoutCalculated]);
-
-  useEffect(() => {
-    setEdges(flowEdges);
-  }, [flowEdges, setEdges]);
 
   // Handle search
   const handleSearch = useCallback(

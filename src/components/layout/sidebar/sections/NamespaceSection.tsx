@@ -159,6 +159,7 @@ export function NamespaceSection({
                   variant="outline"
                   role="combobox"
                   aria-expanded={namespaceOpen}
+                  aria-controls="namespace-listbox"
                   className="w-full justify-between"
                 >
                   {isSingleSelected ? (
@@ -217,7 +218,7 @@ export function NamespaceSection({
                 className="min-w-(--radix-popover-trigger-width) p-0"
                 align="start"
               >
-                <Command>
+                <Command id="namespace-listbox">
                   <div className="relative">
                     <CommandInput
                       placeholder={`${t("common.search")}...`}

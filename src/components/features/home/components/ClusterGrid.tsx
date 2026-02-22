@@ -242,7 +242,6 @@ export function ClusterGrid() {
               const showForwards =
                 currentCluster?.context === cluster.context;
               const cardProps = {
-                key: cluster.id,
                 cluster,
                 isActive,
                 isConnecting: connectingContext === cluster.context,
@@ -253,9 +252,9 @@ export function ClusterGrid() {
                 hasConfiguredNamespaces: configuredContexts.has(cluster.context),
               };
               return viewLayout === "list" ? (
-                <ClusterListCard {...cardProps} />
+                <ClusterListCard key={cluster.id} {...cardProps} />
               ) : (
-                <ClusterGridCard {...cardProps} />
+                <ClusterGridCard key={cluster.id} {...cardProps} />
               );
             })}
           </div>
