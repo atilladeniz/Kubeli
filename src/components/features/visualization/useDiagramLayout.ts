@@ -70,10 +70,16 @@ export function useDiagramLayout(
     fetchGraph(currentNamespace || undefined);
   }, [isConnected, currentNamespace, fetchGraph, setNodes]);
 
-  // Watch connection/namespace changes via Zustand subscribe
+  // Initial fetch on mount + watch connection/namespace changes
   useEffect(() => {
-    let prevNs = currentNamespace;
-    let prevConnected = isConnected;
+    const { isConnected: connected, currentNamespace: ns } =
+      useClusterStore.getState();
+    if (connected && storeNodes.length === 0) {
+      fetchGraph(ns || undefined);
+    }
+
+    let prevNs = ns;
+    let prevConnected = connected;
 
     const unsub = useClusterStore.subscribe((state) => {
       const nsChanged = state.currentNamespace !== prevNs;
@@ -93,7 +99,8 @@ export function useDiagramLayout(
     });
 
     return unsub;
-  }, [fetchGraph, setNodes]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only on mount
+  }, []);
 
   // Calculate layout when store nodes change
   useEffect(() => {
