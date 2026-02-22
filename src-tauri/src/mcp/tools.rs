@@ -9,7 +9,7 @@ use kube::ResourceExt;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeRequestParams,
     InitializeResult, ListToolsResult, PaginatedRequestParams, ProtocolVersion, ServerCapabilities,
-    ServerInfo, Tool, ToolsCapability,
+    ServerInfo, Tool, ToolAnnotations, ToolsCapability,
 };
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler};
@@ -189,6 +189,10 @@ impl KubeliMcpServer {
         }
     }
 
+    fn read_only_annotations() -> Option<ToolAnnotations> {
+        Some(ToolAnnotations::new().read_only(true))
+    }
+
     fn get_tools() -> Vec<Tool> {
         vec![
             Tool {
@@ -209,7 +213,7 @@ impl KubeliMcpServer {
                 .expect("json object")
                 .into(),
                 output_schema: None,
-                annotations: None,
+                annotations: Self::read_only_annotations(),
                 execution: None,
                 icons: None,
                 meta: None,
@@ -232,7 +236,7 @@ impl KubeliMcpServer {
                 .expect("json object")
                 .into(),
                 output_schema: None,
-                annotations: None,
+                annotations: Self::read_only_annotations(),
                 execution: None,
                 icons: None,
                 meta: None,
@@ -255,7 +259,7 @@ impl KubeliMcpServer {
                 .expect("json object")
                 .into(),
                 output_schema: None,
-                annotations: None,
+                annotations: Self::read_only_annotations(),
                 execution: None,
                 icons: None,
                 meta: None,
@@ -299,7 +303,7 @@ impl KubeliMcpServer {
                 .expect("json object")
                 .into(),
                 output_schema: None,
-                annotations: None,
+                annotations: Self::read_only_annotations(),
                 execution: None,
                 icons: None,
                 meta: None,
@@ -317,7 +321,7 @@ impl KubeliMcpServer {
                 .expect("json object")
                 .into(),
                 output_schema: None,
-                annotations: None,
+                annotations: Self::read_only_annotations(),
                 execution: None,
                 icons: None,
                 meta: None,
@@ -335,7 +339,7 @@ impl KubeliMcpServer {
                 .expect("json object")
                 .into(),
                 output_schema: None,
-                annotations: None,
+                annotations: Self::read_only_annotations(),
                 execution: None,
                 icons: None,
                 meta: None,
@@ -366,7 +370,7 @@ impl KubeliMcpServer {
                 .expect("json object")
                 .into(),
                 output_schema: None,
-                annotations: None,
+                annotations: Self::read_only_annotations(),
                 execution: None,
                 icons: None,
                 meta: None,
@@ -398,7 +402,7 @@ impl KubeliMcpServer {
                 .expect("json object")
                 .into(),
                 output_schema: None,
-                annotations: None,
+                annotations: Self::read_only_annotations(),
                 execution: None,
                 icons: None,
                 meta: None,
