@@ -118,40 +118,46 @@ The system SHALL support common resource actions.
 ## IPC Commands
 
 ```typescript
-invoke('resource:list', {
-  resource_type: string,
-  namespace?: string
-}): Promise<K8sResource[]>
+invoke('list_pods', {
+  options?: {
+    namespace?: string,
+    label_selector?: string,
+    field_selector?: string,
+    limit?: number
+  }
+}): Promise<PodInfo[]>
 
-invoke('resource:get', {
-  resource_type: string,
+invoke('list_deployments', {
+  options?: {
+    namespace?: string,
+    label_selector?: string,
+    field_selector?: string,
+    limit?: number
+  }
+}): Promise<DeploymentInfo[]>
+
+invoke('get_resource_yaml', {
+  resourceType: string,
   name: string,
   namespace?: string
-}): Promise<K8sResource>
+}): Promise<ResourceYaml>
 
-invoke('resource:create', {
-  resource_type: string,
-  yaml: string
-}): Promise<void>
-
-invoke('resource:update', {
-  resource_type: string,
-  name: string,
-  yaml: string
-}): Promise<void>
-
-invoke('resource:delete', {
-  resource_type: string,
-  name: string,
-  namespace?: string
-}): Promise<void>
-
-invoke('resource:watch', {
-  resource_type: string,
-  namespace?: string
+invoke('apply_resource_yaml', {
+  yamlContent: string
 }): Promise<string>
 
-invoke('resource:unwatch', { watch_id: string }): Promise<void>
+invoke('delete_resource', {
+  resourceType: string,
+  name: string,
+  namespace?: string
+}): Promise<void>
+
+invoke('watch_pods', {
+  watchId: string,
+  namespace?: string
+}): Promise<void>
+
+invoke('stop_watch', { watchId: string }): Promise<void>
 ```
 
 ## Data Model

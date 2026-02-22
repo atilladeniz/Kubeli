@@ -230,11 +230,15 @@ The system SHALL handle errors for individual configured namespaces independentl
 ## IPC Commands
 
 ```typescript
-invoke('cluster:list'): Promise<Cluster[]>
-invoke('cluster:add', { kubeconfig: string }): Promise<void>
-invoke('cluster:remove', { id: string }): Promise<void>
-invoke('cluster:switch_context', { context: string }): Promise<void>
-invoke('cluster:get_namespaces'): Promise<string[]>
+invoke('list_clusters'): Promise<Cluster[]>
+invoke('add_cluster', { kubeconfigContent: string }): Promise<void>
+invoke('remove_cluster', { context: string }): Promise<void>
+invoke('switch_context', { context: string }): Promise<ConnectionStatus>
+invoke('connect_cluster', { context: string }): Promise<ConnectionStatus>
+invoke('disconnect_cluster'): Promise<void>
+invoke('get_connection_status'): Promise<ConnectionStatus>
+invoke('check_connection_health'): Promise<HealthCheckResult>
+invoke('get_namespaces'): Promise<NamespaceResult>
 ```
 
 ## Data Model

@@ -22,8 +22,8 @@ Keep this managed block so 'openspec update' can refresh the instructions.
 ## Project Overview
 
 Kubeli is a modern Kubernetes management desktop application built with:
-- **Frontend**: Next.js 16 (App Router, Turbopack)
-- **Desktop**: Tauri 2.0 (Rust backend)
+- **Frontend**: Vite + React 19
+- **Desktop**: Tauri 2.9 (Rust backend)
 - **State**: Zustand
 - **Styling**: Tailwind CSS
 - **K8s Client**: kube-rs (Rust)
@@ -31,7 +31,7 @@ Kubeli is a modern Kubernetes management desktop application built with:
 ## Quick Start
 
 ```bash
-# Development (Tauri + Next.js)
+# Development (Tauri + Vite)
 make dev
 
 # Web only development
@@ -48,7 +48,7 @@ make build
 | Command | Description |
 |---------|-------------|
 | `make dev` | Start Tauri development environment |
-| `make web-dev` | Start Next.js only (no Tauri) |
+| `make web-dev` | Start Vite only (no Tauri) |
 | `make build` | Build production Tauri app (macOS) |
 | `make build-windows` | Cross-compile Windows NSIS installer from macOS |
 | `make build-all` | Build both macOS and Windows installers |
@@ -74,10 +74,10 @@ make build
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start Next.js dev server |
+| `npm run dev` | Start Vite dev server |
 | `npm run tauri:dev` | Start Tauri dev environment |
 | `npm run tauri:build` | Build Tauri app |
-| `npm run build` | Build Next.js |
+| `npm run build` | Build Vite app |
 | `npm run lint` | Run ESLint |
 | `npm run typecheck` | TypeScript checking |
 
@@ -96,8 +96,9 @@ cargo clippy     # Lint
 
 ```
 Kubeli/
-├── src/                    # Next.js frontend
-│   ├── app/                # App Router pages
+├── src/                    # Vite frontend
+│   ├── App.tsx
+│   ├── main.tsx
 │   ├── components/         # React components
 │   └── lib/
 │       ├── stores/         # Zustand stores
@@ -254,7 +255,7 @@ Combines Ousterhout principles with Clean Code (Robert Martin) smells. Includes:
 
 - **Phase 1-2**: Analysis + Safety checklist (tests, git state)
 - **Phase 3**: Clean Code smells (F1-F4, G1-G36, N1-N7, T1-T9)
-- **Phase 4**: Stack-specific patterns (Next.js, Zustand, Tauri/Rust)
+- **Phase 4**: Stack-specific patterns (Vite/React, Zustand, Tauri/Rust)
 - **Phase 5-6**: Workflow + Prioritization
 
 Key rules enforced:

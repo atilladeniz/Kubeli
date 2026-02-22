@@ -26,7 +26,7 @@ However, we do not tolerate **Vibe Coding** (flying blind). If you use AI to gen
 - Use Zustand stores from `src/lib/stores/` for state management
 - Use Tauri commands via `src/lib/tauri/commands.ts` for backend communication
 - Follow our Tailwind CSS patterns with `clsx` and `class-variance-authority`
-- Use TanStack Query for async data fetching where appropriate
+- Follow existing async data patterns via feature hooks and cache stores (avoid introducing parallel state approaches without need)
 
 ### 3. Transparency
 
