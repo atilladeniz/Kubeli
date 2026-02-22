@@ -62,6 +62,58 @@ struct EventSummary {
     last_seen: Option<String>,
 }
 
+/// Smart response: pod list with health-focused summary
+#[derive(Debug, Serialize)]
+struct PodListResponse {
+    summary: PodListSummary,
+    problem_pods: Vec<PodSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    healthy_pod_names: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize)]
+struct PodListSummary {
+    total: usize,
+    running: usize,
+    succeeded: usize,
+    pending: usize,
+    failed: usize,
+    unknown: usize,
+    showing: String,
+}
+
+/// Smart response: deployment list with health summary
+#[derive(Debug, Serialize)]
+struct DeploymentListResponse {
+    summary: DeploymentListSummary,
+    degraded: Vec<DeploymentSummary>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    healthy_names: Option<Vec<String>>,
+}
+
+#[derive(Debug, Serialize)]
+struct DeploymentListSummary {
+    total: usize,
+    healthy: usize,
+    degraded: usize,
+    showing: String,
+}
+
+/// Smart response: event list with filtering summary
+#[derive(Debug, Serialize)]
+struct EventListResponse {
+    summary: EventListSummary,
+    events: Vec<EventSummary>,
+}
+
+#[derive(Debug, Serialize)]
+struct EventListSummary {
+    total_matched: usize,
+    showing: usize,
+    event_type_filter: String,
+    time_window: String,
+}
+
 /// Kubeli MCP Server with Kubernetes tools
 #[derive(Clone)]
 pub struct KubeliMcpServer {
@@ -103,12 +155,46 @@ impl KubeliMcpServer {
         }
     }
 
+    /// Strip managedFields and last-applied-configuration from resource JSON.
+    /// Reduces token usage when sending YAML to the AI.
+    fn strip_verbose_metadata(value: &mut serde_json::Value) {
+        if let Some(metadata) = value.get_mut("metadata").and_then(|m| m.as_object_mut()) {
+            metadata.remove("managedFields");
+            if let Some(annotations) = metadata
+                .get_mut("annotations")
+                .and_then(|a| a.as_object_mut())
+            {
+                annotations.remove("kubectl.kubernetes.io/last-applied-configuration");
+            }
+        }
+    }
+
+    /// Check if a pod is healthy (Running/Succeeded, all containers ready, restarts < 10)
+    fn is_pod_healthy(pod: &Pod) -> bool {
+        let status = match pod.status.as_ref() {
+            Some(s) => s,
+            None => return false,
+        };
+        let phase = status.phase.as_deref().unwrap_or("Unknown");
+        if phase != "Running" && phase != "Succeeded" {
+            return false;
+        }
+        if let Some(container_statuses) = &status.container_statuses {
+            let all_ready = container_statuses.iter().all(|c| c.ready);
+            let total_restarts: i32 = container_statuses.iter().map(|c| c.restart_count).sum();
+            all_ready && total_restarts < 10
+        } else {
+            // No container statuses — consider healthy if Succeeded
+            phase == "Succeeded"
+        }
+    }
+
     fn get_tools() -> Vec<Tool> {
         vec![
             Tool {
                 name: "get_pods".into(),
                 title: Some("Get Pods".into()),
-                description: Some("List Kubernetes pods. Optionally filter by namespace.".into()),
+                description: Some("List pods with health-focused summary. Returns counts + ONLY problem pods in detail. Healthy pods are counted but not listed in detail. Use namespace filter to scope results.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -131,9 +217,7 @@ impl KubeliMcpServer {
             Tool {
                 name: "get_deployments".into(),
                 title: Some("Get Deployments".into()),
-                description: Some(
-                    "List Kubernetes deployments. Optionally filter by namespace.".into(),
-                ),
+                description: Some("List deployments with health summary. Returns total/healthy/degraded counts + ONLY degraded deployments in detail. Healthy deployments are listed by name only.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -156,9 +240,7 @@ impl KubeliMcpServer {
             Tool {
                 name: "get_services".into(),
                 title: Some("Get Services".into()),
-                description: Some(
-                    "List Kubernetes services. Optionally filter by namespace.".into(),
-                ),
+                description: Some("List Kubernetes services with type, ports, and cluster IP. Limited to 200 results. Use namespace filter to scope.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -181,7 +263,7 @@ impl KubeliMcpServer {
             Tool {
                 name: "get_logs".into(),
                 title: Some("Get Pod Logs".into()),
-                description: Some("Get logs from a Kubernetes pod.".into()),
+                description: Some("Get logs from a Kubernetes pod. Defaults to the last 200 lines. For investigating issues, start with the default. If you need more context, use since_seconds (e.g., 3600 for last hour). Use previous=true for crashed container logs.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -199,7 +281,15 @@ impl KubeliMcpServer {
                         },
                         "tail_lines": {
                             "type": "integer",
-                            "description": "Number of lines to return from the end of the logs."
+                            "description": "Number of lines to return from the end of the logs. Defaults to 200 if neither tail_lines nor since_seconds is set."
+                        },
+                        "since_seconds": {
+                            "type": "integer",
+                            "description": "Return logs from the last N seconds (e.g., 3600 for last hour). Takes priority over tail_lines when both are set."
+                        },
+                        "previous": {
+                            "type": "boolean",
+                            "description": "If true, return logs from the previous terminated container instance. Useful for investigating crashes."
                         }
                     },
                     "required": ["namespace", "pod_name"]
@@ -217,7 +307,7 @@ impl KubeliMcpServer {
             Tool {
                 name: "get_namespaces".into(),
                 title: Some("Get Namespaces".into()),
-                description: Some("List all Kubernetes namespaces.".into()),
+                description: Some("List all Kubernetes namespaces. Lightweight call — use first to discover available namespaces before scoping other queries.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {}
@@ -235,9 +325,7 @@ impl KubeliMcpServer {
             Tool {
                 name: "get_cluster_info".into(),
                 title: Some("Get Cluster Info".into()),
-                description: Some(
-                    "Get information about the connected Kubernetes cluster.".into(),
-                ),
+                description: Some("Get Kubernetes cluster version, node count, and namespace count. Use as a starting point before diving into specifics.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {}
@@ -255,13 +343,21 @@ impl KubeliMcpServer {
             Tool {
                 name: "get_events".into(),
                 title: Some("Get Events".into()),
-                description: Some("List Kubernetes events. Optionally filter by namespace.".into()),
+                description: Some("List Kubernetes events. Defaults to Warning events from the last 60 minutes. Use event_type='Normal' for normal events or 'All' for all types. Limited to 50 most recent.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
                         "namespace": {
                             "type": "string",
                             "description": "Namespace to filter events."
+                        },
+                        "event_type": {
+                            "type": "string",
+                            "description": "Filter by event type: 'Warning' (default), 'Normal', or 'All'."
+                        },
+                        "since_minutes": {
+                            "type": "integer",
+                            "description": "Only show events from the last N minutes. Defaults to 60."
                         }
                     }
                 })
@@ -278,9 +374,7 @@ impl KubeliMcpServer {
             Tool {
                 name: "get_yaml".into(),
                 title: Some("Get Resource YAML".into()),
-                description: Some(
-                    "Get the YAML representation of a Kubernetes resource.".into(),
-                ),
+                description: Some("Get YAML of a Kubernetes resource. Automatically strips managedFields and last-applied-configuration to reduce noise.".into()),
                 input_schema: json!({
                     "type": "object",
                     "properties": {
@@ -315,105 +409,187 @@ impl KubeliMcpServer {
     // Tool implementations
     async fn get_pods(&self, namespace: Option<String>) -> Result<String, String> {
         let client = self.get_client().await?;
+        let lp = ListParams::default().limit(500);
 
         let pods: Vec<Pod> = if let Some(ns) = &namespace {
             let api: Api<Pod> = Api::namespaced(client, ns);
-            api.list(&ListParams::default())
+            api.list(&lp)
                 .await
                 .map_err(|e| format!("Failed to list pods: {}", e))?
                 .items
         } else {
             let api: Api<Pod> = Api::all(client);
-            api.list(&ListParams::default())
+            api.list(&lp)
                 .await
                 .map_err(|e| format!("Failed to list pods: {}", e))?
                 .items
         };
 
-        let summaries: Vec<PodSummary> = pods
-            .iter()
-            .map(|pod| {
-                let status = pod.status.as_ref();
-                let phase = status
-                    .and_then(|s| s.phase.clone())
-                    .unwrap_or_else(|| "Unknown".to_string());
+        // Classify pods
+        let mut running = 0usize;
+        let mut succeeded = 0usize;
+        let mut pending = 0usize;
+        let mut failed = 0usize;
+        let mut unknown = 0usize;
+        let mut problem_pods = Vec::new();
+        let mut healthy_names = Vec::new();
 
-                let container_statuses = status.and_then(|s| s.container_statuses.as_ref());
-                let ready_count = container_statuses
-                    .map(|cs| cs.iter().filter(|c| c.ready).count())
-                    .unwrap_or(0);
-                let total_count = container_statuses.map(|cs| cs.len()).unwrap_or(0);
-                let restarts: i32 = container_statuses
-                    .map(|cs| cs.iter().map(|c| c.restart_count).sum())
-                    .unwrap_or(0);
+        for pod in &pods {
+            let status = pod.status.as_ref();
+            let phase = status
+                .and_then(|s| s.phase.clone())
+                .unwrap_or_else(|| "Unknown".to_string());
 
-                PodSummary {
-                    name: pod.name_any(),
-                    namespace: pod.namespace().unwrap_or_default(),
-                    phase,
-                    node: pod.spec.as_ref().and_then(|s| s.node_name.clone()),
-                    ready: format!("{}/{}", ready_count, total_count),
-                    restarts,
-                    age: Self::format_age(pod.creation_timestamp().map(|t| t.0)),
-                }
-            })
-            .collect();
+            match phase.as_str() {
+                "Running" => running += 1,
+                "Succeeded" => succeeded += 1,
+                "Pending" => pending += 1,
+                "Failed" => failed += 1,
+                _ => unknown += 1,
+            }
 
-        serde_json::to_string_pretty(&summaries).map_err(|e| format!("Serialization error: {}", e))
+            let container_statuses = status.and_then(|s| s.container_statuses.as_ref());
+            let ready_count = container_statuses
+                .map(|cs| cs.iter().filter(|c| c.ready).count())
+                .unwrap_or(0);
+            let total_count = container_statuses.map(|cs| cs.len()).unwrap_or(0);
+            let restarts: i32 = container_statuses
+                .map(|cs| cs.iter().map(|c| c.restart_count).sum())
+                .unwrap_or(0);
+
+            let summary = PodSummary {
+                name: pod.name_any(),
+                namespace: pod.namespace().unwrap_or_default(),
+                phase: phase.clone(),
+                node: pod.spec.as_ref().and_then(|s| s.node_name.clone()),
+                ready: format!("{}/{}", ready_count, total_count),
+                restarts,
+                age: Self::format_age(pod.creation_timestamp().map(|t| t.0)),
+            };
+
+            if Self::is_pod_healthy(pod) {
+                healthy_names.push(pod.name_any());
+            } else {
+                problem_pods.push(summary);
+            }
+        }
+
+        let total = pods.len();
+        let problem_count = problem_pods.len();
+        let showing = if problem_count > 0 {
+            format!("{} problem pods in detail", problem_count)
+        } else {
+            "all pods healthy".to_string()
+        };
+
+        let response = PodListResponse {
+            summary: PodListSummary {
+                total,
+                running,
+                succeeded,
+                pending,
+                failed,
+                unknown,
+                showing,
+            },
+            problem_pods,
+            // Only include healthy names if the list is manageable
+            healthy_pod_names: if healthy_names.len() <= 50 {
+                Some(healthy_names)
+            } else {
+                None
+            },
+        };
+
+        serde_json::to_string_pretty(&response).map_err(|e| format!("Serialization error: {}", e))
     }
 
     async fn get_deployments(&self, namespace: Option<String>) -> Result<String, String> {
         let client = self.get_client().await?;
+        let lp = ListParams::default().limit(200);
 
         let deployments: Vec<Deployment> = if let Some(ns) = &namespace {
             let api: Api<Deployment> = Api::namespaced(client, ns);
-            api.list(&ListParams::default())
+            api.list(&lp)
                 .await
                 .map_err(|e| format!("Failed to list deployments: {}", e))?
                 .items
         } else {
             let api: Api<Deployment> = Api::all(client);
-            api.list(&ListParams::default())
+            api.list(&lp)
                 .await
                 .map_err(|e| format!("Failed to list deployments: {}", e))?
                 .items
         };
 
-        let summaries: Vec<DeploymentSummary> = deployments
-            .iter()
-            .map(|d| {
-                let status = d.status.as_ref();
-                let replicas = status.and_then(|s| s.replicas).unwrap_or(0);
-                let ready = status.and_then(|s| s.ready_replicas).unwrap_or(0);
-                let updated = status.and_then(|s| s.updated_replicas).unwrap_or(0);
-                let available = status.and_then(|s| s.available_replicas).unwrap_or(0);
+        let mut degraded_list = Vec::new();
+        let mut healthy_names = Vec::new();
 
-                DeploymentSummary {
-                    name: d.name_any(),
-                    namespace: d.namespace().unwrap_or_default(),
-                    ready: format!("{}/{}", ready, replicas),
-                    up_to_date: updated,
-                    available,
-                    age: Self::format_age(d.creation_timestamp().map(|t| t.0)),
-                }
-            })
-            .collect();
+        for d in &deployments {
+            let status = d.status.as_ref();
+            let replicas = status.and_then(|s| s.replicas).unwrap_or(0);
+            let ready = status.and_then(|s| s.ready_replicas).unwrap_or(0);
+            let updated = status.and_then(|s| s.updated_replicas).unwrap_or(0);
+            let available = status.and_then(|s| s.available_replicas).unwrap_or(0);
 
-        serde_json::to_string_pretty(&summaries).map_err(|e| format!("Serialization error: {}", e))
+            let summary = DeploymentSummary {
+                name: d.name_any(),
+                namespace: d.namespace().unwrap_or_default(),
+                ready: format!("{}/{}", ready, replicas),
+                up_to_date: updated,
+                available,
+                age: Self::format_age(d.creation_timestamp().map(|t| t.0)),
+            };
+
+            // Degraded: ready != desired OR zero replicas
+            let is_degraded = ready != replicas || replicas == 0;
+            if is_degraded {
+                degraded_list.push(summary);
+            } else {
+                healthy_names.push(d.name_any());
+            }
+        }
+
+        let total = deployments.len();
+        let degraded_count = degraded_list.len();
+        let healthy_count = healthy_names.len();
+        let showing = if degraded_count > 0 {
+            format!("{} degraded deployments in detail", degraded_count)
+        } else {
+            "all deployments healthy".to_string()
+        };
+
+        let response = DeploymentListResponse {
+            summary: DeploymentListSummary {
+                total,
+                healthy: healthy_count,
+                degraded: degraded_count,
+                showing,
+            },
+            degraded: degraded_list,
+            healthy_names: if healthy_names.len() <= 50 {
+                Some(healthy_names)
+            } else {
+                None
+            },
+        };
+
+        serde_json::to_string_pretty(&response).map_err(|e| format!("Serialization error: {}", e))
     }
 
     async fn get_services(&self, namespace: Option<String>) -> Result<String, String> {
         let client = self.get_client().await?;
+        let lp = ListParams::default().limit(200);
 
         let services: Vec<Service> = if let Some(ns) = &namespace {
             let api: Api<Service> = Api::namespaced(client, ns);
-            api.list(&ListParams::default())
+            api.list(&lp)
                 .await
                 .map_err(|e| format!("Failed to list services: {}", e))?
                 .items
         } else {
             let api: Api<Service> = Api::all(client);
-            api.list(&ListParams::default())
+            api.list(&lp)
                 .await
                 .map_err(|e| format!("Failed to list services: {}", e))?
                 .items
@@ -470,21 +646,52 @@ impl KubeliMcpServer {
         pod_name: &str,
         container: Option<String>,
         tail_lines: Option<i64>,
+        since_seconds: Option<i64>,
+        previous: Option<bool>,
     ) -> Result<String, String> {
         let client = self.get_client().await?;
         let api: Api<Pod> = Api::namespaced(client, namespace);
 
         let mut log_params = LogParams::default();
-        if let Some(c) = container {
-            log_params.container = Some(c);
+        if let Some(c) = &container {
+            log_params.container = Some(c.clone());
         }
-        if let Some(tail) = tail_lines {
-            log_params.tail_lines = Some(tail);
+        if let Some(prev) = previous {
+            log_params.previous = prev;
         }
 
-        api.logs(pod_name, &log_params)
+        // since_seconds takes priority; otherwise use tail_lines; default to 200 lines
+        let scope_description;
+        if let Some(since) = since_seconds {
+            log_params.since_seconds = Some(since);
+            scope_description = format!("since {}s ago", since);
+        } else {
+            let tail = tail_lines.unwrap_or(200);
+            log_params.tail_lines = Some(tail);
+            scope_description = format!("tail {}", tail);
+        }
+
+        let logs = api
+            .logs(pod_name, &log_params)
             .await
-            .map_err(|e| format!("Failed to get logs: {}", e))
+            .map_err(|e| format!("Failed to get logs: {}", e))?;
+
+        let line_count = logs.lines().count();
+        let container_info = container
+            .as_deref()
+            .map(|c| format!(" container={}", c))
+            .unwrap_or_default();
+        let previous_info = if previous.unwrap_or(false) {
+            " (previous instance)"
+        } else {
+            ""
+        };
+
+        // Prepend header so AI knows scope of returned logs
+        Ok(format!(
+            "[Logs: {} lines ({}) for {}/{}{}{}]\n{}",
+            line_count, scope_description, namespace, pod_name, container_info, previous_info, logs
+        ))
     }
 
     async fn get_namespaces(&self) -> Result<String, String> {
@@ -532,28 +739,62 @@ impl KubeliMcpServer {
         serde_json::to_string_pretty(&info).map_err(|e| format!("Serialization error: {}", e))
     }
 
-    async fn get_events(&self, namespace: Option<String>) -> Result<String, String> {
+    async fn get_events(
+        &self,
+        namespace: Option<String>,
+        event_type: Option<String>,
+        since_minutes: Option<i64>,
+    ) -> Result<String, String> {
         let client = self.get_client().await?;
+
+        // Default to Warning events
+        let type_filter = event_type.unwrap_or_else(|| "Warning".to_string());
+        let minutes = since_minutes.unwrap_or(60);
+        let cutoff = k8s_openapi::jiff::Timestamp::now().as_second() - (minutes * 60);
+
+        // Use field selector for type filtering at API level (efficient server-side)
+        let lp = if type_filter.eq_ignore_ascii_case("all") {
+            ListParams::default()
+        } else {
+            ListParams::default().fields(&format!("type={}", type_filter))
+        };
 
         let events: Vec<Event> = if let Some(ns) = &namespace {
             let api: Api<Event> = Api::namespaced(client, ns);
-            api.list(&ListParams::default())
+            api.list(&lp)
                 .await
                 .map_err(|e| format!("Failed to list events: {}", e))?
                 .items
         } else {
             let api: Api<Event> = Api::all(client);
-            api.list(&ListParams::default())
+            api.list(&lp)
                 .await
                 .map_err(|e| format!("Failed to list events: {}", e))?
                 .items
         };
 
-        let summaries: Vec<EventSummary> = events
+        // Filter by time window client-side, sort by most recent first, limit to 50
+        let mut summaries: Vec<EventSummary> = events
             .iter()
+            .filter(|e| {
+                // Use last_timestamp or event_time for filtering
+                let event_time = e
+                    .last_timestamp
+                    .as_ref()
+                    .map(|t| t.0.as_second())
+                    .or_else(|| e.event_time.as_ref().map(|t| t.0.as_second()));
+                match event_time {
+                    Some(t) => t >= cutoff,
+                    None => true, // Include events without timestamps
+                }
+            })
             .map(|e| EventSummary {
                 namespace: e.namespace().unwrap_or_default(),
-                name: e.name_any(),
+                name: e
+                    .involved_object
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| e.name_any()),
                 kind: e
                     .involved_object
                     .kind
@@ -562,11 +803,38 @@ impl KubeliMcpServer {
                 reason: e.reason.clone(),
                 message: e.message.clone(),
                 count: e.count,
-                last_seen: e.last_timestamp.as_ref().map(|t| t.0.to_string()),
+                last_seen: e
+                    .last_timestamp
+                    .as_ref()
+                    .map(|t| t.0.to_string())
+                    .or_else(|| e.event_time.as_ref().map(|t| t.0.to_string())),
             })
             .collect();
 
-        serde_json::to_string_pretty(&summaries).map_err(|e| format!("Serialization error: {}", e))
+        // Sort by last_seen descending (most recent first)
+        summaries.sort_by(|a, b| b.last_seen.cmp(&a.last_seen));
+
+        let total_matched = summaries.len();
+        summaries.truncate(50);
+        let showing = summaries.len();
+
+        let type_label = if type_filter.eq_ignore_ascii_case("all") {
+            "All".to_string()
+        } else {
+            type_filter
+        };
+
+        let response = EventListResponse {
+            summary: EventListSummary {
+                total_matched,
+                showing,
+                event_type_filter: type_label,
+                time_window: format!("last {} minutes", minutes),
+            },
+            events: summaries,
+        };
+
+        serde_json::to_string_pretty(&response).map_err(|e| format!("Serialization error: {}", e))
     }
 
     async fn get_yaml(
@@ -578,6 +846,15 @@ impl KubeliMcpServer {
         let client = self.get_client().await?;
         let kind_lower = kind.to_lowercase();
 
+        // Helper: serialize to JSON, strip verbose metadata, then convert to YAML
+        fn to_clean_yaml<T: serde::Serialize>(resource: &T) -> Result<String, String> {
+            let mut json_value = serde_json::to_value(resource)
+                .map_err(|e| format!("Failed to serialize: {}", e))?;
+            KubeliMcpServer::strip_verbose_metadata(&mut json_value);
+            serde_yaml::to_string(&json_value)
+                .map_err(|e| format!("Failed to serialize to YAML: {}", e))
+        }
+
         match kind_lower.as_str() {
             "pod" | "pods" => {
                 let ns = namespace.as_deref().unwrap_or("default");
@@ -586,8 +863,7 @@ impl KubeliMcpServer {
                     .get(name)
                     .await
                     .map_err(|e| format!("Failed to get pod: {}", e))?;
-                serde_yaml::to_string(&resource)
-                    .map_err(|e| format!("Failed to serialize to YAML: {}", e))
+                to_clean_yaml(&resource)
             }
             "deployment" | "deployments" => {
                 let ns = namespace.as_deref().unwrap_or("default");
@@ -596,8 +872,7 @@ impl KubeliMcpServer {
                     .get(name)
                     .await
                     .map_err(|e| format!("Failed to get deployment: {}", e))?;
-                serde_yaml::to_string(&resource)
-                    .map_err(|e| format!("Failed to serialize to YAML: {}", e))
+                to_clean_yaml(&resource)
             }
             "service" | "services" => {
                 let ns = namespace.as_deref().unwrap_or("default");
@@ -606,8 +881,7 @@ impl KubeliMcpServer {
                     .get(name)
                     .await
                     .map_err(|e| format!("Failed to get service: {}", e))?;
-                serde_yaml::to_string(&resource)
-                    .map_err(|e| format!("Failed to serialize to YAML: {}", e))
+                to_clean_yaml(&resource)
             }
             "namespace" | "namespaces" => {
                 let api: Api<Namespace> = Api::all(client);
@@ -615,8 +889,7 @@ impl KubeliMcpServer {
                     .get(name)
                     .await
                     .map_err(|e| format!("Failed to get namespace: {}", e))?;
-                serde_yaml::to_string(&resource)
-                    .map_err(|e| format!("Failed to serialize to YAML: {}", e))
+                to_clean_yaml(&resource)
             }
             _ => Err(format!(
                 "Unsupported resource kind: {}. Supported: pod, deployment, service, namespace",
@@ -721,8 +994,23 @@ impl ServerHandler for KubeliMcpServer {
                     .as_ref()
                     .and_then(|a| a.get("tail_lines"))
                     .and_then(|v| v.as_i64());
-                self.get_logs(namespace, pod_name, container, tail_lines)
-                    .await
+                let since_seconds = args
+                    .as_ref()
+                    .and_then(|a| a.get("since_seconds"))
+                    .and_then(|v| v.as_i64());
+                let previous = args
+                    .as_ref()
+                    .and_then(|a| a.get("previous"))
+                    .and_then(|v| v.as_bool());
+                self.get_logs(
+                    namespace,
+                    pod_name,
+                    container,
+                    tail_lines,
+                    since_seconds,
+                    previous,
+                )
+                .await
             }
             "get_namespaces" => self.get_namespaces().await,
             "get_cluster_info" => self.get_cluster_info().await,
@@ -732,7 +1020,16 @@ impl ServerHandler for KubeliMcpServer {
                     .and_then(|a| a.get("namespace"))
                     .and_then(|v| v.as_str())
                     .map(String::from);
-                self.get_events(namespace).await
+                let event_type = args
+                    .as_ref()
+                    .and_then(|a| a.get("event_type"))
+                    .and_then(|v| v.as_str())
+                    .map(String::from);
+                let since_minutes = args
+                    .as_ref()
+                    .and_then(|a| a.get("since_minutes"))
+                    .and_then(|v| v.as_i64());
+                self.get_events(namespace, event_type, since_minutes).await
             }
             "get_yaml" => {
                 let kind = args
@@ -898,5 +1195,166 @@ mod tests {
                 tool.name
             );
         }
+    }
+
+    #[test]
+    fn test_pod_list_response_serialization() {
+        let response = PodListResponse {
+            summary: PodListSummary {
+                total: 10,
+                running: 8,
+                succeeded: 0,
+                pending: 1,
+                failed: 1,
+                unknown: 0,
+                showing: "2 problem pods in detail".to_string(),
+            },
+            problem_pods: vec![PodSummary {
+                name: "crash-pod".to_string(),
+                namespace: "default".to_string(),
+                phase: "Failed".to_string(),
+                node: None,
+                ready: "0/1".to_string(),
+                restarts: 15,
+                age: "1h".to_string(),
+            }],
+            healthy_pod_names: Some(vec!["pod-a".to_string(), "pod-b".to_string()]),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"total\":10"));
+        assert!(json.contains("\"running\":8"));
+        assert!(json.contains("\"problem_pods\""));
+        assert!(json.contains("\"healthy_pod_names\""));
+        assert!(json.contains("crash-pod"));
+    }
+
+    #[test]
+    fn test_pod_list_response_hides_healthy_names_when_none() {
+        let response = PodListResponse {
+            summary: PodListSummary {
+                total: 100,
+                running: 100,
+                succeeded: 0,
+                pending: 0,
+                failed: 0,
+                unknown: 0,
+                showing: "all pods healthy".to_string(),
+            },
+            problem_pods: vec![],
+            healthy_pod_names: None,
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(!json.contains("healthy_pod_names"));
+    }
+
+    #[test]
+    fn test_deployment_list_response_serialization() {
+        let response = DeploymentListResponse {
+            summary: DeploymentListSummary {
+                total: 5,
+                healthy: 4,
+                degraded: 1,
+                showing: "1 degraded deployments in detail".to_string(),
+            },
+            degraded: vec![DeploymentSummary {
+                name: "broken-deploy".to_string(),
+                namespace: "default".to_string(),
+                ready: "1/3".to_string(),
+                up_to_date: 1,
+                available: 1,
+                age: "2d".to_string(),
+            }],
+            healthy_names: Some(vec!["web".to_string(), "api".to_string()]),
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"degraded\":1"));
+        assert!(json.contains("broken-deploy"));
+    }
+
+    #[test]
+    fn test_event_list_response_serialization() {
+        let response = EventListResponse {
+            summary: EventListSummary {
+                total_matched: 25,
+                showing: 25,
+                event_type_filter: "Warning".to_string(),
+                time_window: "last 60 minutes".to_string(),
+            },
+            events: vec![EventSummary {
+                namespace: "default".to_string(),
+                name: "pod-abc".to_string(),
+                kind: "Pod".to_string(),
+                reason: Some("BackOff".to_string()),
+                message: Some("Back-off restarting failed container".to_string()),
+                count: Some(5),
+                last_seen: Some("2024-01-01T00:00:00Z".to_string()),
+            }],
+        };
+
+        let json = serde_json::to_string(&response).unwrap();
+        assert!(json.contains("\"total_matched\":25"));
+        assert!(json.contains("\"event_type_filter\":\"Warning\""));
+        assert!(json.contains("BackOff"));
+    }
+
+    #[test]
+    fn test_strip_verbose_metadata() {
+        let mut value = serde_json::json!({
+            "metadata": {
+                "name": "test-pod",
+                "namespace": "default",
+                "managedFields": [{"manager": "kubectl"}],
+                "annotations": {
+                    "kubectl.kubernetes.io/last-applied-configuration": "{...}",
+                    "app.kubernetes.io/name": "test"
+                }
+            },
+            "spec": {}
+        });
+
+        KubeliMcpServer::strip_verbose_metadata(&mut value);
+
+        let metadata = value.get("metadata").unwrap().as_object().unwrap();
+        assert!(!metadata.contains_key("managedFields"));
+        assert!(metadata.contains_key("name"));
+        let annotations = metadata.get("annotations").unwrap().as_object().unwrap();
+        assert!(!annotations.contains_key("kubectl.kubernetes.io/last-applied-configuration"));
+        assert!(annotations.contains_key("app.kubernetes.io/name"));
+    }
+
+    #[test]
+    fn test_strip_verbose_metadata_no_annotations() {
+        let mut value = serde_json::json!({
+            "metadata": {
+                "name": "test",
+                "managedFields": []
+            }
+        });
+
+        KubeliMcpServer::strip_verbose_metadata(&mut value);
+
+        let metadata = value.get("metadata").unwrap().as_object().unwrap();
+        assert!(!metadata.contains_key("managedFields"));
+    }
+
+    #[test]
+    fn test_get_logs_tool_has_new_params() {
+        let tools = KubeliMcpServer::get_tools();
+        let logs_tool = tools.iter().find(|t| t.name == "get_logs").unwrap();
+        let schema_str = serde_json::to_string(&logs_tool.input_schema).unwrap();
+        assert!(schema_str.contains("since_seconds"));
+        assert!(schema_str.contains("previous"));
+    }
+
+    #[test]
+    fn test_get_events_tool_has_new_params() {
+        let tools = KubeliMcpServer::get_tools();
+        let events_tool = tools.iter().find(|t| t.name == "get_events").unwrap();
+        let schema_str = serde_json::to_string(&events_tool.input_schema).unwrap();
+        assert!(schema_str.contains("event_type"));
+        assert!(schema_str.contains("since_minutes"));
     }
 }
