@@ -144,7 +144,33 @@ pub async fn generate_resource_graph(
     let list_params = ListParams::default();
 
     // 1. Fetch Namespaces (top-level group nodes)
-    if namespace.is_none() {
+    if let Some(ref ns_name) = namespace {
+        // Single namespace selected — create one namespace group node
+        let ns_api: Api<Namespace> = Api::all(client.clone());
+        if let Ok(ns_list) = ns_api.list(&list_params).await {
+            if let Some(ns) = ns_list.items.into_iter().find(|n| n.name_any() == *ns_name) {
+                let name = ns.name_any();
+                let uid = ns.metadata.uid.clone().unwrap_or_default();
+                let id = format!("ns-{}", name);
+                ns_child_count.insert(id.clone(), 0);
+                nodes.push(GraphNode {
+                    id,
+                    uid,
+                    name,
+                    namespace: None,
+                    node_type: NodeType::Namespace,
+                    status: NodeStatus::Healthy,
+                    labels: btree_to_hashmap(ns.metadata.labels),
+                    parent_id: None,
+                    ready_status: None,
+                    replicas: None,
+                    is_group: true,
+                    child_count: None,
+                });
+            }
+        }
+    } else {
+        // All namespaces
         let ns_api: Api<Namespace> = Api::all(client.clone());
         if let Ok(ns_list) = ns_api.list(&list_params).await {
             for ns in ns_list.items {
@@ -211,14 +237,10 @@ pub async fn generate_resource_graph(
             // Initialize child count for this deployment
             deploy_child_count.insert(id.clone(), 0);
 
-            // Parent is the namespace (if not filtering by namespace)
-            let parent_id = if namespace.is_none() {
-                let ns_id = format!("ns-{}", ns);
-                *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
-                Some(ns_id)
-            } else {
-                None
-            };
+            // Parent is always the namespace group node
+            let ns_id = format!("ns-{}", ns);
+            *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
+            let parent_id = Some(ns_id);
 
             // Deployments are ALSO groups (they contain pods)
             nodes.push(GraphNode {
@@ -278,16 +300,13 @@ pub async fn generate_resource_graph(
                 }
             }
 
-            // Parent is the deployment if found, otherwise the namespace
+            // Parent is the deployment if found, otherwise the namespace directly
             let parent_id = if let Some(deploy_id) = parent_deployment_id {
                 Some(deploy_id)
-            } else if namespace.is_none() {
-                // Orphan pod - parent is namespace directly
+            } else {
                 let ns_id = format!("ns-{}", ns);
                 *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
                 Some(ns_id)
-            } else {
-                None
             };
 
             nodes.push(GraphNode {
