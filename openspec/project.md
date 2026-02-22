@@ -1,7 +1,7 @@
 # Project Context
 
 ## Purpose
-Kubeli is a modern, lightweight, and intuitive desktop application for managing Kubernetes clusters. Built with Next.js and Tauri, it provides a native desktop experience with the power of web technologies, offering a performant and user-friendly alternative to existing Kubernetes management tools like Lens.
+Kubeli is a modern, lightweight, and intuitive desktop application for managing Kubernetes clusters. Built with Vite/React and Tauri, it provides a native desktop experience with the power of web technologies, offering a performant and user-friendly alternative to existing Kubernetes management tools like Lens.
 
 ### Key Goals
 - Create the most user-friendly Kubernetes management tool for developers and DevOps engineers
@@ -12,24 +12,24 @@ Kubeli is a modern, lightweight, and intuitive desktop application for managing 
 ## Tech Stack
 
 ### Frontend
-- **Framework:** Next.js 14.x (App Router)
-- **UI Library:** React 18.x
+- **Framework:** Vite 7.x
+- **UI Library:** React 19.x
 - **Language:** TypeScript 5.x (strict mode)
-- **State Management:** Zustand (global), TanStack Query (server state)
+- **State Management:** Zustand stores + feature hooks with local caching
 - **Styling:** Tailwind CSS
 - **Icons:** lucide-react
 - **Forms:** React Hook Form
 
 ### Backend (Rust)
-- **Framework:** Tauri 2.7+
-- **Kubernetes Client:** kube-rs 1.1.0
-- **Async Runtime:** Tokio 1.46.1
+- **Framework:** Tauri 2.9+
+- **Kubernetes Client:** kube-rs 3.x
+- **Async Runtime:** Tokio 1.49+
 - **Serialization:** serde, serde_json, serde_yaml
 - **HTTP:** reqwest, hyper
 
 ### Build & Development
-- **Package Manager:** pnpm
-- **Bundler:** Turbopack (Next.js)
+- **Package Manager:** npm (primary lockfile), pnpm supported
+- **Bundler:** Vite
 - **Linting:** ESLint
 - **Formatting:** Prettier
 
@@ -45,8 +45,8 @@ Kubeli is a modern, lightweight, and intuitive desktop application for managing 
 ### Architecture Patterns
 - **Frontend:** Feature-based folder structure under `src/components/features/`
 - **Backend:** Command handlers in `src-tauri/src/commands/`
-- **IPC:** All Tauri commands follow `domain:action` naming (e.g., `cluster:list`, `resource:get`)
-- **State:** Zustand stores for global state, TanStack Query for server state
+- **IPC:** Tauri commands use snake_case names (e.g., `list_clusters`, `list_pods`)
+- **State:** Zustand stores for global and feature-level state
 
 ### Testing Strategy
 - **Frontend:** Jest + React Testing Library for unit tests

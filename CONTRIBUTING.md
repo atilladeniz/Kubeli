@@ -20,7 +20,7 @@ We welcome AI-assisted development but require **Smart Coding over Vibe Coding**
 
 - **Node.js** 18+
 - **Rust** 1.70+
-- **pnpm** (recommended) or npm
+- **npm** (default) or pnpm
 - **macOS** 10.15+ (for development and testing)
 
 ### Development Setup
@@ -51,14 +51,17 @@ We welcome AI-assisted development but require **Smart Coding over Vibe Coding**
 
 ```
 Kubeli/
-├── src/                    # Next.js frontend (React/TypeScript)
-│   ├── app/                # App Router pages
+├── src/                    # Vite frontend (React/TypeScript)
+│   ├── main.tsx            # Frontend bootstrap
+│   ├── App.tsx             # App shell
 │   ├── components/         # React components
-│   └── lib/                # Hooks, stores, utilities
+│   └── lib/                # Hooks, stores, tauri commands, utilities
 ├── src-tauri/              # Tauri backend (Rust)
 │   └── src/
 │       ├── commands/       # Tauri command handlers
-│       └── k8s/            # Kubernetes client logic
+│       ├── k8s/            # Kubernetes client logic
+│       ├── ai/             # AI assistant integration
+│       └── mcp/            # MCP server
 └── web/                    # Landing page (Astro)
 ```
 
