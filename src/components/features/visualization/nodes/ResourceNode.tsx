@@ -1,7 +1,7 @@
 "use client";
 
 import React, { memo } from "react";
-import { Handle, Position, useStore } from "@xyflow/react";
+import { Handle, Position } from "@xyflow/react";
 import { Box, Layers } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getNamespaceColor } from "@/lib/utils/colors";
@@ -43,39 +43,13 @@ const statusColors: Record<GraphNodeStatus, string> = {
   unknown: "bg-gray-400",
 };
 
-// Contextual zoom: show full detail when zoomed >= 0.75
-const zoomSelector = (s: { transform: [number, number, number] }) =>
-  s.transform[2] >= 0.75;
-
 function ResourceNodeComponent({ data }: ResourceNodeProps) {
   const { name, nodeType, namespace, status, readyStatus, replicas, isHighlighted, isSelected } = data;
-  const showDetail = useStore(zoomSelector);
-
-  const statusColor = statusColors[status];
-  const namespaceColor = getNamespaceColor(namespace);
-
-  // Compact view when zoomed out
-  if (!showDetail) {
-    return (
-      <>
-        <Handle type="target" position={Position.Top} className="!bg-transparent !border-0 !w-0 !h-0" />
-        <div
-          className={cn(
-            "rounded border bg-card shadow-sm flex items-center gap-1.5 px-2 py-1.5",
-            isHighlighted && "ring-2 ring-primary ring-offset-1",
-            isSelected && "ring-2 ring-blue-500 ring-offset-1"
-          )}
-        >
-          <span className={cn("size-2 rounded-full shrink-0", statusColor)} />
-          <span className="text-[10px] font-medium truncate max-w-[140px]">{name}</span>
-        </div>
-        <Handle type="source" position={Position.Bottom} className="!bg-transparent !border-0 !w-0 !h-0" />
-      </>
-    );
-  }
 
   const icon = nodeIcons[nodeType] || <Box className="size-3.5" />;
   const label = nodeLabels[nodeType] || nodeType;
+  const statusColor = statusColors[status];
+  const namespaceColor = getNamespaceColor(namespace);
   const displayName = name.length > 24 ? `${name.slice(0, 22)}...` : name;
 
   return (
