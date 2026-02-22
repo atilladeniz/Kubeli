@@ -188,7 +188,7 @@ export function AIAssistant() {
             showHistory ? "w-56" : "w-0"
           )}
         >
-          <div className="w-56">
+          <div className="w-56 h-full">
             <SessionHistory
               clusterContext={currentCluster.context}
               currentSessionId={currentSessionId}

@@ -9,6 +9,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import {
   aiListSavedSessions,
   aiDeleteSavedSession,
+  aiDeleteClusterSessions,
   aiGetConversationHistory,
   type SessionSummary,
   type MessageRecord,
@@ -18,7 +19,7 @@ import {
   SessionHistoryHeader,
   SessionItem,
 } from "./components";
-import { DeleteSessionDialog } from "./dialogs";
+import { ClearAllSessionsDialog, DeleteSessionDialog } from "./dialogs";
 import { formatRelativeTime, getSessionTitle } from "./lib/utils";
 
 interface SessionHistoryProps {
@@ -42,6 +43,7 @@ export function SessionHistory({
   const [loadingSession, setLoadingSession] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
+  const [clearAllDialogOpen, setClearAllDialogOpen] = useState(false);
 
   // Load saved sessions for this cluster
   const loadSessions = useCallback(async () => {
@@ -95,6 +97,20 @@ export function SessionHistory({
     }
   }, [sessionToDelete, t]);
 
+  // Handle clear all sessions
+  const handleClearAll = useCallback(async () => {
+    try {
+      await aiDeleteClusterSessions(clusterContext);
+      setSessions([]);
+      toast.success(t("allSessionsCleared"));
+    } catch (e) {
+      toast.error(t("deleteError"));
+      console.error("Failed to delete all sessions:", e);
+    } finally {
+      setClearAllDialogOpen(false);
+    }
+  }, [clusterContext, t]);
+
   const openDeleteDialog = useCallback((e: React.MouseEvent, sessionId: string) => {
     e.stopPropagation();
     setSessionToDelete(sessionId);
@@ -108,12 +124,15 @@ export function SessionHistory({
           title={t("sessionHistory")}
           refreshLabel={tc("refresh")}
           newSessionLabel={t("newSession")}
+          clearAllLabel={t("deleteAll")}
           loading={loading}
+          sessionCount={sessions.length}
           onRefresh={loadSessions}
           onNewSession={onNewSession}
+          onClearAll={() => setClearAllDialogOpen(true)}
         />
 
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -147,6 +166,12 @@ export function SessionHistory({
           open={deleteDialogOpen}
           onOpenChange={setDeleteDialogOpen}
           onConfirm={handleDeleteSession}
+        />
+
+        <ClearAllSessionsDialog
+          open={clearAllDialogOpen}
+          onOpenChange={setClearAllDialogOpen}
+          onConfirm={handleClearAll}
         />
       </div>
     </TooltipProvider>
