@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, RotateCcw } from "lucide-react";
+import { Plus, RotateCcw, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -13,23 +13,29 @@ interface SessionHistoryHeaderProps {
   title: string;
   refreshLabel: string;
   newSessionLabel: string;
+  clearAllLabel: string;
   loading: boolean;
+  sessionCount: number;
   onRefresh: () => void;
   onNewSession: () => void;
+  onClearAll: () => void;
 }
 
 const pointerStyle = { cursor: "pointer" } as const;
 
 /**
- * Header for the session history panel with refresh and new session buttons.
+ * Header for the session history panel with refresh, clear all, and new session buttons.
  */
 export function SessionHistoryHeader({
   title,
   refreshLabel,
   newSessionLabel,
+  clearAllLabel,
   loading,
+  sessionCount,
   onRefresh,
   onNewSession,
+  onClearAll,
 }: SessionHistoryHeaderProps) {
   return (
     <div className="flex items-center justify-between px-3 py-2.5 border-b bg-background/50">
@@ -54,6 +60,24 @@ export function SessionHistoryHeader({
             <p>{refreshLabel}</p>
           </TooltipContent>
         </Tooltip>
+        {sessionCount > 0 && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="size-7 text-muted-foreground hover:text-destructive"
+                style={pointerStyle}
+                onClick={onClearAll}
+              >
+                <Trash2 className="size-3.5" />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              <p>{clearAllLabel}</p>
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

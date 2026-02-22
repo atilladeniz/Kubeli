@@ -432,69 +432,124 @@ impl AgentManager {
 
                     tracing::debug!("Spawning {} with args: {:?}", provider_name, args);
 
-                    // Spawn CLI process for this message with extended PATH
+                    // Spawn CLI process with retry for transient errors
                     let extended_path = super::cli_detector::get_extended_path();
-                    match Command::new(&cli_path)
-                        .args(&args)
-                        .env("PATH", &extended_path)
-                        .stdout(Stdio::piped())
-                        .stderr(Stdio::piped())
-                        .kill_on_drop(true)
-                        .spawn()
-                    {
-                        Ok(mut child) => {
-                            let stdout = child.stdout.take();
-                            let stderr = child.stderr.take();
+                    let max_attempts = 2u32;
 
-                            if let Some(stdout) = stdout {
-                                match provider {
-                                    AiCliProvider::Claude => {
-                                        Self::process_claude_output(
-                                            &app,
-                                            &event_name,
-                                            stdout,
-                                            stderr,
-                                        )
-                                        .await;
+                    for attempt in 1..=max_attempts {
+                        let stderr_capture = Arc::new(tokio::sync::Mutex::new(String::new()));
+
+                        match Command::new(&cli_path)
+                            .args(&args)
+                            .env("PATH", &extended_path)
+                            .stdout(Stdio::piped())
+                            .stderr(Stdio::piped())
+                            .kill_on_drop(true)
+                            .spawn()
+                        {
+                            Ok(mut child) => {
+                                let stdout = child.stdout.take();
+                                let stderr = child.stderr.take();
+
+                                // Capture stderr into shared buffer for retry detection
+                                if let Some(stderr) = stderr {
+                                    let stderr_buf = stderr_capture.clone();
+                                    tokio::spawn(async move {
+                                        let mut stderr_reader = BufReader::new(stderr).lines();
+                                        while let Ok(Some(line)) = stderr_reader.next_line().await {
+                                            if !line.trim().is_empty() {
+                                                tracing::debug!("{} stderr: {}", "CLI", line);
+                                                let mut buf = stderr_buf.lock().await;
+                                                buf.push_str(&line);
+                                                buf.push('\n');
+                                            }
+                                        }
+                                    });
+                                }
+
+                                if let Some(stdout) = stdout {
+                                    match provider {
+                                        AiCliProvider::Claude => {
+                                            Self::process_claude_output(
+                                                &app,
+                                                &event_name,
+                                                stdout,
+                                                None, // stderr already captured above
+                                            )
+                                            .await;
+                                        }
+                                        AiCliProvider::Codex => {
+                                            Self::process_codex_output(
+                                                &app,
+                                                &event_name,
+                                                stdout,
+                                                None, // stderr already captured above
+                                            )
+                                            .await;
+                                        }
                                     }
-                                    AiCliProvider::Codex => {
-                                        Self::process_codex_output(
-                                            &app,
-                                            &event_name,
-                                            stdout,
-                                            stderr,
-                                        )
-                                        .await;
+                                }
+
+                                // Wait for process to finish
+                                match child.wait().await {
+                                    Ok(status) => {
+                                        tracing::debug!(
+                                            "{} process exited with: {} (attempt {}/{})",
+                                            provider_name,
+                                            status,
+                                            attempt,
+                                            max_attempts
+                                        );
+
+                                        // Check if we should retry on failure
+                                        if !status.success() && attempt < max_attempts {
+                                            let captured = stderr_capture.lock().await.clone();
+                                            if is_transient_error(&captured) {
+                                                tracing::info!(
+                                                    "Transient error detected, retrying in 2s (attempt {}/{})",
+                                                    attempt,
+                                                    max_attempts
+                                                );
+                                                let _ = app.emit(
+                                                    &event_name,
+                                                    AIEvent::MessageChunk {
+                                                        content:
+                                                            "\n*Transient error — retrying...*\n"
+                                                                .to_string(),
+                                                        done: false,
+                                                    },
+                                                );
+                                                tokio::time::sleep(std::time::Duration::from_secs(
+                                                    2,
+                                                ))
+                                                .await;
+                                                continue;
+                                            }
+                                        }
+                                    }
+                                    Err(e) => {
+                                        tracing::error!(
+                                            "Failed to wait for {} process: {}",
+                                            provider_name,
+                                            e
+                                        );
                                     }
                                 }
                             }
-
-                            // Wait for process to finish
-                            match child.wait().await {
-                                Ok(status) => {
-                                    tracing::debug!(
-                                        "{} process exited with: {}",
-                                        provider_name,
-                                        status
-                                    );
-                                }
-                                Err(e) => {
-                                    tracing::error!(
-                                        "Failed to wait for {} process: {}",
-                                        provider_name,
-                                        e
-                                    );
-                                }
+                            Err(e) => {
+                                let _ = app.emit(
+                                    &event_name,
+                                    AIEvent::Error {
+                                        message: format!(
+                                            "Failed to spawn {}: {}",
+                                            provider_name, e
+                                        ),
+                                    },
+                                );
                             }
                         }
-                        Err(e) => {
-                            let _ = app.emit(
-                                &event_name,
-                                AIEvent::Error {
-                                    message: format!("Failed to spawn {}: {}", provider_name, e),
-                                },
-                            );
-                        }
+                        // If we get here without `continue`, we're done (success or non-transient error)
+                        break;
                     }
 
                     // Done processing, emit final message chunk
@@ -843,8 +898,53 @@ impl AgentManager {
     }
 }
 
+/// Check if an error message indicates a transient API error worth retrying
+fn is_transient_error(text: &str) -> bool {
+    let lower = text.to_lowercase();
+    lower.contains("500")
+        || lower.contains("529")
+        || lower.contains("overloaded")
+        || lower.contains("internal server error")
+        || lower.contains("rate limit")
+}
+
 impl Default for AgentManager {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_is_transient_error_500() {
+        assert!(is_transient_error("HTTP 500 Internal Server Error"));
+        assert!(is_transient_error("Error: 500"));
+    }
+
+    #[test]
+    fn test_is_transient_error_529() {
+        assert!(is_transient_error("Error: 529 overloaded"));
+        assert!(is_transient_error("status: 529"));
+    }
+
+    #[test]
+    fn test_is_transient_error_overloaded() {
+        assert!(is_transient_error("API is overloaded, please retry"));
+    }
+
+    #[test]
+    fn test_is_transient_error_rate_limit() {
+        assert!(is_transient_error("Rate limit exceeded"));
+    }
+
+    #[test]
+    fn test_is_transient_error_false_for_normal_errors() {
+        assert!(!is_transient_error("Permission denied"));
+        assert!(!is_transient_error("Invalid API key"));
+        assert!(!is_transient_error("Not found"));
+        assert!(!is_transient_error(""));
     }
 }
