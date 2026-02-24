@@ -243,6 +243,7 @@ export interface ContainerEnvVar {
   value: string | null;
   value_from_kind: EnvVarSourceKind | null;
   value_from: string | null;
+  resolved_value: string | null;
 }
 
 export interface ContainerInfo {

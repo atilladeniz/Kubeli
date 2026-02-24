@@ -118,6 +118,7 @@ pub fn extract_container_info(
                         value: env.value.clone(),
                         value_from_kind,
                         value_from,
+                        resolved_value: None,
                     }
                 })
                 .collect()
@@ -205,6 +206,7 @@ pub struct ContainerEnvVar {
     pub value: Option<String>,
     pub value_from_kind: Option<String>,
     pub value_from: Option<String>,
+    pub resolved_value: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -739,6 +741,117 @@ pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, Str
     Ok(node_infos)
 }
 
+/// Pod metadata needed for resolving env var field references.
+struct PodContext {
+    name: String,
+    namespace: String,
+    uid: String,
+    node_name: Option<String>,
+    pod_ip: Option<String>,
+    host_ip: Option<String>,
+    service_account: Option<String>,
+    labels: HashMap<String, String>,
+    annotations: HashMap<String, String>,
+}
+
+/// Resolve env var values from ConfigMaps, Secrets, and field references.
+/// Uses a cache to avoid redundant API calls for the same ConfigMap/Secret.
+async fn resolve_env_vars(
+    client: &kube::Client,
+    namespace: &str,
+    containers: &mut [ContainerInfo],
+    pod: &PodContext,
+) {
+    // Cache for ConfigMap and Secret data to avoid redundant fetches
+    let mut configmap_cache: HashMap<String, Option<std::collections::BTreeMap<String, String>>> =
+        HashMap::new();
+    let mut secret_cache: HashMap<String, Option<std::collections::BTreeMap<String, String>>> =
+        HashMap::new();
+
+    for container in containers.iter_mut() {
+        for env_var in container.env_vars.iter_mut() {
+            if let (Some(kind), Some(ref_value)) = (&env_var.value_from_kind, &env_var.value_from) {
+                match kind.as_str() {
+                    "configMap" => {
+                        if let Some((cm_name, cm_key)) = ref_value.split_once(':') {
+                            let cache_key = cm_name.to_string();
+                            let data = if let Some(cached) = configmap_cache.get(&cache_key) {
+                                cached.clone()
+                            } else {
+                                let cms: Api<ConfigMap> =
+                                    Api::namespaced(client.clone(), namespace);
+                                let fetched = cms.get(cm_name).await.ok().and_then(|cm| cm.data);
+                                configmap_cache.insert(cache_key, fetched.clone());
+                                fetched
+                            };
+                            if let Some(data) = data {
+                                env_var.resolved_value = data.get(cm_key).cloned();
+                            }
+                        }
+                    }
+                    "secret" => {
+                        if let Some((secret_name, secret_key)) = ref_value.split_once(':') {
+                            let cache_key = secret_name.to_string();
+                            let data = if let Some(cached) = secret_cache.get(&cache_key) {
+                                cached.clone()
+                            } else {
+                                let secrets: Api<Secret> =
+                                    Api::namespaced(client.clone(), namespace);
+                                let fetched = secrets.get(secret_name).await.ok().and_then(|s| {
+                                    s.data.map(|d| {
+                                        d.into_iter()
+                                            .map(|(k, v)| {
+                                                let decoded = String::from_utf8(v.0)
+                                                    .unwrap_or_else(|_| "<binary>".to_string());
+                                                (k, decoded)
+                                            })
+                                            .collect()
+                                    })
+                                });
+                                secret_cache.insert(cache_key, fetched.clone());
+                                fetched
+                            };
+                            if let Some(data) = data {
+                                env_var.resolved_value = data.get(secret_key).cloned();
+                            }
+                        }
+                    }
+                    "field" => {
+                        env_var.resolved_value = resolve_field_ref(ref_value, pod);
+                    }
+                    _ => {}
+                }
+            }
+        }
+    }
+}
+
+/// Resolve a fieldRef path to its value from pod metadata/status.
+fn resolve_field_ref(field_path: &str, pod: &PodContext) -> Option<String> {
+    match field_path {
+        "metadata.name" => Some(pod.name.clone()),
+        "metadata.namespace" => Some(pod.namespace.clone()),
+        "metadata.uid" => Some(pod.uid.clone()),
+        "spec.nodeName" => pod.node_name.clone(),
+        "spec.serviceAccountName" => pod.service_account.clone(),
+        "status.podIP" | "status.podIPs" => pod.pod_ip.clone(),
+        "status.hostIP" | "status.hostIPs" => pod.host_ip.clone(),
+        path if path.starts_with("metadata.labels['") => {
+            let key = path
+                .strip_prefix("metadata.labels['")
+                .and_then(|s| s.strip_suffix("']"));
+            key.and_then(|k| pod.labels.get(k).cloned())
+        }
+        path if path.starts_with("metadata.annotations['") => {
+            let key = path
+                .strip_prefix("metadata.annotations['")
+                .and_then(|s| s.strip_suffix("']"));
+            key.and_then(|k| pod.annotations.get(k).cloned())
+        }
+        _ => None,
+    }
+}
+
 /// Get a single pod by name
 #[command]
 pub async fn get_pod(
@@ -748,7 +861,7 @@ pub async fn get_pod(
 ) -> Result<PodInfo, String> {
     let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
 
-    let pods: Api<Pod> = Api::namespaced(client, &namespace);
+    let pods: Api<Pod> = Api::namespaced(client.clone(), &namespace);
     let pod = pods
         .get(&name)
         .await
@@ -758,7 +871,19 @@ pub async fn get_pod(
     let spec = pod.spec.unwrap_or_default();
     let status = pod.status.unwrap_or_default();
 
-    let init_containers: Vec<ContainerInfo> = spec
+    let pod_ctx = PodContext {
+        name: metadata.name.clone().unwrap_or_default(),
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        uid: metadata.uid.clone().unwrap_or_default(),
+        node_name: spec.node_name.clone(),
+        pod_ip: status.pod_ip.clone(),
+        host_ip: status.host_ip.clone(),
+        service_account: spec.service_account_name.clone(),
+        labels: btree_to_hashmap(metadata.labels.clone()),
+        annotations: btree_to_hashmap(metadata.annotations.clone()),
+    };
+
+    let mut init_containers: Vec<ContainerInfo> = spec
         .init_containers
         .unwrap_or_default()
         .iter()
@@ -771,7 +896,7 @@ pub async fn get_pod(
         })
         .collect();
 
-    let containers: Vec<ContainerInfo> = spec
+    let mut containers: Vec<ContainerInfo> = spec
         .containers
         .iter()
         .map(|c| {
@@ -783,23 +908,27 @@ pub async fn get_pod(
         })
         .collect();
 
+    // Resolve env var values from ConfigMaps, Secrets, and field references
+    resolve_env_vars(&client, &namespace, &mut init_containers, &pod_ctx).await;
+    resolve_env_vars(&client, &namespace, &mut containers, &pod_ctx).await;
+
     let ready_count = containers.iter().filter(|c| c.ready).count();
     let total_count = containers.len();
     let total_restarts: i32 = containers.iter().map(|c| c.restart_count).sum();
 
     Ok(PodInfo {
-        name: metadata.name.unwrap_or_default(),
-        namespace: metadata.namespace.unwrap_or_default(),
-        uid: metadata.uid.unwrap_or_default(),
+        name: pod_ctx.name,
+        namespace: pod_ctx.namespace,
+        uid: pod_ctx.uid,
         phase: status.phase.unwrap_or_else(|| "Unknown".to_string()),
-        node_name: spec.node_name,
-        pod_ip: status.pod_ip,
-        host_ip: status.host_ip,
+        node_name: pod_ctx.node_name,
+        pod_ip: pod_ctx.pod_ip,
+        host_ip: pod_ctx.host_ip,
         init_containers,
         containers,
         created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
         deletion_timestamp: metadata.deletion_timestamp.map(|t| t.0.to_string()),
-        labels: btree_to_hashmap(metadata.labels),
+        labels: pod_ctx.labels,
         restart_count: total_restarts,
         ready_containers: format!("{}/{}", ready_count, total_count),
     })
@@ -4100,4 +4229,110 @@ pub async fn list_validating_webhooks(
 
     tracing::info!("Listed {} validating webhook configurations", infos.len());
     Ok(infos)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_pod_context() -> PodContext {
+        let mut labels = HashMap::new();
+        labels.insert("app".to_string(), "demo-api".to_string());
+        let mut annotations = HashMap::new();
+        annotations.insert("note".to_string(), "test".to_string());
+
+        PodContext {
+            name: "demo-api-abc123".to_string(),
+            namespace: "kubeli-demo".to_string(),
+            uid: "uid-12345".to_string(),
+            node_name: Some("minikube".to_string()),
+            pod_ip: Some("10.244.0.5".to_string()),
+            host_ip: Some("192.168.49.2".to_string()),
+            service_account: Some("default".to_string()),
+            labels,
+            annotations,
+        }
+    }
+
+    #[test]
+    fn test_resolve_field_ref_metadata() {
+        let pod = test_pod_context();
+        assert_eq!(
+            resolve_field_ref("metadata.name", &pod),
+            Some("demo-api-abc123".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("metadata.namespace", &pod),
+            Some("kubeli-demo".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("metadata.uid", &pod),
+            Some("uid-12345".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_field_ref_spec() {
+        let pod = test_pod_context();
+        assert_eq!(
+            resolve_field_ref("spec.nodeName", &pod),
+            Some("minikube".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("spec.serviceAccountName", &pod),
+            Some("default".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_field_ref_status() {
+        let pod = test_pod_context();
+        assert_eq!(
+            resolve_field_ref("status.podIP", &pod),
+            Some("10.244.0.5".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("status.hostIP", &pod),
+            Some("192.168.49.2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_field_ref_labels_and_annotations() {
+        let pod = test_pod_context();
+        assert_eq!(
+            resolve_field_ref("metadata.labels['app']", &pod),
+            Some("demo-api".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("metadata.annotations['note']", &pod),
+            Some("test".to_string())
+        );
+        assert_eq!(resolve_field_ref("metadata.labels['missing']", &pod), None);
+    }
+
+    #[test]
+    fn test_resolve_field_ref_unknown_path() {
+        let pod = test_pod_context();
+        assert_eq!(resolve_field_ref("unknown.path", &pod), None);
+    }
+
+    #[test]
+    fn test_resolve_field_ref_none_values() {
+        let pod = PodContext {
+            name: "pod".to_string(),
+            namespace: "ns".to_string(),
+            uid: "uid".to_string(),
+            node_name: None,
+            pod_ip: None,
+            host_ip: None,
+            service_account: None,
+            labels: HashMap::new(),
+            annotations: HashMap::new(),
+        };
+        assert_eq!(resolve_field_ref("spec.nodeName", &pod), None);
+        assert_eq!(resolve_field_ref("status.podIP", &pod), None);
+        assert_eq!(resolve_field_ref("status.hostIP", &pod), None);
+        assert_eq!(resolve_field_ref("spec.serviceAccountName", &pod), None);
+    }
 }

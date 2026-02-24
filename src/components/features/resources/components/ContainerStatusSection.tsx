@@ -96,7 +96,9 @@ function EnvVarRow({ env, t }: { env: ContainerInfo["env_vars"][number]; t: Retu
   const [copied, setCopied] = useState(false);
 
   const isRef = !!env.value_from_kind;
-  const displayValue = env.value_from ?? env.value ?? "";
+  const hasResolvedValue = isRef && env.resolved_value != null;
+  const displayValue = hasResolvedValue ? env.resolved_value! : (env.value_from ?? env.value ?? "");
+  const canReveal = !isRef || hasResolvedValue;
 
   const toggleReveal = useCallback(() => {
     if (revealed) {
@@ -126,25 +128,30 @@ function EnvVarRow({ env, t }: { env: ContainerInfo["env_vars"][number]; t: Retu
           <Button variant="ghost" size="sm" onClick={copyValue} className="h-6 w-6 p-0">
             {copied ? <Check className="size-3 text-green-500" /> : <Copy className="size-3" />}
           </Button>
-          {!isRef && (
+          {canReveal && (
             <Button variant="ghost" size="sm" onClick={toggleReveal} className="h-6 w-6 p-0">
               {revealed ? <EyeOff className="size-3" /> : <Eye className="size-3" />}
             </Button>
           )}
         </div>
       </div>
+      {isRef && (
+        <div className="text-[10px] text-muted-foreground/60 font-mono truncate">
+          {env.value_from}
+        </div>
+      )}
       <div
         className="bg-muted/50 rounded-lg px-2.5 py-1.5 text-xs font-mono cursor-pointer hover:bg-muted/70 transition-colors"
-        onClick={isRef ? undefined : toggleReveal}
-        style={isRef ? undefined : {
+        onClick={canReveal ? toggleReveal : undefined}
+        style={canReveal ? {
           filter: revealed ? "blur(0px)" : "blur(2px)",
           transition: "filter 300ms ease-in-out",
           borderRadius: "8px",
           userSelect: revealed ? "text" : "none",
-        }}
+        } : undefined}
       >
-        <span className={cn("break-all", isRef && "text-blue-400 italic text-[11px]")}>
-          {isRef ? displayValue : (revealed ? displayValue : "••••••••")}
+        <span className={cn("break-all", isRef && !hasResolvedValue && "text-blue-400 italic text-[11px]")}>
+          {canReveal ? (revealed ? displayValue : "••••••••") : displayValue}
         </span>
       </div>
     </div>
