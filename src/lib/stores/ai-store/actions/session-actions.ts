@@ -99,7 +99,7 @@ export function createSessionActions(
       }
     },
 
-    sendMessage: async (message: string) => {
+    sendMessage: async (message: string, displayMessage?: string) => {
       const { currentSessionId, currentConversationId, conversations } = get();
       if (!currentSessionId) {
         throw new Error("No active session");
@@ -116,7 +116,7 @@ export function createSessionActions(
       const userMessage: ChatMessage = {
         id: generateId(),
         role: "user",
-        content: message,
+        content: displayMessage ?? message,
         timestamp: Date.now(),
       };
 

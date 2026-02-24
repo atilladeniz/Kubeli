@@ -364,7 +364,9 @@
     "podDeleted": "This pod has been deleted. The logs shown below are from before deletion.",
     "downloadSuccess": "Logs saved successfully",
     "downloadError": "Failed to save logs",
-    "previousLogsNoStream": "Streaming not available for previous logs"
+    "previousLogsNoStream": "Streaming not available for previous logs",
+    "sendToAI": "Send to AI",
+    "aiSelectionPrompt": "Analyze the following selected log lines from pod {namespace}/{podName}:"
   },
   "terminal": {
     "title": "Terminal",

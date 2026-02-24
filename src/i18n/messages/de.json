@@ -364,7 +364,9 @@
     "podDeleted": "Dieser Pod wurde gelöscht. Die unten angezeigten Logs stammen von vor der Löschung.",
     "downloadSuccess": "Logs wurden gespeichert",
     "downloadError": "Fehler beim Speichern der Logs",
-    "previousLogsNoStream": "Streaming für vorherige Logs nicht verfügbar"
+    "previousLogsNoStream": "Streaming für vorherige Logs nicht verfügbar",
+    "sendToAI": "An KI senden",
+    "aiSelectionPrompt": "Analysiere die folgenden ausgewählten Log-Zeilen vom Pod {namespace}/{podName}:"
   },
   "terminal": {
     "title": "Terminal",

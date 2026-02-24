@@ -8,6 +8,9 @@ import { useTabsStore } from "@/lib/stores/tabs-store";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTranslations } from "next-intl";
 import { LogHeader, LogToolbar, LogContent, LogFooter } from "./components";
+import { useAIStore } from "@/lib/stores/ai-store";
+import { useClusterStore } from "@/lib/stores/cluster-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { useLogFilter, useLogAnalysis, useLogDownload, useAutoScroll } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
 
@@ -108,6 +111,26 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
     logs,
     t,
   });
+
+  // Send selected log text to AI
+  const { setPendingAnalysis } = useAIStore();
+  const { currentCluster, currentNamespace } = useClusterStore();
+  const { setAIAssistantOpen } = useUIStore();
+
+  const handleSendSelectionToAI = useCallback(
+    (selectedText: string) => {
+      if (!isAICliAvailable || !currentCluster) return;
+      const message = t("logs.aiSelectionPrompt", { namespace, podName }) +
+        "\n```\n" + selectedText + "\n```";
+      setPendingAnalysis({
+        message,
+        clusterContext: currentCluster.context,
+        namespace: currentNamespace || undefined,
+      });
+      setAIAssistantOpen(true);
+    },
+    [isAICliAvailable, currentCluster, currentNamespace, namespace, podName, setPendingAnalysis, setAIAssistantOpen, t]
+  );
 
   // Download hook
   const { isDownloading, downloadLogs } = useLogDownload({
@@ -234,6 +257,8 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         followText={t("logs.follow")}
         copyLabel={t("common.copy")}
         copiedLabel={t("common.copied")}
+        onSendToAI={isAICliAvailable ? handleSendSelectionToAI : undefined}
+        sendToAILabel={t("logs.sendToAI")}
       />
 
       <LogFooter
