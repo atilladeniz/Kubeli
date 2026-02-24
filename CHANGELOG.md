@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.47] - 2026-02-24
+
+- Added context-aware AI assistant with log selection analysis
+
 ## [0.3.46] - 2026-02-24
 
 - Added environment variable value resolution from ConfigMaps, Secrets, and field references
