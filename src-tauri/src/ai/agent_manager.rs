@@ -406,10 +406,14 @@ impl AgentManager {
                             // Codex CLI uses 'exec' subcommand for non-interactive mode
                             // --json outputs JSONL events
                             // --dangerously-bypass-approvals-and-sandbox skips confirmations
+                            // --skip-git-repo-check allows running outside a git repo (prod app)
+                            // --ephemeral avoids persisting session files (we handle persistence)
                             let mut args = vec![
                                 "exec".to_string(),
                                 "--json".to_string(),
                                 "--dangerously-bypass-approvals-and-sandbox".to_string(),
+                                "--skip-git-repo-check".to_string(),
+                                "--ephemeral".to_string(),
                             ];
 
                             // Combine system prompt with user message if provided

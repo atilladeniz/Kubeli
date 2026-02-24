@@ -346,10 +346,25 @@ impl CliDetector {
     }
 
     /// Find Codex CLI path
+    ///
+    /// Codex is distributed as a Node.js wrapper script that spawns a native binary.
+    /// In production Tauri apps (launched from Finder), `node` may not be in PATH,
+    /// causing the wrapper script to fail. We prioritize finding the native binary
+    /// directly, falling back to the wrapper script only if needed.
     async fn find_codex_cli_path() -> Option<String> {
         let home = env::var("HOME").unwrap_or_default();
 
-        // Homebrew installation (primary method)
+        // First: try to find the native Codex binary directly.
+        // This avoids the Node.js dependency which fails in production GUI apps
+        // where `node` is not in PATH.
+        if let Some(native) = Self::find_codex_native_binary(&home) {
+            return Some(native);
+        }
+
+        // Fallback: look for the Node.js wrapper scripts (works in dev mode
+        // where the terminal's full PATH is inherited)
+
+        // Homebrew installation
         let homebrew_bin = "/opt/homebrew/bin/codex".to_string();
         let homebrew_intel = "/usr/local/bin/codex".to_string();
 
@@ -357,17 +372,7 @@ impl CliDetector {
         let npm_global = format!("{}/.npm-global/bin/codex", home);
         let local_bin = format!("{}/.local/bin/codex", home);
 
-        // Check common locations in order of preference
-        let mut possible_paths = vec![
-            // Homebrew (Apple Silicon) - primary installation method
-            homebrew_bin,
-            // Homebrew (Intel) or system-wide
-            homebrew_intel,
-            // Local bin
-            local_bin,
-            // npm global
-            npm_global,
-        ];
+        let mut possible_paths = vec![homebrew_bin, homebrew_intel, local_bin, npm_global];
 
         // Add version manager paths (mise, nvm, asdf, fnm, volta)
         if let Some(mise_bin) = find_mise_node(&home) {
@@ -411,6 +416,94 @@ impl CliDetector {
             }
         }
 
+        None
+    }
+
+    /// Find the native Codex binary directly, bypassing the Node.js wrapper.
+    ///
+    /// Codex packages contain a native Mach-O/ELF binary at a known vendor path
+    /// inside the npm package. We check common installation roots for this binary.
+    fn find_codex_native_binary(home: &str) -> Option<String> {
+        let target_triple = if cfg!(target_arch = "aarch64") {
+            "aarch64-apple-darwin"
+        } else {
+            "x86_64-apple-darwin"
+        };
+
+        let platform_package = if cfg!(target_arch = "aarch64") {
+            "@openai/codex-darwin-arm64"
+        } else {
+            "@openai/codex-darwin-x64"
+        };
+
+        // Known installation roots where @openai/codex may be installed
+        let codex_package_roots = [
+            // npm global: native dep is nested inside codex's own node_modules
+            format!(
+                "{}/.npm-global/lib/node_modules/@openai/codex/node_modules/{}/vendor/{}/codex/codex",
+                home, platform_package, target_triple
+            ),
+            // npm global: hoisted (flat node_modules)
+            format!(
+                "{}/.npm-global/lib/node_modules/{}/vendor/{}/codex/codex",
+                home, platform_package, target_triple
+            ),
+            // Homebrew (Apple Silicon): vendor dir inside the codex package itself
+            format!(
+                "/opt/homebrew/lib/node_modules/@openai/codex/vendor/{}/codex/codex",
+                target_triple
+            ),
+            // Homebrew (Apple Silicon): nested node_modules
+            format!(
+                "/opt/homebrew/lib/node_modules/@openai/codex/node_modules/{}/vendor/{}/codex/codex",
+                platform_package, target_triple
+            ),
+            // Homebrew (Intel)
+            format!(
+                "/usr/local/lib/node_modules/@openai/codex/vendor/{}/codex/codex",
+                target_triple
+            ),
+            format!(
+                "/usr/local/lib/node_modules/@openai/codex/node_modules/{}/vendor/{}/codex/codex",
+                platform_package, target_triple
+            ),
+        ];
+
+        // Also check version manager paths
+        let version_manager_finders: Vec<Option<String>> = vec![
+            find_nvm_node(home),
+            find_mise_node(home),
+            find_asdf_node(home),
+            find_fnm_node(home),
+            find_volta_node(home),
+        ];
+
+        let mut all_paths: Vec<String> = codex_package_roots.to_vec();
+
+        for vm_bin in version_manager_finders.into_iter().flatten() {
+            // Version manager bin dirs are like ~/.nvm/versions/node/v22.x/bin
+            // The lib dir is a sibling: ~/.nvm/versions/node/v22.x/lib
+            if let Some(base) = vm_bin.strip_suffix("/bin") {
+                all_paths.push(format!(
+                    "{}/lib/node_modules/@openai/codex/node_modules/{}/vendor/{}/codex/codex",
+                    base, platform_package, target_triple
+                ));
+                all_paths.push(format!(
+                    "{}/lib/node_modules/@openai/codex/vendor/{}/codex/codex",
+                    base, target_triple
+                ));
+            }
+        }
+
+        for path in &all_paths {
+            let p = std::path::Path::new(path);
+            if p.exists() && p.is_file() {
+                tracing::info!("Found native Codex binary at: {}", path);
+                return Some(path.clone());
+            }
+        }
+
+        tracing::debug!("Native Codex binary not found in any known location");
         None
     }
 
@@ -463,5 +556,20 @@ mod tests {
         let info = CliDetector::check_cli_available().await;
         // Just verify it doesn't panic
         println!("CLI Status: {:?}", info.status);
+    }
+
+    #[test]
+    fn test_codex_native_binary_detection() {
+        let home = env::var("HOME").unwrap_or_default();
+        let result = CliDetector::find_codex_native_binary(&home);
+        // Just verify it doesn't panic; result depends on local installation
+        println!("Native Codex binary: {:?}", result);
+    }
+
+    #[tokio::test]
+    async fn test_codex_cli_detection() {
+        let info = CliDetector::check_codex_cli_available().await;
+        println!("Codex CLI Status: {:?}", info.status);
+        println!("Codex CLI Path: {:?}", info.cli_path);
     }
 }
