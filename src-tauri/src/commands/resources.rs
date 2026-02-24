@@ -4230,3 +4230,109 @@ pub async fn list_validating_webhooks(
     tracing::info!("Listed {} validating webhook configurations", infos.len());
     Ok(infos)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn test_pod_context() -> PodContext {
+        let mut labels = HashMap::new();
+        labels.insert("app".to_string(), "demo-api".to_string());
+        let mut annotations = HashMap::new();
+        annotations.insert("note".to_string(), "test".to_string());
+
+        PodContext {
+            name: "demo-api-abc123".to_string(),
+            namespace: "kubeli-demo".to_string(),
+            uid: "uid-12345".to_string(),
+            node_name: Some("minikube".to_string()),
+            pod_ip: Some("10.244.0.5".to_string()),
+            host_ip: Some("192.168.49.2".to_string()),
+            service_account: Some("default".to_string()),
+            labels,
+            annotations,
+        }
+    }
+
+    #[test]
+    fn test_resolve_field_ref_metadata() {
+        let pod = test_pod_context();
+        assert_eq!(
+            resolve_field_ref("metadata.name", &pod),
+            Some("demo-api-abc123".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("metadata.namespace", &pod),
+            Some("kubeli-demo".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("metadata.uid", &pod),
+            Some("uid-12345".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_field_ref_spec() {
+        let pod = test_pod_context();
+        assert_eq!(
+            resolve_field_ref("spec.nodeName", &pod),
+            Some("minikube".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("spec.serviceAccountName", &pod),
+            Some("default".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_field_ref_status() {
+        let pod = test_pod_context();
+        assert_eq!(
+            resolve_field_ref("status.podIP", &pod),
+            Some("10.244.0.5".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("status.hostIP", &pod),
+            Some("192.168.49.2".to_string())
+        );
+    }
+
+    #[test]
+    fn test_resolve_field_ref_labels_and_annotations() {
+        let pod = test_pod_context();
+        assert_eq!(
+            resolve_field_ref("metadata.labels['app']", &pod),
+            Some("demo-api".to_string())
+        );
+        assert_eq!(
+            resolve_field_ref("metadata.annotations['note']", &pod),
+            Some("test".to_string())
+        );
+        assert_eq!(resolve_field_ref("metadata.labels['missing']", &pod), None);
+    }
+
+    #[test]
+    fn test_resolve_field_ref_unknown_path() {
+        let pod = test_pod_context();
+        assert_eq!(resolve_field_ref("unknown.path", &pod), None);
+    }
+
+    #[test]
+    fn test_resolve_field_ref_none_values() {
+        let pod = PodContext {
+            name: "pod".to_string(),
+            namespace: "ns".to_string(),
+            uid: "uid".to_string(),
+            node_name: None,
+            pod_ip: None,
+            host_ip: None,
+            service_account: None,
+            labels: HashMap::new(),
+            annotations: HashMap::new(),
+        };
+        assert_eq!(resolve_field_ref("spec.nodeName", &pod), None);
+        assert_eq!(resolve_field_ref("status.podIP", &pod), None);
+        assert_eq!(resolve_field_ref("status.hostIP", &pod), None);
+        assert_eq!(resolve_field_ref("spec.serviceAccountName", &pod), None);
+    }
+}
