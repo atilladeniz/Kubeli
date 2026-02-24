@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.46] - 2026-02-24
+
+- Added environment variable value resolution from ConfigMaps, Secrets, and field references
+
 ## [0.3.45] - 2026-02-22
 
 - Added smart AI MCP tool optimization for improved token efficiency
