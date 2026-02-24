@@ -22,7 +22,9 @@ import {
   useAISession,
   usePendingAnalysis,
   useThinkingMessage,
+  useViewContext,
 } from "./hooks";
+import { getContextualPrompts } from "./types";
 import type { MessageRecord } from "@/lib/tauri/commands";
 
 export function AIAssistant() {
@@ -48,10 +50,17 @@ export function AIAssistant() {
 
   const { currentCluster, isConnected } = useClusterStore();
 
+  // View context for AI awareness
+  const viewContext = useViewContext();
+  const contextualPrompts = useMemo(
+    () => getContextualPrompts(viewContext),
+    [viewContext]
+  );
+
   // Session management hook
   const sessionOptions = useMemo(
-    () => ({ fallbackErrorMessage: t("ai.failedToSendMessage") }),
-    [t]
+    () => ({ fallbackErrorMessage: t("ai.failedToSendMessage"), viewContext }),
+    [t, viewContext]
   );
   const { textareaRef, handleSend: sendMessage } = useAISession(sessionOptions);
   const { setPendingPodLogs, setAIAssistantOpen } = useUIStore();
@@ -201,7 +210,7 @@ export function AIAssistant() {
         {/* Messages - scrollable area */}
         <div className="flex-1 overflow-y-auto min-h-0">
           {messages.length === 0 ? (
-            <EmptyState t={t} onSelectPrompt={handleSelectPrompt} />
+            <EmptyState t={t} onSelectPrompt={handleSelectPrompt} prompts={contextualPrompts} />
           ) : (
             <div className="divide-y divide-border/50">
               {messages.map((message) => (

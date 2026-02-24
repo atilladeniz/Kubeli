@@ -50,7 +50,7 @@ export interface AIState {
   pendingAnalysis: PendingAnalysis | null;
 
   startSession: (clusterContext: string, currentNamespace?: string) => Promise<string>;
-  sendMessage: (message: string) => Promise<void>;
+  sendMessage: (message: string, displayMessage?: string) => Promise<void>;
   interrupt: () => Promise<void>;
   stopSession: () => Promise<void>;
   refreshSessions: () => Promise<SessionInfo[]>;
