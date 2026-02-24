@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.45] - 2026-02-22
+
+- Added smart AI MCP tool optimization for improved token efficiency
+- Fixed react-doctor errors and reduced component complexity
+- Removed unused react-query dependency and stale Next.js references
+- Updated project documentation to reflect Vite/React transition
+
 ## [0.3.44] - 2026-02-21
 
 - Added configurable accessible namespaces per cluster
