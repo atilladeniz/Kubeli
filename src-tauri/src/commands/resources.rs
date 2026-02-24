@@ -741,21 +741,26 @@ pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, Str
     Ok(node_infos)
 }
 
+/// Pod metadata needed for resolving env var field references.
+struct PodContext {
+    name: String,
+    namespace: String,
+    uid: String,
+    node_name: Option<String>,
+    pod_ip: Option<String>,
+    host_ip: Option<String>,
+    service_account: Option<String>,
+    labels: HashMap<String, String>,
+    annotations: HashMap<String, String>,
+}
+
 /// Resolve env var values from ConfigMaps, Secrets, and field references.
 /// Uses a cache to avoid redundant API calls for the same ConfigMap/Secret.
 async fn resolve_env_vars(
     client: &kube::Client,
     namespace: &str,
     containers: &mut [ContainerInfo],
-    pod_name: &str,
-    pod_namespace: &str,
-    pod_uid: &str,
-    pod_node_name: Option<&str>,
-    pod_ip: Option<&str>,
-    host_ip: Option<&str>,
-    pod_service_account: Option<&str>,
-    pod_labels: &HashMap<String, String>,
-    pod_annotations: &HashMap<String, String>,
+    pod: &PodContext,
 ) {
     // Cache for ConfigMap and Secret data to avoid redundant fetches
     let mut configmap_cache: HashMap<String, Option<std::collections::BTreeMap<String, String>>> =
@@ -787,7 +792,6 @@ async fn resolve_env_vars(
                     "secret" => {
                         if let Some((secret_name, secret_key)) = ref_value.split_once(':') {
                             let cache_key = secret_name.to_string();
-                            // Cache decoded string values for secrets
                             let data = if let Some(cached) = secret_cache.get(&cache_key) {
                                 cached.clone()
                             } else {
@@ -813,18 +817,7 @@ async fn resolve_env_vars(
                         }
                     }
                     "field" => {
-                        env_var.resolved_value = resolve_field_ref(
-                            ref_value,
-                            pod_name,
-                            pod_namespace,
-                            pod_uid,
-                            pod_node_name,
-                            pod_ip,
-                            host_ip,
-                            pod_service_account,
-                            pod_labels,
-                            pod_annotations,
-                        );
+                        env_var.resolved_value = resolve_field_ref(ref_value, pod);
                     }
                     _ => {}
                 }
@@ -834,37 +827,26 @@ async fn resolve_env_vars(
 }
 
 /// Resolve a fieldRef path to its value from pod metadata/status.
-fn resolve_field_ref(
-    field_path: &str,
-    pod_name: &str,
-    pod_namespace: &str,
-    pod_uid: &str,
-    pod_node_name: Option<&str>,
-    pod_ip: Option<&str>,
-    host_ip: Option<&str>,
-    service_account: Option<&str>,
-    labels: &HashMap<String, String>,
-    annotations: &HashMap<String, String>,
-) -> Option<String> {
+fn resolve_field_ref(field_path: &str, pod: &PodContext) -> Option<String> {
     match field_path {
-        "metadata.name" => Some(pod_name.to_string()),
-        "metadata.namespace" => Some(pod_namespace.to_string()),
-        "metadata.uid" => Some(pod_uid.to_string()),
-        "spec.nodeName" => pod_node_name.map(|s| s.to_string()),
-        "spec.serviceAccountName" => service_account.map(|s| s.to_string()),
-        "status.podIP" | "status.podIPs" => pod_ip.map(|s| s.to_string()),
-        "status.hostIP" | "status.hostIPs" => host_ip.map(|s| s.to_string()),
+        "metadata.name" => Some(pod.name.clone()),
+        "metadata.namespace" => Some(pod.namespace.clone()),
+        "metadata.uid" => Some(pod.uid.clone()),
+        "spec.nodeName" => pod.node_name.clone(),
+        "spec.serviceAccountName" => pod.service_account.clone(),
+        "status.podIP" | "status.podIPs" => pod.pod_ip.clone(),
+        "status.hostIP" | "status.hostIPs" => pod.host_ip.clone(),
         path if path.starts_with("metadata.labels['") => {
             let key = path
                 .strip_prefix("metadata.labels['")
                 .and_then(|s| s.strip_suffix("']"));
-            key.and_then(|k| labels.get(k).cloned())
+            key.and_then(|k| pod.labels.get(k).cloned())
         }
         path if path.starts_with("metadata.annotations['") => {
             let key = path
                 .strip_prefix("metadata.annotations['")
                 .and_then(|s| s.strip_suffix("']"));
-            key.and_then(|k| annotations.get(k).cloned())
+            key.and_then(|k| pod.annotations.get(k).cloned())
         }
         _ => None,
     }
@@ -889,15 +871,17 @@ pub async fn get_pod(
     let spec = pod.spec.unwrap_or_default();
     let status = pod.status.unwrap_or_default();
 
-    let pod_name = metadata.name.clone().unwrap_or_default();
-    let pod_namespace = metadata.namespace.clone().unwrap_or_default();
-    let pod_uid = metadata.uid.clone().unwrap_or_default();
-    let pod_node_name = spec.node_name.clone();
-    let pod_ip = status.pod_ip.clone();
-    let host_ip = status.host_ip.clone();
-    let pod_service_account = spec.service_account_name.clone();
-    let pod_labels = btree_to_hashmap(metadata.labels.clone());
-    let pod_annotations = btree_to_hashmap(metadata.annotations.clone());
+    let pod_ctx = PodContext {
+        name: metadata.name.clone().unwrap_or_default(),
+        namespace: metadata.namespace.clone().unwrap_or_default(),
+        uid: metadata.uid.clone().unwrap_or_default(),
+        node_name: spec.node_name.clone(),
+        pod_ip: status.pod_ip.clone(),
+        host_ip: status.host_ip.clone(),
+        service_account: spec.service_account_name.clone(),
+        labels: btree_to_hashmap(metadata.labels.clone()),
+        annotations: btree_to_hashmap(metadata.annotations.clone()),
+    };
 
     let mut init_containers: Vec<ContainerInfo> = spec
         .init_containers
@@ -925,54 +909,26 @@ pub async fn get_pod(
         .collect();
 
     // Resolve env var values from ConfigMaps, Secrets, and field references
-    resolve_env_vars(
-        &client,
-        &namespace,
-        &mut init_containers,
-        &pod_name,
-        &pod_namespace,
-        &pod_uid,
-        pod_node_name.as_deref(),
-        pod_ip.as_deref(),
-        host_ip.as_deref(),
-        pod_service_account.as_deref(),
-        &pod_labels,
-        &pod_annotations,
-    )
-    .await;
-    resolve_env_vars(
-        &client,
-        &namespace,
-        &mut containers,
-        &pod_name,
-        &pod_namespace,
-        &pod_uid,
-        pod_node_name.as_deref(),
-        pod_ip.as_deref(),
-        host_ip.as_deref(),
-        pod_service_account.as_deref(),
-        &pod_labels,
-        &pod_annotations,
-    )
-    .await;
+    resolve_env_vars(&client, &namespace, &mut init_containers, &pod_ctx).await;
+    resolve_env_vars(&client, &namespace, &mut containers, &pod_ctx).await;
 
     let ready_count = containers.iter().filter(|c| c.ready).count();
     let total_count = containers.len();
     let total_restarts: i32 = containers.iter().map(|c| c.restart_count).sum();
 
     Ok(PodInfo {
-        name: pod_name,
-        namespace: pod_namespace,
-        uid: pod_uid,
+        name: pod_ctx.name,
+        namespace: pod_ctx.namespace,
+        uid: pod_ctx.uid,
         phase: status.phase.unwrap_or_else(|| "Unknown".to_string()),
-        node_name: pod_node_name,
-        pod_ip,
-        host_ip,
+        node_name: pod_ctx.node_name,
+        pod_ip: pod_ctx.pod_ip,
+        host_ip: pod_ctx.host_ip,
         init_containers,
         containers,
         created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
         deletion_timestamp: metadata.deletion_timestamp.map(|t| t.0.to_string()),
-        labels: pod_labels,
+        labels: pod_ctx.labels,
         restart_count: total_restarts,
         ready_containers: format!("{}/{}", ready_count, total_count),
     })
