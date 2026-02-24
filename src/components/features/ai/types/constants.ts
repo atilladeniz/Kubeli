@@ -68,7 +68,7 @@ const VIEW_PROMPTS: Partial<Record<string, string[]>> = {
   ],
   secrets: [
     "Any expiring secrets?",
-    "Show secret types",
+    "Show secret types and key names",
     "Any unused secrets?",
     "Check secret annotations",
   ],

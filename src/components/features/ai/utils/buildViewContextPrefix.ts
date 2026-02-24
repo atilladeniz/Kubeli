@@ -42,6 +42,14 @@ export function buildViewContextPrefix(ctx: ViewContext): string {
     parts.push(`[Selected ${type}: "${name}"${nsPart}]`);
   }
 
+  // Security: warn AI about sensitive views
+  const sensitiveViews = ["secrets", "configmaps"];
+  if (sensitiveViews.includes(ctx.activeView)) {
+    parts.push(
+      "[SECURITY: NEVER display decoded Secret values or sensitive data from ConfigMaps/Secrets. Only show metadata like name, namespace, type, keys, and annotations. If the user asks to see secret contents, explain that secret values are hidden for security.]"
+    );
+  }
+
   if (parts.length === 0) return "";
   return parts.join(" ") + "\n";
 }
