@@ -5,12 +5,13 @@ import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { useClusterStore } from "../../stores/cluster-store";
 import { useResourceCacheStore } from "../../stores/resource-cache-store";
 import { stopWatch } from "../../tauri/commands";
+import { pSettledWithLimit, MAX_CONCURRENT_NS_REQUESTS, NAMESPACE_CHANGE_DEBOUNCE_MS } from "./utils";
 import type { ListOptions, WatchEvent } from "../../types";
 import type { UseK8sResourcesOptions, UseK8sResourcesReturn, ResourceHookConfig } from "./types";
 
 /**
  * Core hook for fetching and managing Kubernetes resources.
- * This is the internal implementation used by all resource-specific hooks.
+ * Supports per-namespace fetching, multi-namespace watch, and auto-refresh.
  */
 export function useK8sResource<T>(
   config: ResourceHookConfig<T>,
@@ -27,9 +28,15 @@ export function useK8sResource<T>(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isWatching, setIsWatching] = useState(false);
-  const [watchId, setWatchId] = useState<string | null>(null);
+  const [watchIds, setWatchIds] = useState<string[]>([]);
   const watchRetryUntilRef = useRef<number | null>(null);
-  const watchNamespaceRef = useRef<string | undefined>(undefined);
+  const watchNamespacesRef = useRef<string[]>([]);
+  // Ref mirrors watchIds state for use in async callbacks and cleanup
+  const watchIdsRef = useRef<string[]>([]);
+  // Guard against concurrent startWatch calls
+  const watchStartingRef = useRef(false);
+
+  // ── Fetching ──────────────────────────────────────────────────────
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -39,13 +46,12 @@ export function useK8sResource<T>(
       let result: T[];
 
       if (config.clusterScoped) {
-        // Cluster-scoped resources don't need namespace
         result = await config.listFn({});
       } else if (isConfiguredAllNs && configuredNamespaces.length > 0) {
-        // Configured mode "All Namespaces": fetch each namespace individually
-        // to avoid 403 from Api::all() on RBAC-restricted clusters
-        const outcomes = await Promise.allSettled(
-          configuredNamespaces.map((ns) => config.listFn({ namespace: ns }))
+        // Fetch each configured namespace individually to avoid 403 from Api::all()
+        const outcomes = await pSettledWithLimit(
+          configuredNamespaces.map((ns) => () => config.listFn({ namespace: ns })),
+          MAX_CONCURRENT_NS_REQUESTS
         );
         result = [];
         const errors: string[] = [];
@@ -60,20 +66,28 @@ export function useK8sResource<T>(
           throw new Error(`Failed to fetch ${config.displayName}: ${errors.join("; ")}`);
         }
       } else if (isMultiNs) {
-        // Multi-namespace: fetch all, then filter client-side
-        result = await config.listFn({});
-        const nsSet = new Set(selectedNamespaces);
-        result = result.filter((item) => {
-          const ns = (item as unknown as { namespace?: string }).namespace;
-          return ns != null && nsSet.has(ns);
+        // Fetch each selected namespace individually to avoid 403 from Api::all()
+        const outcomes = await pSettledWithLimit(
+          selectedNamespaces.map((ns) => () => config.listFn({ namespace: ns })),
+          MAX_CONCURRENT_NS_REQUESTS
+        );
+        result = [];
+        const errors: string[] = [];
+        outcomes.forEach((outcome, i) => {
+          if (outcome.status === "fulfilled") {
+            result.push(...outcome.value);
+          } else {
+            errors.push(`${selectedNamespaces[i]}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
+          }
         });
+        if (errors.length > 0 && result.length === 0) {
+          throw new Error(`Failed to fetch ${config.displayName}: ${errors.join("; ")}`);
+        }
       } else {
-        // Single or all namespaces
         const listOptions: ListOptions = namespace ? { namespace } : {};
         result = await config.listFn(listOptions);
       }
 
-      // Apply post-processing if defined
       if (config.postProcess) {
         result = config.postProcess(result);
       }
@@ -87,107 +101,170 @@ export function useK8sResource<T>(
     }
   }, [isConnected, namespace, isMultiNs, isConfiguredAllNs, configuredNamespaces, selectedNamespaces, config, cacheKey, setCache]);
 
-  const startWatch = useCallback(async () => {
-    if (!isConnected || watchId || !config.supportsWatch) return;
+  // ── Watch management ──────────────────────────────────────────────
 
-    const id = `${config.displayName.toLowerCase().replace(/\s+/g, "-")}-${Date.now()}`;
-    setWatchId(id);
+  const startWatch = useCallback(async () => {
+    if (!isConnected || watchIds.length > 0 || watchStartingRef.current || !config.supportsWatch) return;
+    watchStartingRef.current = true;
+
+    let namespacesToWatch: (string | undefined)[];
+    if (isMultiNs) {
+      namespacesToWatch = selectedNamespaces;
+    } else if (isConfiguredAllNs && configuredNamespaces.length > 0) {
+      namespacesToWatch = configuredNamespaces;
+    } else {
+      namespacesToWatch = [namespace || undefined];
+    }
+
+    const base = config.displayName.toLowerCase().replace(/\s+/g, "-");
+    const timestamp = Date.now();
+    const ids: string[] = [];
+
     setError(null);
 
     try {
-      await config.watchFn!(id, namespace || undefined);
-      watchNamespaceRef.current = namespace || undefined;
+      for (let i = 0; i < namespacesToWatch.length; i++) {
+        const ns = namespacesToWatch[i];
+        const id = namespacesToWatch.length > 1
+          ? `${base}-${ns || "all"}-${timestamp}-${i}`
+          : `${base}-${timestamp}`;
+        await config.watchFn!(id, ns);
+        ids.push(id);
+      }
+      watchIdsRef.current = ids;
+      setWatchIds(ids);
+      watchNamespacesRef.current = namespacesToWatch.filter((ns): ns is string => ns !== undefined);
       setIsWatching(true);
       watchRetryUntilRef.current = null;
     } catch (e) {
+      for (const id of ids) {
+        stopWatch(id).catch(() => {});
+      }
       setError(e instanceof Error ? e.message : "Failed to start watch");
       setIsWatching(false);
-      setWatchId(null);
+      watchIdsRef.current = [];
+      setWatchIds([]);
       watchRetryUntilRef.current = Date.now() + 5000;
+    } finally {
+      watchStartingRef.current = false;
     }
-  }, [isConnected, watchId, namespace, config.displayName, config.supportsWatch, config.watchFn]);
+  }, [isConnected, watchIds, namespace, isMultiNs, isConfiguredAllNs, selectedNamespaces, configuredNamespaces, config.displayName, config.supportsWatch, config.watchFn]);
 
   const stopWatchFn = useCallback(async () => {
-    if (!watchId) return;
+    if (watchIdsRef.current.length === 0) return;
+    const idsToStop = watchIdsRef.current;
+    watchIdsRef.current = [];
+    setWatchIds([]);
+    setIsWatching(false);
+    watchRetryUntilRef.current = null;
     try {
-      await stopWatch(watchId);
-      setIsWatching(false);
-      setWatchId(null);
-      watchRetryUntilRef.current = null;
+      await Promise.all(idsToStop.map((id) => stopWatch(id)));
     } catch (e) {
-      console.error("Failed to stop watch:", e);
+      console.error("Failed to stop watches:", e);
     }
-  }, [watchId]);
+  }, []);
 
-  // Listen for watch events
+  // ── Watch event listeners ─────────────────────────────────────────
+
   useEffect(() => {
-    if (!watchId || !config.supportsWatch) return;
+    if (watchIds.length === 0 || !config.supportsWatch) return;
 
-    let unlisten: UnlistenFn;
+    let cancelled = false;
+    const unlisteners: UnlistenFn[] = [];
     const prefix = config.watchEventPrefix || "pods";
+    const isMultiWatch = watchIds.length > 1;
 
-    // Helper to safely get uid from an item (only used for watchable resources)
     const getUid = (item: T): string | undefined => {
       return (item as unknown as { uid?: string }).uid;
     };
 
-    const setupListener = async () => {
-      unlisten = await listen<WatchEvent<T>>(`${prefix}-watch-${watchId}`, (event) => {
-        const watchEvent = event.payload;
+    const handleWatchEvent = (watchEvent: WatchEvent<T>) => {
+      if (cancelled) return;
 
-        setData((prev) => {
-          switch (watchEvent.type) {
-            case "Added": {
-              const newItem = watchEvent.data as T;
-              const newUid = getUid(newItem);
-              const index = prev.findIndex((item) => getUid(item) === newUid);
-              if (index === -1) return [...prev, newItem];
-              const next = [...prev];
-              next[index] = newItem;
-              return next;
-            }
-            case "Modified": {
-              const modifiedItem = watchEvent.data as T;
-              const modifiedUid = getUid(modifiedItem);
-              const index = prev.findIndex((item) => getUid(item) === modifiedUid);
-              if (index === -1) return [...prev, modifiedItem];
-              const next = [...prev];
-              next[index] = modifiedItem;
-              return next;
-            }
-            case "Deleted": {
-              const deletedItem = watchEvent.data as T;
-              const deletedUid = getUid(deletedItem);
-              return prev.filter((item) => getUid(item) !== deletedUid);
-            }
-            case "Restarted": {
-              return watchEvent.data as T[];
-            }
-            case "Error": {
-              const message =
-                typeof watchEvent.data === "string" ? watchEvent.data : "Watch error";
-              setError(message);
-              setIsWatching(false);
-              setWatchId(null);
-              watchRetryUntilRef.current = Date.now() + 5000;
-              if (watchId) {
-                stopWatch(watchId).catch(() => {});
-              }
-              return prev;
-            }
-            default:
-              return prev;
+      if (watchEvent.type === "Error") {
+        const message =
+          typeof watchEvent.data === "string" ? watchEvent.data : "Watch error";
+        setError(message);
+        setIsWatching(false);
+        watchRetryUntilRef.current = Date.now() + 5000;
+        const idsToStop = watchIdsRef.current;
+        watchIdsRef.current = [];
+        setWatchIds([]);
+        idsToStop.forEach((id) => stopWatch(id).catch(() => {}));
+        return;
+      }
+
+      setData((prev) => {
+        switch (watchEvent.type) {
+          case "Added": {
+            const newItem = watchEvent.data as T;
+            const newUid = getUid(newItem);
+            const index = prev.findIndex((item) => getUid(item) === newUid);
+            if (index === -1) return [...prev, newItem];
+            const next = [...prev];
+            next[index] = newItem;
+            return next;
           }
-        });
+          case "Modified": {
+            const modifiedItem = watchEvent.data as T;
+            const modifiedUid = getUid(modifiedItem);
+            const index = prev.findIndex((item) => getUid(item) === modifiedUid);
+            if (index === -1) return [...prev, modifiedItem];
+            const next = [...prev];
+            next[index] = modifiedItem;
+            return next;
+          }
+          case "Deleted": {
+            const deletedItem = watchEvent.data as T;
+            const deletedUid = getUid(deletedItem);
+            return prev.filter((item) => getUid(item) !== deletedUid);
+          }
+          case "Restarted": {
+            const restartedItems = watchEvent.data as T[];
+            if (!isMultiWatch) {
+              return restartedItems;
+            }
+            // Multi-watch: only replace items from the restarted namespace(s)
+            const restartedNs = new Set(
+              restartedItems
+                .map((item) => (item as unknown as { namespace?: string }).namespace)
+                .filter((ns): ns is string => ns != null)
+            );
+            const kept = prev.filter((item) => {
+              const ns = (item as unknown as { namespace?: string }).namespace;
+              return ns == null || !restartedNs.has(ns);
+            });
+            return [...kept, ...restartedItems];
+          }
+          default:
+            return prev;
+        }
       });
     };
 
-    setupListener();
+    const setupListeners = async () => {
+      for (const id of watchIds) {
+        if (cancelled) return;
+        const unlisten = await listen<WatchEvent<T>>(`${prefix}-watch-${id}`, (event) => {
+          handleWatchEvent(event.payload);
+        });
+        if (cancelled) {
+          unlisten();
+          return;
+        }
+        unlisteners.push(unlisten);
+      }
+    };
+
+    setupListeners();
 
     return () => {
-      if (unlisten) unlisten();
+      cancelled = true;
+      unlisteners.forEach((fn) => fn());
     };
-  }, [watchId, config.supportsWatch, config.watchEventPrefix]);
+  }, [watchIds, config.supportsWatch, config.watchEventPrefix]);
+
+  // ── Lifecycle effects ─────────────────────────────────────────────
 
   // Reset data from cache when cache key changes (e.g. namespace switch)
   useEffect(() => {
@@ -201,7 +278,7 @@ export function useK8sResource<T>(
     }
   }, [isConnected, refresh]);
 
-  // Auto-refresh
+  // Auto-refresh (disabled while watching)
   useEffect(() => {
     if (!options.autoRefresh || !isConnected || isWatching) return;
     const interval = setInterval(
@@ -218,34 +295,41 @@ export function useK8sResource<T>(
     config.defaultRefreshInterval,
   ]);
 
-  // Restart watch when namespace changes
+  // Restart watches when namespace selection changes (debounced)
   useEffect(() => {
-    if (!isWatching || !watchId || !config.supportsWatch) return;
+    if (!isWatching || watchIds.length === 0 || !config.supportsWatch) return;
 
-    const currentWatchNs = watchNamespaceRef.current;
-    const targetNs = namespace || undefined;
+    let targetNs: string[];
+    if (isMultiNs) {
+      targetNs = selectedNamespaces;
+    } else if (isConfiguredAllNs) {
+      targetNs = configuredNamespaces;
+    } else {
+      targetNs = namespace ? [namespace] : [];
+    }
 
-    // If namespace hasn't changed, nothing to do
-    if (currentWatchNs === targetNs) return;
+    const currentSorted = watchNamespacesRef.current.slice().sort().join(",");
+    const targetSorted = targetNs.slice().sort().join(",");
+    if (currentSorted === targetSorted) return;
 
-    // Namespace changed while watching — stop the current watch.
-    // The auto-watch effect will restart it with the new namespace.
-    const restart = async () => {
-      try {
-        await stopWatch(watchId);
-      } catch {
-        // Watch may already be stopped
-      }
+    const timer = setTimeout(async () => {
+      const idsToStop = watchIdsRef.current;
+      watchIdsRef.current = [];
+      setWatchIds([]);
       setIsWatching(false);
-      setWatchId(null);
-    };
+      try {
+        await Promise.all(idsToStop.map((id) => stopWatch(id)));
+      } catch {
+        // Watches may already be stopped
+      }
+    }, NAMESPACE_CHANGE_DEBOUNCE_MS);
 
-    restart();
-  }, [namespace, isWatching, watchId, config.supportsWatch]);
+    return () => clearTimeout(timer);
+  }, [namespace, isMultiNs, isConfiguredAllNs, selectedNamespaces, configuredNamespaces, isWatching, watchIds, config.supportsWatch]);
 
   // Auto-start watch if enabled
   useEffect(() => {
-    if (!options.autoWatch || !isConnected || isWatching || watchId || isLoading) return;
+    if (!options.autoWatch || !isConnected || isWatching || watchIds.length > 0 || isLoading) return;
     if (!config.supportsWatch) return;
 
     const retryUntil = watchRetryUntilRef.current;
@@ -256,16 +340,14 @@ export function useK8sResource<T>(
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [options.autoWatch, isConnected, isWatching, isLoading, watchId, config.supportsWatch, startWatch]);
+  }, [options.autoWatch, isConnected, isWatching, isLoading, watchIds, config.supportsWatch, startWatch]);
 
-  // Cleanup watch on unmount
+  // Cleanup watches on unmount
   useEffect(() => {
     return () => {
-      if (watchId) {
-        stopWatch(watchId).catch(console.error);
-      }
+      watchIdsRef.current.forEach((id) => stopWatch(id).catch(console.error));
     };
-  }, [watchId]);
+  }, []);
 
   return {
     data,
@@ -275,149 +357,5 @@ export function useK8sResource<T>(
     startWatch,
     stopWatchFn,
     isWatching,
-  };
-}
-
-/**
- * Simplified hook for cluster-scoped resources (no namespace)
- */
-export function useClusterScopedResource<T>(
-  displayName: string,
-  listFn: () => Promise<T[]>,
-  options: UseK8sResourcesOptions = {}
-): UseK8sResourcesReturn<T> {
-  const { isConnected } = useClusterStore();
-  const { getCache, setCache } = useResourceCacheStore();
-  const cacheKey = `${displayName}:`;
-
-  const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    if (!isConnected) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      const result = await listFn();
-      setData(result);
-      setCache(cacheKey, result);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : `Failed to fetch ${displayName}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isConnected, listFn, displayName, cacheKey, setCache]);
-
-  useEffect(() => {
-    if (isConnected) {
-      refresh();
-    }
-  }, [isConnected, refresh]);
-
-  useEffect(() => {
-    if (!options.autoRefresh || !isConnected) return;
-    const interval = setInterval(refresh, options.refreshInterval || 30000);
-    return () => clearInterval(interval);
-  }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
-
-  return {
-    data,
-    isLoading,
-    error,
-    refresh,
-    startWatch: async () => {},
-    stopWatchFn: async () => {},
-    isWatching: false,
-  };
-}
-
-/**
- * Hook for resources with optional namespace parameter (different signature)
- */
-export function useOptionalNamespaceResource<T>(
-  displayName: string,
-  listFn: (namespace?: string) => Promise<T[]>,
-  options: UseK8sResourcesOptions = {}
-): UseK8sResourcesReturn<T> {
-  const { isConnected, selectedNamespaces, namespaceSource, namespaces: configuredNamespaces } = useClusterStore();
-  const isMultiNs = !options.namespace && selectedNamespaces.length > 1;
-  const isConfiguredAllNs = namespaceSource === "configured" && !options.namespace && selectedNamespaces.length === 0;
-  const namespace = options.namespace ?? (selectedNamespaces.length === 1 ? selectedNamespaces[0] : "");
-  const { getCache, setCache } = useResourceCacheStore();
-  const cacheKey = `${displayName}:${options.namespace ?? (isConfiguredAllNs ? `configured:${configuredNamespaces.slice().sort().join(",")}` : isMultiNs ? selectedNamespaces.slice().sort().join(",") : namespace)}`;
-
-  const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    if (!isConnected) return;
-    setIsLoading(true);
-    setError(null);
-    try {
-      let result: T[];
-      if (isConfiguredAllNs && configuredNamespaces.length > 0) {
-        // Configured mode "All Namespaces": fetch each namespace individually
-        const outcomes = await Promise.allSettled(
-          configuredNamespaces.map((ns) => listFn(ns))
-        );
-        result = [];
-        const errors: string[] = [];
-        outcomes.forEach((outcome, i) => {
-          if (outcome.status === "fulfilled") {
-            result.push(...outcome.value);
-          } else {
-            errors.push(`${configuredNamespaces[i]}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
-          }
-        });
-        if (errors.length > 0 && result.length === 0) {
-          throw new Error(`Failed to fetch ${displayName}: ${errors.join("; ")}`);
-        }
-      } else if (isMultiNs) {
-        // Multi-namespace: fetch all, then filter client-side
-        result = await listFn(undefined);
-        const nsSet = new Set(selectedNamespaces);
-        result = result.filter((item) => {
-          const ns = (item as unknown as { namespace?: string }).namespace;
-          return ns != null && nsSet.has(ns);
-        });
-      } else {
-        result = await listFn(namespace || undefined);
-      }
-      setData(result);
-      setCache(cacheKey, result);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : `Failed to fetch ${displayName}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [isConnected, namespace, isMultiNs, isConfiguredAllNs, configuredNamespaces, selectedNamespaces, listFn, displayName, cacheKey, setCache]);
-
-  // Reset data from cache when cache key changes (e.g. namespace switch)
-  useEffect(() => {
-    setData(getCache<T>(cacheKey));
-  }, [cacheKey, getCache]);
-
-  useEffect(() => {
-    if (isConnected) {
-      refresh();
-    }
-  }, [isConnected, refresh]);
-
-  useEffect(() => {
-    if (!options.autoRefresh || !isConnected) return;
-    const interval = setInterval(refresh, options.refreshInterval || 30000);
-    return () => clearInterval(interval);
-  }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
-
-  return {
-    data,
-    isLoading,
-    error,
-    refresh,
-    startWatch: async () => {},
-    stopWatchFn: async () => {},
-    isWatching: false,
   };
 }

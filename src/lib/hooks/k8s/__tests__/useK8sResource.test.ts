@@ -83,8 +83,13 @@ describe("useK8sResource", () => {
         await flushPromises();
       });
 
+      // Watch restart is debounced by 300ms
+      await act(async () => {
+        jest.advanceTimersByTime(350);
+        await flushPromises();
+      });
+
       // The restart effect should have stopped the old watch
-      // (cleanup effect also calls stopWatch — harmless idempotent call)
       expect(mockStopWatch).toHaveBeenCalled();
 
       // Auto-watch should restart with the new namespace after delay
@@ -151,6 +156,12 @@ describe("useK8sResource", () => {
       // Switch to "All Namespaces" (empty string in store)
       await act(async () => {
         useClusterStore.setState({ selectedNamespaces: [], currentNamespace: "" });
+        await flushPromises();
+      });
+
+      // Watch restart is debounced by 300ms
+      await act(async () => {
+        jest.advanceTimersByTime(350);
         await flushPromises();
       });
 
