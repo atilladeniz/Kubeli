@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.49] - 2026-02-25
+
+- Fixed namespace fetching to handle multi-namespace selection individually
+
 ## [0.3.48] - 2026-02-24
 
 - Fixed native Codex binary detection for production app compatibility
