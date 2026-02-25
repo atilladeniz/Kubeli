@@ -1,7 +1,9 @@
 "use client";
 
 import type { ListOptions } from "../../types";
-import { useK8sResource, useClusterScopedResource, useOptionalNamespaceResource } from "./useK8sResource";
+import { useK8sResource } from "./useK8sResource";
+import { useClusterScopedResource } from "./useClusterScoped";
+import { useOptionalNamespaceResource } from "./useOptionalNamespace";
 import type { UseK8sResourcesOptions, UseK8sResourcesReturn, ResourceHookConfig } from "./types";
 
 /**
