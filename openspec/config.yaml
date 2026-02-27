@@ -1,0 +1,37 @@
+schema: spec-driven
+
+context: |
+  Kubeli is a modern, lightweight desktop app for managing Kubernetes clusters.
+
+  Tech stack:
+  - Frontend: Vite 7.x, React 19, TypeScript 5.x (strict), Zustand, Tailwind CSS
+  - Backend: Tauri 2.9+ (Rust), kube-rs 3.x, Tokio 1.49+
+  - Build: npm, Vite, ESLint, Prettier
+
+  Architecture:
+  - Feature-based folder structure: src/components/features/
+  - Tauri commands in src-tauri/src/commands/ (snake_case)
+  - Zustand stores for global and feature-level state
+  - IPC via Tauri commands (list_clusters, list_pods, etc.)
+
+  Conventions:
+  - TypeScript strict mode, functional components with hooks
+  - Named exports for components
+  - Rust naming: snake_case functions/variables, PascalCase types
+  - Conventional commits: feat:, fix:, docs:, refactor:, test:
+  - No emojis in commit messages
+
+  Platforms: macOS 10.15+, Linux (Ubuntu 20.04+), Windows 10 (1809+)
+
+  Performance constraints:
+  - Startup < 2s, Memory idle < 150MB, active < 300MB
+  - CPU idle < 2%, Bundle < 50MB
+
+  Security: Credentials in OS keychain, TLS 1.2+, code signing required
+
+# Per-artifact rules (optional)
+# rules:
+#   proposal:
+#     - Keep proposals under 500 words
+#   tasks:
+#     - Break tasks into chunks of max 2 hours
