@@ -14,6 +14,9 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
+  ContextMenuSub,
+  ContextMenuSubContent,
+  ContextMenuSubTrigger,
   ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import { cn } from "@/lib/utils";
@@ -162,6 +165,30 @@ export function ResourceTable<T>({
                     {menuItems.map((menuItem, index) =>
                       menuItem.separator ? (
                         <ContextMenuSeparator key={`sep-${index}`} />
+                      ) : menuItem.children ? (
+                        <ContextMenuSub key={menuItem.label}>
+                          <ContextMenuSubTrigger
+                            disabled={menuItem.disabled}
+                            className="gap-2"
+                          >
+                            {menuItem.icon}
+                            {menuItem.label}
+                          </ContextMenuSubTrigger>
+                          <ContextMenuSubContent>
+                            {menuItem.children.map((child) => (
+                              <ContextMenuItem
+                                key={child.label}
+                                onClick={child.onClick}
+                                disabled={child.disabled}
+                                variant={child.variant}
+                                className="gap-2"
+                              >
+                                {child.icon}
+                                {child.label}
+                              </ContextMenuItem>
+                            ))}
+                          </ContextMenuSubContent>
+                        </ContextMenuSub>
                       ) : (
                         <ContextMenuItem
                           key={menuItem.label}

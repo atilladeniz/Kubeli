@@ -30,6 +30,7 @@ export interface ContextMenuItemDef {
   variant?: "default" | "destructive";
   disabled?: boolean;
   separator?: boolean;
+  children?: ContextMenuItemDef[];
 }
 
 export type SortDirection = "asc" | "desc";

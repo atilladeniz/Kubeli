@@ -157,37 +157,41 @@ export function ServicesView() {
     },
   ];
 
-  const getPortForwardMenuItems = (svc: ServiceInfo): ContextMenuItemDef[] => {
-    if (svc.ports.length === 0) return [];
+  const getPortForwardMenuItem = (svc: ServiceInfo): ContextMenuItemDef | null => {
+    if (svc.ports.length === 0) return null;
 
-    // Single port: one toggle entry
+    // Single port: direct toggle
     if (svc.ports.length === 1) {
       const forward = getForwardForService(svc);
       const isForwarded = !!forward;
-      return [
-        {
-          label: isForwarded ? "Stop Port Forward" : "Port Forward",
-          icon: <ArrowRightLeft className="size-4" />,
-          onClick: () => (isForwarded ? handleDisconnect(svc) : handlePortForward(svc)),
-        },
-      ];
+      return {
+        label: isForwarded ? "Stop Port Forward" : "Port Forward",
+        icon: <ArrowRightLeft className="size-4" />,
+        onClick: () => (isForwarded ? handleDisconnect(svc) : handlePortForward(svc)),
+      };
     }
 
-    // Multi-port: one entry per port
+    // Multi-port: submenu with one entry per port
     const svcForwards = getForwardsForService(svc);
-    return svc.ports.map((port) => {
-      const fwd = svcForwards.find((f) => f.target_port === port.port);
-      const portLabel = port.name ? `${port.name}:${port.port}` : `${port.port}`;
-      return {
-        label: fwd ? `Stop :${portLabel}` : `Forward :${portLabel}`,
-        icon: <ArrowRightLeft className="size-4" />,
-        onClick: () => (fwd ? stopForward(fwd.forward_id) : handlePortForward(svc, port)),
-      };
-    });
+    return {
+      label: "Port Forward",
+      icon: <ArrowRightLeft className="size-4" />,
+      onClick: () => {},
+      children: svc.ports.map((port) => {
+        const fwd = svcForwards.find((f) => f.target_port === port.port);
+        const portLabel = port.name ? `${port.name}:${port.port}` : `${port.port}`;
+        return {
+          label: fwd ? `Stop :${portLabel}` : `Forward :${portLabel}`,
+          icon: <ArrowRightLeft className="size-4" />,
+          onClick: () => (fwd ? stopForward(fwd.forward_id) : handlePortForward(svc, port)),
+        };
+      }),
+    };
   };
 
   const getServiceContextMenu = (svc: ServiceInfo): ContextMenuItemDef[] => {
     const isFav = isFavorite(clusterContext, "services", svc.name, svc.namespace);
+    const portForwardItem = getPortForwardMenuItem(svc);
 
     return [
       {
@@ -195,7 +199,7 @@ export function ServicesView() {
         icon: <Eye className="size-4" />,
         onClick: () => openResourceDetail("service", svc.name, svc.namespace),
       },
-      ...getPortForwardMenuItems(svc),
+      ...(portForwardItem ? [portForwardItem] : []),
       { separator: true, label: "", onClick: () => {} },
       {
         label: isFav ? "Remove from Favorites" : "Add to Favorites",
