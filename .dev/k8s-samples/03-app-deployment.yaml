@@ -256,6 +256,52 @@ spec:
           # Override nginx to listen on 8080 instead of 80
           command: ["sh", "-c", "sed -i 's/listen       80;/listen       8080;/' /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
 ---
+# Deployment - Message Queue (simulates RabbitMQ with 3 ports)
+# Used for multi-port forward testing
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-mq
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: mq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: demo-app
+      component: mq
+  template:
+    metadata:
+      labels:
+        app: demo-app
+        component: mq
+    spec:
+      serviceAccountName: demo-service-account
+      containers:
+        - name: mq
+          image: nginx:alpine
+          ports:
+            - name: amqp
+              containerPort: 5672
+            - name: management
+              containerPort: 15672
+            - name: prometheus
+              containerPort: 15692
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 256Mi
+          env:
+            - name: APP_NAME
+              value: "kubeli-mq"
+          # Override nginx to listen on 5672
+          command: ["sh", "-c", "sed -i 's/listen       80;/listen       5672;/' /etc/nginx/conf.d/default.conf && nginx -g 'daemon off;'"]
+---
 # Services
 apiVersion: v1
 kind: Service
@@ -338,4 +384,33 @@ spec:
     - name: https
       port: 443
       targetPort: https
+      protocol: TCP
+---
+# Service - Message Queue (multi-port: 3 ports like RabbitMQ)
+# Tests multi-port forward popover with 3+ ports
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-mq-svc
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: mq
+spec:
+  type: ClusterIP
+  selector:
+    app: demo-app
+    component: mq
+  ports:
+    - name: amqp
+      port: 5672
+      targetPort: amqp
+      protocol: TCP
+    - name: management
+      port: 15672
+      targetPort: management
+      protocol: TCP
+    - name: prometheus
+      port: 15692
+      targetPort: prometheus
       protocol: TCP

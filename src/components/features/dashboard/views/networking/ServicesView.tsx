@@ -19,7 +19,8 @@ import {
   type ContextMenuItemDef,
 } from "../../../resources/columns";
 import { useResourceDetail } from "../../context";
-import type { ServiceInfo } from "@/lib/types";
+import { PortSelectPopover } from "../../../portforward";
+import type { ServiceInfo, ServicePortInfo } from "@/lib/types";
 
 export function ServicesView() {
   const t = useTranslations();
@@ -38,7 +39,7 @@ export function ServicesView() {
   // Refresh when a resource is deleted from detail panel
   useRefreshOnDelete(refresh);
 
-  // Check if a service is currently being forwarded
+  // Check if any port of a service is currently being forwarded
   const getForwardForService = (svc: ServiceInfo) => {
     return forwards.find(
       (f) =>
@@ -48,10 +49,20 @@ export function ServicesView() {
     );
   };
 
-  const handlePortForward = (svc: ServiceInfo) => {
-    if (svc.ports.length > 0) {
-      const port = svc.ports[0];
-      startForward(svc.namespace, svc.name, "service", port.port);
+  // Get all forwards for a specific service (for multi-port popover)
+  const getForwardsForService = (svc: ServiceInfo) => {
+    return forwards.filter(
+      (f) =>
+        f.name === svc.name &&
+        f.namespace === svc.namespace &&
+        f.target_type === "service"
+    );
+  };
+
+  const handlePortForward = (svc: ServiceInfo, port?: ServicePortInfo) => {
+    const p = port ?? svc.ports[0];
+    if (p) {
+      startForward(svc.namespace, svc.name, "service", p.port);
     }
   };
 
@@ -80,32 +91,66 @@ export function ServicesView() {
       render: (svc: ServiceInfo) => {
         const forward = getForwardForService(svc);
         const isForwarded = !!forward;
+        const isMultiPort = svc.ports.length > 1;
 
+        if (svc.ports.length === 0) return null;
+
+        // Multi-port: show popover to pick which port
+        if (isMultiPort) {
+          const svcForwards = getForwardsForService(svc);
+          const hasAnyForward = svcForwards.length > 0;
+
+          return (
+            <div className="flex items-center gap-1">
+              <PortSelectPopover
+                ports={svc.ports}
+                forwards={svcForwards}
+                onForward={(port) => handlePortForward(svc, port)}
+                onStop={(id) => stopForward(id)}
+              >
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={(e) => e.stopPropagation()}
+                  className={cn(
+                    "h-7 px-2",
+                    hasAnyForward
+                      ? "text-purple-500 hover:text-purple-600 hover:bg-purple-500/10"
+                      : "text-purple-500 hover:text-purple-600 hover:bg-purple-500/10"
+                  )}
+                >
+                  <ArrowRightLeft className="size-3.5" />
+                  {hasAnyForward ? `Forward (${svcForwards.length})` : "Forward"}
+                </Button>
+              </PortSelectPopover>
+            </div>
+          );
+        }
+
+        // Single-port: direct forward/stop
         return (
           <div className="flex items-center gap-1">
-            {svc.ports.length > 0 && (
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (isForwarded) {
-                    handleDisconnect(svc);
-                  } else {
-                    handlePortForward(svc);
-                  }
-                }}
-                className={cn(
-                  "h-7 px-2",
-                  isForwarded
-                    ? "text-red-500 hover:text-red-600 hover:bg-red-500/10"
-                    : "text-purple-500 hover:text-purple-600 hover:bg-purple-500/10"
-                )}
-              >
-                <ArrowRightLeft className="size-3.5" />
-                {isForwarded ? "Stop Port" : "Forward"}
-              </Button>
-            )}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (isForwarded) {
+                  handleDisconnect(svc);
+                } else {
+                  handlePortForward(svc);
+                }
+              }}
+              className={cn(
+                "h-7 px-2",
+                isForwarded
+                  ? "text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                  : "text-purple-500 hover:text-purple-600 hover:bg-purple-500/10"
+              )}
+            >
+              <ArrowRightLeft className="size-3.5" />
+              {isForwarded ? "Stop Port" : "Forward"}
+            </Button>
           </div>
         );
       },
