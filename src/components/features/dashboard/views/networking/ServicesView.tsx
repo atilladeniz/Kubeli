@@ -157,9 +157,36 @@ export function ServicesView() {
     },
   ];
 
+  const getPortForwardMenuItems = (svc: ServiceInfo): ContextMenuItemDef[] => {
+    if (svc.ports.length === 0) return [];
+
+    // Single port: one toggle entry
+    if (svc.ports.length === 1) {
+      const forward = getForwardForService(svc);
+      const isForwarded = !!forward;
+      return [
+        {
+          label: isForwarded ? "Stop Port Forward" : "Port Forward",
+          icon: <ArrowRightLeft className="size-4" />,
+          onClick: () => (isForwarded ? handleDisconnect(svc) : handlePortForward(svc)),
+        },
+      ];
+    }
+
+    // Multi-port: one entry per port
+    const svcForwards = getForwardsForService(svc);
+    return svc.ports.map((port) => {
+      const fwd = svcForwards.find((f) => f.target_port === port.port);
+      const portLabel = port.name ? `${port.name}:${port.port}` : `${port.port}`;
+      return {
+        label: fwd ? `Stop :${portLabel}` : `Forward :${portLabel}`,
+        icon: <ArrowRightLeft className="size-4" />,
+        onClick: () => (fwd ? stopForward(fwd.forward_id) : handlePortForward(svc, port)),
+      };
+    });
+  };
+
   const getServiceContextMenu = (svc: ServiceInfo): ContextMenuItemDef[] => {
-    const forward = getForwardForService(svc);
-    const isForwarded = !!forward;
     const isFav = isFavorite(clusterContext, "services", svc.name, svc.namespace);
 
     return [
@@ -168,12 +195,7 @@ export function ServicesView() {
         icon: <Eye className="size-4" />,
         onClick: () => openResourceDetail("service", svc.name, svc.namespace),
       },
-      {
-        label: isForwarded ? "Stop Port Forward" : "Port Forward",
-        icon: <ArrowRightLeft className="size-4" />,
-        onClick: () => (isForwarded ? handleDisconnect(svc) : handlePortForward(svc)),
-        disabled: svc.ports.length === 0,
-      },
+      ...getPortForwardMenuItems(svc),
       { separator: true, label: "", onClick: () => {} },
       {
         label: isFav ? "Remove from Favorites" : "Add to Favorites",

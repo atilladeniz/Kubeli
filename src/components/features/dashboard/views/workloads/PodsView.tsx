@@ -343,13 +343,28 @@ export function PodsView() {
       ...(canForward
         ? [
             { separator: true, label: "", onClick: () => {} },
-            {
-              label: isForwarded ? "Stop Port Forward" : "Port Forward",
-              icon: <ArrowRightLeft className="size-4" />,
-              onClick: () =>
-                isForwarded ? handleDisconnect(pod) : handlePortForward(pod),
-              disabled: isTerminating,
-            },
+            ...(service!.ports.length === 1
+              ? [
+                  {
+                    label: isForwarded ? "Stop Port Forward" : "Port Forward",
+                    icon: <ArrowRightLeft className="size-4" />,
+                    onClick: () =>
+                      isForwarded ? handleDisconnect(pod) : handlePortForward(pod),
+                    disabled: isTerminating,
+                  },
+                ]
+              : service!.ports.map((port) => {
+                  const podForwards = getForwardsForPod(pod);
+                  const fwd = podForwards.find((f) => f.target_port === port.port);
+                  const portLabel = port.name ? `${port.name}:${port.port}` : `${port.port}`;
+                  return {
+                    label: fwd ? `Stop :${portLabel}` : `Forward :${portLabel}`,
+                    icon: <ArrowRightLeft className="size-4" />,
+                    onClick: () =>
+                      fwd ? stopForward(fwd.forward_id) : handlePortForward(pod, port),
+                    disabled: isTerminating,
+                  };
+                })),
           ]
         : []),
       { separator: true, label: "", onClick: () => {} },
