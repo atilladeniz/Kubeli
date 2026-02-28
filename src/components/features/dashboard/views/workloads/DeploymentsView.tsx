@@ -21,7 +21,7 @@ import type { DeploymentInfo } from "@/lib/types";
 
 export function DeploymentsView() {
   const t = useTranslations();
-  const { data, isLoading, error, refresh } = useDeployments({
+  const { data, isLoading, error, refresh, retry } = useDeployments({
     autoRefresh: true,
     refreshInterval: 30000,
   });
@@ -95,6 +95,7 @@ export function DeploymentsView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRetry={retry}
       getRowKey={(dep) => dep.uid}
       getRowNamespace={(dep) => dep.namespace}
       emptyMessage={t("empty.deployments")}

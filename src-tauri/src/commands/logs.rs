@@ -1,3 +1,4 @@
+use crate::error::KubeliError;
 use crate::k8s::AppState;
 use futures::AsyncBufReadExt as FuturesAsyncBufReadExt;
 use k8s_openapi::api::core::v1::Pod;
@@ -24,7 +25,7 @@ pub struct LogEntry {
 #[serde(tag = "type", content = "data")]
 pub enum LogEvent {
     Line(LogEntry),
-    Error(String),
+    Error(KubeliError),
     Started { stream_id: String },
     Stopped { stream_id: String },
 }
@@ -96,8 +97,8 @@ impl Default for LogStreamManager {
 pub async fn get_pod_logs(
     state: State<'_, AppState>,
     options: LogOptions,
-) -> Result<Vec<LogEntry>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<LogEntry>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let pods: Api<Pod> = Api::namespaced(client, &options.namespace);
 
@@ -114,10 +115,7 @@ pub async fn get_pod_logs(
         log_params.container = Some(container.clone());
     }
 
-    let logs = pods
-        .logs(&options.pod_name, &log_params)
-        .await
-        .map_err(|e| format!("Failed to get logs: {}", e))?;
+    let logs = pods.logs(&options.pod_name, &log_params).await?;
 
     let container_name = options
         .container
@@ -146,7 +144,7 @@ pub async fn stream_pod_logs(
     log_manager: State<'_, Arc<LogStreamManager>>,
     stream_id: String,
     options: LogOptions,
-) -> Result<(), String> {
+) -> Result<(), KubeliError> {
     tracing::info!(
         "Starting log stream {} for {}/{} container={:?}",
         stream_id,
@@ -157,13 +155,13 @@ pub async fn stream_pod_logs(
 
     // Check if stream already exists
     if log_manager.is_active(&stream_id).await {
-        return Err(format!("Stream {} already exists", stream_id));
+        return Err(KubeliError::unknown(format!(
+            "Stream {} already exists",
+            stream_id
+        )));
     }
 
-    let client = state.k8s.get_client().await.map_err(|e| {
-        tracing::error!("Failed to get k8s client: {}", e);
-        e.to_string()
-    })?;
+    let client = state.k8s.get_client().await?;
 
     let pods: Api<Pod> = Api::namespaced(client, &options.namespace);
 
@@ -230,20 +228,21 @@ pub async fn stream_pod_logs(
                         }
                         Err(e) => {
                             tracing::error!("Log stream read error: {}", e);
-                            let _ = app
-                                .emit(&event_name, LogEvent::Error(format!("Stream error: {}", e)));
+                            let _ = app.emit(&event_name, LogEvent::Error(KubeliError::from(e)));
                             break;
                         }
                     }
                 }
             }
             Err(e) => {
-                let error_detail = format!(
+                tracing::error!(
                     "Failed to start log stream for {}/{} (container: {:?}): {}",
-                    namespace, pod_name, container_name, e
+                    namespace,
+                    pod_name,
+                    container_name,
+                    e
                 );
-                tracing::error!("{}", error_detail);
-                let _ = app.emit(&event_name, LogEvent::Error(error_detail));
+                let _ = app.emit(&event_name, LogEvent::Error(KubeliError::from(e)));
             }
         }
 
@@ -265,13 +264,16 @@ pub async fn stream_pod_logs(
 pub async fn stop_log_stream(
     log_manager: State<'_, Arc<LogStreamManager>>,
     stream_id: String,
-) -> Result<(), String> {
+) -> Result<(), KubeliError> {
     if log_manager.stop_stream(&stream_id).await {
         log_manager.remove_stream(&stream_id).await;
         tracing::info!("Stopped log stream {}", stream_id);
         Ok(())
     } else {
-        Err(format!("Stream {} not found", stream_id))
+        Err(KubeliError::unknown(format!(
+            "Stream {} not found",
+            stream_id
+        )))
     }
 }
 
@@ -281,16 +283,13 @@ pub async fn get_pod_containers(
     state: State<'_, AppState>,
     namespace: String,
     pod_name: String,
-) -> Result<Vec<String>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<String>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let pods: Api<Pod> = Api::namespaced(client, &namespace);
-    let pod = pods
-        .get(&pod_name)
-        .await
-        .map_err(|e| format!("Failed to get pod: {}", e))?;
+    let pod = pods.get(&pod_name).await?;
 
-    let spec = pod.spec.ok_or("Pod has no spec")?;
+    let spec = pod.spec.ok_or(KubeliError::unknown("Pod has no spec"))?;
     let containers: Vec<String> = spec.containers.iter().map(|c| c.name.clone()).collect();
 
     // Also include init containers if any
@@ -309,8 +308,8 @@ pub async fn get_pod_containers(
 pub async fn download_pod_logs(
     state: State<'_, AppState>,
     options: LogOptions,
-) -> Result<String, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<String, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let pods: Api<Pod> = Api::namespaced(client, &options.namespace);
 
@@ -327,10 +326,7 @@ pub async fn download_pod_logs(
         log_params.container = Some(container.clone());
     }
 
-    let logs = pods
-        .logs(&options.pod_name, &log_params)
-        .await
-        .map_err(|e| format!("Failed to get logs: {}", e))?;
+    let logs = pods.logs(&options.pod_name, &log_params).await?;
 
     tracing::info!(
         "Downloaded logs from {}/{} ({} bytes)",
@@ -472,7 +468,7 @@ mod tests {
 
     #[test]
     fn log_event_error_serialization() {
-        let event = LogEvent::Error("Connection failed".to_string());
+        let event = LogEvent::Error(KubeliError::unknown("Connection failed"));
 
         let json = serde_json::to_string(&event).unwrap();
         assert!(json.contains("\"type\":\"Error\""));

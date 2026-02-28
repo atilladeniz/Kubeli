@@ -1,4 +1,5 @@
 use crate::commands::resources::{extract_container_info, ContainerInfo, NamespaceInfo, PodInfo};
+use crate::error::KubeliError;
 use crate::k8s::AppState;
 use futures::StreamExt;
 use k8s_openapi::api::core::v1::{Namespace, Pod};
@@ -19,7 +20,7 @@ pub enum WatchEvent<T> {
     Modified(T),
     Deleted(T),
     Restarted(Vec<T>),
-    Error(String),
+    Error(KubeliError),
 }
 
 /// Active watch session
@@ -133,8 +134,8 @@ pub async fn watch_pods(
     watch_manager: State<'_, Arc<WatchManager>>,
     namespace: Option<String>,
     watch_id: String,
-) -> Result<(), String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await.map_err(KubeliError::from)?;
     let manager = Arc::clone(watch_manager.inner());
 
     let stop_flag = Arc::new(AtomicBool::new(false));
@@ -182,7 +183,7 @@ pub async fn watch_pods(
                     // Initial list done - skip
                     continue;
                 }
-                Err(e) => WatchEvent::Error(e.to_string()),
+                Err(e) => WatchEvent::Error(KubeliError::from(e)),
             };
 
             let event_name = format!("pods-watch-{}", watch_id_clone);
@@ -226,8 +227,8 @@ pub async fn watch_namespaces(
     state: State<'_, AppState>,
     watch_manager: State<'_, Arc<WatchManager>>,
     watch_id: String,
-) -> Result<(), String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await.map_err(KubeliError::from)?;
     let manager = Arc::clone(watch_manager.inner());
 
     let stop_flag = Arc::new(AtomicBool::new(false));
@@ -264,7 +265,7 @@ pub async fn watch_namespaces(
                     WatchEvent::Added(info)
                 }
                 Ok(Event::InitDone) => continue,
-                Err(e) => WatchEvent::Error(e.to_string()),
+                Err(e) => WatchEvent::Error(KubeliError::from(e)),
             };
 
             let event_name = format!("namespaces-watch-{}", watch_id_clone);
@@ -287,7 +288,7 @@ pub async fn watch_namespaces(
 pub async fn stop_watch(
     watch_manager: State<'_, Arc<WatchManager>>,
     watch_id: String,
-) -> Result<(), String> {
+) -> Result<(), KubeliError> {
     if watch_manager.stop_session(&watch_id).await {
         watch_manager.remove_session(&watch_id).await;
         tracing::info!("Stopped watch: {}", watch_id);

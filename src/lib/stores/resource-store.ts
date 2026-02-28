@@ -8,6 +8,7 @@ import type {
   NodeInfo,
   ListOptions,
 } from "../types";
+import { type KubeliError, toKubeliError } from "../types/errors";
 import {
   listPods,
   listDeployments,
@@ -28,7 +29,7 @@ interface ResourceState {
   nodes: NodeInfo[];
   selectedPod: PodInfo | null;
   isLoading: boolean;
-  error: string | null;
+  error: KubeliError | null;
 
   // Actions
   fetchPods: (options?: ListOptions) => Promise<void>;
@@ -41,7 +42,7 @@ interface ResourceState {
   selectPod: (name: string, namespace: string) => Promise<void>;
   removePod: (name: string, namespace: string) => Promise<void>;
   clearResources: () => void;
-  setError: (error: string | null) => void;
+  setError: (error: KubeliError | null) => void;
 }
 
 export const useResourceStore = create<ResourceState>((set, get) => ({
@@ -62,7 +63,7 @@ export const useResourceStore = create<ResourceState>((set, get) => ({
       set({ pods, isLoading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch pods",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }
@@ -75,7 +76,7 @@ export const useResourceStore = create<ResourceState>((set, get) => ({
       set({ deployments, isLoading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch deployments",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }
@@ -88,7 +89,7 @@ export const useResourceStore = create<ResourceState>((set, get) => ({
       set({ services, isLoading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch services",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }
@@ -101,7 +102,7 @@ export const useResourceStore = create<ResourceState>((set, get) => ({
       set({ configmaps, isLoading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch configmaps",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }
@@ -114,7 +115,7 @@ export const useResourceStore = create<ResourceState>((set, get) => ({
       set({ secrets, isLoading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch secrets",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }
@@ -127,7 +128,7 @@ export const useResourceStore = create<ResourceState>((set, get) => ({
       set({ nodes, isLoading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch nodes",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }
@@ -157,7 +158,7 @@ export const useResourceStore = create<ResourceState>((set, get) => ({
       });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch resources",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }
@@ -170,7 +171,7 @@ export const useResourceStore = create<ResourceState>((set, get) => ({
       set({ selectedPod: pod, isLoading: false });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch pod details",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }
@@ -190,7 +191,7 @@ export const useResourceStore = create<ResourceState>((set, get) => ({
       });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to delete pod",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }

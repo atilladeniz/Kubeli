@@ -163,7 +163,7 @@
     "namespacesPlaceholder": "team-a\nteam-b\nshared",
     "namespacesConfigured": "konfiguriert",
     "namespaceListingNotPermitted": "Namespace-Auflistung nicht erlaubt",
-    "configureAccessibleNamespaces": "Zugängliche Namespaces konfigurieren",
+    "configureAccessibleNamespaces": "Namespaces konfigurieren",
     "clearConfiguration": "Zurücksetzen",
     "configureNamespacesWhyTitle": "Wozu brauche ich das?",
     "configureNamespacesWhy1": "Kubeli erkennt normalerweise alle Namespaces automatisch. Das funktioniert, wenn Ihr Konto clusterweite Berechtigungen hat.",

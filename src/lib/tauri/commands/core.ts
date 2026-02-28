@@ -1,6 +1,7 @@
 import { invoke as tauriInvoke } from "@tauri-apps/api/core";
 
 import { mockInvoke } from "../mock";
+import { toKubeliError } from "../../types/errors";
 
 export const invoke = <T>(command: string, payload?: unknown): Promise<T> => {
   if (process.env.VITE_TAURI_MOCK === "true") {
@@ -10,5 +11,10 @@ export const invoke = <T>(command: string, payload?: unknown): Promise<T> => {
     ) as Promise<T>;
   }
 
-  return tauriInvoke<T>(command, payload as Record<string, unknown> | undefined);
+  return tauriInvoke<T>(
+    command,
+    payload as Record<string, unknown> | undefined
+  ).catch((e: unknown) => {
+    throw toKubeliError(e);
+  });
 };

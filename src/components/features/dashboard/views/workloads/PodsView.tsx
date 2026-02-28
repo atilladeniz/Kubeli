@@ -40,7 +40,7 @@ import type { PodInfo, PodMetrics, ServiceInfo } from "@/lib/types";
 
 export function PodsView() {
   const t = useTranslations();
-  const { data, isLoading, error, refresh, startWatch, stopWatchFn, isWatching } = usePods({
+  const { data, isLoading, error, refresh, retry, startWatch, stopWatchFn, isWatching } = usePods({
     autoWatch: true,
     autoRefresh: true,
     refreshInterval: 10000,
@@ -390,6 +390,7 @@ export function PodsView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRetry={retry}
       isWatching={isWatching}
       onStartWatch={startWatch}
       onStopWatch={stopWatchFn}

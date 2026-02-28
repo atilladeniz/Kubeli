@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useClusterStore } from "../../stores/cluster-store";
 import { useResourceCacheStore } from "../../stores/resource-cache-store";
+import { type KubeliError, toKubeliError } from "../../types/errors";
 import type { UseK8sResourcesOptions, UseK8sResourcesReturn } from "./types";
 
 /**
@@ -20,7 +21,7 @@ export function useClusterScopedResource<T>(
 
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<KubeliError | null>(null);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -31,7 +32,7 @@ export function useClusterScopedResource<T>(
       setData(result);
       setCache(cacheKey, result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : `Failed to fetch ${displayName}`);
+      setError(toKubeliError(e));
     } finally {
       setIsLoading(false);
     }
@@ -49,11 +50,17 @@ export function useClusterScopedResource<T>(
     return () => clearInterval(interval);
   }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
 
+  const retry = useCallback(async () => {
+    setError(null);
+    await refresh();
+  }, [refresh]);
+
   return {
     data,
     isLoading,
     error,
     refresh,
+    retry,
     startWatch: async () => {},
     stopWatchFn: async () => {},
     isWatching: false,

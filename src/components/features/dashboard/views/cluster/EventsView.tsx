@@ -17,7 +17,7 @@ import type { EventInfo } from "@/lib/types";
 
 export function EventsView() {
   const t = useTranslations();
-  const { data, isLoading, error, refresh } = useEvents({
+  const { data, isLoading, error, refresh, retry } = useEvents({
     autoRefresh: true,
     refreshInterval: 10000,
   });
@@ -65,6 +65,7 @@ export function EventsView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRetry={retry}
       getRowKey={(event) => event.uid}
       getRowNamespace={(event) => event.namespace}
       emptyMessage={t("empty.events")}

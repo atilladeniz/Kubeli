@@ -21,6 +21,7 @@ const mockGraphData = {
     { source: "deploy-1", target: "pod-1" },
     { source: "deploy-1", target: "pod-2" },
   ],
+  errors: [],
 };
 
 describe("DiagramStore", () => {
@@ -108,7 +109,7 @@ describe("DiagramStore", () => {
       });
 
       const state = useDiagramStore.getState();
-      expect(state.error).toBe("API error");
+      expect(state.error).toMatchObject({ kind: "Unknown", message: "API error" });
       expect(state.isLoading).toBe(false);
       expect(state.nodes).toEqual([]);
     });
