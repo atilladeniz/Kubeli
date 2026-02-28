@@ -46,10 +46,10 @@
 
 ## 7. Verification
 
-- [ ] 7.1 Test with a 403 RBAC error — verify structured error display, no flicker, retry button works
-- [ ] 7.2 Test with network disconnect — verify retryable behavior, auto-retry with backoff
-- [ ] 7.3 Test with valid cluster — verify no regression, normal refresh/watch behavior unchanged
-- [ ] 7.4 Test Helm errors — verify structured display for Helm operation failures
+- [x] 7.1 Test with a 403 RBAC error — verify structured error display, no flicker, retry button works
+- [x] 7.2 Test with network disconnect — verify retryable behavior, auto-retry with backoff
+- [x] 7.3 Test with valid cluster — verify no regression, normal refresh/watch behavior unchanged
+- [x] 7.4 Test Helm errors — verify structured display for Helm operation failures
 - [x] 7.5 Run `cargo check`, `cargo clippy`, `npm run typecheck`, `npm run lint`
 
 ## Follow-up (separate change)
@@ -59,4 +59,4 @@ Not in scope for this change, but should be migrated next:
 - `shell.rs` + `useShell.ts` — Shell/exec errors
 - `flux.rs` + Flux views — Flux operation errors
 - `metrics.rs` — Metrics server errors
-- `graph.rs` — Dependency graph errors
+- `graph.rs` — ✅ Done (partial error surfacing added)
