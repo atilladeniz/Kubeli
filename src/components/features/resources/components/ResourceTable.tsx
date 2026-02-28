@@ -14,7 +14,6 @@ import {
   ContextMenuContent,
   ContextMenuItem,
   ContextMenuSeparator,
-  ContextMenuShortcut,
   ContextMenuSub,
   ContextMenuSubContent,
   ContextMenuSubTrigger,
@@ -187,9 +186,9 @@ export function ResourceTable<T>({
                                 {child.icon}
                                 {child.label}
                                 {child.hint && (
-                                  <ContextMenuShortcut className="font-mono opacity-60">
+                                  <span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] font-mono font-medium text-foreground">
                                     {child.hint}
-                                  </ContextMenuShortcut>
+                                  </span>
                                 )}
                               </ContextMenuItem>
                             ))}
