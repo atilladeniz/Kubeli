@@ -66,7 +66,10 @@ export function PortSelectPopover({
                 <div className="flex items-center gap-2 min-w-0">
                   <Badge
                     variant="secondary"
-                    className="font-mono text-[10px] px-1.5 py-0 shrink-0"
+                    className={cn(
+                      "font-mono text-[10px] px-1.5 py-0 shrink-0",
+                      isForwarded && "bg-purple-500/20 text-purple-400 border-purple-500/30"
+                    )}
                   >
                     {port.port}
                   </Badge>
