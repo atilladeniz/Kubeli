@@ -9,6 +9,7 @@ import {
   Info,
   Activity,
   FileText,
+  ArrowRightLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -23,6 +24,7 @@ import { YamlTab, type YamlTabHandle } from "./components/YamlTab";
 import { ConditionsTab } from "./components/ConditionsTab";
 import { EventsTab } from "./components/EventsTab";
 import { DangerZoneTab } from "./components/DangerZoneTab";
+import { PortForwardTab } from "./components/PortForwardTab";
 import { DeleteResourceDialog } from "./dialogs/DeleteResourceDialog";
 import { DiscardChangesDialog } from "./dialogs/DiscardChangesDialog";
 
@@ -212,6 +214,12 @@ export function ResourceDetail({
                 {t("resourceDetail.logs")}
               </TabsTrigger>
             )}
+            {(resourceType === "pod" || resourceType === "service") && resource.namespace && (
+              <TabsTrigger value="portforward" className="gap-2">
+                <ArrowRightLeft className="size-4" />
+                {t("resourceDetail.portForward")}
+              </TabsTrigger>
+            )}
             {resource.conditions && resource.conditions.length > 0 && (
               <TabsTrigger value="conditions" className="gap-2">
                 <Activity className="size-4" />
@@ -270,6 +278,17 @@ export function ResourceDetail({
               namespace={resource.namespace}
               podName={resource.name}
               logTabId={`detail-${resource.namespace}-${resource.name}`}
+            />
+          </TabsContent>
+        )}
+
+        {(resourceType === "pod" || resourceType === "service") && resource.namespace && (
+          <TabsContent value="portforward" className="flex-1 overflow-hidden m-0">
+            <PortForwardTab
+              resourceName={resource.name}
+              resourceNamespace={resource.namespace}
+              resourceType={resourceType}
+              resourceLabels={resource.labels}
             />
           </TabsContent>
         )}
