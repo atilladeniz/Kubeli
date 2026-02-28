@@ -17,7 +17,7 @@ import type { NodeInfo } from "@/lib/types";
 
 export function NodesView() {
   const t = useTranslations();
-  const { data, isLoading, error, refresh } = useNodes({
+  const { data, isLoading, error, refresh, retry } = useNodes({
     autoRefresh: true,
     refreshInterval: 30000,
   });
@@ -62,6 +62,7 @@ export function NodesView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRetry={retry}
       getRowKey={(node) => node.uid}
       emptyMessage={t("empty.nodes")}
       contextMenuItems={getNodeContextMenu}

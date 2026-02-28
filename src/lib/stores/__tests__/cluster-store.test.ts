@@ -1,6 +1,7 @@
 import { act } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
 import { useClusterStore } from "../cluster-store";
+import { toKubeliError } from "../../types/errors";
 
 // Mock Tauri commands
 const mockListClusters = jest.fn();
@@ -119,7 +120,7 @@ describe("ClusterStore", () => {
       });
 
       const state = useClusterStore.getState();
-      expect(state.error).toBe("Network error");
+      expect(state.error?.message).toBe("Network error");
       expect(state.isLoading).toBe(false);
       expect(state.clusters).toEqual([]);
     });
@@ -184,7 +185,7 @@ describe("ClusterStore", () => {
 
       const state = useClusterStore.getState();
       expect(state.isConnected).toBe(false);
-      expect(state.error).toBe("Connection refused");
+      expect(state.error?.message).toBe("Connection refused");
       expect(state.lastConnectionErrorContext).toBe("test-context");
       expect(state.lastConnectionErrorMessage).toBe("Connection refused");
     });
@@ -198,7 +199,7 @@ describe("ClusterStore", () => {
 
       const state = useClusterStore.getState();
       expect(state.isConnected).toBe(false);
-      expect(state.error).toBe("Timeout");
+      expect(state.error?.message).toBe("Timeout");
     });
   });
 
@@ -253,7 +254,7 @@ describe("ClusterStore", () => {
       });
 
       const state = useClusterStore.getState();
-      expect(state.error).toBe("Disconnect failed");
+      expect(state.error?.message).toBe("Disconnect failed");
     });
   });
 
@@ -268,16 +269,16 @@ describe("ClusterStore", () => {
   });
 
   describe("setError", () => {
-    it("should set error message", () => {
+    it("should set error", () => {
       act(() => {
-        useClusterStore.getState().setError("Test error");
+        useClusterStore.getState().setError(toKubeliError("Test error"));
       });
 
-      expect(useClusterStore.getState().error).toBe("Test error");
+      expect(useClusterStore.getState().error?.message).toBe("Test error");
     });
 
     it("should clear error when set to null", () => {
-      useClusterStore.setState({ error: "Previous error" });
+      useClusterStore.setState({ error: toKubeliError("Previous error") });
 
       act(() => {
         useClusterStore.getState().setError(null);
@@ -592,7 +593,7 @@ describe("ClusterStore", () => {
       const state = useClusterStore.getState();
       expect(state.isHealthy).toBe(false);
       expect(state.isConnected).toBe(false);
-      expect(state.error).toBe("Connection lost");
+      expect(state.error?.message).toBe("Connection lost");
       expect(warnSpy).toHaveBeenCalledWith("Connection health check failed, connection lost");
 
       warnSpy.mockRestore();
@@ -612,7 +613,7 @@ describe("ClusterStore", () => {
       const result = await useClusterStore.getState().attemptReconnect();
 
       expect(result).toBe(false);
-      expect(useClusterStore.getState().error).toContain("Failed to reconnect");
+      expect(useClusterStore.getState().error?.message).toContain("Failed to reconnect");
       expect(errorSpy).toHaveBeenCalledWith("Max reconnect attempts (5) reached");
 
       errorSpy.mockRestore();

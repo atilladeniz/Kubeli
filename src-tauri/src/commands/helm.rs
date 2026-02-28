@@ -1,3 +1,4 @@
+use crate::error::KubeliError;
 use crate::k8s::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use flate2::read::GzDecoder;
@@ -145,11 +146,9 @@ struct HelmChartMetadataData {
 /// Helm stores data as: base64 -> base64 -> gzip compressed JSON
 /// Note: k8s-openapi's ByteString may or may not decode the outer base64 layer,
 /// so we try both approaches for robustness.
-fn decode_helm_release(data: &str) -> Result<HelmReleaseData, String> {
+fn decode_helm_release(data: &str) -> Result<HelmReleaseData, KubeliError> {
     // First base64 decode
-    let decoded1 = BASE64
-        .decode(data)
-        .map_err(|e| format!("Failed to decode base64 (1st): {}", e))?;
+    let decoded1 = BASE64.decode(data)?;
 
     // Check if we need a second base64 decode or if we already have gzip data
     // Gzip magic bytes: 0x1f 0x8b
@@ -158,20 +157,17 @@ fn decode_helm_release(data: &str) -> Result<HelmReleaseData, String> {
         decoded1
     } else {
         // Need second base64 decode (ByteString did not pre-decode)
-        BASE64
-            .decode(&decoded1)
-            .map_err(|e| format!("Failed to decode base64 (2nd): {}", e))?
+        BASE64.decode(&decoded1)?
     };
 
     // Gzip decompress
     let mut decoder = GzDecoder::new(&gzip_data[..]);
     let mut decompressed = String::new();
-    decoder
-        .read_to_string(&mut decompressed)
-        .map_err(|e| format!("Failed to decompress gzip: {}", e))?;
+    decoder.read_to_string(&mut decompressed)?;
 
     // Parse JSON
-    serde_json::from_str(&decompressed).map_err(|e| format!("Failed to parse JSON: {}", e))
+    serde_json::from_str(&decompressed)
+        .map_err(|e| KubeliError::unknown(format!("Failed to parse helm release JSON: {}", e)))
 }
 
 /// Get the latest revision number for a release from a list of secrets
@@ -196,8 +192,8 @@ fn get_latest_revision(secrets: &[Secret], release_name: &str) -> i32 {
 pub async fn list_helm_releases(
     state: State<'_, AppState>,
     namespace: Option<String>,
-) -> Result<Vec<HelmReleaseInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<HelmReleaseInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut releases: BTreeMap<(String, String), HelmReleaseInfo> = BTreeMap::new();
 
@@ -206,10 +202,10 @@ pub async fn list_helm_releases(
 
     let secrets: Vec<Secret> = if let Some(ref ns) = namespace {
         let api: Api<Secret> = Api::namespaced(client, ns);
-        api.list(&lp).await.map_err(|e| e.to_string())?.items
+        api.list(&lp).await?.items
     } else {
         let api: Api<Secret> = Api::all(client);
-        api.list(&lp).await.map_err(|e| e.to_string())?.items
+        api.list(&lp).await?.items
     };
 
     // Group secrets by release name and namespace
@@ -459,19 +455,19 @@ pub async fn get_helm_release(
     name: String,
     namespace: String,
     revision: Option<i32>,
-) -> Result<HelmReleaseDetail, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<HelmReleaseDetail, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let api: Api<Secret> = Api::namespaced(client.clone(), &namespace);
     let lp = ListParams::default().labels("owner=helm");
 
-    let secrets: Vec<Secret> = api.list(&lp).await.map_err(|e| e.to_string())?.items;
+    let secrets: Vec<Secret> = api.list(&lp).await?.items;
 
     // Get the requested revision or the latest
     let rev = revision.unwrap_or_else(|| get_latest_revision(&secrets, &name));
     let secret_name = format!("sh.helm.release.v1.{}.v{}", name, rev);
 
-    let secret = api.get(&secret_name).await.map_err(|e| e.to_string())?;
+    let secret = api.get(&secret_name).await?;
 
     let data = secret
         .data
@@ -506,13 +502,13 @@ pub async fn get_helm_release_history(
     state: State<'_, AppState>,
     name: String,
     namespace: String,
-) -> Result<Vec<HelmReleaseHistoryEntry>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<HelmReleaseHistoryEntry>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let api: Api<Secret> = Api::namespaced(client, &namespace);
     let lp = ListParams::default().labels("owner=helm");
 
-    let secrets: Vec<Secret> = api.list(&lp).await.map_err(|e| e.to_string())?.items;
+    let secrets: Vec<Secret> = api.list(&lp).await?.items;
 
     let prefix = format!("sh.helm.release.v1.{}.v", name);
     let mut history: Vec<HelmReleaseHistoryEntry> = Vec::new();
@@ -552,7 +548,7 @@ pub async fn get_helm_release_values(
     name: String,
     namespace: String,
     revision: Option<i32>,
-) -> Result<serde_json::Value, String> {
+) -> Result<serde_json::Value, KubeliError> {
     let detail = get_helm_release(state, name, namespace, revision).await?;
     Ok(detail.values)
 }
@@ -564,7 +560,7 @@ pub async fn get_helm_release_manifest(
     name: String,
     namespace: String,
     revision: Option<i32>,
-) -> Result<String, String> {
+) -> Result<String, KubeliError> {
     let detail = get_helm_release(state, name, namespace, revision).await?;
     Ok(detail.manifest)
 }
@@ -575,13 +571,13 @@ pub async fn uninstall_helm_release(
     state: State<'_, AppState>,
     name: String,
     namespace: String,
-) -> Result<(), String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await?;
     let api: Api<Secret> = Api::namespaced(client, &namespace);
 
     // Find all secrets for this release (all revisions)
     let lp = ListParams::default().labels("owner=helm");
-    let secrets: Vec<Secret> = api.list(&lp).await.map_err(|e| e.to_string())?.items;
+    let secrets: Vec<Secret> = api.list(&lp).await?.items;
 
     let prefix = format!("sh.helm.release.v1.{}.", name);
     let release_secrets: Vec<&Secret> = secrets
@@ -596,18 +592,17 @@ pub async fn uninstall_helm_release(
         .collect();
 
     if release_secrets.is_empty() {
-        return Err(format!(
+        return Err(KubeliError::unknown(format!(
             "Helm release '{}' not found in namespace '{}'",
             name, namespace
-        ));
+        )));
     }
 
     // Delete all release secrets
     for secret in release_secrets {
         if let Some(secret_name) = &secret.metadata.name {
             api.delete(secret_name, &kube::api::DeleteParams::default())
-                .await
-                .map_err(|e| format!("Failed to delete secret {}: {}", secret_name, e))?;
+                .await?;
         }
     }
 

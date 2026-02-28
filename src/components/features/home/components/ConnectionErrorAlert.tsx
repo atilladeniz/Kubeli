@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { generateDebugLog } from "@/lib/tauri/commands";
+import { getErrorMessage } from "@/lib/types/errors";
 
 export function ConnectionErrorAlert() {
   const td = useTranslations("debug");
@@ -20,7 +21,7 @@ export function ConnectionErrorAlert() {
     error &&
       lastConnectionErrorContext &&
       lastConnectionErrorMessage &&
-      error === lastConnectionErrorMessage,
+      error.message === lastConnectionErrorMessage,
   );
 
   const handleDownloadDebugLog = async () => {
@@ -33,7 +34,7 @@ export function ConnectionErrorAlert() {
     try {
       const logContent = await generateDebugLog(
         lastConnectionErrorContext,
-        lastConnectionErrorMessage ?? error ?? undefined,
+        lastConnectionErrorMessage ?? (error ? error.message : undefined),
       );
       const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
       const defaultName = `kubeli-debug-${timestamp}.log`;
@@ -50,8 +51,7 @@ export function ConnectionErrorAlert() {
       const filename = filePath.split(/[/\\]/).pop() ?? filePath;
       toast.success(td("logSaved"), { description: filename });
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      toast.error(td("logFailed"), { description: message });
+      toast.error(td("logFailed"), { description: getErrorMessage(err) });
       console.error("Failed to generate debug log:", err);
     } finally {
       setIsDownloading(false);
@@ -68,7 +68,7 @@ export function ConnectionErrorAlert() {
           {lastConnectionErrorContext && (
             <span className="font-medium">{lastConnectionErrorContext}: </span>
           )}
-          {error}
+          {error.message}
         </AlertDescription>
       </div>
       <Button

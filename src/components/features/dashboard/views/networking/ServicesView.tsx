@@ -23,7 +23,7 @@ import type { ServiceInfo } from "@/lib/types";
 
 export function ServicesView() {
   const t = useTranslations();
-  const { data, isLoading, error, refresh } = useServices({
+  const { data, isLoading, error, refresh, retry } = useServices({
     autoRefresh: true,
     refreshInterval: 30000,
   });
@@ -180,6 +180,7 @@ export function ServicesView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRetry={retry}
       getRowKey={(svc) => svc.uid}
       getRowClassName={getRowClassName}
       getRowNamespace={(svc) => svc.namespace}

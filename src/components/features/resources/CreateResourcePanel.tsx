@@ -105,8 +105,8 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
       onApplied();
       onClose();
     } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      setError(message);
+      const { getErrorMessage } = await import("@/lib/types/errors");
+      setError(getErrorMessage(err));
     } finally {
       setIsApplying(false);
     }

@@ -1,3 +1,5 @@
+import type { KubeliError } from "./errors";
+
 export interface Cluster {
   id: string;
   name: string;
@@ -137,7 +139,7 @@ export type LogEventType = "Line" | "Error" | "Started" | "Stopped";
 
 export type LogEvent =
   | { type: "Line"; data: LogEntry }
-  | { type: "Error"; data: string }
+  | { type: "Error"; data: KubeliError }
   | { type: "Started"; data: { stream_id: string } }
   | { type: "Stopped"; data: { stream_id: string } };
 

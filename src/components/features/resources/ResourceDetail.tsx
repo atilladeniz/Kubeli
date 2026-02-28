@@ -108,7 +108,8 @@ export function ResourceDetail({
       await onSave(yamlContent);
       setOriginalYaml(yamlContent);
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("messages.saveError"));
+      const { getErrorMessage } = await import("@/lib/types/errors");
+      setError(getErrorMessage(err));
       throw err;
     } finally {
       setIsSaving(false);
@@ -128,11 +129,8 @@ export function ResourceDetail({
       setShowDeleteDialog(false);
       onClose();
     } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : t("messages.deleteError", { name: resource?.name || "" }),
-      );
+      const { getErrorMessage } = await import("@/lib/types/errors");
+      setError(getErrorMessage(err));
       setShowDeleteDialog(false);
     }
   };

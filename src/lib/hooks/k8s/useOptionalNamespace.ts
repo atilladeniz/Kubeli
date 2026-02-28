@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useClusterStore } from "../../stores/cluster-store";
 import { useResourceCacheStore } from "../../stores/resource-cache-store";
+import { type KubeliError, toKubeliError, getErrorMessage } from "../../types/errors";
 import { pSettledWithLimit, MAX_CONCURRENT_NS_REQUESTS } from "./utils";
 import type { UseK8sResourcesOptions, UseK8sResourcesReturn } from "./types";
 
@@ -24,7 +25,7 @@ export function useOptionalNamespaceResource<T>(
 
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<KubeliError | null>(null);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -44,7 +45,7 @@ export function useOptionalNamespaceResource<T>(
           if (outcome.status === "fulfilled") {
             result.push(...outcome.value);
           } else {
-            errors.push(`${configuredNamespaces[i]}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
+            errors.push(`${configuredNamespaces[i]}: ${getErrorMessage(outcome.reason)}`);
           }
         });
         if (errors.length > 0 && result.length === 0) {
@@ -63,7 +64,7 @@ export function useOptionalNamespaceResource<T>(
           if (outcome.status === "fulfilled") {
             result.push(...outcome.value);
           } else {
-            errors.push(`${selectedNamespaces[i]}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
+            errors.push(`${selectedNamespaces[i]}: ${getErrorMessage(outcome.reason)}`);
           }
         });
         if (errors.length > 0 && result.length === 0) {
@@ -75,7 +76,7 @@ export function useOptionalNamespaceResource<T>(
       setData(result);
       setCache(cacheKey, result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : `Failed to fetch ${displayName}`);
+      setError(toKubeliError(e));
     } finally {
       setIsLoading(false);
     }
@@ -98,11 +99,17 @@ export function useOptionalNamespaceResource<T>(
     return () => clearInterval(interval);
   }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
 
+  const retry = useCallback(async () => {
+    setError(null);
+    await refresh();
+  }, [refresh]);
+
   return {
     data,
     isLoading,
     error,
     refresh,
+    retry,
     startWatch: async () => {},
     stopWatchFn: async () => {},
     isWatching: false,

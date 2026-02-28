@@ -1,6 +1,6 @@
 "use client";
 
-import type { ListOptions } from "../../types";
+import type { ListOptions, KubeliError } from "../../types";
 
 /**
  * Options for K8s resource hooks
@@ -24,10 +24,12 @@ export interface UseK8sResourcesReturn<T> {
   data: T[];
   /** Loading state */
   isLoading: boolean;
-  /** Error message if any */
-  error: string | null;
+  /** Structured error if any */
+  error: KubeliError | null;
   /** Manual refresh function */
   refresh: () => Promise<void>;
+  /** Manual retry — clears error and triggers fresh fetch */
+  retry: () => Promise<void>;
   /** Start watching for changes (pods only) */
   startWatch: () => Promise<void>;
   /** Stop watching for changes */

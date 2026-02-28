@@ -6,12 +6,15 @@ import { useClusterStore } from "../../stores/cluster-store";
 import { useResourceCacheStore } from "../../stores/resource-cache-store";
 import { stopWatch } from "../../tauri/commands";
 import { pSettledWithLimit, MAX_CONCURRENT_NS_REQUESTS, NAMESPACE_CHANGE_DEBOUNCE_MS } from "./utils";
+import { toKubeliError, getErrorMessage } from "../../types/errors";
+import type { KubeliError } from "../../types/errors";
 import type { ListOptions, WatchEvent } from "../../types";
 import type { UseK8sResourcesOptions, UseK8sResourcesReturn, ResourceHookConfig } from "./types";
 
 /**
  * Core hook for fetching and managing Kubernetes resources.
- * Supports per-namespace fetching, multi-namespace watch, and auto-refresh.
+ * Supports per-namespace fetching, multi-namespace watch, auto-refresh,
+ * and smart retry (pause on non-retryable errors like RBAC 403).
  */
 export function useK8sResource<T>(
   config: ResourceHookConfig<T>,
@@ -26,7 +29,7 @@ export function useK8sResource<T>(
 
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<KubeliError | null>(null);
   const [isWatching, setIsWatching] = useState(false);
   const [watchIds, setWatchIds] = useState<string[]>([]);
   const watchRetryUntilRef = useRef<number | null>(null);
@@ -35,6 +38,8 @@ export function useK8sResource<T>(
   const watchIdsRef = useRef<string[]>([]);
   // Guard against concurrent startWatch calls
   const watchStartingRef = useRef(false);
+  // Track whether auto-refresh is paused due to non-retryable error
+  const autoRefreshPausedRef = useRef(false);
 
   // ── Fetching ──────────────────────────────────────────────────────
 
@@ -42,6 +47,7 @@ export function useK8sResource<T>(
     if (!isConnected) return;
     setIsLoading(true);
     setError(null);
+    autoRefreshPausedRef.current = false;
     try {
       let result: T[];
 
@@ -59,11 +65,11 @@ export function useK8sResource<T>(
           if (outcome.status === "fulfilled") {
             result.push(...outcome.value);
           } else {
-            errors.push(`${configuredNamespaces[i]}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
+            errors.push(`${configuredNamespaces[i]}: ${getErrorMessage(outcome.reason)}`);
           }
         });
         if (errors.length > 0 && result.length === 0) {
-          throw new Error(`Failed to fetch ${config.displayName}: ${errors.join("; ")}`);
+          throw toKubeliError(errors.join("; "));
         }
       } else if (isMultiNs) {
         // Fetch each selected namespace individually to avoid 403 from Api::all()
@@ -77,11 +83,11 @@ export function useK8sResource<T>(
           if (outcome.status === "fulfilled") {
             result.push(...outcome.value);
           } else {
-            errors.push(`${selectedNamespaces[i]}: ${outcome.reason instanceof Error ? outcome.reason.message : String(outcome.reason)}`);
+            errors.push(`${selectedNamespaces[i]}: ${getErrorMessage(outcome.reason)}`);
           }
         });
         if (errors.length > 0 && result.length === 0) {
-          throw new Error(`Failed to fetch ${config.displayName}: ${errors.join("; ")}`);
+          throw toKubeliError(errors.join("; "));
         }
       } else {
         const listOptions: ListOptions = namespace ? { namespace } : {};
@@ -95,11 +101,25 @@ export function useK8sResource<T>(
       setData(result);
       setCache(cacheKey, result);
     } catch (e) {
-      setError(e instanceof Error ? e.message : `Failed to fetch ${config.displayName}`);
+      const kubeliError = toKubeliError(e);
+      setError(kubeliError);
+
+      // Non-retryable errors: pause auto-refresh and watch
+      if (!kubeliError.retryable) {
+        autoRefreshPausedRef.current = true;
+      }
     } finally {
       setIsLoading(false);
     }
   }, [isConnected, namespace, isMultiNs, isConfiguredAllNs, configuredNamespaces, selectedNamespaces, config, cacheKey, setCache]);
+
+  // Manual retry — clears error, resets paused state, triggers fresh fetch
+  const retry = useCallback(async () => {
+    autoRefreshPausedRef.current = false;
+    setError(null);
+    watchRetryUntilRef.current = null;
+    await refresh();
+  }, [refresh]);
 
   // ── Watch management ──────────────────────────────────────────────
 
@@ -140,11 +160,18 @@ export function useK8sResource<T>(
       for (const id of ids) {
         stopWatch(id).catch(() => {});
       }
-      setError(e instanceof Error ? e.message : "Failed to start watch");
+      const kubeliError = toKubeliError(e);
+      setError(kubeliError);
       setIsWatching(false);
       watchIdsRef.current = [];
       setWatchIds([]);
-      watchRetryUntilRef.current = Date.now() + 5000;
+
+      // Non-retryable watch errors: don't auto-retry
+      if (kubeliError.retryable) {
+        watchRetryUntilRef.current = Date.now() + 5000;
+      } else {
+        autoRefreshPausedRef.current = true;
+      }
     } finally {
       watchStartingRef.current = false;
     }
@@ -182,11 +209,17 @@ export function useK8sResource<T>(
       if (cancelled) return;
 
       if (watchEvent.type === "Error") {
-        const message =
-          typeof watchEvent.data === "string" ? watchEvent.data : "Watch error";
-        setError(message);
+        // WatchEvent::Error now carries a KubeliError object
+        const kubeliError = toKubeliError(watchEvent.data);
+        setError(kubeliError);
         setIsWatching(false);
-        watchRetryUntilRef.current = Date.now() + 5000;
+
+        if (kubeliError.retryable) {
+          watchRetryUntilRef.current = Date.now() + 5000;
+        } else {
+          autoRefreshPausedRef.current = true;
+        }
+
         const idsToStop = watchIdsRef.current;
         watchIdsRef.current = [];
         setWatchIds([]);
@@ -266,9 +299,11 @@ export function useK8sResource<T>(
 
   // ── Lifecycle effects ─────────────────────────────────────────────
 
-  // Reset data from cache when cache key changes (e.g. namespace switch)
+  // Reset data from cache and clear error when cache key changes (e.g. namespace switch)
   useEffect(() => {
     setData(getCache<T>(cacheKey));
+    setError(null);
+    autoRefreshPausedRef.current = false;
   }, [cacheKey, getCache]);
 
   // Initial fetch
@@ -278,9 +313,9 @@ export function useK8sResource<T>(
     }
   }, [isConnected, refresh]);
 
-  // Auto-refresh (disabled while watching)
+  // Auto-refresh (disabled while watching or paused due to non-retryable error)
   useEffect(() => {
-    if (!options.autoRefresh || !isConnected || isWatching) return;
+    if (!options.autoRefresh || !isConnected || isWatching || autoRefreshPausedRef.current) return;
     const interval = setInterval(
       refresh,
       options.refreshInterval || config.defaultRefreshInterval || 30000
@@ -327,10 +362,10 @@ export function useK8sResource<T>(
     return () => clearTimeout(timer);
   }, [namespace, isMultiNs, isConfiguredAllNs, selectedNamespaces, configuredNamespaces, isWatching, watchIds, config.supportsWatch]);
 
-  // Auto-start watch if enabled
+  // Auto-start watch if enabled (skip if paused due to non-retryable error)
   useEffect(() => {
     if (!options.autoWatch || !isConnected || isWatching || watchIds.length > 0 || isLoading) return;
-    if (!config.supportsWatch) return;
+    if (!config.supportsWatch || autoRefreshPausedRef.current) return;
 
     const retryUntil = watchRetryUntilRef.current;
     const delay = retryUntil && retryUntil > Date.now() ? retryUntil - Date.now() : 500;
@@ -354,6 +389,7 @@ export function useK8sResource<T>(
     isLoading,
     error,
     refresh,
+    retry,
     startWatch,
     stopWatchFn,
     isWatching,

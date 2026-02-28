@@ -1,3 +1,4 @@
+use crate::error::KubeliError;
 use crate::k8s::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
 use flate2::read::GzDecoder;
@@ -320,8 +321,8 @@ pub struct ListOptions {
 pub async fn list_pods(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<PodInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<PodInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -340,10 +341,7 @@ pub async fn list_pods(
         Api::all(client)
     };
 
-    let pod_list = pods
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list pods: {}", e))?;
+    let pod_list = pods.list(&list_params).await?;
 
     let pod_infos: Vec<PodInfo> = pod_list
         .items
@@ -410,8 +408,8 @@ pub async fn list_pods(
 pub async fn list_deployments(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<DeploymentInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<DeploymentInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -427,10 +425,7 @@ pub async fn list_deployments(
         Api::all(client)
     };
 
-    let deployment_list = deployments
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list deployments: {}", e))?;
+    let deployment_list = deployments.list(&list_params).await?;
 
     let deployment_infos: Vec<DeploymentInfo> = deployment_list
         .items
@@ -464,8 +459,8 @@ pub async fn list_deployments(
 pub async fn list_services(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<ServiceInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<ServiceInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -481,10 +476,7 @@ pub async fn list_services(
         Api::all(client)
     };
 
-    let service_list = services
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list services: {}", e))?;
+    let service_list = services.list(&list_params).await?;
 
     let service_infos: Vec<ServiceInfo> = service_list
         .items
@@ -545,8 +537,8 @@ pub async fn list_services(
 pub async fn list_configmaps(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<ConfigMapInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<ConfigMapInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -562,10 +554,7 @@ pub async fn list_configmaps(
         Api::all(client)
     };
 
-    let configmap_list = configmaps
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list configmaps: {}", e))?;
+    let configmap_list = configmaps.list(&list_params).await?;
 
     let configmap_infos: Vec<ConfigMapInfo> = configmap_list
         .items
@@ -597,8 +586,8 @@ pub async fn list_configmaps(
 pub async fn list_secrets(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<SecretInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<SecretInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -614,10 +603,7 @@ pub async fn list_secrets(
         Api::all(client)
     };
 
-    let secret_list = secrets
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list secrets: {}", e))?;
+    let secret_list = secrets.list(&list_params).await?;
 
     let secret_infos: Vec<SecretInfo> = secret_list
         .items
@@ -647,16 +633,13 @@ pub async fn list_secrets(
 
 /// List all nodes
 #[command]
-pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let nodes: Api<Node> = Api::all(client);
     let list_params = ListParams::default();
 
-    let node_list = nodes
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list nodes: {}", e))?;
+    let node_list = nodes.list(&list_params).await?;
 
     let node_infos: Vec<NodeInfo> = node_list
         .items
@@ -858,14 +841,11 @@ pub async fn get_pod(
     state: State<'_, AppState>,
     namespace: String,
     name: String,
-) -> Result<PodInfo, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<PodInfo, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let pods: Api<Pod> = Api::namespaced(client.clone(), &namespace);
-    let pod = pods
-        .get(&name)
-        .await
-        .map_err(|e| format!("Failed to get pod {}/{}: {}", namespace, name, e))?;
+    let pod = pods.get(&name).await?;
 
     let metadata = pod.metadata;
     let spec = pod.spec.unwrap_or_default();
@@ -940,13 +920,11 @@ pub async fn delete_pod(
     state: State<'_, AppState>,
     namespace: String,
     name: String,
-) -> Result<(), String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let pods: Api<Pod> = Api::namespaced(client, &namespace);
-    pods.delete(&name, &Default::default())
-        .await
-        .map_err(|e| format!("Failed to delete pod {}/{}: {}", namespace, name, e))?;
+    pods.delete(&name, &Default::default()).await?;
 
     tracing::info!("Deleted pod {}/{}", namespace, name);
     Ok(())
@@ -981,8 +959,8 @@ pub async fn get_resource_yaml(
     resource_type: String,
     name: String,
     namespace: Option<String>,
-) -> Result<ResourceYaml, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<ResourceYaml, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     // Only helm-release needs special handling (secret decoding).
     // Everything else goes through the generic dynamic API.
@@ -998,15 +976,11 @@ async fn get_helm_release_yaml(
     client: kube::Client,
     name: &str,
     namespace: Option<String>,
-) -> Result<ResourceYaml, String> {
+) -> Result<ResourceYaml, KubeliError> {
     let ns = namespace.ok_or("Namespace required for helm releases")?;
     let api: Api<Secret> = Api::namespaced(client, &ns);
     let lp = ListParams::default().labels("owner=helm");
-    let secrets: Vec<Secret> = api
-        .list(&lp)
-        .await
-        .map_err(|e| format!("Failed to list secrets: {}", e))?
-        .items;
+    let secrets: Vec<Secret> = api.list(&lp).await?.items;
 
     let prefix = format!("sh.helm.release.v1.{}.v", name);
     let latest_rev = secrets
@@ -1023,10 +997,7 @@ async fn get_helm_release_yaml(
         .ok_or_else(|| format!("Helm release '{}' not found", name))?;
 
     let secret_name = format!("sh.helm.release.v1.{}.v{}", name, latest_rev);
-    let secret = api
-        .get(&secret_name)
-        .await
-        .map_err(|e| format!("Failed to get helm secret: {}", e))?;
+    let secret = api.get(&secret_name).await?;
 
     let data = secret
         .data
@@ -1036,29 +1007,21 @@ async fn get_helm_release_yaml(
 
     // Decode: base64 -> (maybe base64) -> gzip -> json
     let data_str = String::from_utf8_lossy(&data.0);
-    let decoded1 = BASE64
-        .decode(data_str.as_ref())
-        .map_err(|e| format!("Failed to decode base64: {}", e))?;
+    let decoded1 = BASE64.decode(data_str.as_ref())?;
 
     let gzip_data = if decoded1.len() >= 2 && decoded1[0] == 0x1f && decoded1[1] == 0x8b {
         decoded1
     } else {
-        BASE64
-            .decode(&decoded1)
-            .map_err(|e| format!("Failed to decode base64 (2nd): {}", e))?
+        BASE64.decode(&decoded1)?
     };
 
     let mut decoder = GzDecoder::new(&gzip_data[..]);
     let mut decompressed = String::new();
-    decoder
-        .read_to_string(&mut decompressed)
-        .map_err(|e| format!("Failed to decompress: {}", e))?;
+    decoder.read_to_string(&mut decompressed)?;
 
-    let release_data: Value =
-        serde_json::from_str(&decompressed).map_err(|e| format!("Failed to parse JSON: {}", e))?;
+    let release_data: Value = serde_json::from_str(&decompressed)?;
 
-    let yaml = serde_yaml::to_string(&release_data)
-        .map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+    let yaml = serde_yaml::to_string(&release_data)?;
 
     Ok(ResourceYaml {
         yaml,
@@ -1235,7 +1198,7 @@ async fn get_resource_yaml_dynamic(
     resource_type: &str,
     name: &str,
     namespace: Option<&str>,
-) -> Result<ResourceYaml, String> {
+) -> Result<ResourceYaml, KubeliError> {
     let (group, version, kind, plural, namespaced) = resolve_resource_type(resource_type)
         .ok_or_else(|| format!("Unsupported resource type: {}", resource_type))?;
 
@@ -1260,18 +1223,13 @@ async fn get_resource_yaml_dynamic(
         Api::all_with(client, &ar)
     };
 
-    let resource = api
-        .get(name)
-        .await
-        .map_err(|e| format!("Failed to get {}: {}", resource_type, e))?;
+    let resource = api.get(name).await?;
 
     // Serialize to JSON Value so we can strip managedFields before YAML output
-    let mut value = serde_json::to_value(&resource)
-        .map_err(|e| format!("Failed to serialize resource: {}", e))?;
+    let mut value = serde_json::to_value(&resource)?;
     strip_managed_fields(&mut value);
 
-    let yaml =
-        serde_yaml::to_string(&value).map_err(|e| format!("Failed to serialize to YAML: {}", e))?;
+    let yaml = serde_yaml::to_string(&value)?;
 
     Ok(ResourceYaml {
         yaml,
@@ -1294,12 +1252,11 @@ async fn get_resource_yaml_dynamic(
 pub async fn apply_resource_yaml(
     state: State<'_, AppState>,
     yaml_content: String,
-) -> Result<String, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<String, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     // Parse YAML to get resource metadata
-    let value: Value =
-        serde_yaml::from_str(&yaml_content).map_err(|e| format!("Invalid YAML: {}", e))?;
+    let value: Value = serde_yaml::from_str(&yaml_content)?;
 
     let api_version = value["apiVersion"].as_str().ok_or("Missing apiVersion")?;
     let kind = value["kind"].as_str().ok_or("Missing kind")?;
@@ -1334,14 +1291,10 @@ pub async fn apply_resource_yaml(
 
     // Apply using server-side apply
     let patch_params = PatchParams::apply("kubeli").force();
-    let json_str = serde_json::to_string(&value)
-        .map_err(|e| format!("Failed to serialize resource: {}", e))?;
-    let patch =
-        Patch::Apply(serde_json::from_str::<DynamicObject>(&json_str).map_err(|e| e.to_string())?);
+    let json_str = serde_json::to_string(&value)?;
+    let patch = Patch::Apply(serde_json::from_str::<DynamicObject>(&json_str)?);
 
-    api.patch(name, &patch_params, &patch)
-        .await
-        .map_err(|e| format!("Failed to apply resource: {}", e))?;
+    api.patch(name, &patch_params, &patch).await?;
 
     tracing::info!("Applied {} {}", kind, name);
     Ok(format!("{} {} applied successfully", kind, name))
@@ -1354,8 +1307,8 @@ pub async fn delete_resource(
     resource_type: String,
     name: String,
     namespace: Option<String>,
-) -> Result<(), String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let (group, version, kind, plural, namespaced) = resolve_resource_type(&resource_type)
         .ok_or_else(|| format!("Unsupported resource type: {}", resource_type))?;
@@ -1381,9 +1334,7 @@ pub async fn delete_resource(
         Api::all_with(client, &ar)
     };
 
-    api.delete(&name, &DeleteParams::default())
-        .await
-        .map_err(|e| format!("Failed to delete {}: {}", resource_type, e))?;
+    api.delete(&name, &DeleteParams::default()).await?;
 
     tracing::info!("Deleted {} {}", resource_type, name);
     Ok(())
@@ -1396,8 +1347,8 @@ pub async fn scale_deployment(
     name: String,
     namespace: String,
     replicas: i32,
-) -> Result<(), String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let api: Api<Deployment> = Api::namespaced(client, &namespace);
 
@@ -1406,8 +1357,7 @@ pub async fn scale_deployment(
     });
 
     api.patch(&name, &PatchParams::default(), &Patch::Merge(&patch))
-        .await
-        .map_err(|e| format!("Failed to scale deployment: {}", e))?;
+        .await?;
 
     tracing::info!("Scaled deployment {} to {} replicas", name, replicas);
     Ok(())
@@ -1426,14 +1376,13 @@ pub struct NamespaceInfo {
 
 /// List all namespaces in the cluster
 #[command]
-pub async fn list_namespaces(state: State<'_, AppState>) -> Result<Vec<NamespaceInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+pub async fn list_namespaces(
+    state: State<'_, AppState>,
+) -> Result<Vec<NamespaceInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let namespaces: Api<Namespace> = Api::all(client);
-    let list = namespaces
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list namespaces: {}", e))?;
+    let list = namespaces.list(&ListParams::default()).await?;
 
     let result: Vec<NamespaceInfo> = list
         .items
@@ -1522,8 +1471,8 @@ pub struct EventInfo {
 pub async fn list_events(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<EventInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<EventInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -1542,10 +1491,7 @@ pub async fn list_events(
         Api::all(client)
     };
 
-    let event_list = events
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list events: {}", e))?;
+    let event_list = events.list(&list_params).await?;
 
     let event_infos: Vec<EventInfo> = event_list
         .items
@@ -1601,8 +1547,8 @@ pub struct LeaseInfo {
 pub async fn list_leases(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<LeaseInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<LeaseInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -1618,10 +1564,7 @@ pub async fn list_leases(
         Api::all(client)
     };
 
-    let lease_list = leases
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list leases: {}", e))?;
+    let lease_list = leases.list(&list_params).await?;
 
     let lease_infos: Vec<LeaseInfo> = lease_list
         .items
@@ -1670,8 +1613,8 @@ pub struct ReplicaSetInfo {
 pub async fn list_replicasets(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<ReplicaSetInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<ReplicaSetInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -1687,10 +1630,7 @@ pub async fn list_replicasets(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list replicasets: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<ReplicaSetInfo> = list
         .items
@@ -1749,8 +1689,8 @@ pub struct DaemonSetInfo {
 pub async fn list_daemonsets(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<DaemonSetInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<DaemonSetInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -1766,10 +1706,7 @@ pub async fn list_daemonsets(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list daemonsets: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<DaemonSetInfo> = list
         .items
@@ -1827,8 +1764,8 @@ pub struct StatefulSetInfo {
 pub async fn list_statefulsets(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<StatefulSetInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<StatefulSetInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -1844,10 +1781,7 @@ pub async fn list_statefulsets(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list statefulsets: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<StatefulSetInfo> = list
         .items
@@ -1900,8 +1834,8 @@ pub struct JobInfo {
 pub async fn list_jobs(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<JobInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<JobInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -1917,10 +1851,7 @@ pub async fn list_jobs(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list jobs: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<JobInfo> = list
         .items
@@ -1991,8 +1922,8 @@ pub struct CronJobInfo {
 pub async fn list_cronjobs(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<CronJobInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<CronJobInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -2008,10 +1939,7 @@ pub async fn list_cronjobs(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list cronjobs: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<CronJobInfo> = list
         .items
@@ -2097,8 +2025,8 @@ pub struct IngressInfo {
 pub async fn list_ingresses(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<IngressInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<IngressInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -2114,10 +2042,7 @@ pub async fn list_ingresses(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list ingresses: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<IngressInfo> = list
         .items
@@ -2276,8 +2201,8 @@ pub struct EndpointSliceInfo {
 pub async fn list_endpoint_slices(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<EndpointSliceInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<EndpointSliceInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -2293,10 +2218,7 @@ pub async fn list_endpoint_slices(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list endpoint slices: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<EndpointSliceInfo> = list
         .items
@@ -2437,8 +2359,8 @@ fn convert_network_policy_peer(
 pub async fn list_network_policies(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<NetworkPolicyInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<NetworkPolicyInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -2454,10 +2376,7 @@ pub async fn list_network_policies(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list network policies: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<NetworkPolicyInfo> = list
         .items
@@ -2552,8 +2471,8 @@ pub struct IngressClassInfo {
 pub async fn list_ingress_classes(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<IngressClassInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<IngressClassInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -2565,10 +2484,7 @@ pub async fn list_ingress_classes(
 
     let api: Api<IngressClass> = Api::all(client);
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list ingress classes: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<IngressClassInfo> = list
         .items
@@ -2649,8 +2565,8 @@ pub struct HPAInfo {
 pub async fn list_hpas(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<HPAInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<HPAInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -2666,10 +2582,7 @@ pub async fn list_hpas(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list HPAs: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<HPAInfo> = list
         .items
@@ -2799,8 +2712,8 @@ fn quantity_map_to_string_map(
 pub async fn list_limit_ranges(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<LimitRangeInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<LimitRangeInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -2816,10 +2729,7 @@ pub async fn list_limit_ranges(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list LimitRanges: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<LimitRangeInfo> = list
         .items
@@ -2876,8 +2786,8 @@ pub struct ResourceQuotaInfo {
 pub async fn list_resource_quotas(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<ResourceQuotaInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<ResourceQuotaInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -2893,10 +2803,7 @@ pub async fn list_resource_quotas(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list ResourceQuotas: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<ResourceQuotaInfo> = list
         .items
@@ -2946,8 +2853,8 @@ pub struct PDBInfo {
 pub async fn list_pdbs(
     state: State<'_, AppState>,
     options: ListOptions,
-) -> Result<Vec<PDBInfo>, String> {
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+) -> Result<Vec<PDBInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
 
     let mut list_params = ListParams::default();
     if let Some(label_selector) = &options.label_selector {
@@ -2963,10 +2870,7 @@ pub async fn list_pdbs(
         Api::all(client)
     };
 
-    let list = api
-        .list(&list_params)
-        .await
-        .map_err(|e| format!("Failed to list PDBs: {}", e))?;
+    let list = api.list(&list_params).await?;
 
     let infos: Vec<PDBInfo> = list
         .items
@@ -3045,15 +2949,14 @@ pub struct PVInfo {
 
 /// List Persistent Volumes
 #[command]
-pub async fn list_persistent_volumes(state: State<'_, AppState>) -> Result<Vec<PVInfo>, String> {
+pub async fn list_persistent_volumes(
+    state: State<'_, AppState>,
+) -> Result<Vec<PVInfo>, KubeliError> {
     tracing::info!("Listing persistent volumes");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<PersistentVolume> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list PVs: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<PVInfo> = list
         .items
@@ -3116,22 +3019,19 @@ pub struct PVCInfo {
 pub async fn list_persistent_volume_claims(
     state: State<'_, AppState>,
     namespace: Option<String>,
-) -> Result<Vec<PVCInfo>, String> {
+) -> Result<Vec<PVCInfo>, KubeliError> {
     tracing::info!(
         "Listing persistent volume claims in namespace: {:?}",
         namespace
     );
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<PersistentVolumeClaim> = match &namespace {
         Some(ns) if !ns.is_empty() => Api::namespaced(client.clone(), ns),
         _ => Api::all(client.clone()),
     };
 
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list PVCs: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<PVCInfo> = list
         .items
@@ -3194,15 +3094,12 @@ pub struct StorageClassInfo {
 #[command]
 pub async fn list_storage_classes(
     state: State<'_, AppState>,
-) -> Result<Vec<StorageClassInfo>, String> {
+) -> Result<Vec<StorageClassInfo>, KubeliError> {
     tracing::info!("Listing storage classes");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<StorageClass> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list StorageClasses: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<StorageClassInfo> = list
         .items
@@ -3260,15 +3157,14 @@ pub struct CSIDriverInfo {
 
 /// List CSI Drivers
 #[command]
-pub async fn list_csi_drivers(state: State<'_, AppState>) -> Result<Vec<CSIDriverInfo>, String> {
+pub async fn list_csi_drivers(
+    state: State<'_, AppState>,
+) -> Result<Vec<CSIDriverInfo>, KubeliError> {
     tracing::info!("Listing CSI drivers");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<CSIDriver> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list CSIDrivers: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<CSIDriverInfo> = list
         .items
@@ -3324,15 +3220,12 @@ pub struct CSINodeInfo {
 
 /// List CSI Nodes
 #[command]
-pub async fn list_csi_nodes(state: State<'_, AppState>) -> Result<Vec<CSINodeInfo>, String> {
+pub async fn list_csi_nodes(state: State<'_, AppState>) -> Result<Vec<CSINodeInfo>, KubeliError> {
     tracing::info!("Listing CSI nodes");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<CSINode> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list CSINodes: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<CSINodeInfo> = list
         .items
@@ -3386,15 +3279,12 @@ pub struct VolumeAttachmentInfo {
 #[command]
 pub async fn list_volume_attachments(
     state: State<'_, AppState>,
-) -> Result<Vec<VolumeAttachmentInfo>, String> {
+) -> Result<Vec<VolumeAttachmentInfo>, KubeliError> {
     tracing::info!("Listing volume attachments");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<VolumeAttachment> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list VolumeAttachments: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<VolumeAttachmentInfo> = list
         .items
@@ -3464,19 +3354,16 @@ pub struct ServiceAccountInfo {
 pub async fn list_service_accounts(
     state: State<'_, AppState>,
     namespace: Option<String>,
-) -> Result<Vec<ServiceAccountInfo>, String> {
+) -> Result<Vec<ServiceAccountInfo>, KubeliError> {
     tracing::info!("Listing service accounts in namespace: {:?}", namespace);
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<ServiceAccount> = match &namespace {
         Some(ns) if !ns.is_empty() => Api::namespaced(client.clone(), ns),
         _ => Api::all(client.clone()),
     };
 
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list ServiceAccounts: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<ServiceAccountInfo> = list
         .items
@@ -3542,19 +3429,16 @@ pub struct RoleInfo {
 pub async fn list_roles(
     state: State<'_, AppState>,
     namespace: Option<String>,
-) -> Result<Vec<RoleInfo>, String> {
+) -> Result<Vec<RoleInfo>, KubeliError> {
     tracing::info!("Listing roles in namespace: {:?}", namespace);
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<Role> = match &namespace {
         Some(ns) if !ns.is_empty() => Api::namespaced(client.clone(), ns),
         _ => Api::all(client.clone()),
     };
 
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list Roles: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<RoleInfo> = list
         .items
@@ -3621,19 +3505,16 @@ pub struct RoleBindingInfo {
 pub async fn list_role_bindings(
     state: State<'_, AppState>,
     namespace: Option<String>,
-) -> Result<Vec<RoleBindingInfo>, String> {
+) -> Result<Vec<RoleBindingInfo>, KubeliError> {
     tracing::info!("Listing role bindings in namespace: {:?}", namespace);
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<RoleBinding> = match &namespace {
         Some(ns) if !ns.is_empty() => Api::namespaced(client.clone(), ns),
         _ => Api::all(client.clone()),
     };
 
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list RoleBindings: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<RoleBindingInfo> = list
         .items
@@ -3690,15 +3571,12 @@ pub struct ClusterRoleInfo {
 #[command]
 pub async fn list_cluster_roles(
     state: State<'_, AppState>,
-) -> Result<Vec<ClusterRoleInfo>, String> {
+) -> Result<Vec<ClusterRoleInfo>, KubeliError> {
     tracing::info!("Listing cluster roles");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<ClusterRole> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list ClusterRoles: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<ClusterRoleInfo> = list
         .items
@@ -3769,15 +3647,12 @@ pub struct ClusterRoleBindingInfo {
 #[command]
 pub async fn list_cluster_role_bindings(
     state: State<'_, AppState>,
-) -> Result<Vec<ClusterRoleBindingInfo>, String> {
+) -> Result<Vec<ClusterRoleBindingInfo>, KubeliError> {
     tracing::info!("Listing cluster role bindings");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<ClusterRoleBinding> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list ClusterRoleBindings: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<ClusterRoleBindingInfo> = list
         .items
@@ -3846,15 +3721,12 @@ pub struct CRDInfo {
 }
 
 #[command]
-pub async fn list_crds(state: State<'_, AppState>) -> Result<Vec<CRDInfo>, String> {
+pub async fn list_crds(state: State<'_, AppState>) -> Result<Vec<CRDInfo>, KubeliError> {
     tracing::info!("Listing CRDs");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<CustomResourceDefinition> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list CRDs: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<CRDInfo> = list
         .items
@@ -3927,15 +3799,12 @@ pub struct PriorityClassInfo {
 #[command]
 pub async fn list_priority_classes(
     state: State<'_, AppState>,
-) -> Result<Vec<PriorityClassInfo>, String> {
+) -> Result<Vec<PriorityClassInfo>, KubeliError> {
     tracing::info!("Listing priority classes");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<PriorityClass> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list PriorityClasses: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<PriorityClassInfo> = list
         .items
@@ -3978,15 +3847,12 @@ pub struct RuntimeClassInfo {
 #[command]
 pub async fn list_runtime_classes(
     state: State<'_, AppState>,
-) -> Result<Vec<RuntimeClassInfo>, String> {
+) -> Result<Vec<RuntimeClassInfo>, KubeliError> {
     tracing::info!("Listing runtime classes");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<RuntimeClass> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list RuntimeClasses: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<RuntimeClassInfo> = list
         .items
@@ -4065,15 +3931,12 @@ pub struct MutatingWebhookInfo {
 #[command]
 pub async fn list_mutating_webhooks(
     state: State<'_, AppState>,
-) -> Result<Vec<MutatingWebhookInfo>, String> {
+) -> Result<Vec<MutatingWebhookInfo>, KubeliError> {
     tracing::info!("Listing mutating webhook configurations");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<MutatingWebhookConfiguration> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list MutatingWebhookConfigurations: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<MutatingWebhookInfo> = list
         .items
@@ -4161,15 +4024,12 @@ pub struct ValidatingWebhookInfo {
 #[command]
 pub async fn list_validating_webhooks(
     state: State<'_, AppState>,
-) -> Result<Vec<ValidatingWebhookInfo>, String> {
+) -> Result<Vec<ValidatingWebhookInfo>, KubeliError> {
     tracing::info!("Listing validating webhook configurations");
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let client = state.k8s.get_client().await?;
 
     let api: Api<ValidatingWebhookConfiguration> = Api::all(client.clone());
-    let list = api
-        .list(&ListParams::default())
-        .await
-        .map_err(|e| format!("Failed to list ValidatingWebhookConfigurations: {}", e))?;
+    let list = api.list(&ListParams::default()).await?;
 
     let infos: Vec<ValidatingWebhookInfo> = list
         .items

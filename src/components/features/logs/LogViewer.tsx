@@ -45,7 +45,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
   } = useLogs(namespace, podName, logTabId);
 
   const isPodNotFound = useMemo(
-    () => !!error && (error.includes("NotFound") || error.includes("not found")),
+    () => !!error && (error.kind === "NotFound" || error.message.includes("not found")),
     [error]
   );
 
@@ -223,7 +223,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         <div className="px-4 py-2">
           <Alert variant="destructive">
             <AlertCircle className="size-4" />
-            <AlertDescription>{error}</AlertDescription>
+            <AlertDescription>{error.message}</AlertDescription>
           </Alert>
         </div>
       )}
