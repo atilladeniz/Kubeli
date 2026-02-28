@@ -186,7 +186,12 @@ export function ResourceTable<T>({
                                 {child.icon}
                                 {child.label}
                                 {child.hint && (
-                                  <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-[10px] font-mono font-medium text-foreground">
+                                  <span className={cn(
+                                    "ml-auto rounded-full px-2 py-0.5 text-[10px] font-mono font-medium",
+                                    child.hintVariant === "active"
+                                      ? "bg-purple-500/20 text-purple-400"
+                                      : "bg-muted text-foreground"
+                                  )}>
                                     {child.hint}
                                   </span>
                                 )}

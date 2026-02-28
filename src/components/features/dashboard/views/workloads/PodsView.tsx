@@ -366,6 +366,7 @@ export function PodsView() {
                       return {
                         label: port.name ? `${label} ${port.name}` : `${label} port`,
                         hint: String(port.port),
+                        hintVariant: fwd ? "active" as const : "default" as const,
                         onClick: () =>
                           fwd ? stopForward(fwd.forward_id) : handlePortForward(pod, port),
                         disabled: isTerminating,
