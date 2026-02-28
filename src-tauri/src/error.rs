@@ -44,12 +44,6 @@ impl KubeliError {
         }
     }
 
-    /// Set the resource name this error relates to
-    pub fn with_resource(mut self, resource: impl Into<String>) -> Self {
-        self.resource = Some(resource.into());
-        self
-    }
-
     /// Create a generic unknown error from any string
     pub fn unknown(message: impl Into<String>) -> Self {
         Self::new(ErrorKind::Unknown, message)

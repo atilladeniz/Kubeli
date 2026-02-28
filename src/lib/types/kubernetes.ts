@@ -463,6 +463,7 @@ export interface GraphEdge {
 export interface GraphData {
   nodes: GraphNode[];
   edges: GraphEdge[];
+  errors: string[];
 }
 
 // Namespace info
