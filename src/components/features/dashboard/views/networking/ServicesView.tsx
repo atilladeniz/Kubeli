@@ -179,10 +179,10 @@ export function ServicesView() {
       onClick: () => {},
       children: svc.ports.map((port) => {
         const fwd = svcForwards.find((f) => f.target_port === port.port);
-        const portLabel = port.name ? `${port.name}:${port.port}` : `${port.port}`;
+        const label = fwd ? "Stop" : "Forward";
         return {
-          label: fwd ? `Stop :${portLabel}` : `Forward :${portLabel}`,
-          icon: <ArrowRightLeft className="size-4" />,
+          label: port.name ? `${label} ${port.name}` : `${label} port`,
+          hint: String(port.port),
           onClick: () => (fwd ? stopForward(fwd.forward_id) : handlePortForward(svc, port)),
         };
       }),

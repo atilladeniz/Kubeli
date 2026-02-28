@@ -31,6 +31,8 @@ export interface ContextMenuItemDef {
   disabled?: boolean;
   separator?: boolean;
   children?: ContextMenuItemDef[];
+  /** Right-aligned hint text (e.g. port number, shortcut) */
+  hint?: string;
 }
 
 export type SortDirection = "asc" | "desc";

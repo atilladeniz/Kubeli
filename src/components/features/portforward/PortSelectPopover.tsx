@@ -8,6 +8,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import type { ServicePortInfo, PortForwardInfo } from "@/lib/types";
 
@@ -43,7 +44,7 @@ export function PortSelectPopover({
         {children}
       </PopoverTrigger>
       <PopoverContent
-        className="w-auto min-w-[280px] p-0"
+        className="w-auto min-w-[260px] p-0"
         align="end"
         onClick={(e) => e.stopPropagation()}
       >
@@ -60,25 +61,24 @@ export function PortSelectPopover({
             return (
               <div
                 key={`${port.port}-${port.protocol}`}
-                className="flex items-center justify-between gap-3 px-3 py-1.5 hover:bg-muted/50"
+                className="flex items-center justify-between gap-2 px-3 py-1.5 hover:bg-muted/50"
               >
-                <span className="text-xs font-mono text-foreground">
-                  {port.name && (
-                    <span className="text-muted-foreground">
-                      {port.name}:{" "}
-                    </span>
-                  )}
-                  {port.port}
-                  <span className="text-muted-foreground">
-                    {" "}
-                    &rarr; {port.target_port}/{port.protocol}
+                <div className="flex items-center gap-2 min-w-0">
+                  <Badge
+                    variant="secondary"
+                    className="font-mono text-[10px] px-1.5 py-0 shrink-0"
+                  >
+                    {port.port}
+                  </Badge>
+                  <span className="text-xs text-muted-foreground truncate">
+                    {port.name || port.protocol}
                   </span>
-                </span>
+                </div>
                 <Button
                   variant="ghost"
                   size="sm"
                   className={cn(
-                    "h-6 px-2 text-xs",
+                    "h-6 px-2 text-xs shrink-0",
                     isForwarded
                       ? "text-red-500 hover:text-red-600 hover:bg-red-500/10"
                       : "text-purple-500 hover:text-purple-600 hover:bg-purple-500/10"
