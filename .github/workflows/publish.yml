@@ -30,9 +30,12 @@ jobs:
 
       - name: Get version from tag
         id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
           else
             TAG="${GITHUB_REF#refs/tags/}"
           fi
@@ -43,8 +46,9 @@ jobs:
 
       - name: Extract changelog
         id: changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           # Extract section between ## [$VERSION] and the next ## [
           CHANGELOG=$(sed -n "/^## \[$VERSION\]/,/^## \[/p" CHANGELOG.md | sed '1d;$d' | sed '/^$/d')
           if [ -z "$CHANGELOG" ]; then
@@ -62,9 +66,10 @@ jobs:
 
       - name: Build release body
         id: body
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PREV_TAG: ${{ steps.prev-tag.outputs.prev_tag }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          PREV_TAG="${{ steps.prev-tag.outputs.prev_tag }}"
           CHANGELOG=$(cat /tmp/changelog.md)
 
           BODY="## What's Changed
@@ -156,9 +161,12 @@ jobs:
 
       - name: Write Apple API key to file
         if: startsWith(matrix.platform, 'macos')
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
         run: |
           mkdir -p ~/private_keys
-          echo "${{ secrets.APPLE_API_KEY_CONTENT }}" > ~/private_keys/AuthKey_${{ secrets.APPLE_API_KEY }}.p8
+          echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey_"$APPLE_API_KEY".p8
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -190,24 +198,28 @@ jobs:
 
       - name: Set version
         id: version
+        env:
+          RELEASE_VERSION: ${{ needs.create-release.outputs.version }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
         run: |
-          echo "version=${{ needs.create-release.outputs.version }}" >> $GITHUB_OUTPUT
-          echo "tag=${{ needs.create-release.outputs.tag }}" >> $GITHUB_OUTPUT
+          echo "version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
 
       - name: Download release artifacts
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
           mkdir -p artifacts
-          gh release download "${{ steps.version.outputs.tag }}" --dir artifacts
+          gh release download "$RELEASE_TAG" --dir artifacts
           echo "Downloaded artifacts:"
           ls -la artifacts/
 
       - name: Build FTP latest.json
         env:
           DEPLOY_API_URL: ${{ secrets.DEPLOY_API_URL }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           # Read signatures
@@ -278,9 +290,8 @@ jobs:
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           DEPLOY_API_FTP_PATH: ${{ secrets.DEPLOY_API_FTP_PATH }}
           DEPLOY_API_URL: ${{ secrets.DEPLOY_API_URL }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
           # Upload macOS update artifacts
           for f in artifacts/*.app.tar.gz artifacts/*.app.tar.gz.sig; do
             if [ -f "$f" ]; then
@@ -324,9 +335,8 @@ jobs:
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           DEPLOY_LANDING_FTP_PATH: ${{ secrets.DEPLOY_LANDING_FTP_PATH }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
-          VERSION="${{ steps.version.outputs.version }}"
-
           # macOS DMG
           DMG=$(ls artifacts/*.dmg 2>/dev/null | head -1)
           if [ -n "$DMG" ]; then
@@ -366,6 +376,7 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
         run: |
-          gh release edit "${{ steps.version.outputs.tag }}" --draft=false
-          echo "Release ${{ steps.version.outputs.tag }} published!"
+          gh release edit "$RELEASE_TAG" --draft=false
+          echo "Release $RELEASE_TAG published!"
