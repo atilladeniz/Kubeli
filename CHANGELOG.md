@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.51] - 2026-03-01
+
+- Added port selection popover for multi-port services
+
 ## [0.3.50] - 2026-02-28
 
 - Added structured error handling across Rust backend and React frontend
