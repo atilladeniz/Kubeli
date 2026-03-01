@@ -130,5 +130,8 @@
     "src-tauri/src/**/*.rs": [
       "bash -c 'cd src-tauri && cargo fmt'"
     ]
+  },
+  "overrides": {
+    "minimatch": ">=3.1.3"
   }
 }
