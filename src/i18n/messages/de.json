@@ -844,6 +844,8 @@
     "discardChanges": "Änderungen verwerfen",
     "discardChangesTitle": "Änderungen verwerfen?",
     "discardChangesDescription": "Du hast ungespeicherte Änderungen am YAML. Wenn du den Bearbeitungsmodus jetzt verlässt, gehen deine Änderungen verloren.",
+    "portForward": "Forward",
+    "noPortsAvailable": "Keine Ports zum Weiterleiten verfügbar.",
     "dangerZone": "Gefahrenzone",
     "deleteResource": "{type} \"{name}\" löschen",
     "uninstallResource": "Helm Release \"{name}\" deinstallieren",

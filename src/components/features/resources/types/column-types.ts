@@ -30,6 +30,11 @@ export interface ContextMenuItemDef {
   variant?: "default" | "destructive";
   disabled?: boolean;
   separator?: boolean;
+  children?: ContextMenuItemDef[];
+  /** Right-aligned hint text (e.g. port number, shortcut) */
+  hint?: string;
+  /** Color variant for the hint chip */
+  hintVariant?: "default" | "active";
 }
 
 export type SortDirection = "asc" | "desc";

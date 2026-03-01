@@ -36,7 +36,8 @@ import { usePodMetrics } from "@/lib/hooks/useMetrics";
 import { seedHistoryFromBulkMetrics } from "@/lib/hooks/useMetricsHistory";
 import { useResourceDetail } from "../../context";
 import { useTabsStore } from "@/lib/stores/tabs-store";
-import type { PodInfo, PodMetrics, ServiceInfo } from "@/lib/types";
+import { PortSelectPopover } from "../../../portforward";
+import type { PodInfo, PodMetrics, ServiceInfo, ServicePortInfo } from "@/lib/types";
 
 export function PodsView() {
   const t = useTranslations();
@@ -157,7 +158,7 @@ export function PodsView() {
     });
   };
 
-  // Check if pod's service is being forwarded
+  // Check if pod's service is being forwarded (any port)
   const getForwardForPod = (pod: PodInfo) => {
     const service = findServiceForPod(pod);
     if (!service) return undefined;
@@ -169,11 +170,23 @@ export function PodsView() {
     );
   };
 
-  const handlePortForward = (pod: PodInfo) => {
+  // Get all forwards for a pod's service (for multi-port popover)
+  const getForwardsForPod = (pod: PodInfo) => {
+    const service = findServiceForPod(pod);
+    if (!service) return [];
+    return forwards.filter(
+      (f) =>
+        f.name === service.name &&
+        f.namespace === service.namespace &&
+        f.target_type === "service"
+    );
+  };
+
+  const handlePortForward = (pod: PodInfo, port?: ServicePortInfo) => {
     const service = findServiceForPod(pod);
     if (service && service.ports.length > 0) {
-      const port = service.ports[0];
-      startForward(service.namespace, service.name, "service", port.port);
+      const p = port ?? service.ports[0];
+      startForward(service.namespace, service.name, "service", p.port);
     }
   };
 
@@ -242,7 +255,31 @@ export function PodsView() {
                 Shell
               </Button>
             )}
-            {canForward && (
+            {canForward && service && service.ports.length > 1 ? (() => {
+              const podForwards = getForwardsForPod(pod);
+              return (
+                <PortSelectPopover
+                  ports={service.ports}
+                  forwards={podForwards}
+                  onForward={(port) => handlePortForward(pod, port)}
+                  onStop={(id) => stopForward(id)}
+                  disabled={isTerminating}
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={isTerminating}
+                    onClick={(e) => e.stopPropagation()}
+                    className="h-7 px-2 text-purple-500 hover:text-purple-600 hover:bg-purple-500/10"
+                  >
+                    <ArrowRightLeft className="size-3.5" />
+                    {podForwards.length > 0
+                      ? `Forward (${podForwards.length})`
+                      : "Forward"}
+                  </Button>
+                </PortSelectPopover>
+              );
+            })() : canForward ? (
               <Button
                 variant="ghost"
                 size="sm"
@@ -265,7 +302,7 @@ export function PodsView() {
                 <ArrowRightLeft className="size-3.5" />
                 {isForwarded ? "Stop Port" : "Forward"}
               </Button>
-            )}
+            ) : null}
           </div>
         );
       },
@@ -306,13 +343,37 @@ export function PodsView() {
       ...(canForward
         ? [
             { separator: true, label: "", onClick: () => {} },
-            {
-              label: isForwarded ? "Stop Port Forward" : "Port Forward",
-              icon: <ArrowRightLeft className="size-4" />,
-              onClick: () =>
-                isForwarded ? handleDisconnect(pod) : handlePortForward(pod),
-              disabled: isTerminating,
-            },
+            ...(service!.ports.length === 1
+              ? [
+                  {
+                    label: isForwarded ? "Stop Port Forward" : "Port Forward",
+                    icon: <ArrowRightLeft className="size-4" />,
+                    onClick: () =>
+                      isForwarded ? handleDisconnect(pod) : handlePortForward(pod),
+                    disabled: isTerminating,
+                  },
+                ]
+              : [
+                  {
+                    label: "Port Forward",
+                    icon: <ArrowRightLeft className="size-4" />,
+                    onClick: () => {},
+                    disabled: isTerminating,
+                    children: service!.ports.map((port) => {
+                      const podForwards = getForwardsForPod(pod);
+                      const fwd = podForwards.find((f) => f.target_port === port.port);
+                      const label = fwd ? "Stop" : "Forward";
+                      return {
+                        label: port.name ? `${label} ${port.name}` : `${label} port`,
+                        hint: String(port.port),
+                        hintVariant: fwd ? "active" as const : "default" as const,
+                        onClick: () =>
+                          fwd ? stopForward(fwd.forward_id) : handlePortForward(pod, port),
+                        disabled: isTerminating,
+                      };
+                    }),
+                  },
+                ]),
           ]
         : []),
       { separator: true, label: "", onClick: () => {} },

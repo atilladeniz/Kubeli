@@ -166,38 +166,39 @@ function PortForwardItem({ forward, onStop }: PortForwardItemProps) {
   return (
     <Card>
       <CardContent className="p-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {/* Status indicator */}
-            <span
-              className={cn(
-                "size-2 rounded-full",
-                statusColors[forward.status],
-                (forward.status === "connecting" || forward.status === "reconnecting") && "animate-pulse"
-              )}
-              title={statusLabel}
-            />
+        <div className="flex items-start gap-3">
+          {/* Status indicator */}
+          <span
+            className={cn(
+              "size-2 rounded-full mt-1.5 shrink-0",
+              statusColors[forward.status],
+              (forward.status === "connecting" || forward.status === "reconnecting") && "animate-pulse"
+            )}
+            title={statusLabel}
+          />
 
-            {/* Forward info */}
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2 text-sm">
-                <Badge variant="secondary" className="text-xs">
-                  {forward.target_type}
-                </Badge>
-                <span className="font-medium">
-                  {forward.namespace}/{forward.name}
-                </span>
-              </div>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-mono">localhost:{forward.local_port}</span>
-                <ArrowRight className="size-3" />
-                <span className="font-mono">:{forward.target_port}</span>
-              </div>
+          {/* Forward info - takes remaining space */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 text-sm flex-wrap">
+              <Badge variant="secondary" className="text-xs shrink-0">
+                {forward.target_type}
+              </Badge>
+              <span className="font-medium truncate">
+                {forward.name}
+              </span>
+            </div>
+            <div className="text-xs text-muted-foreground mt-0.5 truncate">
+              {forward.namespace}
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mt-1 font-mono flex-wrap">
+              <span>localhost:{forward.local_port}</span>
+              <ArrowRight className="size-3 shrink-0" />
+              <span>:{forward.target_port}</span>
             </div>
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 shrink-0">
             {forward.status === "connected" && (
               <Button
                 variant="ghost"
