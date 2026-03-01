@@ -263,7 +263,7 @@ release: ## Release: version bump, changelog, commit, tag push → CI builds all
 	@echo ""
 	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
 	echo "$(CYAN)Committing release...$(RESET)"; \
-	git add -A; \
+	git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json CHANGELOG.md web/src/pages/changelog.mdx .release-notes.md; \
 	git commit -m "chore(release): bump version to $$VERSION and update changelog"; \
 	echo "$(CYAN)Pushing to remote...$(RESET)"; \
 	git push; \
