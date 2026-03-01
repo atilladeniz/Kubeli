@@ -47,10 +47,11 @@ make build
 
 | Command | Description |
 |---------|-------------|
-| `make build-deploy` | Build, deploy, and create GitHub release |
-| `make deploy` | Deploy update files to FTP (macOS + Windows) |
-| `make deploy-web` | Deploy installers to landing page |
-| `make github-release` | Create GitHub release with DMG + EXE |
+| `make release` | Release via CI: version bump, changelog, commit, tag push → CI builds all platforms |
+| `make build-deploy` | Alias for `make release` |
+| `make build-deploy-legacy` | (Legacy) Build all platforms locally, deploy, and create GitHub release |
+
+The release flow: `make release` → tag push triggers GitHub Actions → builds macOS (ARM + x86), Windows, Linux → waits for manual approval → deploys to FTP + publishes GitHub Release.
 
 ### Using npm
 
