@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.50] - 2026-02-28
+
+- Added structured error handling across Rust backend and React frontend
+- Migrated OpenSpec to OPSX workflow with expanded skills
+
 ## [0.3.49] - 2026-02-25
 
 - Fixed namespace fetching to handle multi-namespace selection individually
