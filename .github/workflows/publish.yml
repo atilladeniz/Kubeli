@@ -187,6 +187,7 @@ jobs:
           tagName: ${{ needs.create-release.outputs.tag }}
           releaseDraft: true
           uploadUpdaterJson: true
+          retryAttempts: 3
           args: ${{ matrix.args }}
 
   finalize:
