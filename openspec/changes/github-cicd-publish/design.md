@@ -8,156 +8,127 @@ This works but has key limitations:
 - **Non-reproducible** — no CI trail, depends on local machine state
 - **Single point of failure** — only one machine can release
 
-The constraint: **macOS must remain local** because the Apple Developer ID certificate and notarization credentials live on the developer's machine and cannot easily be exported to CI (Apple's security model ties signing identities to specific machines/keychains).
-
-Existing CI already runs lint, test, security scanning, and SBOMs. The disabled `release.yml` shows an earlier attempt at CI builds that was never completed.
+macOS signing + notarization can be done in CI by exporting the Apple Developer certificate as a .p12 file and storing it as a GitHub Secret. Other Tauri projects (Cap, Rivet, Cardo) do this successfully. The existing disabled `release.yml` already had the secrets structure prepared.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Windows and Linux built natively on GitHub Actions runners
-- macOS continues to build + sign locally, artifacts uploaded to a draft GitHub Release
-- CI triggered automatically when macOS artifacts appear on the draft release
-- `latest.json` updater manifest assembled from all platforms and deployed to FTP
-- Changelog extracted from the release commit body (already written locally before push)
-- GitHub Release finalized with all platform artifacts + release notes
-- Landing page installers (DMG, EXE, AppImage) deployed to FTP
-- Local `make` workflow simplified to: build macOS → push commit → upload to draft release
+- All platforms (macOS aarch64 + x86_64, Windows, Linux) built in CI on GitHub Actions
+- macOS signed + notarized in CI via exported certificate and App Store Connect API key
+- CI triggered by `v*` tag push
+- Dual updater endpoints: FTP (primary) + GitHub Releases (fallback) for redundancy
+- Changelog extracted from `CHANGELOG.md` for release notes
+- GitHub Release created, populated, and published automatically
+- FTP deployment for update server and landing page
+- Local workflow reduced to: version bump → changelog → commit → tag push
 
 **Non-Goals:**
-- Moving macOS builds to CI (blocked by signing identity locality)
 - Windows Authenticode signing (not currently done, out of scope)
 - Modifying the version bump process (stays manual/local)
 - Changing the Astro landing page build/deploy (separate concern)
 
 ## Decisions
 
-### 1. Trigger: GitHub Release `created` event (draft release with macOS artifacts)
+### 1. Trigger: `v*` tag push
 
-**Choice:** The publish workflow triggers on `release: [created]` when a draft release is created with the `v*` tag pattern.
-
-**Alternatives considered:**
-- **Push to `v*` tag** (Cardo, PraccJS pattern): Would require CI to also handle macOS, or a complex two-phase approach where local pushes a tag and then separately uploads macOS artifacts. Race condition between CI starting and macOS artifacts being ready.
-- **`workflow_dispatch`** (Cap pattern): Fully manual, loses the automation benefit.
-- **Commit message pattern match** (`chore(release):` on main): GitHub Actions can't reliably filter on commit message content in `push` triggers. Would need a "detect and tag" helper workflow, adding complexity.
-- **PR label + tag** (dbcooper pattern): Over-engineered for a single-developer project.
-
-**Rationale:** The local flow already creates a GitHub Release via `make github-release`. By making this create a **draft** release with macOS artifacts attached, CI can react to the `release: created` event, build Win/Linux, attach their artifacts, assemble `latest.json`, and publish (undraft) the release. This is the simplest approach that preserves the local macOS build while letting CI handle everything else.
-
-**Refined local flow:**
-1. `make version-bump` (manual)
-2. `make build` (macOS only, signed locally)
-3. Generate changelog with Claude CLI → commit `chore(release): bump version to X.Y.Z`
-4. `git push` + `git tag vX.Y.Z` + `git push --tags`
-5. `make github-release` → creates draft release with macOS DMG + `.app.tar.gz` + `.app.tar.gz.sig`
-6. CI takes over from here
-
-### 2. Workflow architecture: Single workflow, 3 jobs with `releaseId` direct upload
-
-**Choice:** One `publish.yml` with jobs: `build-windows`, `build-linux`, `finalize`. Build jobs use `tauri-apps/tauri-action@v0` with `releaseId` (from the draft release) to upload artifacts directly to the GitHub Release. Additionally, `tagName` is provided alongside `releaseId` so tauri-action constructs correct GitHub download URLs in its auto-generated `latest.json`.
+**Choice:** The publish workflow triggers on `push: tags: ['v*']`.
 
 **Alternatives considered:**
-- **Build-only mode + manual upload**: tauri-action builds without release context → artifacts uploaded via `actions/upload-artifact` → finalize job downloads and uploads to release via `gh`. More steps, more complexity.
-- **Two separate workflows** (build + finalize): More files to maintain, harder to reason about.
-- **Single monolithic job**: Can't parallelize Win/Linux builds.
+- **`release: [created]`**: Requires local draft release creation, adds a manual step.
+- **`workflow_dispatch`** (Cap pattern): Fully manual, loses automation benefit.
+- **Commit message match**: GitHub Actions can't reliably filter on commit message content.
 
-**Rationale:** Using `releaseId` lets tauri-action upload artifacts directly to the draft release, skipping the upload-artifact/download-artifact dance. Combined with `uploadUpdaterJson: true`, tauri-action auto-generates and aggregates a GitHub-hosted `latest.json` across matrix jobs. The finalize job only needs to handle FTP deployment, changelog, and publishing.
+**Rationale:** Simplest trigger. The developer pushes a `v*` tag as the last step of the local workflow. CI does everything from there. This is the standard pattern used by Cardo, PraccJS, and Rivet.
 
-### 3. Dual updater endpoints: FTP (primary) + GitHub Releases (fallback)
+### 2. Workflow architecture: create-release → matrix build → finalize
 
-**Choice:** The Tauri updater is configured with two endpoints in `tauri.conf.json`:
-1. **Primary**: `https://api.atilla.app/kubeli/updates/latest.json` (FTP-hosted, custom URLs)
-2. **Fallback**: `https://github.com/atilladeniz/Kubeli/releases/latest/download/latest.json` (GitHub-hosted, auto-generated by tauri-action)
+**Choice:** One `publish.yml` with 3 job stages:
+1. `create-release`: Creates a draft GitHub Release, extracts version and changelog
+2. `build`: Matrix job across 4 platform targets, each uploading directly to the draft release via `releaseId`
+3. `finalize`: Assembles FTP `latest.json`, deploys to FTP, publishes the release
 
-Each `latest.json` contains different download URLs pointing to its own infrastructure. Tauri's updater tries endpoints in order and falls back automatically.
+**Rationale:** Draft release created first so build jobs can upload directly via `tauri-apps/tauri-action@v0` with `releaseId`. Matrix parallelizes all 4 builds. Finalize waits for all builds before deploying and publishing.
 
-**How it works:**
-- **GitHub `latest.json`**: Auto-generated by `tauri-apps/tauri-action` with `uploadUpdaterJson: true` on each build job. URLs point to GitHub Release assets (e.g., `https://github.com/.../releases/download/v0.3.52/Kubeli_0.3.52_x64-setup.exe`). The action aggregates platform entries across matrix jobs automatically.
-- **FTP `latest.json`**: Manually assembled in the `finalize` job with URLs pointing to the FTP server (e.g., `https://api.atilla.app/kubeli/updates/Kubeli_0.3.52_x64-setup.exe`). Uploaded via curl.
-
-**Alternatives considered:**
-- **FTP only** (current state): Single point of failure. If the FTP server is down, no updates.
-- **GitHub only**: Would break the existing updater endpoint for already-deployed versions.
-- **CDN proxy**: Better long-term but requires infrastructure changes.
-
-**Rationale:** Zero-downtime redundancy with minimal effort. GitHub Releases are highly available and free. FTP remains the primary source for backward compatibility. Both `latest.json` files are generated from the same build artifacts and share the same updater signing key, so either source delivers identical, verified updates.
-
-### 4. Updater manifest (FTP): Assembled in finalize job from all platforms
-
-**Choice:** The `finalize` job downloads signature files from the GitHub Release, constructs an FTP-specific `latest.json` with FTP download URLs, and uploads to the FTP server via curl.
-
-**Rationale:** The FTP `latest.json` needs URLs pointing to `https://api.atilla.app/kubeli/updates/...`, which differs from the GitHub-hosted version. Centralizing assembly in the finalize job ensures all platforms are present before deploying.
-
-### 5. Changelog: Extracted from CHANGELOG.md in the release commit
-
-**Choice:** CI reads `CHANGELOG.md` from the tagged commit, extracts the section for the current version, and uses it as GitHub Release notes.
-
-**Alternatives considered:**
-- **Parse commit message body**: Fragile, limited by commit message length, and the commit body format may vary.
-- **Run Claude CLI in CI**: Requires Claude API key as a secret, adds cost and complexity, and the changelog should be reviewed by the developer before release.
-- **Generate from git log in CI**: Loses the curated Claude-generated quality.
-
-**Rationale:** The developer already generates the changelog locally with Claude CLI and commits it to `CHANGELOG.md` as part of the release commit. CI just needs to extract the relevant version section. This is deterministic and gives the developer full control over release notes content.
-
-### 6. FTP deployment: curl from finalize job
-
-**Choice:** Use `curl --ftp-create-dirs -T` for FTP uploads, same as the current Makefile approach.
-
-**Alternatives considered:**
-- **GitHub Action for FTP** (`SamKirkland/FTP-Deploy-Action`): Designed for full directory sync, not individual file uploads.
-- **Replace FTP with GitHub Releases as update source**: Would require changing `tauri.conf.json` updater endpoint and the update URL format. Breaking change.
-- **S3/CloudFlare R2**: Better than FTP but requires infrastructure migration.
-
-**Rationale:** Keep the existing FTP infrastructure. The curl commands are simple and proven. FTP credentials stored as GitHub Secrets. Future migration to a better hosting solution is a separate concern.
-
-### 7. Platform matrix
+### 3. Platform matrix: 4 targets
 
 **Choice:**
-- Windows: `windows-latest`, target `x86_64-pc-windows-msvc` (NSIS installer)
-- Linux: `ubuntu-22.04`, target `x86_64-unknown-linux-gnu` (AppImage + deb)
+```yaml
+matrix:
+  include:
+    - platform: macos-latest
+      args: '--target aarch64-apple-darwin'
+    - platform: macos-latest
+      args: '--target x86_64-apple-darwin'
+    - platform: windows-latest
+      args: ''
+    - platform: ubuntu-22.04
+      args: ''
+```
 
-**Alternatives considered:**
-- **Linux ARM** (like Rivet): Low demand for a Kubernetes management desktop app on ARM Linux.
-- **macOS universal binary in CI** (like Rivet): Blocked by signing identity constraint.
-- **Windows ARM**: Tauri doesn't officially support Windows ARM NSIS bundles.
+`fail-fast: false` ensures one platform failure doesn't abort the others.
 
-**Rationale:** Match the existing platform targets (Win x64 + macOS aarch64) plus add Linux x64. This covers the vast majority of the desktop user base.
+### 4. macOS signing + notarization in CI
 
-### 8. Existing `release.yml` replacement
+**Choice:** Export Apple Developer ID certificate as base64 .p12 → `APPLE_CERTIFICATE` secret. Notarization via App Store Connect API key → `APPLE_API_ISSUER`, `APPLE_API_KEY`, `APPLE_API_KEY_PATH` secrets.
 
-**Choice:** Delete the disabled `release.yml` and replace it with the new `publish.yml`.
+The `tauri-apps/tauri-action` handles certificate import and notarization internally when these env vars are set. For `APPLE_API_KEY_PATH`, the .p8 file content is stored in `APPLE_API_KEY` secret and written to a temp file during CI.
 
-**Rationale:** The existing `release.yml` has `if: false` on all jobs and was never operational. Keeping it alongside a new workflow would be confusing. Clean replacement.
+**Reference:** Cap (CapSoftware) and Rivet (Ironclad) both use this approach successfully.
+
+### 5. Build jobs upload directly to release via `releaseId`
+
+**Choice:** Each build job uses `tauri-apps/tauri-action@v0` with `releaseId` from the create-release job and `tagName` for URL construction. Each job sets `uploadUpdaterJson: true` to auto-aggregate the GitHub-hosted `latest.json`.
+
+**Rationale:** Direct upload eliminates the upload-artifact → download-artifact → gh release upload dance. tauri-action handles asset naming, signature upload, and `latest.json` aggregation automatically.
+
+### 6. Dual updater endpoints: FTP (primary) + GitHub Releases (fallback)
+
+**Choice:** `tauri.conf.json` updater endpoints:
+1. `https://api.atilla.app/kubeli/updates/latest.json` (FTP, custom URLs)
+2. `https://github.com/atilladeniz/Kubeli/releases/latest/download/latest.json` (GitHub, auto-generated)
+
+Two separate `latest.json` files with different download URLs. Tauri tries in order, auto-fallback.
+
+- **GitHub `latest.json`**: Auto-generated by tauri-action with GitHub Release download URLs
+- **FTP `latest.json`**: Manually assembled in finalize job with FTP server URLs
+
+### 7. FTP deployment: curl from finalize job
+
+**Choice:** Same curl-based FTP uploads as current Makefile. Credentials as GitHub Secrets.
+
+### 8. Changelog: Extracted from CHANGELOG.md
+
+**Choice:** CI extracts the version section from `CHANGELOG.md` in the tagged commit. Developer generates changelog locally with Claude CLI before committing.
+
+### 9. Existing `release.yml` replaced
+
+**Choice:** Delete the disabled `release.yml` and replace with new `publish.yml`.
 
 ## Risks / Trade-offs
 
-**[Race condition: macOS artifacts not ready when CI triggers]**
-→ Mitigation: CI triggers on `release: created` event. The local `make github-release` creates the draft release *with* macOS artifacts already attached. CI can verify macOS artifacts exist before proceeding.
+**[Apple certificate in CI]**
+→ Mitigation: Certificate stored as encrypted GitHub Secret, only exposed during workflow runs. Same approach used by Cap, Rivet, and many other Tauri projects. Rotate certificate if compromised.
 
-**[FTP credentials in GitHub Secrets]**
-→ Mitigation: Secrets are encrypted at rest and only exposed to workflow runs. This is standard practice. Consider rotating credentials after initial setup.
-
-**[Tauri updater format changes across versions]**
-→ Mitigation: Pin `tauri-apps/tauri-action@v0` and validate `latest.json` format against the existing working manifest before deploying.
-
-**[Linux builds may have different visual behavior]**
-→ Mitigation: The app already uses platform-adaptive UI patterns via `usePlatform` hook. Linux-specific issues can be addressed incrementally after the first release.
+**[Notarization may timeout in CI]**
+→ Mitigation: Apple notarization typically takes 2-5 minutes. tauri-action handles the wait. If Apple's servers are slow, the job may timeout — use `retryAttempts: 1` on tauri-action.
 
 **[CI build times]**
-→ Trade-off: Windows Tauri builds on GitHub Actions typically take 10-15 minutes, Linux 5-10 minutes. This is acceptable since it runs in parallel and doesn't block the developer. Rust caching via `swatinem/rust-cache` mitigates cold-start builds.
+→ Trade-off: macOS builds ~8-12min, Windows ~10-15min, Linux ~5-10min. All parallel. Rust caching via `swatinem/rust-cache` mitigates cold builds.
 
-**[Dual deploy path during transition]**
-→ Mitigation: Keep `make build-deploy` functional during transition. Once CI is validated, simplify the Makefile to remove Windows cross-compile and FTP deploy steps.
+**[FTP credentials in GitHub Secrets]**
+→ Mitigation: Standard practice. Encrypted at rest.
+
+**[Race condition in latest.json aggregation]**
+→ Mitigation: tauri-action retries `latest.json` upload at least once. The finalize job's FTP `latest.json` is assembled after all builds complete, so no race condition for the primary updater endpoint.
 
 ## Migration Plan
 
-1. **Phase 1 — Setup**: Add GitHub Secrets, create `publish.yml`, test with a dry-run release
-2. **Phase 2 — Validate**: Run one release through the new pipeline while keeping local deploy as fallback
-3. **Phase 3 — Simplify**: Remove Windows cross-compile from Makefile, update `make build-deploy` to local-only flow
-4. **Rollback**: If CI fails, the existing `make build-deploy` still works as-is since no local tooling is removed in Phase 1-2
+1. **Phase 1 — Setup**: Export Apple certificate, add all GitHub Secrets, create `publish.yml`
+2. **Phase 2 — Validate**: Test with a patch release, verify all platforms build and deploy correctly
+3. **Phase 3 — Simplify**: Update Makefile to remove Windows cross-compile, FTP deploy. Keep `make build-deploy-legacy` as fallback.
+4. **Rollback**: Old `make build-deploy` works throughout transition since no local tooling is removed.
 
 ## Open Questions
 
-- Should the landing page deploy (Astro + installer FTP) also move to CI, or remain a separate manual step?
-- Should `sbom.yml` be triggered as part of the publish workflow or kept as a separate workflow triggered by the release?
-- Is Linux AppImage sufficient, or should we also produce `.deb` and/or `.rpm` packages?
+- Should `sbom.yml` be triggered as part of publish or kept as a separate workflow?
+- Should the Astro landing page deploy also move to CI?
