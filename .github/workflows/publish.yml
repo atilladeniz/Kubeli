@@ -1,0 +1,382 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v0.3.52)'
+        required: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+concurrency:
+  group: publish-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  create-release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.result }}
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Get version from tag
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TAG="$INPUT_TAG"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+          VERSION="${TAG#v}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION (tag: $TAG)"
+
+      - name: Extract changelog
+        id: changelog
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Extract section between ## [$VERSION] and the next ## [
+          CHANGELOG=$(sed -n "/^## \[$VERSION\]/,/^## \[/p" CHANGELOG.md | sed '1d;$d' | sed '/^$/d')
+          if [ -z "$CHANGELOG" ]; then
+            CHANGELOG="See [CHANGELOG.md](https://github.com/atilladeniz/Kubeli/blob/main/CHANGELOG.md) for details."
+          fi
+          # Write to file to preserve newlines
+          echo "$CHANGELOG" > /tmp/changelog.md
+          echo "Found changelog for v$VERSION"
+
+      - name: Get previous tag
+        id: prev-tag
+        run: |
+          PREV_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Build release body
+        id: body
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          PREV_TAG: ${{ steps.prev-tag.outputs.prev_tag }}
+        run: |
+          CHANGELOG=$(cat /tmp/changelog.md)
+
+          BODY="## What's Changed
+
+          $CHANGELOG"
+
+          if [ -n "$PREV_TAG" ]; then
+            BODY="$BODY
+
+          **Full Changelog**: https://github.com/atilladeniz/Kubeli/compare/$PREV_TAG...v$VERSION"
+          fi
+
+          echo "$BODY" > /tmp/release-body.md
+
+      - name: Create draft release
+        id: create-release
+        uses: actions/github-script@v7
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        with:
+          script: |
+            const fs = require('fs');
+            const body = fs.readFileSync('/tmp/release-body.md', 'utf8');
+
+            const { data } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: process.env.TAG,
+              name: `Kubeli v${process.env.VERSION}`,
+              body: body,
+              draft: true,
+              prerelease: false
+            });
+            console.log(`Created draft release ${data.id}: ${data.html_url}`);
+            return data.id;
+
+  build:
+    name: Build (${{ matrix.label }})
+    needs: create-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-latest
+            label: macOS-aarch64
+            args: '--target aarch64-apple-darwin'
+            rust_target: aarch64-apple-darwin
+          - platform: macos-latest
+            label: macOS-x86_64
+            args: '--target x86_64-apple-darwin'
+            rust_target: x86_64-apple-darwin
+          - platform: windows-latest
+            label: Windows-x64
+            args: ''
+            rust_target: ''
+          - platform: ubuntu-22.04
+            label: Linux-x64
+            args: ''
+            rust_target: ''
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust_target }}
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Install Linux dependencies
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Write Apple API key to file
+        if: startsWith(matrix.platform, 'macos')
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+        run: |
+          mkdir -p ~/private_keys
+          echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey_"$APPLE_API_KEY".p8
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Apple signing (macOS only — ignored on other platforms)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ startsWith(matrix.platform, 'macos') && format('{0}/private_keys/AuthKey_{1}.p8', env.HOME, secrets.APPLE_API_KEY) || '' }}
+          # Tauri updater signing
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          releaseId: ${{ needs.create-release.outputs.release_id }}
+          tagName: ${{ needs.create-release.outputs.tag }}
+          releaseDraft: true
+          uploadUpdaterJson: true
+          args: ${{ matrix.args }}
+
+  finalize:
+    name: Finalize Release
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set version
+        id: version
+        env:
+          RELEASE_VERSION: ${{ needs.create-release.outputs.version }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          echo "version=$RELEASE_VERSION" >> $GITHUB_OUTPUT
+          echo "tag=$RELEASE_TAG" >> $GITHUB_OUTPUT
+
+      - name: Download release artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          mkdir -p artifacts
+          gh release download "$RELEASE_TAG" --dir artifacts
+          echo "Downloaded artifacts:"
+          ls -la artifacts/
+
+      - name: Build FTP latest.json
+        env:
+          DEPLOY_API_URL: ${{ secrets.DEPLOY_API_URL }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+
+          # Read signatures
+          MAC_SIG=""
+          WIN_SIG=""
+          LINUX_SIG=""
+
+          # macOS — try aarch64 first, fall back to any .app.tar.gz.sig
+          for f in artifacts/*aarch64*.app.tar.gz.sig artifacts/*.app.tar.gz.sig; do
+            if [ -f "$f" ]; then
+              MAC_SIG=$(cat "$f")
+              echo "Found macOS signature: $f"
+              break
+            fi
+          done
+
+          # Windows
+          for f in artifacts/*x64-setup.exe.sig artifacts/*x64_setup.exe.sig; do
+            if [ -f "$f" ]; then
+              WIN_SIG=$(cat "$f")
+              echo "Found Windows signature: $f"
+              break
+            fi
+          done
+
+          # Linux
+          for f in artifacts/*.AppImage.sig; do
+            if [ -f "$f" ]; then
+              LINUX_SIG=$(cat "$f")
+              echo "Found Linux signature: $f"
+              break
+            fi
+          done
+
+          # Find artifact filenames for FTP URLs
+          MAC_TAR=$(ls artifacts/*.app.tar.gz 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
+          WIN_EXE=$(ls artifacts/*x64-setup.exe 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
+          WIN_EXE=${WIN_EXE:-$(ls artifacts/*x64_setup.exe 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")}
+          LINUX_APPIMAGE=$(ls artifacts/*.AppImage 2>/dev/null | grep -v '.sig' | head -1 | xargs basename 2>/dev/null || echo "")
+
+          # Build FTP latest.json
+          PLATFORMS=""
+
+          if [ -n "$MAC_SIG" ] && [ -n "$MAC_TAR" ]; then
+            PLATFORMS="\"darwin-aarch64\": { \"signature\": \"$MAC_SIG\", \"url\": \"https://$DEPLOY_API_URL/$MAC_TAR\" }"
+            PLATFORMS="$PLATFORMS, \"darwin-x86_64\": { \"signature\": \"$MAC_SIG\", \"url\": \"https://$DEPLOY_API_URL/$MAC_TAR\" }"
+          fi
+
+          if [ -n "$WIN_SIG" ] && [ -n "$WIN_EXE" ]; then
+            if [ -n "$PLATFORMS" ]; then PLATFORMS="$PLATFORMS, "; fi
+            PLATFORMS="$PLATFORMS\"windows-x86_64\": { \"signature\": \"$WIN_SIG\", \"url\": \"https://$DEPLOY_API_URL/$WIN_EXE\" }"
+          fi
+
+          if [ -n "$LINUX_SIG" ] && [ -n "$LINUX_APPIMAGE" ]; then
+            if [ -n "$PLATFORMS" ]; then PLATFORMS="$PLATFORMS, "; fi
+            PLATFORMS="$PLATFORMS\"linux-x86_64\": { \"signature\": \"$LINUX_SIG\", \"url\": \"https://$DEPLOY_API_URL/$LINUX_APPIMAGE\" }"
+          fi
+
+          echo "{ \"version\": \"$VERSION\", \"notes\": \"Kubeli v$VERSION\", \"pub_date\": \"$DATE\", \"platforms\": { $PLATFORMS } }" > artifacts/ftp-latest.json
+
+          echo "FTP latest.json:"
+          cat artifacts/ftp-latest.json | python3 -m json.tool
+
+      - name: Deploy to FTP (update server)
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          DEPLOY_API_FTP_PATH: ${{ secrets.DEPLOY_API_FTP_PATH }}
+          DEPLOY_API_URL: ${{ secrets.DEPLOY_API_URL }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # Upload macOS update artifacts
+          for f in artifacts/*.app.tar.gz artifacts/*.app.tar.gz.sig; do
+            if [ -f "$f" ]; then
+              BASENAME=$(basename "$f")
+              echo "Uploading $BASENAME to update server..."
+              curl -s -T "$f" --user "$FTP_USER:$FTP_PASSWORD" \
+                "ftp://$FTP_HOST$DEPLOY_API_FTP_PATH/$BASENAME" --ftp-create-dirs
+            fi
+          done
+
+          # Upload Windows update artifacts
+          for f in artifacts/*x64-setup.exe artifacts/*x64-setup.exe.sig artifacts/*x64_setup.exe artifacts/*x64_setup.exe.sig; do
+            if [ -f "$f" ]; then
+              BASENAME=$(basename "$f")
+              echo "Uploading $BASENAME to update server..."
+              curl -s -T "$f" --user "$FTP_USER:$FTP_PASSWORD" \
+                "ftp://$FTP_HOST$DEPLOY_API_FTP_PATH/$BASENAME" --ftp-create-dirs
+            fi
+          done
+
+          # Upload Linux update artifacts
+          for f in artifacts/*.AppImage artifacts/*.AppImage.sig; do
+            if [ -f "$f" ]; then
+              BASENAME=$(basename "$f")
+              echo "Uploading $BASENAME to update server..."
+              curl -s -T "$f" --user "$FTP_USER:$FTP_PASSWORD" \
+                "ftp://$FTP_HOST$DEPLOY_API_FTP_PATH/$BASENAME" --ftp-create-dirs
+            fi
+          done
+
+          # Upload FTP latest.json
+          echo "Uploading latest.json..."
+          curl -s -T "artifacts/ftp-latest.json" --user "$FTP_USER:$FTP_PASSWORD" \
+            "ftp://$FTP_HOST$DEPLOY_API_FTP_PATH/latest.json" --ftp-create-dirs
+
+          echo "Update server deployment complete: https://$DEPLOY_API_URL/latest.json"
+
+      - name: Deploy to FTP (landing page)
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          DEPLOY_LANDING_FTP_PATH: ${{ secrets.DEPLOY_LANDING_FTP_PATH }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # macOS DMG
+          DMG=$(ls artifacts/*.dmg 2>/dev/null | head -1)
+          if [ -n "$DMG" ]; then
+            BASENAME=$(basename "$DMG")
+            echo "Uploading $BASENAME (versioned + latest)..."
+            curl -s -T "$DMG" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$BASENAME" --ftp-create-dirs
+            curl -s -T "$DMG" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/Kubeli_latest.dmg" --ftp-create-dirs
+          fi
+
+          # Windows EXE
+          EXE=$(ls artifacts/*x64-setup.exe 2>/dev/null | head -1)
+          EXE=${EXE:-$(ls artifacts/*x64_setup.exe 2>/dev/null | head -1)}
+          if [ -n "$EXE" ]; then
+            BASENAME=$(basename "$EXE")
+            echo "Uploading $BASENAME (versioned + latest)..."
+            curl -s -T "$EXE" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$BASENAME" --ftp-create-dirs
+            curl -s -T "$EXE" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/Kubeli_latest_x64-setup.exe" --ftp-create-dirs
+          fi
+
+          # Linux AppImage
+          APPIMAGE=$(ls artifacts/*.AppImage 2>/dev/null | grep -v '.sig' | head -1)
+          if [ -n "$APPIMAGE" ]; then
+            BASENAME=$(basename "$APPIMAGE")
+            echo "Uploading $BASENAME (versioned + latest)..."
+            curl -s -T "$APPIMAGE" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$BASENAME" --ftp-create-dirs
+            curl -s -T "$APPIMAGE" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/Kubeli_latest_amd64.AppImage" --ftp-create-dirs
+          fi
+
+          echo "Landing page deployment complete"
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release edit "$RELEASE_TAG" --draft=false
+          echo "Release $RELEASE_TAG published!"

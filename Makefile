@@ -252,7 +252,28 @@ deploy: ## Deploy update files to FTP server (macOS and Windows)
 	echo "$(GREEN)✓ Files uploaded to $$DEPLOY_API_URL$(RESET)"; \
 	echo "$(GREEN)✓ Update URL: https://$$DEPLOY_API_URL/latest.json$(RESET)"
 
-build-deploy: build-all deploy generate-changelog sbom astro-public github-release ## Build all platforms, deploy, and create GitHub release
+build-deploy: release ## Release via CI (version bump, changelog, commit, tag, push)
+
+build-deploy-legacy: build-all deploy generate-changelog sbom astro-public github-release ## (Legacy) Build all platforms locally, deploy, and create GitHub release
+
+release: ## Release: version bump, changelog, commit, tag push → CI builds all platforms
+	@$(MAKE) version-bump
+	@echo ""
+	@$(MAKE) generate-changelog
+	@echo ""
+	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
+	echo "$(CYAN)Committing release...$(RESET)"; \
+	git add -A; \
+	git commit -m "chore(release): bump version to $$VERSION and update changelog"; \
+	echo "$(CYAN)Pushing to remote...$(RESET)"; \
+	git push; \
+	echo "$(CYAN)Creating and pushing tag v$$VERSION...$(RESET)"; \
+	git tag "v$$VERSION"; \
+	git push origin "v$$VERSION"; \
+	echo ""; \
+	echo "$(GREEN)✓ Release v$$VERSION triggered!$(RESET)"; \
+	echo "$(CYAN)CI will now build macOS, Windows, and Linux.$(RESET)"; \
+	echo "$(CYAN)Watch progress: https://github.com/atilladeniz/Kubeli/actions$(RESET)"
 
 generate-changelog: ## Generate changelog using Claude Code CLI
 	@echo "$(CYAN)Generating changelog with Claude Code CLI...$(RESET)"
