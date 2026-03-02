@@ -68,7 +68,10 @@
     },
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDBENDk5RjExOUIwMTdCMzkKUldRNWV3R2JFWjlKRGN5d0dWY0VudVhrbDF1STdEVDA3cXFWZm4yMXV3M1BneFk2U0J4MENyMHYK",
-      "endpoints": ["https://api.atilla.app/kubeli/updates/latest.json"],
+      "endpoints": [
+        "https://api.atilla.app/kubeli/updates/latest.json",
+        "https://github.com/atilladeniz/Kubeli/releases/latest/download/latest.json"
+      ],
       "windows": {
         "installMode": "passive"
       }
