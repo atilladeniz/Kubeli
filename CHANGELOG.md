@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.52] - 2026-03-02
+
+- Added full CI/CD publish workflow for all platforms
+- Fixed 3 high severity dependency security vulnerabilities
+
 ## [0.3.51] - 2026-03-01
 
 - Added port selection popover for multi-port services
