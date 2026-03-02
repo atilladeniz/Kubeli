@@ -163,6 +163,7 @@ jobs:
         run: npm ci
 
       - name: Write Apple API key to file
+        id: apple-key
         if: startsWith(matrix.platform, 'macos')
         env:
           APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
@@ -170,6 +171,7 @@ jobs:
         run: |
           mkdir -p ~/private_keys
           echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey_"$APPLE_API_KEY".p8
+          echo "path=$HOME/private_keys/AuthKey_${APPLE_API_KEY}.p8" >> $GITHUB_OUTPUT
 
       - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
@@ -181,7 +183,7 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
-          APPLE_API_KEY_PATH: ${{ startsWith(matrix.platform, 'macos') && format('{0}/private_keys/AuthKey_{1}.p8', env.HOME, secrets.APPLE_API_KEY) || '' }}
+          APPLE_API_KEY_PATH: ${{ steps.apple-key.outputs.path }}
           # Tauri updater signing
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
