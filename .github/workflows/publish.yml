@@ -191,7 +191,6 @@ jobs:
           releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ needs.create-release.outputs.tag }}
           releaseDraft: true
-          includeUpdaterJson: true
           retryAttempts: 3
           args: ${{ matrix.args }}
 
@@ -202,6 +201,15 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
 
       - name: Set version
         id: version
@@ -290,6 +298,39 @@ jobs:
           echo "FTP latest.json:"
           cat artifacts/ftp-latest.json | python3 -m json.tool
 
+      - name: Upload latest.json to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          cp artifacts/ftp-latest.json artifacts/latest.json
+          gh release upload "$RELEASE_TAG" artifacts/latest.json --clobber
+          echo "Uploaded latest.json to GitHub Release $RELEASE_TAG"
+
+      - name: Generate SBOMs
+        run: |
+          # npm SBOM
+          npm ci
+          npx @cyclonedx/cyclonedx-npm --spec-version 1.5 --omit dev --output-format JSON --output-file sbom-npm.json --validate
+          echo "Generated npm SBOM"
+
+          # Rust SBOM
+          rustup default stable
+          cargo install cargo-cyclonedx@0.5.7 --locked || true
+          cd src-tauri
+          cargo cyclonedx --format json --spec-version 1.5 --no-build-deps --override-filename sbom-rust
+          mv sbom-rust.json ../sbom-rust.json
+          cd ..
+          echo "Generated Rust SBOM"
+
+      - name: Upload SBOMs to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          gh release upload "$RELEASE_TAG" sbom-npm.json sbom-rust.json --clobber
+          echo "Uploaded SBOMs to GitHub Release $RELEASE_TAG"
+
       - name: Deploy to FTP (update server)
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
@@ -336,7 +377,7 @@ jobs:
 
           echo "Update server deployment complete: https://$DEPLOY_API_URL/latest.json"
 
-      - name: Deploy to FTP (landing page)
+      - name: Deploy download artifacts to FTP
         env:
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
@@ -379,6 +420,31 @@ jobs:
           fi
 
           echo "Landing page deployment complete"
+
+      - name: Build Astro landing page
+        run: |
+          npm install -g bun
+          cd web
+          bun install
+          bun run build
+          echo "Landing page built successfully"
+
+      - name: Deploy landing page to FTP
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          DEPLOY_LANDING_FTP_PATH: ${{ secrets.DEPLOY_LANDING_FTP_PATH }}
+        run: |
+          # Upload all landing page files
+          cd web/dist
+          find . -type f | while read -r file; do
+            REMOTE_PATH="${file#./}"
+            echo "Uploading $REMOTE_PATH..."
+            curl -s -T "$file" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$REMOTE_PATH" --ftp-create-dirs
+          done
+          echo "Landing page deployed"
 
       - name: Publish release
         env:

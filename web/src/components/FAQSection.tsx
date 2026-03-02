@@ -12,7 +12,7 @@ const faqs = [
   },
   {
     question: "Is Kubeli an Electron app?",
-    answer: "No! Kubeli uses Tauri 2.0 with a Rust backend. This makes the app about 10x smaller than comparable Electron apps and much more resource-efficient. The native webview integration provides a true native experience on both macOS and Windows."
+    answer: "No! Kubeli uses Tauri 2.0 with a Rust backend. This makes the app about 10x smaller than comparable Electron apps and much more resource-efficient. The native webview integration provides a true native experience on macOS, Windows, and Linux."
   },
   {
     question: "How does the AI assistant work?",
@@ -24,7 +24,7 @@ const faqs = [
   },
   {
     question: "Which platforms are supported?",
-    answer: "Kubeli runs natively on macOS (10.15+) and Windows (10/11). Both platforms support auto-updates, so you'll always have the latest features and security fixes."
+    answer: "Kubeli runs natively on macOS (10.15+), Windows (10/11), and Linux (x64 AppImage). All platforms support auto-updates, so you'll always have the latest features and security fixes."
   },
   {
     question: "Is my cluster data secure?",

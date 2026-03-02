@@ -4,6 +4,7 @@ import pkg from "../../../../package.json";
 
 const version = pkg.version;
 const dmgUrlArm = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_aarch64.dmg`;
+const appImageUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_amd64.AppImage`;
 
 const comparisonPoints = [
   {
@@ -81,7 +82,7 @@ const comparisonPoints = [
 
 <BaseLayout
   title="Kubeli vs Lens - The Lightweight Alternative"
-  description="Looking for a Lens alternative? Kubeli is a native Kubernetes client for macOS and Windows that's 70x smaller, uses 3x less memory, and is 100% free. Compare features."
+  description="Looking for a Lens alternative? Kubeli is a native Kubernetes client for macOS, Windows & Linux that's 70x smaller, uses 3x less memory, and is 100% free. Compare features."
   activeNav=""
   canonicalPath="/compare/lens-alternative"
 >
@@ -95,7 +96,7 @@ const comparisonPoints = [
         Looking for a <span class="text-blue-600">Lens Alternative</span>?
       </h1>
       <p class="text-neutral-500 max-w-2xl mx-auto text-lg mt-6">
-        Kubeli is a native Kubernetes client for macOS and Windows that's 70x smaller, uses 3x less memory,
+        Kubeli is a native Kubernetes client for macOS, Windows & Linux that's 70x smaller, uses 3x less memory,
         starts instantly, and is 100% free and open source.
       </p>
 
@@ -242,12 +243,18 @@ const comparisonPoints = [
       <p class="text-neutral-500 mt-4">
         Download Kubeli for free and experience the difference.
       </p>
-      <div class="mt-8">
+      <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
         <a
           href={dmgUrlArm}
           class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
         >
-          Download Kubeli Free
+          Download for macOS
+        </a>
+        <a
+          href={appImageUrl}
+          class="inline-flex items-center gap-2 rounded-full border border-neutral-300 px-8 py-3 text-lg font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+        >
+          Download for Linux
         </a>
       </div>
     </div>

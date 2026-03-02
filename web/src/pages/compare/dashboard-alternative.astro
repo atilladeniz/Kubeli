@@ -4,6 +4,7 @@ import pkg from "../../../../package.json";
 
 const version = pkg.version;
 const dmgUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_aarch64.dmg`;
+const appImageUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_amd64.AppImage`;
 
 const comparisonPoints = [
   {
@@ -74,7 +75,7 @@ const comparisonPoints = [
 
 <BaseLayout
   title="Kubeli vs Kubernetes Dashboard - Desktop Alternative"
-  description="Looking for a Kubernetes Dashboard alternative? Kubeli is a native desktop app for macOS and Windows that doesn't require cluster deployment. AI-powered, multi-cluster, and secure."
+  description="Looking for a Kubernetes Dashboard alternative? Kubeli is a native desktop app for macOS, Windows & Linux that doesn't require cluster deployment. AI-powered, multi-cluster, and secure."
   activeNav=""
   canonicalPath="/compare/dashboard-alternative"
 >
@@ -88,7 +89,7 @@ const comparisonPoints = [
         Looking for a <span class="text-orange-600">Dashboard Alternative</span>?
       </h1>
       <p class="text-neutral-500 max-w-2xl mx-auto text-lg mt-6">
-        Kubeli is a native desktop app for macOS and Windows that doesn't require deploying anything to your cluster.
+        Kubeli is a native desktop app for macOS, Windows & Linux that doesn't require deploying anything to your cluster.
         Multi-cluster support, AI-powered analysis, and zero security exposure.
       </p>
 
@@ -170,12 +171,18 @@ const comparisonPoints = [
       <p class="text-neutral-400 mt-4">
         Download Kubeli and start managing your clusters in seconds - no Helm charts, no YAML, no ingress configuration.
       </p>
-      <div class="mt-8">
+      <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
         <a
           href={dmgUrl}
           class="inline-flex items-center gap-2 rounded-full bg-white text-black px-8 py-3 text-lg font-medium hover:bg-neutral-100 transition-colors"
         >
-          Download Kubeli Free
+          Download for macOS
+        </a>
+        <a
+          href={appImageUrl}
+          class="inline-flex items-center gap-2 rounded-full border border-neutral-500 text-white px-8 py-3 text-lg font-medium hover:bg-neutral-800 transition-colors"
+        >
+          Download for Linux
         </a>
       </div>
     </div>

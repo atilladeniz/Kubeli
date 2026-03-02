@@ -33,7 +33,7 @@ make build
 | `make web-dev` | Start Vite only (no Tauri) |
 | `make build` | Build production Tauri app (macOS) |
 | `make build-windows` | Cross-compile Windows NSIS installer from macOS |
-| `make build-all` | Build both macOS and Windows installers |
+| `make build-all` | Build macOS and Windows installers (Linux built by CI) |
 | `make lint` | Run ESLint |
 | `make format` | Format code with Prettier |
 | `make check` | Run TypeScript type checking |
@@ -190,7 +190,7 @@ import { usePlatform } from "@/lib/hooks/usePlatform";
 function MyComponent() {
   const { isMac, isWindows, modKeySymbol } = usePlatform();
 
-  // modKeySymbol: "⌘" on Mac, "Ctrl+" on Windows
+  // modKeySymbol: "⌘" on Mac, "Ctrl+" on Windows/Linux
   return <Kbd>{modKeySymbol}S</Kbd>;
 }
 ```

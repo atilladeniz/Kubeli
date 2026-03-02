@@ -4,6 +4,7 @@ import pkg from "../../../../package.json";
 
 const version = pkg.version;
 const dmgUrlArm = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_aarch64.dmg`;
+const appImageUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_amd64.AppImage`;
 
 const comparisonPoints = [
   {
@@ -71,17 +72,17 @@ const comparisonPoints = [
   },
   {
     category: "Platforms",
-    kubeli: "macOS, Windows",
+    kubeli: "macOS, Windows, Linux",
     k9s: "macOS, Linux, Windows",
     winner: "tie",
-    detail: "Both support major desktop platforms. k9s also supports Linux."
+    detail: "Both support all major desktop platforms."
   }
 ];
 ---
 
 <BaseLayout
   title="Kubeli vs k9s - GUI Alternative to Terminal"
-  description="Looking for a k9s alternative with a visual interface? Kubeli is a native Kubernetes GUI for macOS and Windows with AI-powered log analysis and interactive diagrams."
+  description="Looking for a k9s alternative with a visual interface? Kubeli is a native Kubernetes GUI for macOS, Windows & Linux with AI-powered log analysis and interactive diagrams."
   activeNav=""
   canonicalPath="/compare/k9s-alternative"
 >
@@ -162,7 +163,7 @@ const comparisonPoints = [
             </li>
             <li class="flex items-start gap-2">
               <span class="text-green-500 mt-0.5">+</span>
-              <span>Native desktop experience (macOS & Windows)</span>
+              <span>Native desktop experience (macOS, Windows & Linux)</span>
             </li>
           </ul>
         </div>
@@ -211,7 +212,7 @@ const comparisonPoints = [
           <ul class="space-y-2 text-neutral-400">
             <li>Love terminal-based workflows</li>
             <li>Already know vim keybindings</li>
-            <li>Need Linux support</li>
+            <li>Prefer SSH-based workflows</li>
             <li>Work primarily over SSH</li>
           </ul>
         </div>
@@ -221,7 +222,7 @@ const comparisonPoints = [
             <li>Prefer visual interfaces</li>
             <li>Want AI-assisted troubleshooting</li>
             <li>Need to visualize cluster topology</li>
-            <li>Use macOS or Windows as your primary OS</li>
+            <li>Use macOS, Windows, or Linux as your primary OS</li>
           </ul>
         </div>
       </div>
@@ -235,12 +236,18 @@ const comparisonPoints = [
       <p class="text-neutral-500 mt-4">
         Download Kubeli for free and see if a GUI fits your workflow.
       </p>
-      <div class="mt-8">
+      <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
         <a
           href={dmgUrlArm}
           class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
         >
-          Download Kubeli Free
+          Download for macOS
+        </a>
+        <a
+          href={appImageUrl}
+          class="inline-flex items-center gap-2 rounded-full border border-neutral-300 px-8 py-3 text-lg font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+        >
+          Download for Linux
         </a>
       </div>
     </div>
