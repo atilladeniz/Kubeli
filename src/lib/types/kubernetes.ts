@@ -248,6 +248,12 @@ export interface ContainerEnvVar {
   resolved_value: string | null;
 }
 
+export interface ContainerPortInfo {
+  name: string | null;
+  container_port: number;
+  protocol: string;
+}
+
 export interface ContainerInfo {
   name: string;
   image: string;
@@ -260,6 +266,7 @@ export interface ContainerInfo {
   last_exit_code: number | null;
   last_finished_at: string | null;
   env_vars: ContainerEnvVar[];
+  ports: ContainerPortInfo[];
 }
 
 export interface DeploymentInfo {
