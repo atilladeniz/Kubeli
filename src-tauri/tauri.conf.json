@@ -29,6 +29,24 @@
           "state": "active",
           "radius": 16
         }
+      },
+      {
+        "label": "tray-popup",
+        "title": "",
+        "url": "/",
+        "width": 360,
+        "height": 480,
+        "resizable": false,
+        "decorations": false,
+        "transparent": true,
+        "visible": false,
+        "skipTaskbar": true,
+        "focus": true,
+        "windowEffects": {
+          "effects": ["hudWindow"],
+          "state": "active",
+          "radius": 16
+        }
       }
     ],
     "security": {
