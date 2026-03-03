@@ -7,7 +7,7 @@
   <a href="https://github.com/atilladeniz/Kubeli/releases/latest"><img src="https://img.shields.io/github/v/release/atilladeniz/Kubeli" alt="Release"></a>
   <a href="https://github.com/atilladeniz/Kubeli/blob/main/LICENSE"><img src="https://img.shields.io/github/license/atilladeniz/Kubeli" alt="License"></a>
   <a href="https://cyclonedx.org/"><img src="https://img.shields.io/badge/SBOM-CycloneDX-6db33f" alt="SBOM"></a>
-  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows-blue" alt="Platform">
+  <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-blue" alt="Platform">
   <a href="https://github.com/atilladeniz/Kubeli/releases"><img src="https://img.shields.io/github/downloads/atilladeniz/Kubeli/total" alt="Downloads"></a>
   <a href="https://deepwiki.com/atilladeniz/Kubeli"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </p>
@@ -24,12 +24,17 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
   <a href="https://github.com/atilladeniz/Kubeli/releases/latest">
     <img src="https://img.shields.io/badge/Windows-Download%20.exe-0078D4?style=for-the-badge&logo=windows&logoColor=white" alt="Download for Windows">
   </a>
+  &nbsp;&nbsp;
+  <a href="https://github.com/atilladeniz/Kubeli/releases/latest">
+    <img src="https://img.shields.io/badge/Linux-Download%20.AppImage-FCC624?style=for-the-badge&logo=linux&logoColor=black" alt="Download for Linux">
+  </a>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/macOS-Notarized%20%26%20Signed-success?logo=apple&logoColor=white" alt="macOS Notarized">
   <img src="https://img.shields.io/badge/arch-Apple%20Silicon%20(arm64)-lightgrey?logo=apple" alt="Apple Silicon">
   <img src="https://img.shields.io/badge/arch-x64-lightgrey?logo=windows" alt="x64">
+  <img src="https://img.shields.io/badge/arch-x64-lightgrey?logo=linux&logoColor=white" alt="Linux x64">
 </p>
 
 ## Features
@@ -239,6 +244,11 @@ make security-semgrep  # Static code analysis
 - **WebView2:** Automatically installed if missing (embedded bootstrapper)
 - **Auto-Updates:** Fully supported via Tauri updater
 - **Note:** First launch may show SmartScreen warning (app is not code-signed with Microsoft certificate)
+
+### Linux
+- **Requirements:** x64 Linux with GLIBC 2.31+ (Ubuntu 20.04+, Fedora 33+, etc.)
+- **Format:** AppImage (portable, no installation required)
+- **Auto-Updates:** Fully supported via Tauri updater
 
 ### Windows Development Setup
 

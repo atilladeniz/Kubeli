@@ -23,7 +23,7 @@ import {
 
 export function HelmReleasesView() {
   const t = useTranslations();
-  const { data, isLoading, error, refresh } = useHelmReleases({
+  const { data, isLoading, error, refresh, retry } = useHelmReleases({
     autoRefresh: true,
     refreshInterval: 30000,
   });
@@ -145,6 +145,7 @@ export function HelmReleasesView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRetry={retry}
       onRowClick={(r) => openResourceDetail(r.managed_by === "flux" ? "helmrelease" : "helm-release", r.name, r.namespace)}
       getRowKey={(r) => `${r.namespace}/${r.name}`}
       getRowNamespace={(r) => r.namespace}

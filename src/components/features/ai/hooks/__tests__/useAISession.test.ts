@@ -121,7 +121,7 @@ describe("useAISession", () => {
     });
 
     expect(mockStartSession).toHaveBeenCalledWith("test-cluster", "default");
-    expect(mockSendMessage).toHaveBeenCalledWith("Test message");
+    expect(mockSendMessage).toHaveBeenCalledWith("Test message", undefined);
   });
 
   it("handleSend skips starting session when already active", async () => {
@@ -141,7 +141,7 @@ describe("useAISession", () => {
     });
 
     expect(mockStartSession).not.toHaveBeenCalled();
-    expect(mockSendMessage).toHaveBeenCalledWith("Test message");
+    expect(mockSendMessage).toHaveBeenCalledWith("Test message", undefined);
   });
 
   it("handleSend returns true on success", async () => {
@@ -221,7 +221,7 @@ describe("useAISession", () => {
       await result.current.handleSend("  Test message  ");
     });
 
-    expect(mockSendMessage).toHaveBeenCalledWith("Test message");
+    expect(mockSendMessage).toHaveBeenCalledWith("Test message", undefined);
   });
 
   it("handleSend returns false when startSession fails", async () => {

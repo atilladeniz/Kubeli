@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { Cluster, ConnectionStatus, HealthCheckResult, NamespaceSource } from "../types";
+import { type KubeliError, toKubeliError, getErrorMessage } from "../types/errors";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import {
   listClusters,
@@ -32,7 +33,7 @@ interface ClusterState {
   namespaceSource: NamespaceSource;
   isConnected: boolean;
   isLoading: boolean;
-  error: string | null;
+  error: KubeliError | null;
   lastConnectionErrorContext: string | null;
   lastConnectionErrorMessage: string | null;
 
@@ -64,7 +65,7 @@ interface ClusterState {
   selectAllNamespaces: () => void;
   /** @deprecated Use setSelectedNamespaces. Kept for backward compatibility. */
   setCurrentNamespace: (namespace: string) => void;
-  setError: (error: string | null) => void;
+  setError: (error: KubeliError | null) => void;
 
   // Accessible namespace actions
   saveAccessibleNamespaces: (context: string, namespaces: string[]) => Promise<void>;
@@ -142,7 +143,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch clusters",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }
@@ -182,7 +183,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         const errorMessage = status.error || "Failed to connect";
         set({
           isConnected: false,
-          error: errorMessage,
+          error: toKubeliError(errorMessage),
           isLoading: false,
           isHealthy: false,
           lastConnectionErrorContext: context,
@@ -191,16 +192,16 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       }
       return status;
     } catch (e) {
-      const error = e instanceof Error ? e.message : "Failed to connect";
+      const errorMsg = getErrorMessage(e);
       set({
-        error,
+        error: toKubeliError(e),
         isLoading: false,
         isConnected: false,
         isHealthy: false,
         lastConnectionErrorContext: context,
-        lastConnectionErrorMessage: error,
+        lastConnectionErrorMessage: errorMsg,
       });
-      return { connected: false, context, error, latency_ms: null };
+      return { connected: false, context, error: errorMsg, latency_ms: null };
     }
   },
 
@@ -227,7 +228,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to disconnect",
+        error: toKubeliError(e),
       });
     }
   },
@@ -382,7 +383,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       // If connection was healthy and is now unhealthy, trigger auto-reconnect
       if (wasConnected && wasHealthy && !result.healthy) {
         console.warn("Connection health check failed, connection lost");
-        set({ isConnected: false, error: result.error || "Connection lost" });
+        set({ isConnected: false, error: toKubeliError(result.error || "Connection lost") });
 
         // Attempt auto-reconnect if enabled
         if (get().autoReconnectEnabled && get().lastConnectedContext) {
@@ -397,13 +398,13 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
 
       return result;
     } catch (e) {
-      const error = e instanceof Error ? e.message : "Health check failed";
+      const errorMsg = getErrorMessage(e);
       set({
         isHealthy: false,
         lastHealthCheck: new Date(),
-        error,
+        error: toKubeliError(e),
       });
-      return { healthy: false, latency_ms: null, error };
+      return { healthy: false, latency_ms: null, error: errorMsg };
     }
   },
 
@@ -443,7 +444,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       console.error(`Max reconnect attempts (${maxReconnectAttempts}) reached`);
       set({
         isReconnecting: false,
-        error: `Failed to reconnect after ${maxReconnectAttempts} attempts`,
+        error: toKubeliError(`Failed to reconnect after ${maxReconnectAttempts} attempts`),
       });
       return false;
     }

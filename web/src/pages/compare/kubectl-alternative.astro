@@ -4,6 +4,7 @@ import pkg from "../../../../package.json";
 
 const version = pkg.version;
 const dmgUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_aarch64.dmg`;
+const appImageUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_amd64.AppImage`;
 
 const comparisonPoints = [
   {
@@ -74,7 +75,7 @@ const comparisonPoints = [
 
 <BaseLayout
   title="Kubeli vs kubectl - Visual Alternative to CLI"
-  description="Looking for a kubectl alternative with a visual interface? Kubeli is a native Kubernetes GUI for macOS and Windows with AI-powered analysis. No commands to memorize."
+  description="Looking for a kubectl alternative with a visual interface? Kubeli is a native Kubernetes GUI for macOS, Windows & Linux with AI-powered analysis. No commands to memorize."
   activeNav=""
   canonicalPath="/compare/kubectl-alternative"
 >
@@ -188,12 +189,18 @@ const comparisonPoints = [
       <p class="text-neutral-400 mt-4">
         Download Kubeli and experience Kubernetes management without memorizing commands.
       </p>
-      <div class="mt-8">
+      <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
         <a
           href={dmgUrl}
           class="inline-flex items-center gap-2 rounded-full bg-white text-black px-8 py-3 text-lg font-medium hover:bg-neutral-100 transition-colors"
         >
-          Download Kubeli Free
+          Download for macOS
+        </a>
+        <a
+          href={appImageUrl}
+          class="inline-flex items-center gap-2 rounded-full border border-neutral-500 text-white px-8 py-3 text-lg font-medium hover:bg-neutral-800 transition-colors"
+        >
+          Download for Linux
         </a>
       </div>
     </div>

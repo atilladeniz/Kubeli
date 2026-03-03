@@ -3,10 +3,13 @@
 import { useCallback, useRef } from "react";
 import { useAIStore } from "@/lib/stores/ai-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import type { ViewContext } from "./useViewContext";
+import { buildViewContextPrefix } from "../utils/buildViewContextPrefix";
 
 interface UseAISessionOptions {
   onError?: (error: string) => void;
   fallbackErrorMessage?: string;
+  viewContext?: ViewContext;
 }
 
 /**
@@ -46,9 +49,21 @@ export function useAISession(options: UseAISessionOptions = {}) {
         }
       }
 
-      // Send message
+      // Build context-enriched message for the AI
+      let enrichedMessage = message;
+      if (options.viewContext) {
+        const prefix = buildViewContextPrefix(options.viewContext);
+        if (prefix) {
+          enrichedMessage = prefix + message;
+        }
+      }
+
+      // Send message - enriched goes to AI, original displays in UI
       try {
-        await sendMessage(message);
+        await sendMessage(
+          enrichedMessage,
+          enrichedMessage !== message ? message : undefined
+        );
         return true;
       } catch (e) {
         const errorMsg =

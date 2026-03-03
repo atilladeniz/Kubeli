@@ -163,7 +163,7 @@
     "namespacesPlaceholder": "team-a\nteam-b\nshared",
     "namespacesConfigured": "konfiguriert",
     "namespaceListingNotPermitted": "Namespace-Auflistung nicht erlaubt",
-    "configureAccessibleNamespaces": "Zugängliche Namespaces konfigurieren",
+    "configureAccessibleNamespaces": "Namespaces konfigurieren",
     "clearConfiguration": "Zurücksetzen",
     "configureNamespacesWhyTitle": "Wozu brauche ich das?",
     "configureNamespacesWhy1": "Kubeli erkennt normalerweise alle Namespaces automatisch. Das funktioniert, wenn Ihr Konto clusterweite Berechtigungen hat.",
@@ -364,7 +364,9 @@
     "podDeleted": "Dieser Pod wurde gelöscht. Die unten angezeigten Logs stammen von vor der Löschung.",
     "downloadSuccess": "Logs wurden gespeichert",
     "downloadError": "Fehler beim Speichern der Logs",
-    "previousLogsNoStream": "Streaming für vorherige Logs nicht verfügbar"
+    "previousLogsNoStream": "Streaming für vorherige Logs nicht verfügbar",
+    "sendToAI": "An KI senden",
+    "aiSelectionPrompt": "Analysiere die folgenden ausgewählten Log-Zeilen vom Pod {namespace}/{podName}:"
   },
   "terminal": {
     "title": "Terminal",
@@ -842,6 +844,8 @@
     "discardChanges": "Änderungen verwerfen",
     "discardChangesTitle": "Änderungen verwerfen?",
     "discardChangesDescription": "Du hast ungespeicherte Änderungen am YAML. Wenn du den Bearbeitungsmodus jetzt verlässt, gehen deine Änderungen verloren.",
+    "portForward": "Forward",
+    "noPortsAvailable": "Keine Ports zum Weiterleiten verfügbar.",
     "dangerZone": "Gefahrenzone",
     "deleteResource": "{type} \"{name}\" löschen",
     "uninstallResource": "Helm Release \"{name}\" deinstallieren",

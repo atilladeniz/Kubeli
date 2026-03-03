@@ -4,13 +4,13 @@ import { useCallback, useEffect, useMemo } from "react";
 import { useLogStore } from "../stores/log-store";
 import { useTabsStore } from "../stores/tabs-store";
 import { downloadPodLogs } from "../tauri/commands";
-import type { LogEntry, LogOptions } from "../types";
+import type { LogEntry, LogOptions, KubeliError } from "../types";
 
 export interface UseLogsReturn {
   logs: LogEntry[];
   isLoading: boolean;
   isStreaming: boolean;
-  error: string | null;
+  error: KubeliError | null;
   containers: string[];
   selectedContainer: string | null;
   setSelectedContainer: (container: string | null) => void;

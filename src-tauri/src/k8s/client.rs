@@ -11,7 +11,7 @@ use kube::{
 };
 use std::env;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
 
 use super::config::KubeConfig as ParsedKubeConfig;
@@ -210,7 +210,11 @@ impl KubeClientManager {
         )
         .await
         {
-            Ok(config) => {
+            Ok(mut config) => {
+                // Override default timeouts (kube-rs defaults: connect=30s, read=295s)
+                // read_timeout is per-read (between bytes), safe for streaming
+                config.connect_timeout = Some(Duration::from_secs(10));
+                config.read_timeout = Some(Duration::from_secs(30));
                 steps.push("kube-rs config created successfully".into());
                 config
             }
@@ -325,15 +329,20 @@ impl KubeClientManager {
     pub async fn test_connection(&self) -> Result<bool> {
         let client = self.get_client().await?;
 
-        match client.apiserver_version().await {
-            Ok(_) => Ok(true),
-            Err(kube::Error::Api(ref status)) if status.code == 403 => {
+        // Tight timeout for connection test — user shouldn't wait long
+        match tokio::time::timeout(Duration::from_secs(10), client.apiserver_version()).await {
+            Ok(Ok(_)) => Ok(true),
+            Ok(Err(kube::Error::Api(ref status))) if status.code == 403 => {
                 // Unusual for /version, but server IS reachable
                 tracing::info!("Connection test: /version returned 403, but server is reachable");
                 Ok(true)
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 tracing::warn!("Connection test failed: {}", e);
+                Ok(false)
+            }
+            Err(_) => {
+                tracing::warn!("Connection test timed out after 10s");
                 Ok(false)
             }
         }

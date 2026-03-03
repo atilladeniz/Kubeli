@@ -23,8 +23,10 @@ export type { UseK8sResourcesOptions, UseK8sResourcesReturn, ResourceHookConfig 
 // Factory functions (for creating custom hooks)
 export { createNamespacedHook, createClusterScopedHook, createOptionalNamespaceHook, createListOptionsHook } from "./factory";
 
-// Core hook (for advanced use cases)
-export { useK8sResource, useClusterScopedResource, useOptionalNamespaceResource } from "./useK8sResource";
+// Core hooks (for advanced use cases)
+export { useK8sResource } from "./useK8sResource";
+export { useClusterScopedResource } from "./useClusterScoped";
+export { useOptionalNamespaceResource } from "./useOptionalNamespace";
 
 // All resource hooks
 export * from "./resources";

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { GraphNode, GraphEdge, GraphData } from "../types";
+import { type KubeliError, toKubeliError } from "../types/errors";
 import { generateResourceGraph } from "../tauri/commands";
 
 // Extended node data for React Flow (includes position)
@@ -19,7 +20,7 @@ interface DiagramState {
 
   // UI state
   isLoading: boolean;
-  error: string | null;
+  error: KubeliError | null;
   lodLevel: LODLevel;
   selectedNodeId: string | null;
   searchQuery: string;
@@ -68,15 +69,26 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
         position: { x: 0, y: 0 },
       }));
 
+      // Surface partial errors from RBAC-restricted API calls
+      const error = data.errors.length > 0
+        ? {
+            kind: "Forbidden" as const,
+            message: "Some resources could not be loaded due to access restrictions",
+            suggestions: ["Check RBAC role assignments for your user", "Configure accessible namespaces in the sidebar"],
+            retryable: true,
+            detail: data.errors.join("\n"),
+          }
+        : null;
+
       set({
         nodes: diagramNodes,
         edges: data.edges,
         isLoading: false,
-        error: null,
+        error,
       });
     } catch (e) {
       set({
-        error: e instanceof Error ? e.message : "Failed to fetch graph",
+        error: toKubeliError(e),
         isLoading: false,
       });
     }

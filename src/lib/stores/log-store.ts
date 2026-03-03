@@ -9,13 +9,14 @@ import {
   getPodContainers,
 } from "../tauri/commands";
 import type { LogEntry, LogOptions, LogEvent } from "../types";
+import { type KubeliError, toKubeliError, getErrorMessage } from "../types/errors";
 import { useUIStore } from "./ui-store";
 
 export interface LogTabState {
   logs: LogEntry[];
   isStreaming: boolean;
   isLoading: boolean;
-  error: string | null;
+  error: KubeliError | null;
   containers: string[];
   selectedContainer: string | null;
   streamId: string | null;
@@ -94,7 +95,7 @@ function startPodWatcher(tabId: string, ns: string, pod: string, set: (fn: (s: L
     try {
       await getPodContainers(ns, pod);
     } catch (e) {
-      const msg = typeof e === "string" ? e : e instanceof Error ? e.message : "";
+      const msg = getErrorMessage(e);
       if (msg.includes("NotFound") || msg.includes("not found")) {
         set((s) => {
           const t = s.logTabs[tabId];
@@ -102,7 +103,7 @@ function startPodWatcher(tabId: string, ns: string, pod: string, set: (fn: (s: L
           return {
             logTabs: {
               ...s.logTabs,
-              [tabId]: { ...t, error: msg, isStreaming: false },
+              [tabId]: { ...t, error: toKubeliError(e), isStreaming: false },
             },
           };
         });
@@ -196,7 +197,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
         };
       });
     } catch (e) {
-      const msg = typeof e === "string" ? e : e instanceof Error ? e.message : "";
+      const msg = getErrorMessage(e);
       if (msg.includes("NotFound") || msg.includes("not found")) {
         set((s) => {
           const tab = s.logTabs[tabId];
@@ -204,7 +205,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
           return {
             logTabs: {
               ...s.logTabs,
-              [tabId]: { ...tab, error: msg },
+              [tabId]: { ...tab, error: toKubeliError(e) },
             },
           };
         });
@@ -307,14 +308,13 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
 
       await streamPodLogs(streamId, logOptions);
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : "Failed to start log stream";
       set((s) => {
         const t = s.logTabs[tabId];
         if (!t) return {};
         return {
           logTabs: {
             ...s.logTabs,
-            [tabId]: { ...t, error: errorMsg, isStreaming: false, streamId: null },
+            [tabId]: { ...t, error: toKubeliError(e), isStreaming: false, streamId: null },
           },
         };
       });
@@ -395,14 +395,13 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
         };
       });
     } catch (e) {
-      const errorMsg = e instanceof Error ? e.message : typeof e === "string" ? e : "Failed to fetch logs";
       set((s) => {
         const t = s.logTabs[tabId];
         if (!t) return {};
         return {
           logTabs: {
             ...s.logTabs,
-            [tabId]: { ...t, error: errorMsg, isLoading: false },
+            [tabId]: { ...t, error: toKubeliError(e), isLoading: false },
           },
         };
       });

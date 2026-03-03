@@ -1,5 +1,6 @@
 #![allow(unused_variables)] // Some state parameters may be unused but are required by Tauri command signatures
 
+use crate::error::KubeliError;
 use crate::k8s::{AppState, AuthType, KubeConfig, KubeconfigSourceType};
 use kube::config::Kubeconfig;
 use serde::{Deserialize, Serialize};
@@ -74,7 +75,7 @@ async fn load_kubeconfig_from_sources(app: &AppHandle) -> Option<KubeConfig> {
 pub async fn list_clusters(
     app: AppHandle,
     _state: State<'_, AppState>,
-) -> Result<Vec<ClusterInfo>, String> {
+) -> Result<Vec<ClusterInfo>, KubeliError> {
     // Try to load kubeconfig from configured sources
     let kubeconfig = match load_kubeconfig_from_sources(&app).await {
         Some(config) => config,
@@ -121,7 +122,9 @@ pub async fn list_clusters(
 
 /// Get current connection status
 #[command]
-pub async fn get_connection_status(state: State<'_, AppState>) -> Result<ConnectionStatus, String> {
+pub async fn get_connection_status(
+    state: State<'_, AppState>,
+) -> Result<ConnectionStatus, KubeliError> {
     let connected = state.k8s.is_connected().await;
     let context = state.k8s.get_current_context().await;
 
@@ -137,7 +140,7 @@ pub async fn get_connection_status(state: State<'_, AppState>) -> Result<Connect
 #[command]
 pub async fn check_connection_health(
     state: State<'_, AppState>,
-) -> Result<HealthCheckResult, String> {
+) -> Result<HealthCheckResult, KubeliError> {
     if !state.k8s.is_connected().await {
         return Ok(HealthCheckResult {
             healthy: false,
@@ -248,7 +251,7 @@ pub async fn connect_cluster(
     app: AppHandle,
     state: State<'_, AppState>,
     context: String,
-) -> Result<ConnectionStatus, String> {
+) -> Result<ConnectionStatus, KubeliError> {
     tracing::info!("Connecting to cluster with context: {}", context);
 
     // Resolve source_file for this context before building the merged kubeconfig
@@ -324,14 +327,14 @@ pub async fn switch_context(
     app: AppHandle,
     state: State<'_, AppState>,
     context: String,
-) -> Result<ConnectionStatus, String> {
+) -> Result<ConnectionStatus, KubeliError> {
     connect_cluster(app, state, context).await
 }
 
 /// Disconnect from current cluster
 #[command]
 #[allow(unused_variables)] // State parameter required by Tauri command signature
-pub async fn disconnect_cluster(_state: State<'_, AppState>) -> Result<(), String> {
+pub async fn disconnect_cluster(_state: State<'_, AppState>) -> Result<(), KubeliError> {
     tracing::info!("Disconnecting from cluster");
     // The client manager will be reset when a new connection is made
     // For now, we just log the disconnect
@@ -352,9 +355,9 @@ pub struct NamespaceResult {
 pub async fn get_namespaces(
     app: AppHandle,
     state: State<'_, AppState>,
-) -> Result<NamespaceResult, String> {
+) -> Result<NamespaceResult, KubeliError> {
     if !state.k8s.is_connected().await {
-        return Err("Not connected to any cluster".to_string());
+        return Err(KubeliError::unknown("Not connected to any cluster"));
     }
 
     let context = state.k8s.get_current_context().await.unwrap_or_default();
@@ -394,7 +397,7 @@ pub async fn get_namespaces(
                     source: "none".to_string(),
                 })
             } else {
-                Err(format!("Failed to list namespaces: {}", e))
+                Err(KubeliError::from(e))
             }
         }
     }
@@ -417,7 +420,7 @@ fn load_configured_namespaces(app: &AppHandle, context: &str) -> Vec<String> {
 
 /// Add a new cluster from kubeconfig content
 #[command]
-pub async fn add_cluster(kubeconfig_content: String) -> Result<(), String> {
+pub async fn add_cluster(kubeconfig_content: String) -> Result<(), KubeliError> {
     // For now, we just validate the kubeconfig
     // In a full implementation, we would merge it with the existing kubeconfig
     match KubeConfig::parse(&kubeconfig_content, std::path::PathBuf::from("imported")) {
@@ -428,22 +431,22 @@ pub async fn add_cluster(kubeconfig_content: String) -> Result<(), String> {
             );
             Ok(())
         }
-        Err(e) => Err(format!("Invalid kubeconfig: {}", e)),
+        Err(e) => Err(KubeliError::unknown(format!("Invalid kubeconfig: {}", e))),
     }
 }
 
 /// Remove a cluster configuration
 #[command]
-pub async fn remove_cluster(context: String) -> Result<(), String> {
+pub async fn remove_cluster(context: String) -> Result<(), KubeliError> {
     tracing::info!("Remove cluster requested for context: {}", context);
     // In a full implementation, we would modify the kubeconfig file
     // For now, this is a placeholder
-    Err("Cluster removal not yet implemented".to_string())
+    Err(KubeliError::unknown("Cluster removal not yet implemented"))
 }
 
 /// Check if kubeconfig exists
 #[command]
-pub async fn has_kubeconfig() -> Result<bool, String> {
+pub async fn has_kubeconfig() -> Result<bool, KubeliError> {
     Ok(KubeConfig::exists().await)
 }
 

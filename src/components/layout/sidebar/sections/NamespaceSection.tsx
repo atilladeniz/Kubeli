@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Check, ChevronRight, ChevronsUpDown, Minus, Settings2, X } from "lucide-react";
+import { AlertTriangle, Check, ChevronRight, ChevronsUpDown, Minus, Settings2, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -61,13 +61,14 @@ export function NamespaceSection({
               {tCluster("namespace")}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground/70">
+          <p className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
+            <AlertTriangle className="size-3 shrink-0 text-yellow-500" />
             {tCluster("namespaceListingNotPermitted")}
           </p>
           <Button
             variant="outline"
             size="sm"
-            className="w-full text-xs"
+            className="w-full border-dashed text-xs"
             onClick={onConfigureNamespaces}
           >
             <Settings2 className="mr-1.5 size-3.5" />

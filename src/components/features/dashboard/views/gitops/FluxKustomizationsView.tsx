@@ -20,7 +20,7 @@ import {
 } from "@/lib/tauri/commands";
 
 export function FluxKustomizationsView() {
-  const { data, isLoading, error, refresh } = useFluxKustomizations({
+  const { data, isLoading, error, refresh, retry } = useFluxKustomizations({
     autoRefresh: true,
     refreshInterval: 30000,
   });
@@ -120,6 +120,7 @@ export function FluxKustomizationsView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRetry={retry}
       onRowClick={(k) => openResourceDetail("kustomization", k.name, k.namespace)}
       getRowKey={(k) => `${k.namespace}/${k.name}`}
       getRowNamespace={(k) => k.namespace}

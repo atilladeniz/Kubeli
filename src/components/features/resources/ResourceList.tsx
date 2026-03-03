@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { RefreshCw, Circle, AlertCircle } from "lucide-react";
+import { RefreshCw, Circle } from "lucide-react";
 import { useTabsStore } from "@/lib/stores/tabs-store";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTranslations } from "next-intl";
 import { parseQuantityToBytes } from "./lib/utils";
 import { ResourceListHeader } from "./components/ResourceListHeader";
 import { ResourceTable } from "./components/ResourceTable";
 import { BulkActionBar } from "./components/BulkActionBar";
+import { ResourceError } from "./ResourceError";
+import type { KubeliError } from "@/lib/types/errors";
 import type { Column, FilterOption, BulkAction, ContextMenuItemDef, SortDirection } from "./types";
 
 interface ResourceListProps<T> {
@@ -16,8 +17,9 @@ interface ResourceListProps<T> {
   data: T[];
   columns: Column<T>[];
   isLoading: boolean;
-  error: string | null;
+  error: KubeliError | null;
   onRefresh: () => void;
+  onRetry?: () => void;
   isWatching?: boolean;
   onStartWatch?: () => void;
   onStopWatch?: () => void;
@@ -43,6 +45,7 @@ export function ResourceList<T>({
   isLoading,
   error,
   onRefresh,
+  onRetry,
   isWatching,
   onStartWatch,
   onStopWatch,
@@ -211,12 +214,7 @@ export function ResourceList<T>({
       />
 
       {error && (
-        <div className="mx-4 mt-3">
-          <Alert variant="destructive">
-            <AlertCircle className="size-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
-        </div>
+        <ResourceError error={error} onRetry={onRetry ?? onRefresh} />
       )}
 
       <div className="flex-1 overflow-hidden">

@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal deploy deploy-web minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public github-release build-deploy generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build
+.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public build-deploy release generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -172,87 +172,28 @@ astro-public: astro-build ## Build and deploy landing page to FTP
 	done; \
 	echo "$(GREEN)✓ Landing page deployed to https://$$DEPLOY_LANDING_URL$(RESET)"
 
-deploy-web: ## Deploy DMG and Windows EXE to landing page for direct download
-	@echo "$(CYAN)Deploying installers to landing page...$(RESET)"
-	@if [ -f .env ]; then \
-		set -a; source .env; set +a; \
-	fi; \
-	VERSION=$$(node -e "console.log(require('./package.json').version)"); \
-	DMG_DIR="src-tauri/target/release/bundle/dmg"; \
-	DMG_FILE=$$(ls $$DMG_DIR/*.dmg 2>/dev/null | head -1); \
-	EXE_FILE="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Kubeli_$${VERSION}_x64-setup.exe"; \
-	if [ -n "$$DMG_FILE" ]; then \
-		DMG_NAME=$$(basename "$$DMG_FILE"); \
-		echo "$(CYAN)Uploading $$DMG_NAME...$(RESET)"; \
-		curl -# --ftp-create-dirs -T "$$DMG_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/$$DMG_NAME"; \
-		curl -# --ftp-create-dirs -T "$$DMG_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/Kubeli_latest.dmg"; \
-		echo "$(GREEN)✓ DMG deployed:$(RESET)"; \
-		echo "  - https://$$DEPLOY_LANDING_URL/$$DMG_NAME"; \
-		echo "  - https://$$DEPLOY_LANDING_URL/Kubeli_latest.dmg"; \
-	else \
-		echo "$(YELLOW)Warning: No DMG found$(RESET)"; \
-	fi; \
-	if [ -f "$$EXE_FILE" ]; then \
-		EXE_NAME=$$(basename "$$EXE_FILE"); \
-		echo "$(CYAN)Uploading $$EXE_NAME...$(RESET)"; \
-		curl -# --ftp-create-dirs -T "$$EXE_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/$$EXE_NAME"; \
-		curl -# --ftp-create-dirs -T "$$EXE_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_LANDING_FTP_PATH/Kubeli_latest_x64-setup.exe"; \
-		echo "$(GREEN)✓ Windows EXE deployed:$(RESET)"; \
-		echo "  - https://$$DEPLOY_LANDING_URL/$$EXE_NAME"; \
-		echo "  - https://$$DEPLOY_LANDING_URL/Kubeli_latest_x64-setup.exe"; \
-	else \
-		echo "$(YELLOW)Warning: No Windows EXE found$(RESET)"; \
-	fi
-
 ## Deployment
 
-deploy: ## Deploy update files to FTP server (macOS and Windows)
-	@echo "$(CYAN)Deploying update files to FTP...$(RESET)"
-	@if [ -f .env ]; then \
-		set -a; source .env; set +a; \
-	fi; \
-	VERSION=$$(node -e "console.log(require('./package.json').version)"); \
-	MAC_BUNDLE_DIR="src-tauri/target/release/bundle/macos"; \
-	WIN_BUNDLE_DIR="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis"; \
-	DATE=$$(date -u +"%Y-%m-%dT%H:%M:%SZ"); \
-	PLATFORMS=""; \
-	if [ -f "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz" ]; then \
-		MAC_SIG=$$(cat "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz.sig"); \
-		PLATFORMS="$$PLATFORMS\"darwin-aarch64\": { \"signature\": \"$$MAC_SIG\", \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$$VERSION.app.tar.gz\" }, \"darwin-x86_64\": { \"signature\": \"$$MAC_SIG\", \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$$VERSION.app.tar.gz\" }"; \
-		echo "$(GREEN)✓ Found macOS bundle$(RESET)"; \
-	else \
-		echo "$(YELLOW)Warning: macOS bundle not found$(RESET)"; \
-	fi; \
-	WIN_EXE_FILE="$$WIN_BUNDLE_DIR/Kubeli_$${VERSION}_x64-setup.exe"; \
-	if [ -f "$$WIN_EXE_FILE" ] && [ -f "$$WIN_EXE_FILE.sig" ]; then \
-		WIN_SIG=$$(cat "$$WIN_EXE_FILE.sig"); \
-		if [ -n "$$PLATFORMS" ]; then PLATFORMS="$$PLATFORMS, "; fi; \
-		PLATFORMS="$$PLATFORMS\"windows-x86_64\": { \"signature\": \"$$WIN_SIG\", \"url\": \"https://$$DEPLOY_API_URL/Kubeli_$${VERSION}_x64-setup.exe\" }"; \
-		echo "$(GREEN)✓ Found Windows bundle$(RESET)"; \
-	else \
-		echo "$(YELLOW)Warning: Windows bundle not found (run 'make build-windows' first)$(RESET)"; \
-	fi; \
-	if [ -z "$$PLATFORMS" ]; then \
-		echo "$(YELLOW)Error: No update bundles found. Run 'make build-all' first.$(RESET)"; \
-		exit 1; \
-	fi; \
-	echo "$(CYAN)Creating latest.json...$(RESET)"; \
-	echo "{ \"version\": \"$$VERSION\", \"notes\": \"Kubeli v$$VERSION\", \"pub_date\": \"$$DATE\", \"platforms\": { $$PLATFORMS } }" > "$$MAC_BUNDLE_DIR/latest.json"; \
-	echo "$(GREEN)✓ latest.json created$(RESET)"; \
-	echo "$(CYAN)Uploading to FTP...$(RESET)"; \
-	if [ -f "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz" ]; then \
-		curl -v -T "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$$VERSION.app.tar.gz" --ftp-create-dirs; \
-		curl -v -T "$$MAC_BUNDLE_DIR/Kubeli.app.tar.gz.sig" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$$VERSION.app.tar.gz.sig" --ftp-create-dirs; \
-	fi; \
-	if [ -f "$$WIN_EXE_FILE" ] && [ -f "$$WIN_EXE_FILE.sig" ]; then \
-		curl -v -T "$$WIN_EXE_FILE" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$${VERSION}_x64-setup.exe" --ftp-create-dirs; \
-		curl -v -T "$$WIN_EXE_FILE.sig" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/Kubeli_$${VERSION}_x64-setup.exe.sig" --ftp-create-dirs; \
-	fi; \
-	curl -v -T "$$MAC_BUNDLE_DIR/latest.json" --user "$$FTP_USER:$$FTP_PASSWORD" "ftp://$$FTP_HOST$$DEPLOY_API_FTP_PATH/latest.json" --ftp-create-dirs; \
-	echo "$(GREEN)✓ Files uploaded to $$DEPLOY_API_URL$(RESET)"; \
-	echo "$(GREEN)✓ Update URL: https://$$DEPLOY_API_URL/latest.json$(RESET)"
+build-deploy: release ## Release via CI (version bump, changelog, commit, tag, push)
 
-build-deploy: build-all deploy generate-changelog sbom astro-public github-release ## Build all platforms, deploy, and create GitHub release
+release: ## Release: version bump, changelog, commit, tag push → CI builds all platforms
+	@$(MAKE) version-bump
+	@echo ""
+	@$(MAKE) generate-changelog
+	@echo ""
+	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
+	echo "$(CYAN)Committing release...$(RESET)"; \
+	git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json CHANGELOG.md web/src/pages/changelog.mdx .release-notes.md; \
+	git commit -m "chore(release): bump version to $$VERSION and update changelog"; \
+	echo "$(CYAN)Pushing to remote...$(RESET)"; \
+	git push; \
+	echo "$(CYAN)Creating and pushing tag v$$VERSION...$(RESET)"; \
+	git tag "v$$VERSION"; \
+	git push origin "v$$VERSION"; \
+	echo ""; \
+	echo "$(GREEN)✓ Release v$$VERSION triggered!$(RESET)"; \
+	echo "$(CYAN)CI will now build macOS, Windows, and Linux.$(RESET)"; \
+	echo "$(CYAN)Watch progress: https://github.com/atilladeniz/Kubeli/actions$(RESET)"
 
 generate-changelog: ## Generate changelog using Claude Code CLI
 	@echo "$(CYAN)Generating changelog with Claude Code CLI...$(RESET)"
@@ -260,53 +201,6 @@ generate-changelog: ## Generate changelog using Claude Code CLI
 	@if [ -f .release-notes.md ]; then \
 		echo "$(GREEN)✓ Changelog files updated$(RESET)"; \
 	fi
-
-github-release: ## Create GitHub release with DMG, Windows EXE, and SBOMs
-	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
-	DMG_FILE="src-tauri/target/release/bundle/dmg/Kubeli_$${VERSION}_aarch64.dmg"; \
-	EXE_FILE="src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/Kubeli_$${VERSION}_x64-setup.exe"; \
-	RELEASE_FILES=""; \
-	if [ -f "$$DMG_FILE" ]; then \
-		RELEASE_FILES="$$RELEASE_FILES $$DMG_FILE"; \
-		echo "$(GREEN)✓ Found macOS DMG$(RESET)"; \
-	else \
-		echo "$(YELLOW)Warning: DMG not found at $$DMG_FILE$(RESET)"; \
-	fi; \
-	if [ -f "$$EXE_FILE" ]; then \
-		RELEASE_FILES="$$RELEASE_FILES $$EXE_FILE"; \
-		echo "$(GREEN)✓ Found Windows EXE$(RESET)"; \
-	else \
-		echo "$(YELLOW)Warning: Windows EXE not found at $$EXE_FILE$(RESET)"; \
-	fi; \
-	if [ -z "$$RELEASE_FILES" ]; then \
-		echo "$(YELLOW)Error: No installers found. Run 'make build-all' first.$(RESET)"; \
-		exit 1; \
-	fi; \
-	echo "$(CYAN)Creating GitHub release v$$VERSION...$(RESET)"; \
-	SBOM_FILES=""; \
-	if [ -f sbom-npm.json ]; then SBOM_FILES="$$SBOM_FILES sbom-npm.json"; fi; \
-	if [ -f sbom-rust.json ]; then SBOM_FILES="$$SBOM_FILES sbom-rust.json"; fi; \
-	if gh release view "v$$VERSION" --repo atilladeniz/Kubeli > /dev/null 2>&1; then \
-		echo "$(YELLOW)Release v$$VERSION already exists, updating...$(RESET)"; \
-		if [ -f .release-notes.md ]; then \
-			gh release edit "v$$VERSION" --repo atilladeniz/Kubeli --notes-file .release-notes.md; \
-			echo "$(GREEN)✓ Release notes updated$(RESET)"; \
-		fi; \
-		gh release upload "v$$VERSION" --repo atilladeniz/Kubeli --clobber $$RELEASE_FILES $$SBOM_FILES; \
-		echo "$(GREEN)✓ Files uploaded$(RESET)"; \
-	else \
-		NOTES="See [CHANGELOG.md](https://github.com/atilladeniz/Kubeli/blob/main/CHANGELOG.md) for details."; \
-		if [ -f .release-notes.md ]; then \
-			NOTES=$$(cat .release-notes.md); \
-		fi; \
-		gh release create "v$$VERSION" \
-			--repo atilladeniz/Kubeli \
-			--title "Kubeli v$$VERSION" \
-			--notes "$$NOTES" \
-			$$RELEASE_FILES $$SBOM_FILES; \
-		echo "$(GREEN)✓ GitHub release v$$VERSION created$(RESET)"; \
-	fi; \
-	rm -f .release-notes.md
 
 ## Code Quality
 

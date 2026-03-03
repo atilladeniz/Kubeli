@@ -256,6 +256,39 @@
   }
 }
 
+/* Context menus and dropdown menus: always opaque (no vibrancy) */
+:is(.vibrancy-standard, .vibrancy-more, .vibrancy-extra) {
+  &:not(.dark):not(.classic-dark) {
+    & [data-slot="context-menu-content"],
+    & [data-slot="context-menu-sub-content"],
+    & [data-slot="dropdown-menu-content"],
+    & [data-slot="dropdown-menu-sub-content"],
+    & .opaque-popover {
+      --popover: #fcfcfc;
+    }
+  }
+
+  &.dark {
+    & [data-slot="context-menu-content"],
+    & [data-slot="context-menu-sub-content"],
+    & [data-slot="dropdown-menu-content"],
+    & [data-slot="dropdown-menu-sub-content"],
+    & .opaque-popover {
+      --popover: #2a2a2a;
+    }
+  }
+
+  &.classic-dark {
+    & [data-slot="context-menu-content"],
+    & [data-slot="context-menu-sub-content"],
+    & [data-slot="dropdown-menu-content"],
+    & [data-slot="dropdown-menu-sub-content"],
+    & .opaque-popover {
+      --popover: #1e1f28;
+    }
+  }
+}
+
 /* Selector for any vibrancy level that has transparency */
 :is(.vibrancy-standard, .vibrancy-more, .vibrancy-extra) {
   /* Main app container backdrop blur */
@@ -265,10 +298,6 @@
   }
 
   /* Backdrop blur for popover elements */
-  & [data-slot="context-menu-content"],
-  & [data-slot="context-menu-sub-content"],
-  & [data-slot="dropdown-menu-content"],
-  & [data-slot="dropdown-menu-sub-content"],
   & [data-slot="popover-content"],
   & [data-slot="dialog-content"],
   & [data-slot="alert-dialog-content"],
@@ -284,8 +313,6 @@
   }
 
   /* Enhanced shadows for floating elements */
-  & [data-slot="context-menu-content"],
-  & [data-slot="dropdown-menu-content"],
   & [data-slot="popover-content"],
   & [data-slot="select-content"] {
     box-shadow:
@@ -335,8 +362,6 @@
   }
 
   /* Glass effect for menus */
-  & [data-slot="context-menu-content"],
-  & [data-slot="dropdown-menu-content"],
   & [data-slot="select-content"] {
     border-color: oklch(1 0 0 / 12%);
     box-shadow:

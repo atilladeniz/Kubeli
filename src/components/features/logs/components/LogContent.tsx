@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useState, useCallback, useRef, useEffect } from "react";
-import { Loader2, Copy, Check } from "lucide-react";
+import { Loader2, Copy, Check, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LogEntry } from "@/lib/types";
 import { LogLine } from "./LogLine";
@@ -26,6 +26,8 @@ interface LogContentProps {
   followText: string;
   copyLabel: string;
   copiedLabel: string;
+  onSendToAI?: (text: string) => void;
+  sendToAILabel?: string;
 }
 
 /**
@@ -55,6 +57,8 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
       followText,
       copyLabel,
       copiedLabel,
+      onSendToAI,
+      sendToAILabel,
     },
     ref
   ) {
@@ -164,7 +168,7 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
         {menuPos && (
           <div
             ref={menuRef}
-            className="bg-popover text-popover-foreground fixed z-50 min-w-[8rem] rounded-md border p-1 shadow-md"
+            className="opaque-popover bg-popover text-popover-foreground fixed z-50 min-w-[8rem] rounded-md border p-1 shadow-md"
             style={{ left: menuPos.x, top: menuPos.y }}
           >
             <button
@@ -179,6 +183,22 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
               )}
               {copied ? copiedLabel : copyLabel}
             </button>
+            {onSendToAI && (
+              <>
+                <div className="bg-border -mx-1 my-1 h-px" />
+                <button
+                  onClick={() => {
+                    onSendToAI(contextMenuSelection);
+                    setMenuPos(null);
+                  }}
+                  disabled={!contextMenuSelection}
+                  className="hover:bg-accent hover:text-accent-foreground flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none select-none disabled:pointer-events-none disabled:opacity-50"
+                >
+                  <Sparkles className="size-3.5" />
+                  {sendToAILabel}
+                </button>
+              </>
+            )}
           </div>
         )}
       </>

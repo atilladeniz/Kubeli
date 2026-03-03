@@ -47,7 +47,7 @@ yarn-error.log*
 # Rust / Tauri
 /src-tauri/target/
 /src-tauri/target-ra/
-Cargo.lock
+# Cargo.lock is committed for reproducible CI builds (Rust best practice for applications)
 
 # secrets
 .secrets/

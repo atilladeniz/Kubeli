@@ -33,7 +33,7 @@ export function useTabCloseConfirmation({
     const tab = useLogStore.getState().logTabs[tabId];
     if (!tab || tab.logs.length === 0) return false;
     const error = tab.error;
-    return !!error && (error.includes("NotFound") || error.includes("not found"));
+    return !!error && (error.kind === "NotFound" || error.message.includes("not found"));
   }, []);
 
   const closeTabsWithConfirmation = useCallback(

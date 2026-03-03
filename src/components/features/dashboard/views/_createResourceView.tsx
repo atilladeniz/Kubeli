@@ -22,12 +22,15 @@ interface BaseResource {
   namespace?: string;
 }
 
+import type { KubeliError } from "@/lib/types/errors";
+
 // Hook result type
 interface ResourceHookResult<T> {
   data: T[];
   isLoading: boolean;
-  error: string | null;
+  error: KubeliError | null;
   refresh: () => void;
+  retry?: () => void;
 }
 
 // Configuration for creating a resource view
@@ -92,7 +95,7 @@ export function createResourceView<T extends BaseResource>(
 
   return function ResourceView() {
     const t = useTranslations();
-    const { data, isLoading, error, refresh } = hook({
+    const { data, isLoading, error, refresh, retry } = hook({
       autoRefresh: true,
       refreshInterval: 30000,
     });
@@ -189,6 +192,7 @@ export function createResourceView<T extends BaseResource>(
         isLoading={isLoading}
         error={error}
         onRefresh={refresh}
+        onRetry={retry}
         getRowKey={(r) => r.uid}
         getRowNamespace={namespaced ? (r) => r.namespace || "" : undefined}
         emptyMessage={t(emptyMessageKey)}

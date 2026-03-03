@@ -169,6 +169,48 @@ impl KubeliMcpServer {
         }
     }
 
+    /// Strip ALL sensitive data from resource specs before sending to AI.
+    /// Removes environment variables (names AND values), envFrom references,
+    /// and volume-mounted secret/configmap data from container specs.
+    /// This is a hard security guard — the AI never receives this data.
+    fn strip_sensitive_spec_data(value: &mut serde_json::Value) {
+        if let Some(spec) = value.get_mut("spec") {
+            // Pod: spec.containers[], spec.initContainers[]
+            Self::strip_env_from_pod_spec(spec);
+
+            // Deployment/StatefulSet/Job: spec.template.spec.containers[]
+            if let Some(template) = spec.get_mut("template") {
+                if let Some(template_spec) = template.get_mut("spec") {
+                    Self::strip_env_from_pod_spec(template_spec);
+                }
+            }
+        }
+    }
+
+    /// Remove env, envFrom from all container types in a pod spec.
+    fn strip_env_from_pod_spec(spec: &mut serde_json::Value) {
+        for container_key in &["containers", "initContainers", "ephemeralContainers"] {
+            if let Some(containers) = spec.get_mut(*container_key).and_then(|c| c.as_array_mut()) {
+                for container in containers.iter_mut() {
+                    if let Some(obj) = container.as_object_mut() {
+                        if obj.contains_key("env") {
+                            obj.insert(
+                                "env".to_string(),
+                                json!("[REDACTED: environment variables hidden for security]"),
+                            );
+                        }
+                        if obj.contains_key("envFrom") {
+                            obj.insert(
+                                "envFrom".to_string(),
+                                json!("[REDACTED: environment references hidden for security]"),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     /// Check if a pod is healthy (Running/Succeeded, all containers ready, restarts < 10)
     fn is_pod_healthy(pod: &Pod) -> bool {
         let status = match pod.status.as_ref() {
@@ -850,13 +892,25 @@ impl KubeliMcpServer {
         let client = self.get_client().await?;
         let kind_lower = kind.to_lowercase();
 
-        // Helper: serialize to JSON, strip verbose metadata, then convert to YAML
+        // Helper: serialize to JSON, strip verbose metadata + sensitive data, then convert to YAML
         fn to_clean_yaml<T: serde::Serialize>(resource: &T) -> Result<String, String> {
             let mut json_value = serde_json::to_value(resource)
                 .map_err(|e| format!("Failed to serialize: {}", e))?;
             KubeliMcpServer::strip_verbose_metadata(&mut json_value);
+            KubeliMcpServer::strip_sensitive_spec_data(&mut json_value);
             serde_yaml::to_string(&json_value)
                 .map_err(|e| format!("Failed to serialize to YAML: {}", e))
+        }
+
+        // Block sensitive resource kinds entirely
+        match kind_lower.as_str() {
+            "secret" | "secrets" => {
+                return Err("Access denied: Secret resources cannot be retrieved through the AI assistant for security reasons. Only metadata (name, type, keys) is available via other tools.".to_string());
+            }
+            "configmap" | "configmaps" => {
+                return Err("Access denied: ConfigMap resources cannot be retrieved through the AI assistant for security reasons. ConfigMaps may contain sensitive configuration data.".to_string());
+            }
+            _ => {}
         }
 
         match kind_lower.as_str() {
@@ -1327,6 +1381,96 @@ mod tests {
         let annotations = metadata.get("annotations").unwrap().as_object().unwrap();
         assert!(!annotations.contains_key("kubectl.kubernetes.io/last-applied-configuration"));
         assert!(annotations.contains_key("app.kubernetes.io/name"));
+    }
+
+    #[test]
+    fn test_strip_sensitive_spec_data_pod() {
+        let mut value = serde_json::json!({
+            "spec": {
+                "containers": [{
+                    "name": "app",
+                    "image": "nginx:latest",
+                    "env": [
+                        {"name": "DB_PASSWORD", "valueFrom": {"secretKeyRef": {"name": "my-secret", "key": "password"}}},
+                        {"name": "APP_NAME", "value": "my-app"}
+                    ],
+                    "envFrom": [
+                        {"secretRef": {"name": "my-secret"}}
+                    ]
+                }],
+                "initContainers": [{
+                    "name": "init",
+                    "env": [{"name": "INIT_KEY", "value": "secret-value"}]
+                }]
+            }
+        });
+
+        KubeliMcpServer::strip_sensitive_spec_data(&mut value);
+
+        let container = &value["spec"]["containers"][0];
+        assert_eq!(
+            container["env"],
+            json!("[REDACTED: environment variables hidden for security]")
+        );
+        assert_eq!(
+            container["envFrom"],
+            json!("[REDACTED: environment references hidden for security]")
+        );
+        // Image should still be there
+        assert_eq!(container["image"], "nginx:latest");
+
+        let init = &value["spec"]["initContainers"][0];
+        assert_eq!(
+            init["env"],
+            json!("[REDACTED: environment variables hidden for security]")
+        );
+    }
+
+    #[test]
+    fn test_strip_sensitive_spec_data_deployment_template() {
+        let mut value = serde_json::json!({
+            "spec": {
+                "replicas": 3,
+                "template": {
+                    "spec": {
+                        "containers": [{
+                            "name": "api",
+                            "env": [
+                                {"name": "API_KEY", "valueFrom": {"secretKeyRef": {"name": "api-secret", "key": "key"}}}
+                            ]
+                        }]
+                    }
+                }
+            }
+        });
+
+        KubeliMcpServer::strip_sensitive_spec_data(&mut value);
+
+        let container = &value["spec"]["template"]["spec"]["containers"][0];
+        assert_eq!(
+            container["env"],
+            json!("[REDACTED: environment variables hidden for security]")
+        );
+        // replicas should still be there
+        assert_eq!(value["spec"]["replicas"], 3);
+    }
+
+    #[test]
+    fn test_strip_sensitive_spec_data_no_env() {
+        let mut value = serde_json::json!({
+            "spec": {
+                "containers": [{
+                    "name": "simple",
+                    "image": "busybox"
+                }]
+            }
+        });
+
+        let original = value.clone();
+        KubeliMcpServer::strip_sensitive_spec_data(&mut value);
+
+        // No env means nothing should change
+        assert_eq!(value, original);
     }
 
     #[test]

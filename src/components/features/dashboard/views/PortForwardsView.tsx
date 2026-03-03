@@ -99,53 +99,51 @@ export function PortForwardsView() {
             {forwards.map((forward) => (
               <div
                 key={forward.forward_id}
-                className="flex items-center justify-between rounded-lg border border-border bg-card p-4"
+                className="rounded-lg border border-border bg-card p-3 space-y-2 overflow-hidden"
               >
-                <div className="flex items-center gap-4">
-                  {/* Status */}
-                  <div className="flex items-center gap-2">
-                    <span className={cn("size-2.5 rounded-full", getStatusColor(forward.status))} />
-                    <span className="text-sm font-medium w-24">{getStatusText(forward.status)}</span>
+                {/* Row 1: Status + Type + Actions */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={cn("size-2 rounded-full shrink-0", getStatusColor(forward.status))} />
+                    <span className="text-xs font-medium shrink-0">{getStatusText(forward.status)}</span>
+                    <Badge variant="outline" className="capitalize text-[10px] shrink-0">
+                      {forward.target_type}
+                    </Badge>
                   </div>
-
-                  {/* Service Info */}
-                  <div className="flex flex-col">
-                    <span className="font-medium">{forward.name}</span>
-                    <span className="text-sm text-muted-foreground">{forward.namespace}</span>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenInBrowser(forward.local_port)}
+                      disabled={forward.status !== "connected"}
+                    >
+                      <ExternalLink className="size-4" />
+                      Open
+                    </Button>
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => handleStop(forward.forward_id, forward.name)}
+                    >
+                      <X className="size-4" />
+                      Stop
+                    </Button>
                   </div>
-
-                  {/* Ports */}
-                  <div className="flex items-center gap-2 rounded-md bg-muted px-3 py-1.5">
-                    <span className="text-sm font-mono">localhost:{forward.local_port}</span>
-                    <ArrowRightLeft className="size-3.5 text-muted-foreground" />
-                    <span className="text-sm font-mono">{forward.target_port}</span>
-                  </div>
-
-                  {/* Type */}
-                  <Badge variant="outline" className="capitalize">
-                    {forward.target_type}
-                  </Badge>
                 </div>
 
-                {/* Actions */}
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleOpenInBrowser(forward.local_port)}
-                    disabled={forward.status !== "connected"}
-                  >
-                    <ExternalLink className="size-4" />
-                    Open
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    onClick={() => handleStop(forward.forward_id, forward.name)}
-                  >
-                    <X className="size-4" />
-                    Stop
-                  </Button>
+                {/* Row 2: Name + Namespace */}
+                <div className="truncate text-sm font-medium">
+                  {forward.name}
+                  <span className="text-xs text-muted-foreground font-normal ml-1.5">
+                    {forward.namespace}
+                  </span>
+                </div>
+
+                {/* Row 3: Port mapping */}
+                <div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-1 w-fit">
+                  <span className="text-xs font-mono">localhost:{forward.local_port}</span>
+                  <ArrowRightLeft className="size-3 text-muted-foreground shrink-0" />
+                  <span className="text-xs font-mono">{forward.target_port}</span>
                 </div>
               </div>
             ))}

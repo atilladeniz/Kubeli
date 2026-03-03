@@ -1,21 +1,3 @@
-<!-- OPENSPEC:START -->
-# OpenSpec Instructions
-
-These instructions are for AI assistants working in this project.
-
-Always open `@/openspec/AGENTS.md` when the request:
-- Mentions planning or proposals (words like proposal, spec, change, plan)
-- Introduces new capabilities, breaking changes, architecture shifts, or big performance/security work
-- Sounds ambiguous and you need the authoritative spec before coding
-
-Use `@/openspec/AGENTS.md` to learn:
-- How to create and apply change proposals
-- Spec format and conventions
-- Project structure and guidelines
-
-Keep this managed block so 'openspec update' can refresh the instructions.
-
-<!-- OPENSPEC:END -->
 
 # Kubeli - Kubernetes Management Desktop App
 
@@ -51,7 +33,7 @@ make build
 | `make web-dev` | Start Vite only (no Tauri) |
 | `make build` | Build production Tauri app (macOS) |
 | `make build-windows` | Cross-compile Windows NSIS installer from macOS |
-| `make build-all` | Build both macOS and Windows installers |
+| `make build-all` | Build macOS and Windows installers (Linux built by CI) |
 | `make lint` | Run ESLint |
 | `make format` | Format code with Prettier |
 | `make check` | Run TypeScript type checking |
@@ -65,10 +47,11 @@ make build
 
 | Command | Description |
 |---------|-------------|
-| `make build-deploy` | Build, deploy, and create GitHub release |
-| `make deploy` | Deploy update files to FTP (macOS + Windows) |
-| `make deploy-web` | Deploy installers to landing page |
-| `make github-release` | Create GitHub release with DMG + EXE |
+| `make release` | Release via CI: version bump, changelog, commit, tag push → CI builds all platforms |
+| `make build-deploy` | Alias for `make release` |
+| `make build-deploy-legacy` | (Legacy) Build all platforms locally, deploy, and create GitHub release |
+
+The release flow: `make release` → tag push triggers GitHub Actions → builds macOS (ARM + x86), Windows, Linux → waits for manual approval → deploys to FTP + publishes GitHub Release.
 
 ### Using npm
 
@@ -207,7 +190,7 @@ import { usePlatform } from "@/lib/hooks/usePlatform";
 function MyComponent() {
   const { isMac, isWindows, modKeySymbol } = usePlatform();
 
-  // modKeySymbol: "⌘" on Mac, "Ctrl+" on Windows
+  // modKeySymbol: "⌘" on Mac, "Ctrl+" on Windows/Linux
   return <Kbd>{modKeySymbol}S</Kbd>;
 }
 ```

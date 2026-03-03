@@ -68,6 +68,8 @@ pub struct GraphEdge {
 pub struct GraphData {
     pub nodes: Vec<GraphNode>,
     pub edges: Vec<GraphEdge>,
+    #[serde(default)]
+    pub errors: Vec<String>,
 }
 
 /// Helper function to convert BTreeMap to HashMap
@@ -132,6 +134,7 @@ pub async fn generate_resource_graph(
 
     let mut nodes: Vec<GraphNode> = Vec::new();
     let edges: Vec<GraphEdge> = Vec::new(); // No edges - nested sub-flows provide visual grouping
+    let mut errors: Vec<String> = Vec::new();
 
     // Track child counts for sizing
     let mut ns_child_count: HashMap<String, usize> = HashMap::new();
@@ -147,158 +150,167 @@ pub async fn generate_resource_graph(
 
     // 1. Fetch Namespaces (top-level group nodes)
     let ns_api: Api<Namespace> = Api::all(client.clone());
-    if let Ok(ns_list) = ns_api.list(&list_params).await {
-        for ns in ns_list.items {
-            let name = ns.name_any();
-            if filter_ns && !ns_set.contains(name.as_str()) {
-                continue;
+    match ns_api.list(&list_params).await {
+        Ok(ns_list) => {
+            for ns in ns_list.items {
+                let name = ns.name_any();
+                if filter_ns && !ns_set.contains(name.as_str()) {
+                    continue;
+                }
+                let uid = ns.metadata.uid.clone().unwrap_or_default();
+                let id = format!("ns-{}", name);
+
+                ns_child_count.insert(id.clone(), 0);
+
+                nodes.push(GraphNode {
+                    id,
+                    uid,
+                    name,
+                    namespace: None,
+                    node_type: NodeType::Namespace,
+                    status: NodeStatus::Healthy,
+                    labels: btree_to_hashmap(ns.metadata.labels),
+                    parent_id: None,
+                    ready_status: None,
+                    replicas: None,
+                    is_group: true,
+                    child_count: None,
+                });
             }
-            let uid = ns.metadata.uid.clone().unwrap_or_default();
-            let id = format!("ns-{}", name);
-
-            ns_child_count.insert(id.clone(), 0);
-
-            nodes.push(GraphNode {
-                id,
-                uid,
-                name,
-                namespace: None,
-                node_type: NodeType::Namespace,
-                status: NodeStatus::Healthy,
-                labels: btree_to_hashmap(ns.metadata.labels),
-                parent_id: None,
-                ready_status: None,
-                replicas: None,
-                is_group: true,
-                child_count: None,
-            });
         }
+        Err(e) => errors.push(format!("Namespaces: {e}")),
     }
 
     // 2. Fetch Deployments (nested group nodes inside namespaces)
     let deployments: Api<Deployment> = Api::all(client.clone());
 
-    if let Ok(deployment_list) = deployments.list(&list_params).await {
-        for deployment in deployment_list.items {
-            let ns = deployment.namespace().unwrap_or_default();
-            if filter_ns && !ns_set.contains(ns.as_str()) {
-                continue;
+    match deployments.list(&list_params).await {
+        Ok(deployment_list) => {
+            for deployment in deployment_list.items {
+                let ns = deployment.namespace().unwrap_or_default();
+                if filter_ns && !ns_set.contains(ns.as_str()) {
+                    continue;
+                }
+                let name = deployment.name_any();
+                let uid = deployment.metadata.uid.clone().unwrap_or_default();
+                let id = format!("deploy-{}-{}", ns, name);
+
+                let status = get_deployment_status(&deployment);
+                let ready = deployment
+                    .status
+                    .as_ref()
+                    .and_then(|s| s.ready_replicas)
+                    .unwrap_or(0);
+                let desired = deployment
+                    .spec
+                    .as_ref()
+                    .and_then(|s| s.replicas)
+                    .unwrap_or(0);
+
+                // Store selector for pod matching
+                if let Some(selector) = deployment
+                    .spec
+                    .as_ref()
+                    .and_then(|s| s.selector.match_labels.clone())
+                {
+                    deployment_selectors
+                        .insert(id.clone(), (ns.clone(), selector.into_iter().collect()));
+                }
+
+                // Initialize child count for this deployment
+                deploy_child_count.insert(id.clone(), 0);
+
+                // Parent is always the namespace group node
+                let ns_id = format!("ns-{}", ns);
+                *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
+                let parent_id = Some(ns_id);
+
+                // Deployments are ALSO groups (they contain pods)
+                nodes.push(GraphNode {
+                    id,
+                    uid,
+                    name,
+                    namespace: Some(ns),
+                    node_type: NodeType::Deployment,
+                    status,
+                    labels: btree_to_hashmap(deployment.metadata.labels),
+                    parent_id,
+                    ready_status: None,
+                    replicas: Some(format!("{}/{}", ready, desired)),
+                    is_group: true, // Deployment is a group containing pods
+                    child_count: None,
+                });
             }
-            let name = deployment.name_any();
-            let uid = deployment.metadata.uid.clone().unwrap_or_default();
-            let id = format!("deploy-{}-{}", ns, name);
-
-            let status = get_deployment_status(&deployment);
-            let ready = deployment
-                .status
-                .as_ref()
-                .and_then(|s| s.ready_replicas)
-                .unwrap_or(0);
-            let desired = deployment
-                .spec
-                .as_ref()
-                .and_then(|s| s.replicas)
-                .unwrap_or(0);
-
-            // Store selector for pod matching
-            if let Some(selector) = deployment
-                .spec
-                .as_ref()
-                .and_then(|s| s.selector.match_labels.clone())
-            {
-                deployment_selectors
-                    .insert(id.clone(), (ns.clone(), selector.into_iter().collect()));
-            }
-
-            // Initialize child count for this deployment
-            deploy_child_count.insert(id.clone(), 0);
-
-            // Parent is always the namespace group node
-            let ns_id = format!("ns-{}", ns);
-            *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
-            let parent_id = Some(ns_id);
-
-            // Deployments are ALSO groups (they contain pods)
-            nodes.push(GraphNode {
-                id,
-                uid,
-                name,
-                namespace: Some(ns),
-                node_type: NodeType::Deployment,
-                status,
-                labels: btree_to_hashmap(deployment.metadata.labels),
-                parent_id,
-                ready_status: None,
-                replicas: Some(format!("{}/{}", ready, desired)),
-                is_group: true, // Deployment is a group containing pods
-                child_count: None,
-            });
         }
+        Err(e) => errors.push(format!("Deployments: {e}")),
     }
 
     // 3. Fetch Pods (leaf nodes inside deployments)
     let pods: Api<Pod> = Api::all(client.clone());
 
-    if let Ok(pod_list) = pods.list(&list_params).await {
-        for pod in pod_list.items {
-            let ns = pod.namespace().unwrap_or_default();
-            if filter_ns && !ns_set.contains(ns.as_str()) {
-                continue;
-            }
-            let name = pod.name_any();
-            let uid = pod.metadata.uid.clone().unwrap_or_default();
-            let id = format!("pod-{}-{}", ns, name);
+    match pods.list(&list_params).await {
+        Ok(pod_list) => {
+            for pod in pod_list.items {
+                let ns = pod.namespace().unwrap_or_default();
+                if filter_ns && !ns_set.contains(ns.as_str()) {
+                    continue;
+                }
+                let name = pod.name_any();
+                let uid = pod.metadata.uid.clone().unwrap_or_default();
+                let id = format!("pod-{}-{}", ns, name);
 
-            let status = get_pod_status(&pod);
-            let labels = btree_to_hashmap(pod.metadata.labels.clone());
+                let status = get_pod_status(&pod);
+                let labels = btree_to_hashmap(pod.metadata.labels.clone());
 
-            // Calculate ready status
-            let container_statuses = pod
-                .status
-                .as_ref()
-                .and_then(|s| s.container_statuses.as_ref());
-            let ready_status = container_statuses.map(|statuses| {
-                let ready = statuses.iter().filter(|cs| cs.ready).count();
-                format!("{}/{}", ready, statuses.len())
-            });
+                // Calculate ready status
+                let container_statuses = pod
+                    .status
+                    .as_ref()
+                    .and_then(|s| s.container_statuses.as_ref());
+                let ready_status = container_statuses.map(|statuses| {
+                    let ready = statuses.iter().filter(|cs| cs.ready).count();
+                    format!("{}/{}", ready, statuses.len())
+                });
 
-            // Find parent deployment by matching labels
-            let mut parent_deployment_id: Option<String> = None;
-            for (deploy_id, (deploy_ns, selector)) in &deployment_selectors {
-                if *deploy_ns == ns && !selector.is_empty() {
-                    let matches = selector.iter().all(|(k, v)| labels.get(k) == Some(v));
-                    if matches {
-                        parent_deployment_id = Some(deploy_id.clone());
-                        *deploy_child_count.entry(deploy_id.clone()).or_insert(0) += 1;
-                        break;
+                // Find parent deployment by matching labels
+                let mut parent_deployment_id: Option<String> = None;
+                for (deploy_id, (deploy_ns, selector)) in &deployment_selectors {
+                    if *deploy_ns == ns && !selector.is_empty() {
+                        let matches = selector.iter().all(|(k, v)| labels.get(k) == Some(v));
+                        if matches {
+                            parent_deployment_id = Some(deploy_id.clone());
+                            *deploy_child_count.entry(deploy_id.clone()).or_insert(0) += 1;
+                            break;
+                        }
                     }
                 }
+
+                // Parent is the deployment if found, otherwise the namespace directly
+                let parent_id = if let Some(deploy_id) = parent_deployment_id {
+                    Some(deploy_id)
+                } else {
+                    let ns_id = format!("ns-{}", ns);
+                    *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
+                    Some(ns_id)
+                };
+
+                nodes.push(GraphNode {
+                    id,
+                    uid,
+                    name,
+                    namespace: Some(ns),
+                    node_type: NodeType::Pod,
+                    status,
+                    labels,
+                    parent_id,
+                    ready_status,
+                    replicas: None,
+                    is_group: false, // Pods are leaf nodes
+                    child_count: None,
+                });
             }
-
-            // Parent is the deployment if found, otherwise the namespace directly
-            let parent_id = if let Some(deploy_id) = parent_deployment_id {
-                Some(deploy_id)
-            } else {
-                let ns_id = format!("ns-{}", ns);
-                *ns_child_count.entry(ns_id.clone()).or_insert(0) += 1;
-                Some(ns_id)
-            };
-
-            nodes.push(GraphNode {
-                id,
-                uid,
-                name,
-                namespace: Some(ns),
-                node_type: NodeType::Pod,
-                status,
-                labels,
-                parent_id,
-                ready_status,
-                replicas: None,
-                is_group: false, // Pods are leaf nodes
-                child_count: None,
-            });
         }
+        Err(e) => errors.push(format!("Pods: {e}")),
     }
 
     // Update child counts for namespaces and deployments
@@ -321,7 +333,11 @@ pub async fn generate_resource_graph(
         edges.len()
     );
 
-    Ok(GraphData { nodes, edges })
+    Ok(GraphData {
+        nodes,
+        edges,
+        errors,
+    })
 }
 
 #[cfg(test)]

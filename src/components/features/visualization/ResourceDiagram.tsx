@@ -34,9 +34,8 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { ResourceNode, type ResourceNodeData } from "./nodes/ResourceNode";
 import { DotNode, type DotNodeData } from "./nodes/DotNode";
 import { GroupNode, type GroupNodeData } from "./nodes/GroupNode";
-import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { RefreshCw } from "lucide-react";
+import { ResourceError } from "@/components/features/resources/ResourceError";
 import type { GraphNodeStatus } from "@/lib/types";
 import { DiagramToolbar } from "./DiagramToolbar";
 import { DiagramLegend } from "./DiagramLegend";
@@ -125,18 +124,6 @@ function ResourceDiagramInner() {
     );
   }
 
-  if (error) {
-    return (
-      <Card className="flex h-full flex-col items-center justify-center gap-4">
-        <p className="text-destructive">{error}</p>
-        <Button onClick={handleRefresh} variant="outline">
-          <RefreshCw className="mr-2 size-4" />
-          Retry
-        </Button>
-      </Card>
-    );
-  }
-
   return (
     <Card
       className="flex flex-col overflow-hidden mx-4 mt-4 mb-6"
@@ -151,6 +138,8 @@ function ResourceDiagramInner() {
         nodeCount={storeNodes.length}
         edgeCount={storeEdges.length}
       />
+
+      {error && <ResourceError error={error} onRetry={handleRefresh} />}
 
       <div className="flex-1">
         <ReactFlow

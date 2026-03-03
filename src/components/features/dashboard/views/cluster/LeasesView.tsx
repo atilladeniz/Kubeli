@@ -16,7 +16,7 @@ import type { LeaseInfo } from "@/lib/types";
 
 export function LeasesView() {
   const t = useTranslations();
-  const { data, isLoading, error, refresh } = useLeases({
+  const { data, isLoading, error, refresh, retry } = useLeases({
     autoRefresh: true,
     refreshInterval: 30000,
   });
@@ -53,6 +53,7 @@ export function LeasesView() {
       isLoading={isLoading}
       error={error}
       onRefresh={refresh}
+      onRetry={retry}
       getRowKey={(lease) => lease.uid}
       getRowNamespace={(lease) => lease.namespace}
       emptyMessage={t("empty.leases")}

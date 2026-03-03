@@ -3,6 +3,7 @@
 
 mod ai;
 mod commands;
+mod error;
 mod k8s;
 mod mcp;
 mod network;

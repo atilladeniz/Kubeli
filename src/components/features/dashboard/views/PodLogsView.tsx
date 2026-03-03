@@ -18,7 +18,7 @@ export function PodLogsView() {
   const logTab = useLogStore((s) => activeTabId ? s.logTabs[activeTabId] : undefined);
   const podGone = useMemo(() => {
     const err = logTab?.error;
-    return !!err && (err.includes("NotFound") || err.includes("not found"));
+    return !!err && (err.kind === "NotFound" || err.message.includes("not found"));
   }, [logTab?.error]);
   const hasLogs = (logTab?.logs?.length ?? 0) > 0;
 

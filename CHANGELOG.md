@@ -2,6 +2,43 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.52] - 2026-03-02
+
+- Added full CI/CD publish workflow for all platforms
+- Fixed 3 high severity dependency security vulnerabilities
+
+## [0.3.51] - 2026-03-01
+
+- Added port selection popover for multi-port services
+
+## [0.3.50] - 2026-02-28
+
+- Added structured error handling across Rust backend and React frontend
+- Migrated OpenSpec to OPSX workflow with expanded skills
+
+## [0.3.49] - 2026-02-25
+
+- Fixed namespace fetching to handle multi-namespace selection individually
+
+## [0.3.48] - 2026-02-24
+
+- Fixed native Codex binary detection for production app compatibility
+
+## [0.3.47] - 2026-02-24
+
+- Added context-aware AI assistant with log selection analysis
+
+## [0.3.46] - 2026-02-24
+
+- Added environment variable value resolution from ConfigMaps, Secrets, and field references
+
+## [0.3.45] - 2026-02-22
+
+- Added smart AI MCP tool optimization for improved token efficiency
+- Fixed react-doctor errors and reduced component complexity
+- Removed unused react-query dependency and stale Next.js references
+- Updated project documentation to reflect Vite/React transition
+
 ## [0.3.44] - 2026-02-21
 
 - Added configurable accessible namespaces per cluster

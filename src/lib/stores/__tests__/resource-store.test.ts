@@ -1,5 +1,6 @@
 import { act } from "@testing-library/react";
 import { useResourceStore } from "../resource-store";
+import { toKubeliError } from "../../types/errors";
 
 // Mock Tauri commands
 const mockListPods = jest.fn();
@@ -216,7 +217,7 @@ describe("ResourceStore", () => {
         await useResourceStore.getState().fetchPods();
       });
 
-      expect(useResourceStore.getState().error).toBe("Connection refused");
+      expect(useResourceStore.getState().error?.message).toBe("Connection refused");
       expect(useResourceStore.getState().pods).toEqual([]);
     });
   });
@@ -239,7 +240,7 @@ describe("ResourceStore", () => {
         await useResourceStore.getState().fetchDeployments();
       });
 
-      expect(useResourceStore.getState().error).toBe("API error");
+      expect(useResourceStore.getState().error?.message).toBe("API error");
     });
   });
 
@@ -335,7 +336,7 @@ describe("ResourceStore", () => {
         await useResourceStore.getState().fetchAllResources();
       });
 
-      expect(useResourceStore.getState().error).toBe("Pods fetch failed");
+      expect(useResourceStore.getState().error?.message).toBe("Pods fetch failed");
     });
   });
 
@@ -365,7 +366,7 @@ describe("ResourceStore", () => {
         await useResourceStore.getState().selectPod("invalid", "default");
       });
 
-      expect(useResourceStore.getState().error).toBe("Pod not found");
+      expect(useResourceStore.getState().error?.message).toBe("Pod not found");
       expect(useResourceStore.getState().selectedPod).toBeNull();
     });
   });
@@ -395,7 +396,7 @@ describe("ResourceStore", () => {
         await useResourceStore.getState().removePod("nginx-1", "default");
       });
 
-      expect(useResourceStore.getState().error).toBe("Permission denied");
+      expect(useResourceStore.getState().error?.message).toBe("Permission denied");
       // Pods should remain unchanged
       expect(useResourceStore.getState().pods).toEqual(mockPods);
     });
@@ -411,7 +412,7 @@ describe("ResourceStore", () => {
         secrets: mockSecrets,
         nodes: mockNodes,
         selectedPod: mockPods[0],
-        error: "Some error",
+        error: toKubeliError("Some error"),
       });
     });
 
@@ -433,16 +434,16 @@ describe("ResourceStore", () => {
   });
 
   describe("setError", () => {
-    it("should set error message", () => {
+    it("should set error", () => {
       act(() => {
-        useResourceStore.getState().setError("Custom error");
+        useResourceStore.getState().setError(toKubeliError("Custom error"));
       });
 
-      expect(useResourceStore.getState().error).toBe("Custom error");
+      expect(useResourceStore.getState().error?.message).toBe("Custom error");
     });
 
     it("should clear error when set to null", () => {
-      useResourceStore.setState({ error: "Previous error" });
+      useResourceStore.setState({ error: toKubeliError("Previous error") });
 
       act(() => {
         useResourceStore.getState().setError(null);
