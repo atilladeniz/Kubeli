@@ -93,6 +93,20 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
+/// Set the tray button's highlight state (the rounded bg shown while popup is open).
+/// macOS handles this automatically for NSMenu-based items, but our custom popup
+/// needs manual highlight management via `[NSStatusBarButton setHighlighted:]`.
+#[cfg(target_os = "macos")]
+fn set_tray_highlight(highlighted: bool) {
+    let button_ptr = TRAY_BUTTON_PTR.load(std::sync::atomic::Ordering::Relaxed);
+    if button_ptr != 0 {
+        unsafe {
+            let button = button_ptr as cocoa::base::id;
+            let _: () = msg_send![button, setHighlighted: highlighted];
+        }
+    }
+}
+
 fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     let Some(popup) = app.get_webview_window("tray-popup") else {
         tracing::error!("tray-popup window not found");
@@ -101,6 +115,8 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
 
     if popup.is_visible().unwrap_or(false) {
         let _ = popup.hide();
+        #[cfg(target_os = "macos")]
+        set_tray_highlight(false);
         return;
     }
 
@@ -163,6 +179,8 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     }
 
     let _ = popup.show();
+    #[cfg(target_os = "macos")]
+    set_tray_highlight(true);
     // On macOS, use makeKeyAndOrderFront: directly instead of Tauri's set_focus().
     // Tauri's set_focus() calls [NSApp activateIgnoringOtherApps:YES] which activates
     // the whole app, causing a space switch away from the fullscreen app.
@@ -523,6 +541,8 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     LAST_POPUP_HIDE_MS
                         .store(now_ms(), std::sync::atomic::Ordering::Relaxed);
                     let _ = p.hide();
+                    #[cfg(target_os = "macos")]
+                    set_tray_highlight(false);
                 }
             });
         }
@@ -538,6 +558,7 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             if popup_for_monitor.is_visible().unwrap_or(false) {
                 LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
                 let _ = popup_for_monitor.hide();
+                set_tray_highlight(false);
             }
         });
         let handler = handler.copy();
@@ -569,6 +590,7 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                             LAST_POPUP_HIDE_MS
                                 .store(now_ms(), std::sync::atomic::Ordering::Relaxed);
                             let _ = popup_for_local.hide();
+                            set_tray_highlight(false);
                         }
                     }
                 }
