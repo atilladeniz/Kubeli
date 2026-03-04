@@ -96,6 +96,52 @@ static ORIGINAL_HIGHLIGHT_IMP: std::sync::atomic::AtomicUsize =
 static ALLOW_TRAY_HIGHLIGHT: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
+/// Ensure a custom NSPanel subclass exists that can become key.
+/// Some borderless/non-activating panel setups report `canBecomeKeyWindow = NO`,
+/// which blocks keyboard input in embedded webviews.
+#[cfg(target_os = "macos")]
+fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
+    use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
+
+    if let Some(existing) = Class::get("KubeliTrayPanel") {
+        return Some(existing as *const _);
+    }
+
+    let superclass = Class::get("NSPanel")?;
+    let mut decl = objc::declare::ClassDecl::new("KubeliTrayPanel", superclass)?;
+
+    extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
+        YES
+    }
+
+    extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
+        NO
+    }
+
+    // Private selector used by AppKit for nonactivating panel behavior.
+    extern "C" fn is_nonactivating_panel(_: &Object, _: Sel) -> BOOL {
+        YES
+    }
+
+    unsafe {
+        decl.add_method(
+            sel!(canBecomeKeyWindow),
+            can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
+        );
+        decl.add_method(
+            sel!(canBecomeMainWindow),
+            can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
+        );
+        decl.add_method(
+            sel!(_isNonactivatingPanel),
+            is_nonactivating_panel as extern "C" fn(&Object, Sel) -> BOOL,
+        );
+    }
+
+    let registered = decl.register();
+    Some(registered as *const _)
+}
+
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -287,7 +333,6 @@ fn configure_macos_popup(popup: &tauri::WebviewWindow) {
     use cocoa::appkit::{NSWindow, NSWindowCollectionBehavior};
     #[allow(deprecated)]
     use cocoa::base::id;
-    use objc::runtime::Class;
 
     extern "C" {
         fn object_setClass(
@@ -300,21 +345,33 @@ fn configure_macos_popup(popup: &tauri::WebviewWindow) {
         #[allow(deprecated)]
         let ns_win = popup.ns_window().unwrap() as id;
 
-        // ISA swizzle: convert NSWindow → NSPanel
-        // NSPanel is designed for auxiliary floating windows like popups.
-        // It supports NonactivatingPanelMask and works properly above fullscreen apps.
-        if let Some(panel_class) = Class::get("NSPanel") {
-            object_setClass(ns_win as *mut _, panel_class as *const _);
-            tracing::info!("Tray popup: ISA-swizzled NSWindow → NSPanel");
+        // ISA swizzle: convert NSWindow → custom NSPanel subclass.
+        // We force `canBecomeKeyWindow = YES` to ensure text inputs in the webview
+        // receive keyboard events while keeping non-activating popup behavior.
+        if let Some(panel_class) = ensure_tray_panel_class() {
+            object_setClass(ns_win as *mut _, panel_class);
+            tracing::info!("Tray popup: ISA-swizzled NSWindow → KubeliTrayPanel");
         } else {
-            tracing::warn!("NSPanel class not found, popup may not behave correctly");
+            tracing::warn!("KubeliTrayPanel class not available, popup may not behave correctly");
         }
 
         // Add NSNonactivatingPanelMask (1 << 7) — panel doesn't activate its owning app.
         // This means clicking the popup won't make "Kubeli" the active app,
         // so clicking outside (even on the desktop) properly dismisses it.
+        let nonactivating_mask = 1u64 << 7;
         let mask: u64 = msg_send![ns_win, styleMask];
-        let _: () = msg_send![ns_win, setStyleMask: mask | (1u64 << 7)];
+        let _: () = msg_send![ns_win, setStyleMask: mask | nonactivating_mask];
+
+        // Tauri creates the window as NSWindow first; we then swizzle it to NSPanel and
+        // apply NSNonactivatingPanelMask post-init. In that flow, AppKit can leave the
+        // window-server "prevents activation" tag stale, which makes the panel appear key
+        // but drop keyboard input. Force-sync the tag so text inputs (e.g. tray search)
+        // receive keystrokes reliably.
+        let responds_set_prevents_activation: objc::runtime::BOOL =
+            msg_send![ns_win, respondsToSelector: sel!(_setPreventsActivation:)];
+        if responds_set_prevents_activation == objc::runtime::YES {
+            let _: () = msg_send![ns_win, _setPreventsActivation: objc::runtime::YES];
+        }
 
         // NSPanel-specific properties
         let _: () = msg_send![ns_win, setFloatingPanel: objc::runtime::YES];
