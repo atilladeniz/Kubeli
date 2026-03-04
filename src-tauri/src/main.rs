@@ -1,5 +1,7 @@
 // Prevents additional console window on Windows in release
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+// objc 0.2 macros use cfg(feature = "cargo-clippy") internally
+#![allow(unexpected_cfgs)]
 
 mod ai;
 mod commands;
@@ -85,6 +87,14 @@ static DARK_NS_IMAGE: std::sync::atomic::AtomicUsize = std::sync::atomic::Atomic
 /// Pointer to Kubeli's NSStatusBarButton for direct `setImage:` calls.
 #[cfg(target_os = "macos")]
 static TRAY_BUTTON_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+/// Original `highlight:` IMP before swizzle, stored as usize.
+#[cfg(target_os = "macos")]
+static ORIGINAL_HIGHLIGHT_IMP: std::sync::atomic::AtomicUsize =
+    std::sync::atomic::AtomicUsize::new(0);
+/// Gate for the swizzled `highlight:` — only allows highlight when popup is open.
+#[cfg(target_os = "macos")]
+static ALLOW_TRAY_HIGHLIGHT: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -93,20 +103,48 @@ fn now_ms() -> u64 {
         .as_millis() as u64
 }
 
-/// Set the tray button's highlight state (the rounded bg shown while popup is open).
-/// macOS handles this automatically for NSMenu-based items, but our custom popup
-/// needs manual highlight management via `[NSStatusBarButton setHighlighted:]`.
+/// Swizzled replacement for `[NSStatusBarButton highlight:]`.
+/// Suppresses the automatic mouseDown highlight — only allows highlight
+/// when `ALLOW_TRAY_HIGHLIGHT` is true (i.e., popup is open).
+/// Un-highlight (flag=NO) always passes through.
 #[cfg(target_os = "macos")]
+unsafe extern "C" fn swizzled_highlight(
+    this: &objc::runtime::Object,
+    sel: objc::runtime::Sel,
+    flag: objc::runtime::BOOL,
+) {
+    if flag == objc::runtime::YES
+        && !ALLOW_TRAY_HIGHLIGHT.load(std::sync::atomic::Ordering::Relaxed)
+    {
+        return;
+    }
+    let orig = ORIGINAL_HIGHLIGHT_IMP.load(std::sync::atomic::Ordering::Relaxed);
+    if orig != 0 {
+        let orig_fn: unsafe extern "C" fn(
+            &objc::runtime::Object,
+            objc::runtime::Sel,
+            objc::runtime::BOOL,
+        ) = std::mem::transmute(orig);
+        orig_fn(this, sel, flag);
+    }
+}
+
+/// Set the tray button's highlight state. Opens the swizzle gate before calling
+/// `highlight:` so our swizzled method allows it through.
+#[cfg(target_os = "macos")]
+#[allow(deprecated)] // cocoa 0.26 types deprecated in favor of objc2
 fn set_tray_highlight(highlighted: bool) {
     let button_ptr = TRAY_BUTTON_PTR.load(std::sync::atomic::Ordering::Relaxed);
     if button_ptr != 0 {
+        ALLOW_TRAY_HIGHLIGHT.store(highlighted, std::sync::atomic::Ordering::Relaxed);
         unsafe {
             let button = button_ptr as cocoa::base::id;
-            let _: () = msg_send![button, setHighlighted: highlighted];
+            let _: () = msg_send![button, highlight: highlighted];
         }
     }
 }
 
+#[allow(deprecated)]
 fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     let Some(popup) = app.get_webview_window("tray-popup") else {
         tracing::error!("tray-popup window not found");
@@ -176,12 +214,20 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
         tracing::info!("showing tray popup at physical ({}, {})", x, final_y);
         let _ = popup.set_position(tauri::PhysicalPosition::new(x as i32, final_y as i32));
     } else {
-        tracing::info!("showing tray popup at physical ({}, {}) (no monitor info)", x, y);
+        tracing::info!(
+            "showing tray popup at physical ({}, {}) (no monitor info)",
+            x,
+            y
+        );
         let _ = popup.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
     }
 
     let _ = popup.show();
-    // Highlight already set on mouseDown — no need to set again here.
+    // Re-assert highlight after show — macOS resets isHighlighted on mouseUp,
+    // so the mouseDown highlight alone isn't enough. Both are needed:
+    // mouseDown prevents the flicker, this re-asserts after macOS resets it.
+    #[cfg(target_os = "macos")]
+    set_tray_highlight(true);
     // On macOS, use makeKeyAndOrderFront: directly instead of Tauri's set_focus().
     // Tauri's set_focus() calls [NSApp activateIgnoringOtherApps:YES] which activates
     // the whole app, causing a space switch away from the fullscreen app.
@@ -199,6 +245,7 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     }
 }
 
+#[allow(deprecated)]
 fn show_main_window(app: &tauri::AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.unminimize();
@@ -234,6 +281,7 @@ fn show_main_window_command(app: tauri::AppHandle) {
 /// - Popup appearing above fullscreen apps
 /// - Popup visible on all Spaces
 #[cfg(target_os = "macos")]
+#[allow(deprecated)]
 fn configure_macos_popup(popup: &tauri::WebviewWindow) {
     #[allow(deprecated)]
     use cocoa::appkit::{NSWindow, NSWindowCollectionBehavior};
@@ -309,6 +357,7 @@ fn update_tray_icon_via_tauri(is_dark: bool) {
 /// Update the tray icon on the button directly using pre-loaded NSImages.
 /// Single `setImage:` call — atomic, no blink.
 #[cfg(target_os = "macos")]
+#[allow(deprecated)]
 fn update_tray_icon_direct(is_dark: bool) {
     let image_ptr = if is_dark {
         DARK_NS_IMAGE.load(std::sync::atomic::Ordering::Relaxed)
@@ -331,6 +380,7 @@ fn update_tray_icon_direct(is_dark: bool) {
 /// then KVO on `effectiveAppearance` triggers instant `setImage:` calls with
 /// pre-loaded template NSImages — single atomic operation, no blink.
 #[cfg(target_os = "macos")]
+#[allow(deprecated)]
 fn setup_appearance_observer(status_item_ptr: usize) {
     use cocoa::base::{id, nil};
     use objc::runtime::Class;
@@ -379,10 +429,39 @@ fn setup_appearance_observer(status_item_ptr: usize) {
             let button: id = msg_send![status_item, button];
             if !button.is_null() {
                 found_button = button;
-                TRAY_BUTTON_PTR.store(
-                    button as usize,
-                    std::sync::atomic::Ordering::Relaxed,
-                );
+                TRAY_BUTTON_PTR.store(button as usize, std::sync::atomic::Ordering::Relaxed);
+                // Swizzle highlight: on NSStatusBarButton to suppress automatic
+                // mouseDown highlight. We gate it via ALLOW_TRAY_HIGHLIGHT so only
+                // our explicit set_tray_highlight(true) calls get through.
+                if let Some(btn_class) = Class::get("NSStatusBarButton") {
+                    extern "C" {
+                        fn class_getInstanceMethod(
+                            cls: *const objc::runtime::Class,
+                            sel: objc::runtime::Sel,
+                        ) -> *const std::ffi::c_void;
+                        fn method_getImplementation(
+                            m: *const std::ffi::c_void,
+                        ) -> *const std::ffi::c_void;
+                        fn method_setImplementation(
+                            m: *const std::ffi::c_void,
+                            imp: *const std::ffi::c_void,
+                        ) -> *const std::ffi::c_void;
+                    }
+                    let method = class_getInstanceMethod(btn_class as *const _, sel!(highlight:));
+                    if !method.is_null() {
+                        let orig = method_getImplementation(method);
+                        ORIGINAL_HIGHLIGHT_IMP
+                            .store(orig as usize, std::sync::atomic::Ordering::Relaxed);
+                        let new_imp = swizzled_highlight
+                            as unsafe extern "C" fn(
+                                &objc::runtime::Object,
+                                objc::runtime::Sel,
+                                objc::runtime::BOOL,
+                            );
+                        method_setImplementation(method, new_imp as *const std::ffi::c_void);
+                        tracing::info!("[TRAY] Swizzled highlight: on NSStatusBarButton");
+                    }
+                }
                 tracing::info!(
                     "[TRAY] Got NSStatusBarButton via ns_status_item(), ptr={:#x}",
                     button as usize
@@ -399,10 +478,8 @@ fn setup_appearance_observer(status_item_ptr: usize) {
             found_button
         } else {
             tracing::info!("[TRAY] Creating hidden observer for KVO fallback");
-            let status_bar: id =
-                msg_send![Class::get("NSStatusBar").unwrap(), systemStatusBar];
-            let observer_item: id =
-                msg_send![status_bar, statusItemWithLength: 0.0f64];
+            let status_bar: id = msg_send![Class::get("NSStatusBar").unwrap(), systemStatusBar];
+            let observer_item: id = msg_send![status_bar, statusItemWithLength: 0.0f64];
             let _: id = msg_send![observer_item, retain];
             msg_send![observer_item, button]
         };
@@ -460,8 +537,7 @@ fn setup_appearance_observer(status_item_ptr: usize) {
                     tracing::info!("[TRAY] KVO: appearance changed, is_dark={}", is_dark);
 
                     // Direct setImage: on button — single atomic call, no blink
-                    let button_ptr = TRAY_BUTTON_PTR
-                        .load(std::sync::atomic::Ordering::Relaxed);
+                    let button_ptr = TRAY_BUTTON_PTR.load(std::sync::atomic::Ordering::Relaxed);
                     if button_ptr != 0 {
                         update_tray_icon_direct(is_dark);
                     } else {
@@ -490,8 +566,7 @@ fn setup_appearance_observer(status_item_ptr: usize) {
             #[allow(deprecated)]
             use cocoa::foundation::NSString as _;
             #[allow(deprecated)]
-            let key_path =
-                cocoa::foundation::NSString::alloc(nil).init_str("effectiveAppearance");
+            let key_path = cocoa::foundation::NSString::alloc(nil).init_str("effectiveAppearance");
             let _: () = msg_send![
                 observe_button,
                 addObserver: observer
@@ -500,14 +575,17 @@ fn setup_appearance_observer(status_item_ptr: usize) {
                 context: std::ptr::null_mut::<std::ffi::c_void>()
             ];
 
-            tracing::info!("[TRAY] Per-Space appearance observer active (direct button mode: {})",
-                !found_button.is_null());
+            tracing::info!(
+                "[TRAY] Per-Space appearance observer active (direct button mode: {})",
+                !found_button.is_null()
+            );
         } else {
             tracing::warn!("KubeliAppearanceObserver class already exists");
         }
     }
 }
 
+#[allow(deprecated)]
 fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Get tray popup window (created from tauri.conf.json) or create fallback
     let popup = if let Some(w) = app.get_webview_window("tray-popup") {
@@ -539,8 +617,7 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             std::thread::spawn(move || {
                 std::thread::sleep(std::time::Duration::from_millis(150));
                 if !p.is_focused().unwrap_or(true) {
-                    LAST_POPUP_HIDE_MS
-                        .store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+                    LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
                     let _ = p.hide();
                     #[cfg(target_os = "macos")]
                     set_tray_highlight(false);
@@ -579,11 +656,10 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         // Local event monitor: catches clicks on other windows within the same app
         // (e.g., clicking the main Kubeli window while the popup is open).
         let popup_for_local = popup.clone();
-        #[allow(deprecated)]
-        let popup_ns_ptr = unsafe { popup.ns_window().unwrap() as usize };
+        let popup_ns_ptr = popup.ns_window().unwrap() as usize;
 
-        let local_handler = block::ConcreteBlock::new(
-            move |event: cocoa::base::id| -> cocoa::base::id {
+        let local_handler =
+            block::ConcreteBlock::new(move |event: cocoa::base::id| -> cocoa::base::id {
                 if popup_for_local.is_visible().unwrap_or(false) {
                     unsafe {
                         let event_window: cocoa::base::id = msg_send![event, window];
@@ -596,8 +672,7 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
                     }
                 }
                 event
-            },
-        );
+            });
         let local_handler = local_handler.copy();
 
         unsafe {
@@ -612,8 +687,7 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // Initial icon — the per-Space appearance observer will set the correct variant immediately.
-    let tray_icon =
-        tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon@2x.png"))?;
+    let tray_icon = tauri::image::Image::from_bytes(include_bytes!("../icons/tray-icon@2x.png"))?;
 
     let _tray = TrayIconBuilder::with_id("kubeli-tray")
         .icon(tray_icon)
@@ -621,22 +695,12 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .tooltip("Kubeli")
         .on_tray_icon_event(|tray: &TrayIcon, event: TrayIconEvent| {
             if let TrayIconEvent::Click {
-                button_state,
+                button_state: tauri::tray::MouseButtonState::Up,
                 rect,
                 ..
             } = event
             {
-                match button_state {
-                    tauri::tray::MouseButtonState::Down => {
-                        // Lock highlight immediately on mouseDown so macOS's
-                        // native mouseUp unhighlight doesn't cause a flicker.
-                        #[cfg(target_os = "macos")]
-                        set_tray_highlight(true);
-                    }
-                    tauri::tray::MouseButtonState::Up => {
-                        toggle_tray_popup(tray.app_handle(), rect);
-                    }
-                }
+                toggle_tray_popup(tray.app_handle(), rect);
             }
         })
         .build(app)?;
@@ -667,7 +731,10 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             })
             .unwrap_or(0);
 
-        tracing::info!("[TRAY] NSStatusItem ptr from ns_status_item(): {:#x}", status_item_ptr);
+        tracing::info!(
+            "[TRAY] NSStatusItem ptr from ns_status_item(): {:#x}",
+            status_item_ptr
+        );
         setup_appearance_observer(status_item_ptr);
     }
 
