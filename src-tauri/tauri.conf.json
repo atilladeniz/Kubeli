@@ -41,7 +41,7 @@
         "transparent": true,
         "visible": false,
         "skipTaskbar": true,
-        "focus": true,
+        "focus": false,
         "windowEffects": {
           "effects": ["hudWindow"],
           "state": "active",

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { Search, ArrowRight, Loader2, ChevronDown, Check } from "lucide-react";
 import { listPods, listServices } from "@/lib/tauri/commands";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
@@ -16,9 +16,10 @@ interface ForwardableItem {
 export function ForwardTab() {
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<ForwardableItem[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [forwardingId, setForwardingId] = useState<string | null>(null);
   const [nsOpen, setNsOpen] = useState(false);
+  const hasLoaded = useRef(false);
   const startForward = usePortForwardStore((s) => s.startForward);
   const forwards = usePortForwardStore((s) => s.forwards);
   const namespaces = useClusterStore((s) => s.namespaces);
@@ -40,7 +41,7 @@ export function ForwardTab() {
   }, [selectedNamespaces]);
 
   const fetchResources = useCallback(async () => {
-    setIsLoading(true);
+    setIsRefreshing(true);
     try {
       const [pods, services] = await Promise.all([
         listPods().catch(() => [] as PodInfo[]),
@@ -77,10 +78,11 @@ export function ForwardTab() {
       }
 
       setItems(forwardable);
+      hasLoaded.current = true;
     } catch (err) {
       console.error("Failed to fetch resources:", err);
     } finally {
-      setIsLoading(false);
+      setIsRefreshing(false);
     }
   }, []);
 
@@ -90,7 +92,7 @@ export function ForwardTab() {
 
   // Refetch when namespace selection changes
   useEffect(() => {
-    if (!isLoading) {
+    if (hasLoaded.current) {
       fetchResources();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -150,6 +152,9 @@ export function ForwardTab() {
     }
   };
 
+  // First load with no cached data: show centered spinner
+  const isFirstLoad = !hasLoaded.current && isRefreshing;
+
   return (
     <div className="flex flex-col h-full">
       {/* Namespace selector + Search */}
@@ -161,7 +166,12 @@ export function ForwardTab() {
             className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] bg-white/[0.04] hover:bg-white/[0.06] rounded-md text-foreground transition-colors"
           >
             <span className="truncate text-foreground">{nsLabel}</span>
-            <ChevronDown className={`h-3 w-3 text-muted-foreground shrink-0 ml-1 transition-transform ${nsOpen ? "rotate-180" : ""}`} />
+            <div className="flex items-center gap-1 shrink-0 ml-1">
+              {isRefreshing && hasLoaded.current && (
+                <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground/50" />
+              )}
+              <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${nsOpen ? "rotate-180" : ""}`} />
+            </div>
           </button>
           {nsOpen && (
             <>
@@ -221,7 +231,7 @@ export function ForwardTab() {
 
       {/* List */}
       <div className="flex-1 overflow-y-auto overscroll-none px-3 pb-2">
-        {isLoading ? (
+        {isFirstLoad ? (
           <div className="flex items-center justify-center h-24">
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>

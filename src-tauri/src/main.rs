@@ -123,6 +123,15 @@ fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
         YES
     }
 
+    // ESC key dismisses the panel (macOS sends cancelOperation: for Escape)
+    extern "C" fn cancel_operation(this: &Object, _: Sel, _sender: cocoa::base::id) {
+        unsafe {
+            LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+            let _: () = msg_send![this, orderOut: cocoa::base::nil];
+            set_tray_highlight(false);
+        }
+    }
+
     unsafe {
         decl.add_method(
             sel!(canBecomeKeyWindow),
@@ -135,6 +144,10 @@ fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
         decl.add_method(
             sel!(_isNonactivatingPanel),
             is_nonactivating_panel as extern "C" fn(&Object, Sel) -> BOOL,
+        );
+        decl.add_method(
+            sel!(cancelOperation:),
+            cancel_operation as extern "C" fn(&Object, Sel, cocoa::base::id),
         );
     }
 
@@ -269,6 +282,8 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     }
 
     let _ = popup.show();
+    // Notify the popup frontend to re-sync state with the backend
+    let _ = popup.emit("tray-popup-shown", ());
     // Re-assert highlight after show — macOS resets isHighlighted on mouseUp,
     // so the mouseDown highlight alone isn't enough. Both are needed:
     // mouseDown prevents the flicker, this re-asserts after macOS resets it.
@@ -665,6 +680,17 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Configure native macOS popup behavior (window level, Spaces, fullscreen)
     #[cfg(target_os = "macos")]
     configure_macos_popup(&popup);
+
+    // Explicitly hide + orderOut the popup after setup.
+    // Tauri's `visible: false` config is unreliable on macOS (tauri#8981) —
+    // the window can briefly flash during startup. Double-ensure it's hidden.
+    let _ = popup.hide();
+    #[cfg(target_os = "macos")]
+    unsafe {
+        #[allow(deprecated)]
+        let ns_win = popup.ns_window().unwrap() as cocoa::base::id;
+        let _: () = msg_send![ns_win, orderOut: cocoa::base::nil];
+    }
 
     // Auto-dismiss popup on focus loss (with delay to avoid flicker from tray click)
     let popup_clone = popup.clone();

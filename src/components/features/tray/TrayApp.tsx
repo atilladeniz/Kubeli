@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { TrayPopup } from "./TrayPopup";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
@@ -6,13 +6,13 @@ import { getConnectionStatus } from "@/lib/tauri/commands/cluster";
 
 export function TrayApp() {
   const [isReady, setIsReady] = useState(false);
+  const initialized = useRef(false);
   const initialize = usePortForwardStore((s) => s.initialize);
   const fetchClusters = useClusterStore((s) => s.fetchClusters);
   const fetchNamespaces = useClusterStore((s) => s.fetchNamespaces);
 
-  // Sync cluster state with backend (shared with main window)
-  const syncClusterState = useCallback(async () => {
-    await fetchClusters();
+  // Lightweight sync: only check connection status, don't re-fetch clusters
+  const syncConnectionState = useCallback(async () => {
     const status = await getConnectionStatus();
     const clusters = useClusterStore.getState().clusters;
 
@@ -30,26 +30,36 @@ export function TrayApp() {
         currentCluster: null,
       });
     }
-  }, [fetchClusters, fetchNamespaces]);
+  }, [fetchNamespaces]);
 
-  // Initial setup
+  // Initial setup (runs once)
   useEffect(() => {
+    if (initialized.current) return;
+    initialized.current = true;
+
     const init = async () => {
-      await syncClusterState();
+      await fetchClusters();
+      await syncConnectionState();
       await initialize();
       setIsReady(true);
     };
     init();
-  }, [syncClusterState, initialize]);
+  }, [fetchClusters, syncConnectionState, initialize]);
 
-  // Re-sync every time the tray window becomes visible (focus event)
+  // Re-sync every time the tray popup is shown (event from Rust backend)
   useEffect(() => {
-    const handleFocus = () => {
-      syncClusterState();
+    let unlisten: (() => void) | null = null;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("tray-popup-shown", () => {
+        syncConnectionState();
+      }).then((fn) => {
+        unlisten = fn;
+      });
+    });
+    return () => {
+      unlisten?.();
     };
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
-  }, [syncClusterState]);
+  }, [syncConnectionState]);
 
   // Prevent context menu in tray popup
   useEffect(() => {
@@ -80,7 +90,7 @@ export function TrayApp() {
 
   if (!isReady) {
     return (
-      <div className="h-[480px] w-[360px] flex items-center justify-center bg-background/80 backdrop-blur-sm">
+      <div className="h-[480px] w-[360px] flex items-center justify-center bg-background/80 backdrop-blur-xl">
         <div className="text-muted-foreground text-xs">Loading...</div>
       </div>
     );
