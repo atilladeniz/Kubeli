@@ -124,6 +124,8 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     // event monitor from the same click that triggered this tray event), treat
     // as toggle-off and don't reopen.
     if now_ms() - LAST_POPUP_HIDE_MS.load(std::sync::atomic::Ordering::Relaxed) < 500 {
+        #[cfg(target_os = "macos")]
+        set_tray_highlight(false);
         return;
     }
 
@@ -179,8 +181,7 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     }
 
     let _ = popup.show();
-    #[cfg(target_os = "macos")]
-    set_tray_highlight(true);
+    // Highlight already set on mouseDown — no need to set again here.
     // On macOS, use makeKeyAndOrderFront: directly instead of Tauri's set_focus().
     // Tauri's set_focus() calls [NSApp activateIgnoringOtherApps:YES] which activates
     // the whole app, causing a space switch away from the fullscreen app.
@@ -620,12 +621,22 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         .tooltip("Kubeli")
         .on_tray_icon_event(|tray: &TrayIcon, event: TrayIconEvent| {
             if let TrayIconEvent::Click {
-                button_state: tauri::tray::MouseButtonState::Up,
+                button_state,
                 rect,
                 ..
             } = event
             {
-                toggle_tray_popup(tray.app_handle(), rect);
+                match button_state {
+                    tauri::tray::MouseButtonState::Down => {
+                        // Lock highlight immediately on mouseDown so macOS's
+                        // native mouseUp unhighlight doesn't cause a flicker.
+                        #[cfg(target_os = "macos")]
+                        set_tray_highlight(true);
+                    }
+                    tauri::tray::MouseButtonState::Up => {
+                        toggle_tray_popup(tray.app_handle(), rect);
+                    }
+                }
             }
         })
         .build(app)?;
