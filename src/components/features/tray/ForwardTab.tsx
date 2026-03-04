@@ -3,7 +3,11 @@ import { Search, ArrowRight, Loader2, ChevronDown, Check } from "lucide-react";
 import { listPods, listServices } from "@/lib/tauri/commands";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
-import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
 import type { PodInfo, ServiceInfo } from "@/lib/types";
 
 interface ForwardableItem {
@@ -104,7 +108,7 @@ export function ForwardTab() {
 
     if (selectedNamespaces.length > 0) {
       result = result.filter((item) =>
-        selectedNamespaces.includes(item.namespace)
+        selectedNamespaces.includes(item.namespace),
       );
     }
 
@@ -113,7 +117,7 @@ export function ForwardTab() {
       result = result.filter(
         (item) =>
           item.name.toLowerCase().includes(q) ||
-          item.namespace.toLowerCase().includes(q)
+          item.namespace.toLowerCase().includes(q),
       );
     }
     return result;
@@ -134,7 +138,7 @@ export function ForwardTab() {
       (f) =>
         f.name === item.name &&
         f.namespace === item.namespace &&
-        f.target_port === item.port
+        f.target_port === item.port,
     );
   };
 
@@ -142,12 +146,7 @@ export function ForwardTab() {
     const itemId = `${item.targetType}-${item.namespace}-${item.name}-${item.port}`;
     setForwardingId(itemId);
     try {
-      await startForward(
-        item.namespace,
-        item.name,
-        item.targetType,
-        item.port
-      );
+      await startForward(item.namespace, item.name, item.targetType, item.port);
     } finally {
       setForwardingId(null);
     }
@@ -171,23 +170,38 @@ export function ForwardTab() {
               {isRefreshing && hasLoaded.current && (
                 <Loader2 className="h-2.5 w-2.5 animate-spin text-muted-foreground/50" />
               )}
-              <ChevronDown className={`h-3 w-3 text-muted-foreground transition-transform ${nsOpen ? "rotate-180" : ""}`} />
+              <ChevronDown
+                className={`h-3 w-3 text-muted-foreground transition-transform ${nsOpen ? "rotate-180" : ""}`}
+              />
             </div>
           </button>
           {nsOpen && (
             <>
-              <div className="fixed inset-0 z-10" onClick={() => setNsOpen(false)} />
+              <div
+                className="fixed inset-0 z-10"
+                onClick={() => setNsOpen(false)}
+              />
               <div
                 className="absolute z-20 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto overscroll-none border border-white/[0.1]"
                 style={{ backgroundColor: "#2a2a2a" }}
               >
                 <button
-                  onClick={() => { selectAllNamespaces(); setNsOpen(false); }}
+                  onClick={() => {
+                    selectAllNamespaces();
+                    setNsOpen(false);
+                  }}
                   className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors hover:brightness-125"
-                  style={{ backgroundColor: selectedNamespaces.length === 0 ? "#333" : "transparent" }}
+                  style={{
+                    backgroundColor:
+                      selectedNamespaces.length === 0 ? "#333" : "transparent",
+                  }}
                 >
-                  <div className={`h-3 w-3 rounded-sm border flex items-center justify-center shrink-0 ${selectedNamespaces.length === 0 ? "bg-primary border-primary" : "border-muted-foreground/40"}`}>
-                    {selectedNamespaces.length === 0 && <Check className="h-2 w-2 text-primary-foreground" />}
+                  <div
+                    className={`h-3 w-3 rounded-sm border flex items-center justify-center shrink-0 ${selectedNamespaces.length === 0 ? "bg-primary border-primary" : "border-muted-foreground/40"}`}
+                  >
+                    {selectedNamespaces.length === 0 && (
+                      <Check className="h-2 w-2 text-primary-foreground" />
+                    )}
                   </div>
                   <span className="text-foreground">All Namespaces</span>
                 </button>
@@ -198,10 +212,16 @@ export function ForwardTab() {
                       key={ns}
                       onClick={() => toggleNamespace(ns)}
                       className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors hover:brightness-125"
-                      style={{ backgroundColor: selected ? "#333" : "transparent" }}
+                      style={{
+                        backgroundColor: selected ? "#333" : "transparent",
+                      }}
                     >
-                      <div className={`h-3 w-3 rounded-sm border flex items-center justify-center shrink-0 ${selected ? "bg-primary border-primary" : "border-muted-foreground/40"}`}>
-                        {selected && <Check className="h-2 w-2 text-primary-foreground" />}
+                      <div
+                        className={`h-3 w-3 rounded-sm border flex items-center justify-center shrink-0 ${selected ? "bg-primary border-primary" : "border-muted-foreground/40"}`}
+                      >
+                        {selected && (
+                          <Check className="h-2 w-2 text-primary-foreground" />
+                        )}
                       </div>
                       <span className="text-foreground truncate">{ns}</span>
                     </button>
@@ -242,8 +262,8 @@ export function ForwardTab() {
           </div>
         ) : (
           Array.from(grouped.entries()).map(([namespace, nsItems]) => (
-            <div key={namespace} className="mb-1.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium px-1 py-1">
+            <div key={namespace}>
+              <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium px-1 py-1">
                 {namespace}
               </div>
               {nsItems.map((item, idx) => {
@@ -263,7 +283,9 @@ export function ForwardTab() {
                       <div className="text-[10px] text-muted-foreground/60 leading-tight mt-0.5">
                         :{item.port}
                         {item.portName ? ` (${item.portName})` : ""}
-                        <span className="ml-1 opacity-60">{item.targetType}</span>
+                        <span className="ml-1 opacity-60">
+                          {item.targetType}
+                        </span>
                       </div>
                     </div>
                     <Tooltip>
@@ -276,7 +298,7 @@ export function ForwardTab() {
                               ? "text-green-500/70"
                               : isForwarding
                                 ? "text-muted-foreground"
-                                : "text-muted-foreground/40 hover:text-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100"
+                                : "text-muted-foreground/40 hover:text-primary hover:bg-primary/10"
                           }`}
                         >
                           {isForwarding ? (
