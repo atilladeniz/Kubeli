@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.54] - 2026-03-04
+
+- Fixed main window crashing on close by hiding to system tray instead (macOS)
+
 ## [0.3.53] - 2026-03-04
 
 - Added system tray quick access for port-forwarding
