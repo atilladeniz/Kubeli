@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ExternalLink, Power, ChevronDown, Loader2, Circle } from "lucide-react";
 import { ForwardTab } from "./ForwardTab";
 import { ActiveTab } from "./ActiveTab";
@@ -10,6 +10,13 @@ type TabId = "forward" | "active";
 export function TrayPopup() {
   const [activeTab, setActiveTab] = useState<TabId>("forward");
   const [clusterOpen, setClusterOpen] = useState(false);
+
+  // Close dropdown when tray loses focus / gets dismissed
+  useEffect(() => {
+    const handleBlur = () => setClusterOpen(false);
+    window.addEventListener("blur", handleBlur);
+    return () => window.removeEventListener("blur", handleBlur);
+  }, []);
   const [connecting, setConnecting] = useState(false);
   const activeCount = usePortForwardStore((s) => s.forwards.length);
   const clusters = useClusterStore((s) => s.clusters);

@@ -26,6 +26,13 @@ export function ForwardTab() {
   const toggleNamespace = useClusterStore((s) => s.toggleNamespace);
   const selectAllNamespaces = useClusterStore((s) => s.selectAllNamespaces);
 
+  // Close namespace dropdown when tray loses focus / gets dismissed
+  useEffect(() => {
+    const handleBlur = () => setNsOpen(false);
+    window.addEventListener("blur", handleBlur);
+    return () => window.removeEventListener("blur", handleBlur);
+  }, []);
+
   const nsLabel = useMemo(() => {
     if (selectedNamespaces.length === 0) return "All Namespaces";
     if (selectedNamespaces.length === 1) return selectedNamespaces[0];
