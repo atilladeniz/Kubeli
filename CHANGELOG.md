@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.53] - 2026-03-04
+
+- Added system tray quick access for port-forwarding
+- Added post-release CI improvements and Linux support
+- Fixed cargo-deny advisory database fetch to use system git
+- Updated lucide-react, rmcp, and CI action dependencies
+
 ## [0.3.52] - 2026-03-02
 
 - Added full CI/CD publish workflow for all platforms
