@@ -62,7 +62,11 @@ export function TrayPopup() {
               className={`h-2 w-2 shrink-0 ${isConnected ? "fill-green-500 text-green-500" : "fill-muted-foreground/30 text-muted-foreground/30"}`}
             />
             <span className="text-[13px] font-semibold text-foreground truncate">
-              {connecting ? "Connecting..." : currentCluster?.name || "No Cluster"}
+              {connecting
+                ? "Connecting..."
+                : currentCluster
+                  ? currentCluster.name
+                  : "Cluster wählen"}
             </span>
             <ChevronDown className={`h-3 w-3 text-muted-foreground shrink-0 transition-transform ${clusterOpen ? "rotate-180" : ""}`} />
           </button>

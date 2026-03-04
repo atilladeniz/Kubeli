@@ -2,26 +2,42 @@ import { useEffect, useState } from "react";
 import { TrayPopup } from "./TrayPopup";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import { getConnectionStatus } from "@/lib/tauri/commands/cluster";
 
 export function TrayApp() {
   const [isReady, setIsReady] = useState(false);
   const initialize = usePortForwardStore((s) => s.initialize);
   const fetchClusters = useClusterStore((s) => s.fetchClusters);
-  const refreshConnectionStatus = useClusterStore(
-    (s) => s.refreshConnectionStatus,
-  );
   const fetchNamespaces = useClusterStore((s) => s.fetchNamespaces);
 
   useEffect(() => {
     const init = async () => {
       await fetchClusters();
-      await refreshConnectionStatus();
-      await fetchNamespaces();
+
+      // Sync with backend: only show a cluster if actually connected
+      const status = await getConnectionStatus();
+      const clusters = useClusterStore.getState().clusters;
+      if (status.connected && status.context) {
+        const connectedCluster =
+          clusters.find((c) => c.context === status.context) || null;
+        useClusterStore.setState({
+          isConnected: true,
+          currentCluster: connectedCluster,
+        });
+        await fetchNamespaces();
+      } else {
+        // No active connection - start with cluster picker
+        useClusterStore.setState({
+          isConnected: false,
+          currentCluster: null,
+        });
+      }
+
       await initialize();
       setIsReady(true);
     };
     init();
-  }, [fetchClusters, refreshConnectionStatus, fetchNamespaces, initialize]);
+  }, [fetchClusters, fetchNamespaces, initialize]);
 
   // Prevent context menu in tray popup
   useEffect(() => {
