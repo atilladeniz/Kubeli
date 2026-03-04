@@ -35,7 +35,9 @@ struct Args {
 use objc::{msg_send, sel, sel_impl};
 #[cfg(target_os = "macos")]
 use tauri::menu::{AboutMetadataBuilder, MenuBuilder, SubmenuBuilder};
+#[cfg(target_os = "macos")]
 use tauri::tray::{TrayIcon, TrayIconBuilder, TrayIconEvent};
+#[cfg(target_os = "macos")]
 use tauri::webview::WebviewWindowBuilder;
 #[allow(unused_imports)]
 use tauri::{Emitter, Manager};
@@ -73,6 +75,7 @@ fn extend_path_with_common_cli_dirs() {
 /// Timestamp (ms since UNIX epoch) of the last auto-hide by event monitors.
 /// Used to debounce: if the popup was just hidden by a click that also triggered
 /// the tray icon event, we don't reopen it.
+#[cfg(target_os = "macos")]
 static LAST_POPUP_HIDE_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
 
 /// App handle for the Tauri API fallback path.
@@ -155,6 +158,7 @@ fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
     Some(registered as *const _)
 }
 
+#[cfg(target_os = "macos")]
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -204,6 +208,7 @@ fn set_tray_highlight(highlighted: bool) {
 }
 
 #[allow(deprecated)]
+#[cfg(target_os = "macos")]
 fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     let Some(popup) = app.get_webview_window("tray-popup") else {
         tracing::error!("tray-popup window not found");
@@ -330,7 +335,8 @@ fn show_main_window(app: &tauri::AppHandle) {
 #[tauri::command]
 fn show_main_window_command(app: tauri::AppHandle) {
     show_main_window(&app);
-    // Also hide the tray popup
+    // Also hide the tray popup (macOS only)
+    #[cfg(target_os = "macos")]
     if let Some(popup) = app.get_webview_window("tray-popup") {
         let _ = popup.hide();
     }
@@ -660,6 +666,7 @@ fn setup_appearance_observer(status_item_ptr: usize) {
 }
 
 #[allow(deprecated)]
+#[cfg(target_os = "macos")]
 fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Get tray popup window (created from tauri.conf.json) or create fallback
     let popup = if let Some(w) = app.get_webview_window("tray-popup") {
@@ -896,7 +903,8 @@ fn main() {
                 .expect("Failed to create session store");
             app.manage(session_store);
 
-            // Setup system tray icon
+            // Setup system tray icon (macOS only for now)
+            #[cfg(target_os = "macos")]
             if let Err(e) = setup_tray(app) {
                 tracing::error!("Failed to setup tray icon: {}", e);
             }
