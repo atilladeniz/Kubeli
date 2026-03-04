@@ -1196,6 +1196,36 @@ fn main() {
             ai::commands::ai_get_resume_context,
             ai::commands::ai_cleanup_old_sessions,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .on_window_event(|window, event| {
+            // On macOS, closing the main window hides it instead of quitting.
+            // The app stays alive in the system tray. Use Cmd+Q or the tray
+            // Quit button to actually exit.
+            #[cfg(target_os = "macos")]
+            if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                if window.label() == "main" {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+            match &event {
+                // Prevent the app from exiting when the last window is hidden.
+                // On macOS the tray icon keeps the app alive; the user quits via
+                // Cmd+Q or the tray Quit button.
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::ExitRequested { api, .. } => {
+                    api.prevent_exit();
+                }
+                // Re-show the main window when the user clicks the Dock icon
+                // while all windows are hidden (macOS "reopen" event).
+                #[cfg(target_os = "macos")]
+                tauri::RunEvent::Reopen { .. } => {
+                    show_main_window(app_handle);
+                }
+                _ => {}
+            }
+        });
 }
