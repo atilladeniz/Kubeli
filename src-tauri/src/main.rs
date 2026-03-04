@@ -281,6 +281,8 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
         let _ = popup.set_position(tauri::PhysicalPosition::new(x as i32, y as i32));
     }
 
+    // Sync theme with transitions disabled to prevent color animation flash
+    let _ = popup.eval("if(window.__applyThemeNoTransition)window.__applyThemeNoTransition()");
     let _ = popup.show();
     // Notify the popup frontend to re-sync state with the backend
     let _ = popup.emit("tray-popup-shown", ());

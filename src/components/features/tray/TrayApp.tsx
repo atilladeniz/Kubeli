@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { TrayPopup } from "./TrayPopup";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { getConnectionStatus } from "@/lib/tauri/commands/cluster";
 
 export function TrayApp() {
@@ -46,11 +47,39 @@ export function TrayApp() {
     init();
   }, [fetchClusters, syncConnectionState, initialize]);
 
+  // Sync Zustand store from shared localStorage (DOM classes already
+  // applied by Rust eval of __applyThemeNoTransition before show())
+  const syncThemeFromStorage = useCallback(() => {
+    try {
+      const raw = localStorage.getItem("kubeli-ui-settings");
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      const theme = parsed?.state?.settings?.theme;
+      if (!theme) return;
+      let resolved: "light" | "dark" | "classic-dark";
+      if (theme === "system") {
+        resolved = window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      } else if (theme === "classic-dark") {
+        resolved = "classic-dark";
+      } else {
+        resolved = theme as "light" | "dark";
+      }
+      const vibrancy = parsed?.state?.settings?.vibrancyLevel || "standard";
+      useUIStore.setState((state) => ({
+        settings: { ...state.settings, theme, vibrancyLevel: vibrancy },
+        resolvedTheme: resolved,
+      }));
+    } catch {
+      // Ignore parse errors
+    }
+  }, []);
+
   // Re-sync every time the tray popup is shown (event from Rust backend)
   useEffect(() => {
     let unlisten: (() => void) | null = null;
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("tray-popup-shown", () => {
+        syncThemeFromStorage();
         syncConnectionState();
       }).then((fn) => {
         unlisten = fn;
@@ -59,7 +88,38 @@ export function TrayApp() {
     return () => {
       unlisten?.();
     };
-  }, [syncConnectionState]);
+  }, [syncConnectionState, syncThemeFromStorage]);
+
+  // Also sync theme live when the event fires (while popup is open)
+  useEffect(() => {
+    let unlisten: (() => void) | null = null;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen<{ theme: string; resolvedTheme: "light" | "dark" | "classic-dark" }>(
+        "theme-changed",
+        (event) => {
+          const { theme, resolvedTheme } = event.payload;
+          // Disable transitions, apply theme, re-enable
+          const root = document.documentElement;
+          root.classList.add("no-transitions");
+          root.classList.remove("dark", "light", "classic-dark");
+          root.classList.add(resolvedTheme);
+          // Force style recalc then re-enable transitions
+          getComputedStyle(root).opacity;
+          root.classList.remove("no-transitions");
+
+          useUIStore.setState((state) => ({
+            settings: { ...state.settings, theme: theme as typeof state.settings.theme },
+            resolvedTheme,
+          }));
+        }
+      ).then((fn) => {
+        unlisten = fn;
+      });
+    });
+    return () => {
+      unlisten?.();
+    };
+  }, []);
 
   // Prevent context menu in tray popup
   useEffect(() => {

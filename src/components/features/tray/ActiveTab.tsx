@@ -78,7 +78,7 @@ export function ActiveTab() {
         {forwards.map((forward) => (
           <div
             key={forward.forward_id}
-            className="flex items-center gap-2 px-1.5 py-2 rounded-md hover:bg-white/[0.04] group transition-colors cursor-pointer"
+            className="flex items-center gap-2 px-1.5 py-2 rounded-md hover:bg-muted/40 group transition-colors cursor-pointer"
             onClick={() => handleCopy(forward.forward_id, forward.local_port)}
             title="Click to copy localhost address"
           >
@@ -107,7 +107,7 @@ export function ActiveTab() {
                   e.stopPropagation();
                   handleOpenBrowser(forward.local_port);
                 }}
-                className="p-1 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-white/[0.06] transition-colors"
+                className="p-1 rounded-md text-muted-foreground/60 hover:text-foreground hover:bg-muted/50 transition-colors"
                 title="Open in browser"
               >
                 <ExternalLink className="h-3 w-3" />

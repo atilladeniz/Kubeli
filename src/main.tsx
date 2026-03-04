@@ -22,7 +22,9 @@ function isTrayPopup(): boolean {
 
 const rootElement = document.documentElement;
 rootElement.lang = "en";
-rootElement.classList.add("classic-dark", "overscroll-none");
+// Theme classes are applied by inline <script> in index.html (before CSS loads).
+// Just add non-theme classes here.
+rootElement.classList.add("overscroll-none");
 document.body.classList.add("antialiased", "bg-background", "overscroll-none");
 
 const isTray = isTrayPopup();

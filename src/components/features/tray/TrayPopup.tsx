@@ -5,6 +5,7 @@ import { ActiveTab } from "./ActiveTab";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import packageJson from "../../../../package.json";
 
 type TabId = "forward" | "active";
 
@@ -62,12 +63,12 @@ export function TrayPopup() {
   return (
     <div className="h-[480px] w-[360px] flex flex-col overflow-hidden bg-background/80 backdrop-blur-xl">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 shrink-0">
+      <div className="flex items-center justify-between px-3 py-2 shrink-0 border-b border-border">
         {/* Cluster selector */}
         <div className="relative min-w-0 flex-1 mr-2">
           <button
             onClick={() => setClusterOpen(!clusterOpen)}
-            className="flex items-center gap-1.5 min-w-0 max-w-full px-1.5 py-1 rounded-md hover:bg-white/[0.06] transition-colors"
+            className="flex items-center gap-1.5 min-w-0 max-w-full px-1.5 py-1 rounded-md hover:bg-muted transition-colors"
           >
             <Circle
               className={`h-2 w-2 shrink-0 ${isConnected ? "fill-green-500 text-green-500" : "fill-muted-foreground/30 text-muted-foreground/30"}`}
@@ -85,18 +86,14 @@ export function TrayPopup() {
           {clusterOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setClusterOpen(false)} />
-              <div
-                className="absolute z-20 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto overscroll-none border border-white/[0.1]"
-                style={{ backgroundColor: "#2a2a2a" }}
-              >
+              <div className="absolute z-20 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto overscroll-none border border-border opaque-popover bg-popover">
                 {clusters.map((cluster) => {
                   const isCurrent = currentCluster?.context === cluster.context && isConnected;
                   return (
                     <button
                       key={cluster.context}
                       onClick={() => handleSwitchCluster(cluster.context)}
-                      className={`w-full flex items-center gap-2 px-2.5 py-2 text-[11px] transition-colors hover:brightness-125 first:rounded-t-lg last:rounded-b-lg ${isCurrent ? "text-foreground" : "text-muted-foreground"}`}
-                      style={{ backgroundColor: isCurrent ? "#333" : "transparent" }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-2 text-[11px] transition-colors hover:bg-muted first:rounded-t-lg last:rounded-b-lg ${isCurrent ? "text-foreground" : "text-muted-foreground"}`}
                     >
                       <Circle
                         className={`h-1.5 w-1.5 shrink-0 ${isCurrent ? "fill-green-500 text-green-500" : "fill-transparent text-muted-foreground/30"}`}
@@ -127,7 +124,7 @@ export function TrayPopup() {
             <TooltipTrigger asChild>
               <button
                 onClick={openMainWindow}
-                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
               </button>
@@ -149,14 +146,14 @@ export function TrayPopup() {
       </div>
 
       {/* Tab Switcher */}
-      <div className="px-3 pb-2 shrink-0">
-        <div className="flex bg-white/[0.04] rounded-lg p-0.5">
+      <div className="px-3 py-2 shrink-0">
+        <div className="flex rounded-lg p-0.5 border border-border bg-muted">
           <button
             onClick={() => setActiveTab("forward")}
             className={`flex-1 text-[11px] font-medium py-1.5 rounded-md transition-all ${
               activeTab === "forward"
-                ? "bg-white/[0.08] text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-background text-foreground shadow-sm border border-border"
+                : "text-muted-foreground hover:text-foreground border border-transparent"
             }`}
           >
             Forward
@@ -165,8 +162,8 @@ export function TrayPopup() {
             onClick={() => setActiveTab("active")}
             className={`flex-1 text-[11px] font-medium py-1.5 rounded-md transition-all ${
               activeTab === "active"
-                ? "bg-white/[0.08] text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
+                ? "bg-background text-foreground shadow-sm border border-border"
+                : "text-muted-foreground hover:text-foreground border border-transparent"
             }`}
           >
             Active{activeCount > 0 ? ` (${activeCount})` : ""}
@@ -185,6 +182,13 @@ export function TrayPopup() {
         ) : (
           <ActiveTab />
         )}
+      </div>
+
+      {/* Footer */}
+      <div className="shrink-0 border-t border-border px-3 flex items-center justify-center h-7">
+        <span className="text-[10px] text-muted-foreground leading-none">
+          Kubeli v{packageJson.version}
+        </span>
       </div>
     </div>
   );

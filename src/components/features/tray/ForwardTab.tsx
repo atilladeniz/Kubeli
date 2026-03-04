@@ -163,7 +163,7 @@ export function ForwardTab() {
         <div className="relative">
           <button
             onClick={() => setNsOpen(!nsOpen)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] bg-white/[0.04] hover:bg-white/[0.06] rounded-md text-foreground transition-colors"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] border border-border bg-muted hover:bg-accent rounded-md text-foreground transition-colors"
           >
             <span className="truncate text-foreground">{nsLabel}</span>
             <div className="flex items-center gap-1 shrink-0 ml-1">
@@ -182,19 +182,14 @@ export function ForwardTab() {
                 onClick={() => setNsOpen(false)}
               />
               <div
-                className="absolute z-20 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto overscroll-none border border-white/[0.1]"
-                style={{ backgroundColor: "#2a2a2a" }}
+                className="absolute z-20 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto overscroll-none border border-border opaque-popover bg-popover"
               >
                 <button
                   onClick={() => {
                     selectAllNamespaces();
                     setNsOpen(false);
                   }}
-                  className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors hover:brightness-125"
-                  style={{
-                    backgroundColor:
-                      selectedNamespaces.length === 0 ? "#333" : "transparent",
-                  }}
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors hover:bg-muted ${selectedNamespaces.length === 0 ? "bg-accent" : ""}`}
                 >
                   <div
                     className={`h-3 w-3 rounded-sm border flex items-center justify-center shrink-0 ${selectedNamespaces.length === 0 ? "bg-primary border-primary" : "border-muted-foreground/40"}`}
@@ -211,10 +206,7 @@ export function ForwardTab() {
                     <button
                       key={ns}
                       onClick={() => toggleNamespace(ns)}
-                      className="w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors hover:brightness-125"
-                      style={{
-                        backgroundColor: selected ? "#333" : "transparent",
-                      }}
+                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors hover:bg-muted ${selected ? "bg-accent" : ""}`}
                     >
                       <div
                         className={`h-3 w-3 rounded-sm border flex items-center justify-center shrink-0 ${selected ? "bg-primary border-primary" : "border-muted-foreground/40"}`}
@@ -245,7 +237,7 @@ export function ForwardTab() {
             autoCapitalize="off"
             spellCheck={false}
             data-form-type="other"
-            className="w-full pl-7 pr-3 py-1.5 text-[11px] bg-white/[0.04] rounded-md text-foreground placeholder:text-muted-foreground/60 border-0 outline-none focus:bg-white/[0.06] transition-colors"
+            className="w-full pl-7 pr-3 py-1.5 text-[11px] border border-border bg-muted rounded-md text-foreground placeholder:text-muted-foreground/60 outline-none focus:bg-accent focus:border-border transition-colors"
           />
         </div>
       </div>
@@ -274,7 +266,7 @@ export function ForwardTab() {
                 return (
                   <div
                     key={`${item.name}-${item.port}-${idx}`}
-                    className="flex items-center justify-between px-1.5 py-1.5 rounded-md hover:bg-white/[0.04] group transition-colors"
+                    className="flex items-center justify-between px-1.5 py-1.5 rounded-md hover:bg-accent group transition-colors"
                   >
                     <div className="min-w-0 flex-1">
                       <div className="text-[12px] font-medium text-foreground truncate leading-tight">

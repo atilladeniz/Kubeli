@@ -158,16 +158,23 @@ export const useUIStore = create<UIState>()(
         }));
 
         // Update resolved theme
+        let resolved: "light" | "dark" | "classic-dark";
         if (theme === "system") {
           const isDark =
             typeof window !== "undefined" &&
             window.matchMedia("(prefers-color-scheme: dark)").matches;
-          set({ resolvedTheme: isDark ? "dark" : "light" });
+          resolved = isDark ? "dark" : "light";
         } else if (theme === "classic-dark") {
-          set({ resolvedTheme: "classic-dark" });
+          resolved = "classic-dark";
         } else {
-          set({ resolvedTheme: theme as "light" | "dark" });
+          resolved = theme as "light" | "dark";
         }
+        set({ resolvedTheme: resolved });
+
+        // Broadcast theme change to other windows (e.g. tray popup)
+        import("@tauri-apps/api/event")
+          .then(({ emit }) => emit("theme-changed", { theme, resolvedTheme: resolved }))
+          .catch(() => {});
       },
 
       setLocale: (locale) =>
