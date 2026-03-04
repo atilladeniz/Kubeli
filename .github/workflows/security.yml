@@ -114,8 +114,12 @@ jobs:
               for (const r of run.results||[]) {
                 for (const loc of r.locations||[]) {
                   if (!loc.physicalLocation) loc.physicalLocation = {};
-                  if (!loc.physicalLocation.artifactLocation)
+                  const al = loc.physicalLocation.artifactLocation;
+                  if (!al) {
                     loc.physicalLocation.artifactLocation = { uri: "package-lock.json" };
+                  } else if (!al.uri) {
+                    al.uri = "package-lock.json";
+                  }
                 }
               }
             }
@@ -132,8 +136,8 @@ jobs:
       - name: Fix Trivy Rust SARIF artifact locations
         if: always() && hashFiles('trivy-rust.sarif') != ''
         run: |
-          # Trivy SBOM scans produce results without artifactLocation which
-          # CodeQL rejects. Patch missing locations with a placeholder.
+          # Trivy SBOM scans produce results with empty artifactLocation uri
+          # which CodeQL rejects. Patch empty URIs with a placeholder path.
           node -e '
             const fs = require("fs");
             const s = JSON.parse(fs.readFileSync("trivy-rust.sarif","utf8"));
@@ -141,8 +145,12 @@ jobs:
               for (const r of run.results||[]) {
                 for (const loc of r.locations||[]) {
                   if (!loc.physicalLocation) loc.physicalLocation = {};
-                  if (!loc.physicalLocation.artifactLocation)
+                  const al = loc.physicalLocation.artifactLocation;
+                  if (!al) {
                     loc.physicalLocation.artifactLocation = { uri: "src-tauri/Cargo.lock" };
+                  } else if (!al.uri) {
+                    al.uri = "src-tauri/Cargo.lock";
+                  }
                 }
               }
             }
