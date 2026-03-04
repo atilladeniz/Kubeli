@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { TrayPopup } from "./TrayPopup";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
@@ -10,34 +10,46 @@ export function TrayApp() {
   const fetchClusters = useClusterStore((s) => s.fetchClusters);
   const fetchNamespaces = useClusterStore((s) => s.fetchNamespaces);
 
+  // Sync cluster state with backend (shared with main window)
+  const syncClusterState = useCallback(async () => {
+    await fetchClusters();
+    const status = await getConnectionStatus();
+    const clusters = useClusterStore.getState().clusters;
+
+    if (status.connected && status.context) {
+      const connectedCluster =
+        clusters.find((c) => c.context === status.context) || null;
+      useClusterStore.setState({
+        isConnected: true,
+        currentCluster: connectedCluster,
+      });
+      await fetchNamespaces();
+    } else {
+      useClusterStore.setState({
+        isConnected: false,
+        currentCluster: null,
+      });
+    }
+  }, [fetchClusters, fetchNamespaces]);
+
+  // Initial setup
   useEffect(() => {
     const init = async () => {
-      await fetchClusters();
-
-      // Sync with backend: only show a cluster if actually connected
-      const status = await getConnectionStatus();
-      const clusters = useClusterStore.getState().clusters;
-      if (status.connected && status.context) {
-        const connectedCluster =
-          clusters.find((c) => c.context === status.context) || null;
-        useClusterStore.setState({
-          isConnected: true,
-          currentCluster: connectedCluster,
-        });
-        await fetchNamespaces();
-      } else {
-        // No active connection - start with cluster picker
-        useClusterStore.setState({
-          isConnected: false,
-          currentCluster: null,
-        });
-      }
-
+      await syncClusterState();
       await initialize();
       setIsReady(true);
     };
     init();
-  }, [fetchClusters, fetchNamespaces, initialize]);
+  }, [syncClusterState, initialize]);
+
+  // Re-sync every time the tray window becomes visible (focus event)
+  useEffect(() => {
+    const handleFocus = () => {
+      syncClusterState();
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, [syncClusterState]);
 
   // Prevent context menu in tray popup
   useEffect(() => {
