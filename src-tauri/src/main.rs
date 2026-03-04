@@ -620,7 +620,7 @@ fn setup_appearance_observer(status_item_ptr: usize) {
         let name: id = msg_send![appearance, name];
         let dark_str: id = msg_send![
             Class::get("NSString").unwrap(),
-            stringWithUTF8String: b"Dark\0".as_ptr()
+            stringWithUTF8String: c"Dark".as_ptr()
         ];
         let is_dark: bool = msg_send![name, containsString: dark_str];
         tracing::info!("[TRAY] Initial menu bar appearance: is_dark={}", is_dark);
@@ -663,7 +663,7 @@ fn setup_appearance_observer(status_item_ptr: usize) {
                             return;
                         };
                         let dark: cocoa::base::id =
-                            msg_send![ns_string_class, stringWithUTF8String: b"Dark\0".as_ptr()];
+                            msg_send![ns_string_class, stringWithUTF8String: c"Dark".as_ptr()];
                         let is_dark: bool = msg_send![ap_name, containsString: dark];
                         tracing::info!("[TRAY] KVO: appearance changed, is_dark={}", is_dark);
 
@@ -1082,11 +1082,11 @@ fn main() {
 
             Ok(())
         })
-        .on_menu_event(|_app, event| {
+        .on_menu_event(|_app, _event| {
             // Built-in macOS Quit item ("quit") should disable hide-to-tray
             // before close requests are dispatched.
             #[cfg(target_os = "macos")]
-            if event.id() == "quit" {
+            if _event.id() == "quit" {
                 APP_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
             }
         })
