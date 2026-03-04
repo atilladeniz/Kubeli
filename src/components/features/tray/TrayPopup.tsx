@@ -4,6 +4,7 @@ import { ForwardTab } from "./ForwardTab";
 import { ActiveTab } from "./ActiveTab";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 
 type TabId = "forward" | "active";
 
@@ -28,7 +29,10 @@ export function TrayPopup() {
   const openMainWindow = async () => {
     try {
       const { invoke } = await import("@tauri-apps/api/core");
+      const { emit } = await import("@tauri-apps/api/event");
       await invoke("show_main_window_command");
+      // Navigate main window to Pods view
+      await emit("navigate", { view: "pods" });
     } catch (err) {
       console.error("Failed to open main window:", err);
     }
@@ -119,20 +123,28 @@ export function TrayPopup() {
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 shrink-0">
           {connecting && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground mr-1" />}
-          <button
-            onClick={openMainWindow}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
-            title="Open Kubeli"
-          >
-            <ExternalLink className="h-3.5 w-3.5" />
-          </button>
-          <button
-            onClick={quitApp}
-            className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
-            title="Quit Kubeli"
-          >
-            <Power className="h-3.5 w-3.5" />
-          </button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={openMainWindow}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
+              >
+                <ExternalLink className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Open Kubeli</TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={quitApp}
+                className="p-1.5 rounded-md text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+              >
+                <Power className="h-3.5 w-3.5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">Quit</TooltipContent>
+          </Tooltip>
         </div>
       </div>
 
