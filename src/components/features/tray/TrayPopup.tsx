@@ -41,8 +41,8 @@ export function TrayPopup() {
 
   const quitApp = async () => {
     try {
-      const { exit } = await import("@tauri-apps/plugin-process");
-      await exit(0);
+      const { invoke } = await import("@tauri-apps/api/core");
+      await invoke("quit_app");
     } catch (err) {
       console.error("Failed to quit:", err);
     }

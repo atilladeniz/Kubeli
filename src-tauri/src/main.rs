@@ -98,6 +98,11 @@ static ORIGINAL_HIGHLIGHT_IMP: std::sync::atomic::AtomicUsize =
 #[cfg(target_os = "macos")]
 static ALLOW_TRAY_HIGHLIGHT: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
+/// True once the app received a real quit request (Cmd+Q / Quit menu / process exit).
+/// While this is true we must not convert window closes into hide-to-tray.
+#[cfg(target_os = "macos")]
+static APP_QUIT_REQUESTED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
 
 /// Ensure a custom NSPanel subclass exists that can become key.
 /// Some borderless/non-activating panel setups report `canBecomeKeyWindow = NO`,
@@ -129,13 +134,15 @@ fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
     // ESC key dismisses the panel (macOS sends cancelOperation: for Escape)
     #[allow(deprecated)]
     extern "C" fn cancel_operation(this: &Object, _: Sel, _sender: cocoa::base::id) {
-        // SAFETY: ObjC message send to hide the panel. `this` is a valid NSPanel
-        // pointer provided by the runtime as the receiver of cancelOperation:.
-        unsafe {
-            LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
-            let _: () = msg_send![this, orderOut: cocoa::base::nil];
-            set_tray_highlight(false);
-        }
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            // SAFETY: ObjC message send to hide the panel. `this` is a valid NSPanel
+            // pointer provided by the runtime as the receiver of cancelOperation:.
+            unsafe {
+                LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+                let _: () = msg_send![this, orderOut: cocoa::base::nil];
+                set_tray_highlight(false);
+            }
+        }));
     }
 
     // SAFETY: Registering ObjC methods on a class declaration we own.
@@ -182,23 +189,25 @@ unsafe extern "C" fn swizzled_highlight(
     sel: objc::runtime::Sel,
     flag: objc::runtime::BOOL,
 ) {
-    if flag == objc::runtime::YES
-        && !ALLOW_TRAY_HIGHLIGHT.load(std::sync::atomic::Ordering::Relaxed)
-    {
-        return;
-    }
-    let orig = ORIGINAL_HIGHLIGHT_IMP.load(std::sync::atomic::Ordering::Relaxed);
-    if orig != 0 {
-        // SAFETY: ORIGINAL_HIGHLIGHT_IMP holds the original IMP pointer saved during
-        // method swizzle in setup_appearance_observer. The function signature matches
-        // the ObjC highlight: method (id, SEL, BOOL).
-        let orig_fn: unsafe extern "C" fn(
-            &objc::runtime::Object,
-            objc::runtime::Sel,
-            objc::runtime::BOOL,
-        ) = std::mem::transmute(orig);
-        orig_fn(this, sel, flag);
-    }
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if flag == objc::runtime::YES
+            && !ALLOW_TRAY_HIGHLIGHT.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return;
+        }
+        let orig = ORIGINAL_HIGHLIGHT_IMP.load(std::sync::atomic::Ordering::Relaxed);
+        if orig != 0 {
+            // SAFETY: ORIGINAL_HIGHLIGHT_IMP holds the original IMP pointer saved during
+            // method swizzle in setup_appearance_observer. The function signature matches
+            // the ObjC highlight: method (id, SEL, BOOL).
+            let orig_fn: unsafe extern "C" fn(
+                &objc::runtime::Object,
+                objc::runtime::Sel,
+                objc::runtime::BOOL,
+            ) = std::mem::transmute(orig);
+            unsafe { orig_fn(this, sel, flag) };
+        }
+    }));
 }
 
 /// Set the tray button's highlight state. Opens the swizzle gate before calling
@@ -338,13 +347,24 @@ fn show_main_window(app: &tauri::AppHandle) {
         // sharedApplication is always valid in a running Cocoa app.
         #[cfg(target_os = "macos")]
         unsafe {
-            let ns_app: cocoa::base::id = msg_send![
-                objc::runtime::Class::get("NSApplication").unwrap(),
-                sharedApplication
-            ];
-            let _: () = msg_send![ns_app, activateIgnoringOtherApps: objc::runtime::YES];
+            if let Some(ns_application) = objc::runtime::Class::get("NSApplication") {
+                let ns_app: cocoa::base::id = msg_send![ns_application, sharedApplication];
+                let _: () = msg_send![ns_app, activateIgnoringOtherApps: objc::runtime::YES];
+            } else {
+                tracing::warn!("NSApplication class not available during show_main_window");
+            }
         }
     }
+}
+
+/// Quit the app using `_exit(0)` to bypass atexit handlers that trigger
+/// tao's broken `applicationWillTerminate` on macOS.
+#[tauri::command]
+fn quit_app() {
+    extern "C" {
+        fn _exit(status: i32) -> !;
+    }
+    unsafe { _exit(0) };
 }
 
 #[tauri::command]
@@ -632,26 +652,30 @@ fn setup_appearance_observer(status_item_ptr: usize) {
                 _change: cocoa::base::id,
                 _context: *mut std::ffi::c_void,
             ) {
-                // SAFETY: KVO callback invoked by the runtime with valid object pointer.
-                // We read effectiveAppearance and compare the name to detect dark mode.
-                unsafe {
-                    let ap: cocoa::base::id = msg_send![object, effectiveAppearance];
-                    let ap_name: cocoa::base::id = msg_send![ap, name];
-                    let dark: cocoa::base::id = msg_send![
-                        objc::runtime::Class::get("NSString").unwrap(),
-                        stringWithUTF8String: b"Dark\0".as_ptr()
-                    ];
-                    let is_dark: bool = msg_send![ap_name, containsString: dark];
-                    tracing::info!("[TRAY] KVO: appearance changed, is_dark={}", is_dark);
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    // SAFETY: KVO callback invoked by the runtime with valid object pointer.
+                    // We read effectiveAppearance and compare the name to detect dark mode.
+                    unsafe {
+                        let ap: cocoa::base::id = msg_send![object, effectiveAppearance];
+                        let ap_name: cocoa::base::id = msg_send![ap, name];
+                        let Some(ns_string_class) = objc::runtime::Class::get("NSString") else {
+                            tracing::warn!("KVO observer: NSString class unavailable");
+                            return;
+                        };
+                        let dark: cocoa::base::id =
+                            msg_send![ns_string_class, stringWithUTF8String: b"Dark\0".as_ptr()];
+                        let is_dark: bool = msg_send![ap_name, containsString: dark];
+                        tracing::info!("[TRAY] KVO: appearance changed, is_dark={}", is_dark);
 
-                    // Direct setImage: on button — single atomic call, no blink
-                    let button_ptr = TRAY_BUTTON_PTR.load(std::sync::atomic::Ordering::Relaxed);
-                    if button_ptr != 0 {
-                        update_tray_icon_direct(is_dark);
-                    } else {
-                        update_tray_icon_via_tauri(is_dark);
+                        // Direct setImage: on button — single atomic call, no blink
+                        let button_ptr = TRAY_BUTTON_PTR.load(std::sync::atomic::Ordering::Relaxed);
+                        if button_ptr != 0 {
+                            update_tray_icon_direct(is_dark);
+                        } else {
+                            update_tray_icon_via_tauri(is_dark);
+                        }
                     }
-                }
+                }));
             }
 
             decl.add_method(
@@ -759,11 +783,13 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     {
         let popup_for_monitor = popup.clone();
         let handler = block::ConcreteBlock::new(move |_event: cocoa::base::id| {
-            if popup_for_monitor.is_visible().unwrap_or(false) {
-                LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
-                let _ = popup_for_monitor.hide();
-                set_tray_highlight(false);
-            }
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if popup_for_monitor.is_visible().unwrap_or(false) {
+                    LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+                    let _ = popup_for_monitor.hide();
+                    set_tray_highlight(false);
+                }
+            }));
         });
         let handler = handler.copy();
 
@@ -788,19 +814,21 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 
         let local_handler =
             block::ConcreteBlock::new(move |event: cocoa::base::id| -> cocoa::base::id {
-                if popup_for_local.is_visible().unwrap_or(false) {
-                    // SAFETY: Reading the window property from an NSEvent provided
-                    // by the runtime. We compare the pointer to our popup's NSWindow.
-                    unsafe {
-                        let event_window: cocoa::base::id = msg_send![event, window];
-                        if !event_window.is_null() && (event_window as usize) != popup_ns_ptr {
-                            LAST_POPUP_HIDE_MS
-                                .store(now_ms(), std::sync::atomic::Ordering::Relaxed);
-                            let _ = popup_for_local.hide();
-                            set_tray_highlight(false);
+                let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                    if popup_for_local.is_visible().unwrap_or(false) {
+                        // SAFETY: Reading the window property from an NSEvent provided
+                        // by the runtime. We compare the pointer to our popup's NSWindow.
+                        unsafe {
+                            let event_window: cocoa::base::id = msg_send![event, window];
+                            if !event_window.is_null() && (event_window as usize) != popup_ns_ptr {
+                                LAST_POPUP_HIDE_MS
+                                    .store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+                                let _ = popup_for_local.hide();
+                                set_tray_highlight(false);
+                            }
                         }
                     }
-                }
+                }));
                 event
             });
         let local_handler = local_handler.copy();
@@ -874,6 +902,37 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn main() {
+    // On macOS, tao's `applicationWillTerminate` delegate can panic inside an
+    // `extern "C"` function when the event-loop channel is already dropped.
+    // Rust then raises a second panic ("panic in a function that cannot unwind")
+    // and calls `abort()`.  We intercept this with a panic hook and do a clean
+    // `_exit(0)` instead, avoiding the noisy crash on Cmd+Q / quit.
+    #[cfg(target_os = "macos")]
+    {
+        let default_hook = std::panic::take_hook();
+        std::panic::set_hook(Box::new(move |info| {
+            let msg = info.payload().downcast_ref::<&str>().copied().unwrap_or("");
+            let loc = info.location().map(|l| l.file()).unwrap_or("");
+
+            // Catch tao's terminate-handler panic or the subsequent
+            // "cannot unwind" panic and exit cleanly.
+            if msg.contains("cannot unwind")
+                || loc.contains("app_delegate")
+                || (APP_QUIT_REQUESTED.load(std::sync::atomic::Ordering::Relaxed)
+                    && loc.contains("panicking"))
+            {
+                // Use raw _exit to avoid triggering atexit handlers
+                // which could re-enter the macOS terminate path.
+                extern "C" {
+                    fn _exit(status: i32) -> !;
+                }
+                unsafe { _exit(0) };
+            }
+
+            default_hook(info);
+        }));
+    }
+
     extend_path_with_common_cli_dirs();
 
     // Parse command line arguments
@@ -1023,9 +1082,18 @@ fn main() {
 
             Ok(())
         })
+        .on_menu_event(|_app, event| {
+            // Built-in macOS Quit item ("quit") should disable hide-to-tray
+            // before close requests are dispatched.
+            #[cfg(target_os = "macos")]
+            if event.id() == "quit" {
+                APP_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
+            }
+        })
         .invoke_handler(tauri::generate_handler![
             // Tray commands
             show_main_window_command,
+            quit_app,
             // Cluster commands
             commands::clusters::list_clusters,
             commands::clusters::add_cluster,
@@ -1198,13 +1266,25 @@ fn main() {
         ])
         .on_window_event(|_window, _event| {
             // On macOS, closing the main window hides it instead of quitting.
-            // The app stays alive in the system tray. Use Cmd+Q or the tray
-            // Quit button to actually exit.
+            // But once a real quit was requested (Cmd+Q / Quit menu), do not
+            // intercept close anymore so the app can terminate cleanly.
             #[cfg(target_os = "macos")]
             if let tauri::WindowEvent::CloseRequested { api, .. } = _event {
-                if _window.label() == "main" {
-                    api.prevent_close();
-                    let _ = _window.hide();
+                if _window.label() == "main"
+                    && !APP_QUIT_REQUESTED.load(std::sync::atomic::Ordering::Relaxed)
+                {
+                    // Defensive: prevent_close() internally unwraps a channel send.
+                    // If macOS is already in terminate flow, that send can fail.
+                    let prevent_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                        api.prevent_close();
+                    }));
+                    if prevent_result.is_ok() {
+                        let _ = _window.hide();
+                    } else {
+                        tracing::warn!(
+                            "CloseRequested: prevent_close panicked, allowing close during terminate flow"
+                        );
+                    }
                 }
             }
         })
@@ -1212,12 +1292,11 @@ fn main() {
         .expect("error while building tauri application")
         .run(|_app_handle, event| {
             match &event {
-                // Prevent the app from exiting when the last window is hidden.
-                // On macOS the tray icon keeps the app alive; the user quits via
-                // Cmd+Q or the tray Quit button.
+                // Mark that a real quit was requested so CloseRequested is no
+                // longer redirected to hide-to-tray.
                 #[cfg(target_os = "macos")]
-                tauri::RunEvent::ExitRequested { api, .. } => {
-                    api.prevent_exit();
+                tauri::RunEvent::ExitRequested { .. } => {
+                    APP_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
                 }
                 // Re-show the main window when the user clicks the Dock icon
                 // while all windows are hidden (macOS "reopen" event).
