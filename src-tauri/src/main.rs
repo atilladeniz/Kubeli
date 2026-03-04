@@ -129,6 +129,8 @@ fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
     // ESC key dismisses the panel (macOS sends cancelOperation: for Escape)
     #[allow(deprecated)]
     extern "C" fn cancel_operation(this: &Object, _: Sel, _sender: cocoa::base::id) {
+        // SAFETY: ObjC message send to hide the panel. `this` is a valid NSPanel
+        // pointer provided by the runtime as the receiver of cancelOperation:.
         unsafe {
             LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
             let _: () = msg_send![this, orderOut: cocoa::base::nil];
@@ -136,6 +138,8 @@ fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
         }
     }
 
+    // SAFETY: Registering ObjC methods on a class declaration we own.
+    // The function signatures match the expected ObjC selectors.
     #[allow(deprecated)]
     unsafe {
         decl.add_method(
@@ -185,6 +189,9 @@ unsafe extern "C" fn swizzled_highlight(
     }
     let orig = ORIGINAL_HIGHLIGHT_IMP.load(std::sync::atomic::Ordering::Relaxed);
     if orig != 0 {
+        // SAFETY: ORIGINAL_HIGHLIGHT_IMP holds the original IMP pointer saved during
+        // method swizzle in setup_appearance_observer. The function signature matches
+        // the ObjC highlight: method (id, SEL, BOOL).
         let orig_fn: unsafe extern "C" fn(
             &objc::runtime::Object,
             objc::runtime::Sel,
@@ -202,6 +209,8 @@ fn set_tray_highlight(highlighted: bool) {
     let button_ptr = TRAY_BUTTON_PTR.load(std::sync::atomic::Ordering::Relaxed);
     if button_ptr != 0 {
         ALLOW_TRAY_HIGHLIGHT.store(highlighted, std::sync::atomic::Ordering::Relaxed);
+        // SAFETY: button_ptr is a valid NSStatusBarButton pointer stored during
+        // tray setup. We only call highlight: which is a standard AppKit method.
         unsafe {
             let button = button_ptr as cocoa::base::id;
             let _: () = msg_send![button, highlight: highlighted];
@@ -303,6 +312,8 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     // the whole app, causing a space switch away from the fullscreen app.
     // For our NSPanel with NonactivatingPanelMask, makeKeyAndOrderFront: makes the
     // panel key (for keyboard input) without activating the app.
+    // SAFETY: ns_window() returns the valid NSWindow pointer for this webview.
+    // makeKeyAndOrderFront: is a standard AppKit method to focus the window.
     #[cfg(target_os = "macos")]
     unsafe {
         #[allow(deprecated)]
@@ -323,6 +334,8 @@ fn show_main_window(app: &tauri::AppHandle) {
         let _ = window.set_focus();
         // On macOS, explicitly activate the app since the tray popup uses
         // NonactivatingPanelMask, so the app may not be active
+        // SAFETY: Standard AppKit call to activate the app. NSApplication
+        // sharedApplication is always valid in a running Cocoa app.
         #[cfg(target_os = "macos")]
         unsafe {
             let ns_app: cocoa::base::id = msg_send![
@@ -366,6 +379,9 @@ fn configure_macos_popup(popup: &tauri::WebviewWindow) {
         ) -> *const objc::runtime::Class;
     }
 
+    // SAFETY: All ObjC calls below operate on the valid NSWindow pointer from
+    // Tauri's ns_window(). We ISA-swizzle it to NSPanel and configure standard
+    // AppKit window properties. All selectors are public AppKit API.
     unsafe {
         #[allow(deprecated)]
         let ns_win = popup.ns_window().unwrap() as id;
@@ -448,6 +464,9 @@ fn update_tray_icon_direct(is_dark: bool) {
     };
     let button_ptr = TRAY_BUTTON_PTR.load(std::sync::atomic::Ordering::Relaxed);
     if image_ptr != 0 && button_ptr != 0 {
+        // SAFETY: button_ptr and image_ptr are valid NSStatusBarButton and NSImage
+        // pointers stored during setup_appearance_observer. setImage: is a standard
+        // AppKit method on NSButton.
         unsafe {
             let button = button_ptr as cocoa::base::id;
             let image = image_ptr as cocoa::base::id;
@@ -467,6 +486,11 @@ fn setup_appearance_observer(status_item_ptr: usize) {
     use cocoa::base::{id, nil};
     use objc::runtime::Class;
 
+    // SAFETY: This entire block uses standard AppKit/Foundation APIs via ObjC
+    // message sends. All pointers originate from the runtime (NSStatusItem from
+    // Tauri's tray icon, NSImage from data we provide, NSStatusBarButton from
+    // the status item). We retain objects that must outlive the scope and store
+    // raw pointers in atomics for cross-callback access.
     unsafe {
         // ── Pre-load both icon variants as retained template NSImages ──────
         // Menu bar icon height is 22pt on macOS. Scale width proportionally.
@@ -608,6 +632,8 @@ fn setup_appearance_observer(status_item_ptr: usize) {
                 _change: cocoa::base::id,
                 _context: *mut std::ffi::c_void,
             ) {
+                // SAFETY: KVO callback invoked by the runtime with valid object pointer.
+                // We read effectiveAppearance and compare the name to detect dark mode.
                 unsafe {
                     let ap: cocoa::base::id = msg_send![object, effectiveAppearance];
                     let ap_name: cocoa::base::id = msg_send![ap, name];
@@ -700,6 +726,8 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     // Tauri's `visible: false` config is unreliable on macOS (tauri#8981) —
     // the window can briefly flash during startup. Double-ensure it's hidden.
     let _ = popup.hide();
+    // SAFETY: ns_window() returns the valid NSWindow pointer. orderOut: is a
+    // standard AppKit method to remove the window from screen without releasing it.
     #[cfg(target_os = "macos")]
     unsafe {
         #[allow(deprecated)]
@@ -739,6 +767,8 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         });
         let handler = handler.copy();
 
+        // SAFETY: Registering a global NSEvent monitor via standard AppKit API.
+        // The handler block is retained (mem::forget below) for the app's lifetime.
         unsafe {
             // NSLeftMouseDownMask (1 << 1) | NSRightMouseDownMask (1 << 3)
             let mask: u64 = (1 << 1) | (1 << 3);
@@ -759,6 +789,8 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
         let local_handler =
             block::ConcreteBlock::new(move |event: cocoa::base::id| -> cocoa::base::id {
                 if popup_for_local.is_visible().unwrap_or(false) {
+                    // SAFETY: Reading the window property from an NSEvent provided
+                    // by the runtime. We compare the pointer to our popup's NSWindow.
                     unsafe {
                         let event_window: cocoa::base::id = msg_send![event, window];
                         if !event_window.is_null() && (event_window as usize) != popup_ns_ptr {
@@ -773,6 +805,8 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
             });
         let local_handler = local_handler.copy();
 
+        // SAFETY: Registering a local NSEvent monitor via standard AppKit API.
+        // The handler block is retained (mem::forget below) for the app's lifetime.
         unsafe {
             let mask: u64 = (1 << 1) | (1 << 3);
             let _: cocoa::base::id = msg_send![
