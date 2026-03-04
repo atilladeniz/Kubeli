@@ -104,7 +104,7 @@ export function TrayApp() {
           root.classList.remove("dark", "light", "classic-dark");
           root.classList.add(resolvedTheme);
           // Force style recalc then re-enable transitions
-          getComputedStyle(root).opacity;
+          void getComputedStyle(root).opacity;
           root.classList.remove("no-transitions");
 
           useUIStore.setState((state) => ({
