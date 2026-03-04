@@ -626,10 +626,13 @@ version-bump: ## Bump version interactively (or use TYPE=patch|minor|major)
 	sed -i '' "s/version = \"$$OLD_VERSION\"/version = \"$$NEW_VERSION\"/" src-tauri/Cargo.toml; \
 	echo "$(CYAN)Updating tauri.conf.json...$(RESET)"; \
 	sed -i '' "s/\"version\": \"$$OLD_VERSION\"/\"version\": \"$$NEW_VERSION\"/" src-tauri/tauri.conf.json; \
+	echo "$(CYAN)Syncing Cargo.lock...$(RESET)"; \
+	cd src-tauri && cargo generate-lockfile --quiet; \
 	echo "$(GREEN)✓ Version bumped from $$OLD_VERSION to $$NEW_VERSION$(RESET)"; \
 	echo "$(CYAN)Updated files:$(RESET)"; \
 	echo "  - package.json"; \
 	echo "  - src-tauri/Cargo.toml"; \
+	echo "  - src-tauri/Cargo.lock"; \
 	echo "  - src-tauri/tauri.conf.json"
 
 deps: ## Show outdated dependencies
