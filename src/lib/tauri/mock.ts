@@ -173,6 +173,7 @@ const mockPods: PodInfo[] = mockPodDefs.map((d) => ({
       last_exit_code: null,
       last_finished_at: null,
       env_vars: [],
+      ports: [],
     },
   ],
   created_at: new Date(Date.now() - 86_400_000).toISOString(),

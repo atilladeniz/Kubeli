@@ -126,6 +126,20 @@ pub fn extract_container_info(
         })
         .unwrap_or_default();
 
+    let ports = container
+        .ports
+        .as_ref()
+        .map(|ps| {
+            ps.iter()
+                .map(|p| ContainerPortInfo {
+                    name: p.name.clone(),
+                    container_port: p.container_port as u16,
+                    protocol: p.protocol.clone().unwrap_or_else(|| "TCP".to_string()),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
     ContainerInfo {
         name: container.name.clone(),
         image: container.image.clone().unwrap_or_default(),
@@ -138,6 +152,7 @@ pub fn extract_container_info(
         last_exit_code,
         last_finished_at,
         env_vars,
+        ports,
     }
 }
 
@@ -211,6 +226,13 @@ pub struct ContainerEnvVar {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContainerPortInfo {
+    pub name: Option<String>,
+    pub container_port: u16,
+    pub protocol: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContainerInfo {
     pub name: String,
     pub image: String,
@@ -223,6 +245,7 @@ pub struct ContainerInfo {
     pub last_exit_code: Option<i32>,
     pub last_finished_at: Option<String>,
     pub env_vars: Vec<ContainerEnvVar>,
+    pub ports: Vec<ContainerPortInfo>,
 }
 
 /// Deployment-specific information

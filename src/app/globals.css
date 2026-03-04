@@ -166,6 +166,24 @@
   }
 }
 
+/* Disable all transitions during theme switch to prevent color animation flash */
+html.no-transitions,
+html.no-transitions *,
+html.no-transitions *::before,
+html.no-transitions *::after {
+  transition-duration: 0s !important;
+}
+
+/* Tray popup: clip at every level for proper rounded corners */
+html.tray-popup,
+html.tray-popup body,
+html.tray-popup #root {
+  border-radius: 16px;
+  overflow: hidden;
+  width: 100%;
+  height: 100%;
+}
+
 /* ============================================
    Vibrancy/Window Blur Levels
    - off: Opaque backgrounds (no transparency)
