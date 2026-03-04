@@ -3,6 +3,7 @@ import { Search, ArrowRight, Loader2, ChevronDown, Check } from "lucide-react";
 import { listPods, listServices } from "@/lib/tauri/commands";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import type { PodInfo, ServiceInfo } from "@/lib/types";
 
 interface ForwardableItem {
@@ -265,26 +266,32 @@ export function ForwardTab() {
                         <span className="ml-1 opacity-60">{item.targetType}</span>
                       </div>
                     </div>
-                    <button
-                      onClick={() => handleForward(item)}
-                      disabled={forwarded || isForwarding}
-                      className={`p-1 rounded-md transition-all shrink-0 ${
-                        forwarded
-                          ? "text-green-500/70"
-                          : isForwarding
-                            ? "text-muted-foreground"
-                            : "text-muted-foreground/40 hover:text-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100"
-                      }`}
-                      title={forwarded ? "Already forwarded" : "Start forward"}
-                    >
-                      {isForwarding ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : forwarded ? (
-                        <Check className="h-3.5 w-3.5" />
-                      ) : (
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      )}
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => handleForward(item)}
+                          disabled={forwarded || isForwarding}
+                          className={`p-1 rounded-md transition-all shrink-0 ${
+                            forwarded
+                              ? "text-green-500/70"
+                              : isForwarding
+                                ? "text-muted-foreground"
+                                : "text-muted-foreground/40 hover:text-primary hover:bg-primary/10 opacity-0 group-hover:opacity-100"
+                          }`}
+                        >
+                          {isForwarding ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : forwarded ? (
+                            <Check className="h-3.5 w-3.5" />
+                          ) : (
+                            <ArrowRight className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">
+                        {forwarded ? "Already forwarded" : "Forward"}
+                      </TooltipContent>
+                    </Tooltip>
                   </div>
                 );
               })}
