@@ -683,6 +683,10 @@ fn setup_tray(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     configure_macos_popup(&popup);
 
+    // Move the popup offscreen so there's no position flicker on first show.
+    // toggle_tray_popup will set the correct position before showing.
+    let _ = popup.set_position(tauri::PhysicalPosition::new(-9999, -9999));
+
     // Explicitly hide + orderOut the popup after setup.
     // Tauri's `visible: false` config is unreliable on macOS (tauri#8981) —
     // the window can briefly flash during startup. Double-ensure it's hidden.
