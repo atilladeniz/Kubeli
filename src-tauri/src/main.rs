@@ -127,6 +127,7 @@ fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
     }
 
     // ESC key dismisses the panel (macOS sends cancelOperation: for Escape)
+    #[allow(deprecated)]
     extern "C" fn cancel_operation(this: &Object, _: Sel, _sender: cocoa::base::id) {
         unsafe {
             LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
@@ -135,6 +136,7 @@ fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
         }
     }
 
+    #[allow(deprecated)]
     unsafe {
         decl.add_method(
             sel!(canBecomeKeyWindow),
