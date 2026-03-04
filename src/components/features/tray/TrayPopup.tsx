@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { ExternalLink, Power, ChevronDown, Loader2, Circle } from "lucide-react";
+import { ExternalLink, Power, ChevronDown, Loader2, Circle, Check } from "lucide-react";
 import { ForwardTab } from "./ForwardTab";
 import { ActiveTab } from "./ActiveTab";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
@@ -77,8 +77,8 @@ export function TrayPopup() {
               {connecting
                 ? "Connecting..."
                 : currentCluster
-                  ? currentCluster.name
-                  : "Cluster wählen"}
+                  ? currentCluster.context
+                  : "Select cluster"}
             </span>
             <ChevronDown className={`h-3 w-3 text-muted-foreground shrink-0 transition-transform ${clusterOpen ? "rotate-180" : ""}`} />
           </button>
@@ -86,22 +86,23 @@ export function TrayPopup() {
           {clusterOpen && (
             <>
               <div className="fixed inset-0 z-10" onClick={() => setClusterOpen(false)} />
-              <div className="absolute z-20 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto overscroll-none border border-border opaque-popover bg-popover">
+              <div className="absolute z-20 top-full left-0 right-0 mt-1 rounded-lg shadow-xl max-h-48 overflow-y-auto overscroll-none border border-border opaque-popover bg-popover py-0.5">
                 {clusters.map((cluster) => {
                   const isCurrent = currentCluster?.context === cluster.context && isConnected;
                   return (
                     <button
                       key={cluster.context}
                       onClick={() => handleSwitchCluster(cluster.context)}
-                      className={`w-full flex items-center gap-2 px-2.5 py-2 text-[11px] transition-colors hover:bg-muted first:rounded-t-lg last:rounded-b-lg ${isCurrent ? "text-foreground" : "text-muted-foreground"}`}
+                      className={`w-full flex items-center gap-2 px-2 py-1.5 mx-0.5 text-[11px] transition-colors hover:bg-muted rounded-md ${isCurrent ? "text-foreground" : "text-muted-foreground"}`}
+                      style={{ width: "calc(100% - 4px)" }}
                     >
-                      <Circle
-                        className={`h-1.5 w-1.5 shrink-0 ${isCurrent ? "fill-green-500 text-green-500" : "fill-transparent text-muted-foreground/30"}`}
-                      />
+                      <div className={`h-3.5 w-3.5 shrink-0 flex items-center justify-center ${isCurrent ? "text-green-500" : ""}`}>
+                        {isCurrent && <Check className="h-3 w-3" />}
+                      </div>
                       <div className="min-w-0 flex-1 text-left">
-                        <div className="truncate font-medium">{cluster.name}</div>
+                        <div className="truncate font-medium">{cluster.context}</div>
                         {cluster.name !== cluster.context && (
-                          <div className="truncate text-[10px] text-muted-foreground/50">{cluster.context}</div>
+                          <div className="truncate text-[10px] text-muted-foreground">{cluster.name}</div>
                         )}
                       </div>
                     </button>
