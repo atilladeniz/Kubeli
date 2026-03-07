@@ -23,6 +23,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useAIStore } from "@/lib/stores/ai-store";
 import { useDeepLinkNavigation } from "@/lib/hooks/useDeepLinkNavigation";
 import { toast } from "sonner";
+import { parseOwnerReferences } from "@/lib/utils/parse-owner-references";
 import {
   getResourceYaml,
   applyResourceYaml,
@@ -206,6 +207,7 @@ function DashboardContent() {
             createdAt: yamlData.created_at || undefined,
             labels: yamlData.labels,
             annotations: yamlData.annotations,
+            ownerReferences: yamlData.yaml ? parseOwnerReferences(yamlData.yaml) : undefined,
             yaml: yamlData.yaml,
             events: events.map((e) => ({
               type: e.event_type,
@@ -459,6 +461,9 @@ function DashboardContent() {
                       onClose={closeResourceDetail}
                       onSave={handleSaveResource}
                       onDelete={handleDeleteResource}
+                      onNavigateToOwner={(kind, name, namespace) =>
+                        openResourceDetail(kind.toLowerCase(), name, namespace)
+                      }
                     />
                   ) : null}
                 </div>

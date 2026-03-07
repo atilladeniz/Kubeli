@@ -1,3 +1,11 @@
+export interface OwnerReference {
+  apiVersion: string;
+  kind: string;
+  name: string;
+  uid: string;
+  controller?: boolean;
+}
+
 export interface ResourceData {
   name: string;
   namespace?: string;
@@ -7,6 +15,7 @@ export interface ResourceData {
   createdAt?: string;
   labels?: Record<string, string>;
   annotations?: Record<string, string>;
+  ownerReferences?: OwnerReference[];
   yaml?: string;
   status?: Record<string, unknown>;
   spec?: Record<string, unknown>;
@@ -37,4 +46,5 @@ export interface ResourceDetailProps {
   onClose: () => void;
   onSave?: (yaml: string) => Promise<void>;
   onDelete?: () => Promise<void>;
+  onNavigateToOwner?: (kind: string, name: string, namespace?: string) => void;
 }

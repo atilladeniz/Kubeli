@@ -42,6 +42,7 @@ export function ResourceDetail({
   onClose,
   onSave,
   onDelete,
+  onNavigateToOwner,
 }: ResourceDetailProps) {
   const t = useTranslations();
   // Normalize plural forms (e.g. "pods" → "pod") so tab conditions work
@@ -251,7 +252,7 @@ export function ResourceDetail({
         </div>
 
         <TabsContent value="overview" className="flex-1 overflow-hidden m-0">
-          <OverviewTab resource={resource} resourceType={resourceType} />
+          <OverviewTab resource={resource} resourceType={resourceType} onNavigateToOwner={onNavigateToOwner} />
         </TabsContent>
 
         <TabsContent
