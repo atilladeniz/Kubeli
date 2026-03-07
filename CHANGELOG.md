@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.57] - 2026-03-07
+
+- Fixed macOS crash on startup and after updater restart
+
 ## [0.3.56] - 2026-03-07
 
 - Added owner references display in resource detail panel
