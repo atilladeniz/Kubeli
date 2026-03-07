@@ -50,8 +50,8 @@ export function CustomResourcesSection({
           size="sm"
           className="w-full justify-start gap-2 px-2 font-medium text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
         >
-          <Boxes className="size-4" />
-          <span className="flex-1 text-left">{t("customResources")}</span>
+          <Boxes className="size-4 shrink-0" />
+          <span className="min-w-0 flex-1 truncate text-left">{t("customResources")}</span>
           <Badge
             variant="outline"
             className="h-4 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"

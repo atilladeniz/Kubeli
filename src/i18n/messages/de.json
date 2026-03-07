@@ -126,7 +126,7 @@
     "roleBindings": "Rollenbindungen",
     "clusterRoles": "Cluster-Rollen",
     "clusterRoleBindings": "Cluster-Rollenbindungen",
-    "customResources": "Benutzerdefinierte Ressourcen",
+    "customResources": "Custom Resources",
     "crds": "CRDs",
     "priorityClasses": "Prioritätsklassen",
     "runtimeClasses": "Laufzeitklassen",
