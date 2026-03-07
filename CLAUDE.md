@@ -210,6 +210,12 @@ Available properties:
 - `src-tauri/src/k8s/client.rs` - Kubernetes client manager
 - `src-tauri/src/k8s/config.rs` - Kubeconfig parsing
 
+## Testing Rule
+
+- Every bug fix must include a regression test when technically feasible.
+- The test should cover the failure mode that caused the bug, not just the happy path.
+- If a regression test is not feasible, document the reason clearly in the PR.
+
 ## Code Quality Skills
 
 This project includes custom Claude skills for code quality based on industry best practices.
