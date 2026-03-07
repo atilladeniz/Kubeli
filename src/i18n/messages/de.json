@@ -854,7 +854,8 @@
     "deleteResource": "{type} \"{name}\" löschen",
     "uninstallResource": "Helm Release \"{name}\" deinstallieren",
     "deleteWarning": "Diese Aktion kann nicht rückgängig gemacht werden.",
-    "lastSeen": "Zuletzt gesehen"
+    "lastSeen": "Zuletzt gesehen",
+    "ownedBy": "Gehört zu"
   },
   "podDetail": {
     "initContainers": "Init-Container",

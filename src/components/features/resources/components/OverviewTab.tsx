@@ -11,6 +11,7 @@ import { SecretDataSection } from "./SecretDataSection";
 import { ContainerStatusSection } from "./ContainerStatusSection";
 import { PodMetricsSection } from "./PodMetricsSection";
 import { AnnotationsSection } from "./AnnotationsSection";
+import { OwnerReferencesSection } from "./OwnerReferencesSection";
 import { getPod } from "@/lib/tauri/commands";
 import type { ResourceData } from "../types";
 import type { ContainerInfo } from "@/lib/types";
@@ -24,9 +25,10 @@ function formatDate(dateString: string, locale: string): string {
 interface OverviewTabProps {
   resource: ResourceData;
   resourceType: string;
+  onNavigateToOwner?: (kind: string, name: string, namespace?: string) => void;
 }
 
-export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
+export function OverviewTab({ resource, resourceType, onNavigateToOwner }: OverviewTabProps) {
   const t = useTranslations();
   const locale = useLocale();
   const resourceKey = `${resourceType}-${resource.name}-${resource.namespace}`;
@@ -104,6 +106,15 @@ export function OverviewTab({ resource, resourceType }: OverviewTabProps) {
             )}
           </div>
         </section>
+
+        {/* Owner References Section */}
+        {resource.ownerReferences && resource.ownerReferences.length > 0 && onNavigateToOwner && (
+          <OwnerReferencesSection
+            ownerReferences={resource.ownerReferences}
+            onNavigate={onNavigateToOwner}
+            namespace={resource.namespace}
+          />
+        )}
 
         {/* Pod Metrics Section */}
         {resourceType === "pod" && resource.namespace && (

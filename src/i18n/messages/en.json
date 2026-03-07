@@ -854,7 +854,8 @@
     "deleteResource": "Delete {type} \"{name}\"",
     "uninstallResource": "Uninstall Helm release \"{name}\"",
     "deleteWarning": "This action cannot be undone.",
-    "lastSeen": "Last seen"
+    "lastSeen": "Last seen",
+    "ownedBy": "Owned By"
   },
   "podDetail": {
     "initContainers": "Init Containers",

@@ -23,6 +23,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useAIStore } from "@/lib/stores/ai-store";
 import { useDeepLinkNavigation } from "@/lib/hooks/useDeepLinkNavigation";
 import { toast } from "sonner";
+import { parseOwnerReferences } from "@/lib/utils/parse-owner-references";
 import {
   getResourceYaml,
   applyResourceYaml,
@@ -97,6 +98,7 @@ function DashboardContent() {
   const { isConnected, currentCluster, setCurrentNamespace } = useClusterStore();
   const { tabs, isOpen, closePanel } = useTerminalTabs();
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
+  const [navigationHistory, setNavigationHistory] = useState<Array<{ data: ResourceData; type: string }>>([]);
 
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [uninstallDialog, setUninstallDialog] = useState<UninstallDialogState | null>(null);
@@ -172,6 +174,8 @@ function DashboardContent() {
     }
   }, [pendingPodLogs, setActiveResource]);
 
+  const isOwnerNavRef = useRef(false);
+
   const openResourceDetail = useCallback(
     async (
       resourceType: string,
@@ -179,6 +183,9 @@ function DashboardContent() {
       namespace?: string
     ): Promise<OpenResourceDetailResult> => {
       setCreateResourceOpen(false);
+      if (!isOwnerNavRef.current) {
+        setNavigationHistory([]);
+      }
       const requestId = ++detailRequestIdRef.current;
       try {
         const [yamlData, events] = await Promise.all([
@@ -206,6 +213,7 @@ function DashboardContent() {
             createdAt: yamlData.created_at || undefined,
             labels: yamlData.labels,
             annotations: yamlData.annotations,
+            ownerReferences: yamlData.yaml ? parseOwnerReferences(yamlData.yaml) : undefined,
             yaml: yamlData.yaml,
             events: events.map((e) => ({
               type: e.event_type,
@@ -390,9 +398,42 @@ function DashboardContent() {
     setScaleDialog({ open: true, name, namespace, currentReplicas, onSuccess });
   };
 
+  const navigateToOwner = useCallback(
+    async (kind: string, name: string, namespace?: string) => {
+      if (selectedResource) {
+        setNavigationHistory((prev) => [...prev, selectedResource]);
+      }
+      isOwnerNavRef.current = true;
+      try {
+        await openResourceDetail(kind.toLowerCase(), name, namespace);
+      } finally {
+        isOwnerNavRef.current = false;
+      }
+    },
+    [selectedResource, openResourceDetail]
+  );
+
+  const navigateBack = useCallback(() => {
+    if (navigationHistory.length === 0) return;
+    const prev = navigationHistory[navigationHistory.length - 1];
+    setNavigationHistory((h) => h.slice(0, -1));
+    setSelectedResource(prev);
+  }, [navigationHistory]);
+
+  const navigateToPathIndex = useCallback(
+    (index: number) => {
+      if (index < 0 || index >= navigationHistory.length) return;
+      const target = navigationHistory[index];
+      setNavigationHistory((h) => h.slice(0, index));
+      setSelectedResource(target);
+    },
+    [navigationHistory]
+  );
+
   const closeResourceDetail = useCallback(() => {
     detailRequestIdRef.current += 1;
     setSelectedResource(null);
+    setNavigationHistory([]);
   }, []);
 
   return (
@@ -459,6 +500,17 @@ function DashboardContent() {
                       onClose={closeResourceDetail}
                       onSave={handleSaveResource}
                       onDelete={handleDeleteResource}
+                      onNavigateToOwner={(kind, name, namespace) =>
+                        navigateToOwner(kind, name, namespace)
+                      }
+                      onNavigateBack={navigationHistory.length > 0 ? navigateBack : undefined}
+                      onNavigateToPathIndex={navigationHistory.length > 0 ? navigateToPathIndex : undefined}
+                      navigationPath={navigationHistory.map((h) => ({
+                        kind: h.data.kind || h.type,
+                        name: h.data.name,
+                        resourceType: h.type,
+                        namespace: h.data.namespace,
+                      }))}
                     />
                   ) : null}
                 </div>
