@@ -269,3 +269,84 @@ fn suggestions_for(kind: &ErrorKind) -> Vec<String> {
         ErrorKind::Conflict | ErrorKind::Unknown => vec![],
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{ErrorKind, KubeliError};
+    use base64::Engine;
+
+    #[test]
+    fn new_sets_retryable_and_suggestions_from_kind() {
+        let forbidden = KubeliError::new(ErrorKind::Forbidden, "forbidden");
+        assert!(!forbidden.retryable);
+        assert_eq!(forbidden.suggestions.len(), 3);
+        assert_eq!(forbidden.message, "forbidden");
+
+        let timeout = KubeliError::new(ErrorKind::Timeout, "timed out");
+        assert!(timeout.retryable);
+        assert_eq!(timeout.suggestions.len(), 2);
+    }
+
+    #[test]
+    fn unknown_uses_unknown_kind_defaults() {
+        let err = KubeliError::unknown("boom");
+        assert!(matches!(err.kind, ErrorKind::Unknown));
+        assert!(err.retryable);
+        assert!(err.suggestions.is_empty());
+        assert_eq!(err.to_string(), "boom");
+    }
+
+    #[test]
+    fn string_and_str_convert_to_unknown_errors() {
+        let from_string: KubeliError = String::from("failure").into();
+        let from_str: KubeliError = "another failure".into();
+
+        assert!(matches!(from_string.kind, ErrorKind::Unknown));
+        assert_eq!(from_string.message, "failure");
+        assert!(matches!(from_str.kind, ErrorKind::Unknown));
+        assert_eq!(from_str.message, "another failure");
+    }
+
+    #[test]
+    fn io_errors_map_timeout_and_network_cases() {
+        let timeout = std::io::Error::new(std::io::ErrorKind::TimedOut, "operation timed out");
+        let timeout_err: KubeliError = timeout.into();
+        assert!(matches!(timeout_err.kind, ErrorKind::Timeout));
+        assert!(timeout_err.message.contains("I/O timeout"));
+
+        let network =
+            std::io::Error::new(std::io::ErrorKind::ConnectionRefused, "connection refused");
+        let network_err: KubeliError = network.into();
+        assert!(matches!(network_err.kind, ErrorKind::Network));
+        assert!(network_err.message.contains("Network error"));
+    }
+
+    #[test]
+    fn serialization_related_errors_map_to_unknown() {
+        let json_err = serde_json::from_str::<serde_json::Value>("{").unwrap_err();
+        let json_kubeli: KubeliError = json_err.into();
+        assert!(matches!(json_kubeli.kind, ErrorKind::Unknown));
+        assert!(json_kubeli.message.starts_with("JSON error:"));
+
+        let yaml_err = serde_yaml::from_str::<serde_yaml::Value>(": bad").unwrap_err();
+        let yaml_kubeli: KubeliError = yaml_err.into();
+        assert!(matches!(yaml_kubeli.kind, ErrorKind::Unknown));
+        assert!(yaml_kubeli.message.starts_with("YAML error:"));
+
+        let base64_err = base64::engine::general_purpose::STANDARD
+            .decode("%%%")
+            .unwrap_err();
+        let base64_kubeli: KubeliError = base64_err.into();
+        assert!(matches!(base64_kubeli.kind, ErrorKind::Unknown));
+        assert!(base64_kubeli.message.starts_with("Base64 decode error:"));
+    }
+
+    #[test]
+    fn anyhow_errors_fall_back_to_unknown_when_not_kube_errors() {
+        let anyhow_err = anyhow::anyhow!("something failed");
+        let kubeli: KubeliError = anyhow_err.into();
+
+        assert!(matches!(kubeli.kind, ErrorKind::Unknown));
+        assert_eq!(kubeli.message, "something failed");
+    }
+}

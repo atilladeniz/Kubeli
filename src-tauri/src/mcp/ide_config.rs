@@ -400,14 +400,11 @@ fn uninstall_codex_config(path: &PathBuf) -> Result<(), String> {
         std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
 
     // Parse TOML and remove kubeli section
-    let mut doc: toml::Value = content
-        .parse()
-        .map_err(|e| format!("Failed to parse TOML: {}", e))?;
+    let mut doc: toml::Table =
+        toml::from_str(&content).map_err(|e| format!("Failed to parse TOML: {}", e))?;
 
-    if let Some(servers) = doc.get_mut("mcp_servers") {
-        if let Some(table) = servers.as_table_mut() {
-            table.remove("kubeli");
-        }
+    if let Some(servers) = doc.get_mut("mcp_servers").and_then(|v| v.as_table_mut()) {
+        servers.remove("kubeli");
     }
 
     let content =
@@ -523,19 +520,118 @@ fn uninstall_cursor_config(path: &PathBuf) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::tempdir;
 
     #[test]
-    fn test_ide_config_paths() {
-        // Just ensure no panics
-        for ide in [
-            IdeType::ClaudeCode,
-            IdeType::Codex,
-            IdeType::VSCode,
-            IdeType::Cursor,
-        ] {
-            let _ = ide.config_path();
-            let _ = ide.is_installed();
-            let _ = ide.display_name();
-        }
+    fn test_ide_metadata_and_paths() {
+        assert_eq!(IdeType::ClaudeCode.display_name(), "Claude Code");
+        assert_eq!(IdeType::Codex.display_name(), "Codex (OpenAI)");
+        assert_eq!(IdeType::VSCode.display_name(), "VS Code");
+        assert_eq!(IdeType::Cursor.display_name(), "Cursor");
+
+        let claude = IdeType::ClaudeCode.config_path().unwrap();
+        assert!(claude.ends_with(".claude.json"));
+
+        let codex = IdeType::Codex.config_path().unwrap();
+        assert!(codex.ends_with(".codex/config.toml"));
+
+        let cursor = IdeType::Cursor.config_path().unwrap();
+        assert!(cursor.ends_with(".cursor/mcp.json"));
+
+        let vscode = IdeType::VSCode.config_path().unwrap();
+        #[cfg(target_os = "macos")]
+        assert!(vscode.ends_with("Library/Application Support/Code/User/settings.json"));
+        #[cfg(target_os = "linux")]
+        assert!(vscode.ends_with(".config/Code/User/settings.json"));
+        #[cfg(target_os = "windows")]
+        assert!(vscode.ends_with("Code\\User\\settings.json"));
+    }
+
+    #[test]
+    fn test_codex_install_uninstall_and_detection() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+
+        std::fs::write(&path, "[settings]\nname = \"demo\"\n").unwrap();
+
+        install_codex_config(&path, "/tmp/kubeli").unwrap();
+        let installed = std::fs::read_to_string(&path).unwrap();
+        assert!(installed.contains("[mcp_servers.kubeli]"));
+        assert!(installed.contains("command = \"/tmp/kubeli\""));
+        assert!(check_mcp_configured(IdeType::Codex, &path));
+
+        install_codex_config(&path, "/tmp/kubeli").unwrap();
+        let reinstalled = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(reinstalled.matches("[mcp_servers.kubeli]").count(), 1);
+
+        uninstall_codex_config(&path).unwrap();
+        let uninstalled = std::fs::read_to_string(&path).unwrap();
+        assert!(!uninstalled.contains("[mcp_servers.kubeli]"));
+        assert!(uninstalled.contains("[settings]"));
+        assert!(!check_mcp_configured(IdeType::Codex, &path));
+    }
+
+    #[test]
+    fn test_vscode_install_uninstall_and_detection() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("settings.json");
+
+        std::fs::write(
+            &path,
+            r#"{
+  "editor.fontSize": 14
+}"#,
+        )
+        .unwrap();
+
+        install_vscode_config(&path, "/tmp/kubeli").unwrap();
+        let installed = std::fs::read_to_string(&path).unwrap();
+        assert!(installed.contains("\"mcp.servers\""));
+        assert!(installed.contains("\"kubeli\""));
+        assert!(check_mcp_configured(IdeType::VSCode, &path));
+
+        uninstall_vscode_config(&path).unwrap();
+        let uninstalled = std::fs::read_to_string(&path).unwrap();
+        assert!(uninstalled.contains("\"mcp.servers\": {}"));
+        assert!(!uninstalled.contains("\"kubeli\""));
+        assert!(!check_mcp_configured(IdeType::VSCode, &path));
+    }
+
+    #[test]
+    fn test_cursor_install_uninstall_and_detection() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("mcp.json");
+
+        install_cursor_config(&path, "/tmp/kubeli").unwrap();
+        let installed = std::fs::read_to_string(&path).unwrap();
+        assert!(installed.contains("\"mcpServers\""));
+        assert!(installed.contains("\"kubeli\""));
+        assert!(check_mcp_configured(IdeType::Cursor, &path));
+
+        uninstall_cursor_config(&path).unwrap();
+        let uninstalled = std::fs::read_to_string(&path).unwrap();
+        assert!(uninstalled.contains("\"mcpServers\": {}"));
+        assert!(!uninstalled.contains("\"kubeli\""));
+        assert!(!check_mcp_configured(IdeType::Cursor, &path));
+    }
+
+    #[test]
+    fn test_non_claude_config_detection_returns_false_for_missing_or_invalid_files() {
+        let dir = tempdir().unwrap();
+        let missing = dir.path().join("missing.json");
+        assert!(!check_mcp_configured(IdeType::Cursor, &missing));
+        assert!(!check_mcp_configured(IdeType::Codex, &missing));
+        assert!(!check_mcp_configured(IdeType::VSCode, &missing));
+
+        let codex = dir.path().join("config.toml");
+        std::fs::write(&codex, "[settings]\nname = \"demo\"\n").unwrap();
+        assert!(!check_mcp_configured(IdeType::Codex, &codex));
+
+        let vscode = dir.path().join("settings.json");
+        std::fs::write(&vscode, "{ invalid").unwrap();
+        assert!(!check_mcp_configured(IdeType::VSCode, &vscode));
+        let cursor = dir.path().join("mcp.json");
+        std::fs::write(&cursor, "{ invalid").unwrap();
+        assert!(!check_mcp_configured(IdeType::Cursor, &cursor));
     }
 }
