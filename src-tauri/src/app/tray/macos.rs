@@ -1,142 +1,55 @@
-#[cfg(target_os = "macos")]
 use objc::{msg_send, sel, sel_impl};
-#[cfg(target_os = "macos")]
 use tauri::tray::{TrayIcon, TrayIconBuilder, TrayIconEvent};
 use tauri::{Emitter, Manager};
 
-#[cfg(target_os = "macos")]
 static LAST_POPUP_HIDE_MS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
-#[cfg(target_os = "macos")]
 static TRAY_APP_HANDLE: std::sync::OnceLock<tauri::AppHandle> = std::sync::OnceLock::new();
-#[cfg(target_os = "macos")]
 static LIGHT_NS_IMAGE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-#[cfg(target_os = "macos")]
 static DARK_NS_IMAGE: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-#[cfg(target_os = "macos")]
 static TRAY_BUTTON_PTR: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
-#[cfg(target_os = "macos")]
 static ORIGINAL_HIGHLIGHT_IMP: std::sync::atomic::AtomicUsize =
     std::sync::atomic::AtomicUsize::new(0);
-#[cfg(target_os = "macos")]
 static ALLOW_TRAY_HIGHLIGHT: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
-#[cfg(target_os = "macos")]
 static APP_QUIT_REQUESTED: std::sync::atomic::AtomicBool =
     std::sync::atomic::AtomicBool::new(false);
 
-#[cfg(target_os = "macos")]
 pub fn app_quit_requested() -> bool {
     APP_QUIT_REQUESTED.load(std::sync::atomic::Ordering::Relaxed)
 }
 
-#[cfg(not(target_os = "macos"))]
-pub fn app_quit_requested() -> bool {
-    false
+pub fn mark_app_quit_requested() {
+    APP_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
 }
 
-#[cfg(target_os = "macos")]
+pub fn hide_popup(app: &tauri::AppHandle) {
+    if let Some(popup) = app.get_webview_window("tray-popup") {
+        let _ = popup.hide();
+    }
+}
+
 #[allow(deprecated)]
-fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
-    use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
-
-    if let Some(existing) = Class::get("KubeliTrayPanel") {
-        return Some(existing as *const _);
-    }
-
-    let superclass = Class::get("NSPanel")?;
-    let mut decl = objc::declare::ClassDecl::new("KubeliTrayPanel", superclass)?;
-
-    extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
-        YES
-    }
-
-    extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
-        NO
-    }
-
-    extern "C" fn is_nonactivating_panel(_: &Object, _: Sel) -> BOOL {
-        YES
-    }
-
-    #[allow(deprecated)]
-    extern "C" fn cancel_operation(this: &Object, _: Sel, _sender: cocoa::base::id) {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
-            LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
-            let _: () = msg_send![this, orderOut: cocoa::base::nil];
-            set_tray_highlight(false);
-        }));
-    }
-
+pub fn activate_app() {
     unsafe {
-        decl.add_method(
-            sel!(canBecomeKeyWindow),
-            can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        decl.add_method(
-            sel!(canBecomeMainWindow),
-            can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        decl.add_method(
-            sel!(_isNonactivatingPanel),
-            is_nonactivating_panel as extern "C" fn(&Object, Sel) -> BOOL,
-        );
-        decl.add_method(
-            sel!(cancelOperation:),
-            cancel_operation as extern "C" fn(&Object, Sel, cocoa::base::id),
-        );
-    }
-
-    let registered = decl.register();
-    Some(registered as *const _)
-}
-
-#[cfg(target_os = "macos")]
-fn now_ms() -> u64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis() as u64
-}
-
-#[cfg(target_os = "macos")]
-unsafe extern "C" fn swizzled_highlight(
-    this: &objc::runtime::Object,
-    sel: objc::runtime::Sel,
-    flag: objc::runtime::BOOL,
-) {
-    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        if flag == objc::runtime::YES
-            && !ALLOW_TRAY_HIGHLIGHT.load(std::sync::atomic::Ordering::Relaxed)
-        {
-            return;
-        }
-        let orig = ORIGINAL_HIGHLIGHT_IMP.load(std::sync::atomic::Ordering::Relaxed);
-        if orig != 0 {
-            let orig_fn: unsafe extern "C" fn(
-                &objc::runtime::Object,
-                objc::runtime::Sel,
-                objc::runtime::BOOL,
-            ) = std::mem::transmute(orig);
-            unsafe { orig_fn(this, sel, flag) };
-        }
-    }));
-}
-
-#[cfg(target_os = "macos")]
-#[allow(deprecated)]
-fn set_tray_highlight(highlighted: bool) {
-    let button_ptr = TRAY_BUTTON_PTR.load(std::sync::atomic::Ordering::Relaxed);
-    if button_ptr != 0 {
-        ALLOW_TRAY_HIGHLIGHT.store(highlighted, std::sync::atomic::Ordering::Relaxed);
-        unsafe {
-            let button = button_ptr as cocoa::base::id;
-            let _: () = msg_send![button, highlight: highlighted];
+        if let Some(ns_application) = objc::runtime::Class::get("NSApplication") {
+            let ns_app: cocoa::base::id = msg_send![ns_application, sharedApplication];
+            let _: () = msg_send![ns_app, activateIgnoringOtherApps: objc::runtime::YES];
+        } else {
+            tracing::warn!("NSApplication class not available during show_main_window");
         }
     }
 }
 
 #[allow(deprecated)]
-fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
+pub fn focus_popup(popup: &tauri::WebviewWindow) {
+    unsafe {
+        let ns_win = popup.ns_window().unwrap() as cocoa::base::id;
+        let _: () = msg_send![ns_win, makeKeyAndOrderFront: cocoa::base::nil];
+    }
+}
+
+#[allow(deprecated)]
+pub fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     let Some(popup) = app.get_webview_window("tray-popup") else {
         tracing::error!("tray-popup window not found");
         return;
@@ -144,12 +57,10 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
 
     if popup.is_visible().unwrap_or(false) {
         let _ = popup.hide();
-        #[cfg(target_os = "macos")]
         set_tray_highlight(false);
         return;
     }
 
-    #[cfg(target_os = "macos")]
     if now_ms() - LAST_POPUP_HIDE_MS.load(std::sync::atomic::Ordering::Relaxed) < 500 {
         set_tray_highlight(false);
         return;
@@ -207,56 +118,248 @@ fn toggle_tray_popup(app: &tauri::AppHandle, rect: tauri::Rect) {
     let _ = popup.eval("if(window.__applyThemeNoTransition)window.__applyThemeNoTransition()");
     let _ = popup.show();
     let _ = popup.emit("tray-popup-shown", ());
-    #[cfg(target_os = "macos")]
     set_tray_highlight(true);
-    #[cfg(target_os = "macos")]
-    unsafe {
-        #[allow(deprecated)]
-        let ns_win = popup.ns_window().unwrap() as cocoa::base::id;
-        let _: () = msg_send![ns_win, makeKeyAndOrderFront: cocoa::base::nil];
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        let _ = popup.set_focus();
-    }
+    focus_popup(&popup);
 }
 
 #[allow(deprecated)]
-pub fn show_main_window(app: &tauri::AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.unminimize();
-        let _ = window.show();
-        let _ = window.set_focus();
-        #[cfg(target_os = "macos")]
-        unsafe {
-            if let Some(ns_application) = objc::runtime::Class::get("NSApplication") {
-                let ns_app: cocoa::base::id = msg_send![ns_application, sharedApplication];
-                let _: () = msg_send![ns_app, activateIgnoringOtherApps: objc::runtime::YES];
-            } else {
-                tracing::warn!("NSApplication class not available during show_main_window");
+pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
+    use tauri::webview::WebviewWindowBuilder;
+
+    let popup = if let Some(window) = app.get_webview_window("tray-popup") {
+        window
+    } else {
+        tracing::warn!("tray-popup not in config, creating programmatically");
+        WebviewWindowBuilder::new(app, "tray-popup", tauri::WebviewUrl::App("/".into()))
+            .title("")
+            .inner_size(360.0, 480.0)
+            .resizable(false)
+            .decorations(false)
+            .transparent(true)
+            .always_on_top(true)
+            .visible(false)
+            .skip_taskbar(true)
+            .focused(true)
+            .build()?
+    };
+
+    configure_macos_popup(&popup);
+
+    let _ = popup.set_position(tauri::PhysicalPosition::new(-9999, -9999));
+    let _ = popup.hide();
+    unsafe {
+        let ns_win = popup.ns_window().unwrap() as cocoa::base::id;
+        let _: () = msg_send![ns_win, orderOut: cocoa::base::nil];
+    }
+
+    let popup_clone = popup.clone();
+    popup.on_window_event(move |event| {
+        if let tauri::WindowEvent::Focused(false) = event {
+            let popup = popup_clone.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(150));
+                if !popup.is_focused().unwrap_or(true) {
+                    LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+                    let _ = popup.hide();
+                    set_tray_highlight(false);
+                }
+            });
+        }
+    });
+
+    let popup_for_monitor = popup.clone();
+    let handler = block::ConcreteBlock::new(move |_event: cocoa::base::id| {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            if popup_for_monitor.is_visible().unwrap_or(false) {
+                LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+                let _ = popup_for_monitor.hide();
+                set_tray_highlight(false);
             }
+        }));
+    });
+    let handler = handler.copy();
+
+    unsafe {
+        let mask: u64 = (1 << 1) | (1 << 3);
+        let _: cocoa::base::id = msg_send![
+            objc::runtime::Class::get("NSEvent").unwrap(),
+            addGlobalMonitorForEventsMatchingMask: mask
+            handler: &*handler
+        ];
+    }
+    std::mem::forget(handler);
+
+    let popup_for_local = popup.clone();
+    let popup_ns_ptr = popup.ns_window().unwrap() as usize;
+
+    let local_handler =
+        block::ConcreteBlock::new(move |event: cocoa::base::id| -> cocoa::base::id {
+            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                if popup_for_local.is_visible().unwrap_or(false) {
+                    unsafe {
+                        let event_window: cocoa::base::id = msg_send![event, window];
+                        if !event_window.is_null() && (event_window as usize) != popup_ns_ptr {
+                            LAST_POPUP_HIDE_MS
+                                .store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+                            let _ = popup_for_local.hide();
+                            set_tray_highlight(false);
+                        }
+                    }
+                }
+            }));
+            event
+        });
+    let local_handler = local_handler.copy();
+
+    unsafe {
+        let mask: u64 = (1 << 1) | (1 << 3);
+        let _: cocoa::base::id = msg_send![
+            objc::runtime::Class::get("NSEvent").unwrap(),
+            addLocalMonitorForEventsMatchingMask: mask
+            handler: &*local_handler
+        ];
+    }
+    std::mem::forget(local_handler);
+
+    let tray_icon =
+        tauri::image::Image::from_bytes(include_bytes!("../../../icons/tray-icon@2x.png"))?;
+
+    let tray = TrayIconBuilder::with_id("kubeli-tray")
+        .icon(tray_icon)
+        .icon_as_template(true)
+        .tooltip("Kubeli")
+        .on_tray_icon_event(|tray: &TrayIcon, event: TrayIconEvent| {
+            if let TrayIconEvent::Click {
+                button_state: tauri::tray::MouseButtonState::Up,
+                rect,
+                ..
+            } = event
+            {
+                toggle_tray_popup(tray.app_handle(), rect);
+            }
+        })
+        .build(app)?;
+
+    let _ = TRAY_APP_HANDLE.set(app.handle().clone());
+
+    let status_item_ptr = tray
+        .with_inner_tray_icon(|inner| {
+            if let Some(item) = inner.ns_status_item() {
+                let raw: usize = unsafe { std::mem::transmute_copy(&item) };
+                std::mem::forget(item);
+                raw
+            } else {
+                0usize
+            }
+        })
+        .unwrap_or(0);
+
+    tracing::info!(
+        "[TRAY] NSStatusItem ptr from ns_status_item(): {:#x}",
+        status_item_ptr
+    );
+    setup_appearance_observer(status_item_ptr);
+
+    Ok(())
+}
+
+#[allow(deprecated)]
+fn ensure_tray_panel_class() -> Option<*const objc::runtime::Class> {
+    use objc::runtime::{Class, Object, Sel, BOOL, NO, YES};
+
+    if let Some(existing) = Class::get("KubeliTrayPanel") {
+        return Some(existing as *const _);
+    }
+
+    let superclass = Class::get("NSPanel")?;
+    let mut decl = objc::declare::ClassDecl::new("KubeliTrayPanel", superclass)?;
+
+    extern "C" fn can_become_key_window(_: &Object, _: Sel) -> BOOL {
+        YES
+    }
+
+    extern "C" fn can_become_main_window(_: &Object, _: Sel) -> BOOL {
+        NO
+    }
+
+    extern "C" fn is_nonactivating_panel(_: &Object, _: Sel) -> BOOL {
+        YES
+    }
+
+    #[allow(deprecated)]
+    extern "C" fn cancel_operation(this: &Object, _: Sel, _sender: cocoa::base::id) {
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| unsafe {
+            LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
+            let _: () = msg_send![this, orderOut: cocoa::base::nil];
+            set_tray_highlight(false);
+        }));
+    }
+
+    unsafe {
+        decl.add_method(
+            sel!(canBecomeKeyWindow),
+            can_become_key_window as extern "C" fn(&Object, Sel) -> BOOL,
+        );
+        decl.add_method(
+            sel!(canBecomeMainWindow),
+            can_become_main_window as extern "C" fn(&Object, Sel) -> BOOL,
+        );
+        decl.add_method(
+            sel!(_isNonactivatingPanel),
+            is_nonactivating_panel as extern "C" fn(&Object, Sel) -> BOOL,
+        );
+        decl.add_method(
+            sel!(cancelOperation:),
+            cancel_operation as extern "C" fn(&Object, Sel, cocoa::base::id),
+        );
+    }
+
+    let registered = decl.register();
+    Some(registered as *const _)
+}
+
+fn now_ms() -> u64 {
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_millis() as u64
+}
+
+unsafe extern "C" fn swizzled_highlight(
+    this: &objc::runtime::Object,
+    sel: objc::runtime::Sel,
+    flag: objc::runtime::BOOL,
+) {
+    let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        if flag == objc::runtime::YES
+            && !ALLOW_TRAY_HIGHLIGHT.load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return;
+        }
+        let orig = ORIGINAL_HIGHLIGHT_IMP.load(std::sync::atomic::Ordering::Relaxed);
+        if orig != 0 {
+            let orig_fn: unsafe extern "C" fn(
+                &objc::runtime::Object,
+                objc::runtime::Sel,
+                objc::runtime::BOOL,
+            ) = std::mem::transmute(orig);
+            unsafe { orig_fn(this, sel, flag) };
+        }
+    }));
+}
+
+#[allow(deprecated)]
+fn set_tray_highlight(highlighted: bool) {
+    let button_ptr = TRAY_BUTTON_PTR.load(std::sync::atomic::Ordering::Relaxed);
+    if button_ptr != 0 {
+        ALLOW_TRAY_HIGHLIGHT.store(highlighted, std::sync::atomic::Ordering::Relaxed);
+        unsafe {
+            let button = button_ptr as cocoa::base::id;
+            let _: () = msg_send![button, highlight: highlighted];
         }
     }
 }
 
-#[tauri::command]
-pub fn quit_app() {
-    extern "C" {
-        fn _exit(status: i32) -> !;
-    }
-    unsafe { _exit(0) };
-}
-
-#[tauri::command]
-pub fn show_main_window_command(app: tauri::AppHandle) {
-    show_main_window(&app);
-    #[cfg(target_os = "macos")]
-    if let Some(popup) = app.get_webview_window("tray-popup") {
-        let _ = popup.hide();
-    }
-}
-
-#[cfg(target_os = "macos")]
 #[allow(deprecated)]
 fn configure_macos_popup(popup: &tauri::WebviewWindow) {
     use cocoa::appkit::{NSWindow, NSWindowCollectionBehavior};
@@ -270,7 +373,6 @@ fn configure_macos_popup(popup: &tauri::WebviewWindow) {
     }
 
     unsafe {
-        #[allow(deprecated)]
         let ns_win = popup.ns_window().unwrap() as id;
 
         if let Some(panel_class) = ensure_tray_panel_class() {
@@ -304,13 +406,12 @@ fn configure_macos_popup(popup: &tauri::WebviewWindow) {
     }
 }
 
-#[cfg(target_os = "macos")]
 fn update_tray_icon_via_tauri(is_dark: bool) {
     if let Some(app_handle) = TRAY_APP_HANDLE.get() {
         let bytes: &[u8] = if is_dark {
-            include_bytes!("../../icons/tray-icon-dark@2x.png")
+            include_bytes!("../../../icons/tray-icon-dark@2x.png")
         } else {
-            include_bytes!("../../icons/tray-icon@2x.png")
+            include_bytes!("../../../icons/tray-icon@2x.png")
         };
         if let Ok(icon) = tauri::image::Image::from_bytes(bytes) {
             if let Some(tray) = app_handle.tray_by_id("kubeli-tray") {
@@ -321,7 +422,6 @@ fn update_tray_icon_via_tauri(is_dark: bool) {
     }
 }
 
-#[cfg(target_os = "macos")]
 #[allow(deprecated)]
 fn update_tray_icon_direct(is_dark: bool) {
     let image_ptr = if is_dark {
@@ -339,7 +439,6 @@ fn update_tray_icon_direct(is_dark: bool) {
     }
 }
 
-#[cfg(target_os = "macos")]
 #[allow(deprecated)]
 fn setup_appearance_observer(status_item_ptr: usize) {
     use cocoa::base::{id, nil};
@@ -365,11 +464,11 @@ fn setup_appearance_observer(status_item_ptr: usize) {
         };
 
         LIGHT_NS_IMAGE.store(
-            load_ns_image(include_bytes!("../../icons/tray-icon@2x.png")),
+            load_ns_image(include_bytes!("../../../icons/tray-icon@2x.png")),
             std::sync::atomic::Ordering::Relaxed,
         );
         DARK_NS_IMAGE.store(
-            load_ns_image(include_bytes!("../../icons/tray-icon-dark@2x.png")),
+            load_ns_image(include_bytes!("../../../icons/tray-icon-dark@2x.png")),
             std::sync::atomic::Ordering::Relaxed,
         );
         tracing::info!(
@@ -532,197 +631,5 @@ fn setup_appearance_observer(status_item_ptr: usize) {
         } else {
             tracing::warn!("KubeliAppearanceObserver class already exists");
         }
-    }
-}
-
-#[allow(deprecated)]
-#[cfg(target_os = "macos")]
-pub fn setup(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    use tauri::webview::WebviewWindowBuilder;
-
-    let popup = if let Some(window) = app.get_webview_window("tray-popup") {
-        window
-    } else {
-        tracing::warn!("tray-popup not in config, creating programmatically");
-        WebviewWindowBuilder::new(app, "tray-popup", tauri::WebviewUrl::App("/".into()))
-            .title("")
-            .inner_size(360.0, 480.0)
-            .resizable(false)
-            .decorations(false)
-            .transparent(true)
-            .always_on_top(true)
-            .visible(false)
-            .skip_taskbar(true)
-            .focused(true)
-            .build()?
-    };
-
-    configure_macos_popup(&popup);
-
-    let _ = popup.set_position(tauri::PhysicalPosition::new(-9999, -9999));
-    let _ = popup.hide();
-    unsafe {
-        #[allow(deprecated)]
-        let ns_win = popup.ns_window().unwrap() as cocoa::base::id;
-        let _: () = msg_send![ns_win, orderOut: cocoa::base::nil];
-    }
-
-    let popup_clone = popup.clone();
-    popup.on_window_event(move |event| {
-        if let tauri::WindowEvent::Focused(false) = event {
-            let popup = popup_clone.clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(150));
-                if !popup.is_focused().unwrap_or(true) {
-                    LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
-                    let _ = popup.hide();
-                    set_tray_highlight(false);
-                }
-            });
-        }
-    });
-
-    let popup_for_monitor = popup.clone();
-    let handler = block::ConcreteBlock::new(move |_event: cocoa::base::id| {
-        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            if popup_for_monitor.is_visible().unwrap_or(false) {
-                LAST_POPUP_HIDE_MS.store(now_ms(), std::sync::atomic::Ordering::Relaxed);
-                let _ = popup_for_monitor.hide();
-                set_tray_highlight(false);
-            }
-        }));
-    });
-    let handler = handler.copy();
-
-    unsafe {
-        let mask: u64 = (1 << 1) | (1 << 3);
-        let _: cocoa::base::id = msg_send![
-            objc::runtime::Class::get("NSEvent").unwrap(),
-            addGlobalMonitorForEventsMatchingMask: mask
-            handler: &*handler
-        ];
-    }
-    std::mem::forget(handler);
-
-    let popup_for_local = popup.clone();
-    let popup_ns_ptr = popup.ns_window().unwrap() as usize;
-
-    let local_handler =
-        block::ConcreteBlock::new(move |event: cocoa::base::id| -> cocoa::base::id {
-            let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                if popup_for_local.is_visible().unwrap_or(false) {
-                    unsafe {
-                        let event_window: cocoa::base::id = msg_send![event, window];
-                        if !event_window.is_null() && (event_window as usize) != popup_ns_ptr {
-                            LAST_POPUP_HIDE_MS
-                                .store(now_ms(), std::sync::atomic::Ordering::Relaxed);
-                            let _ = popup_for_local.hide();
-                            set_tray_highlight(false);
-                        }
-                    }
-                }
-            }));
-            event
-        });
-    let local_handler = local_handler.copy();
-
-    unsafe {
-        let mask: u64 = (1 << 1) | (1 << 3);
-        let _: cocoa::base::id = msg_send![
-            objc::runtime::Class::get("NSEvent").unwrap(),
-            addLocalMonitorForEventsMatchingMask: mask
-            handler: &*local_handler
-        ];
-    }
-    std::mem::forget(local_handler);
-
-    let tray_icon =
-        tauri::image::Image::from_bytes(include_bytes!("../../icons/tray-icon@2x.png"))?;
-
-    let tray = TrayIconBuilder::with_id("kubeli-tray")
-        .icon(tray_icon)
-        .icon_as_template(true)
-        .tooltip("Kubeli")
-        .on_tray_icon_event(|tray: &TrayIcon, event: TrayIconEvent| {
-            if let TrayIconEvent::Click {
-                button_state: tauri::tray::MouseButtonState::Up,
-                rect,
-                ..
-            } = event
-            {
-                toggle_tray_popup(tray.app_handle(), rect);
-            }
-        })
-        .build(app)?;
-
-    let _ = TRAY_APP_HANDLE.set(app.handle().clone());
-
-    let status_item_ptr = tray
-        .with_inner_tray_icon(|inner| {
-            if let Some(item) = inner.ns_status_item() {
-                let raw: usize = unsafe { std::mem::transmute_copy(&item) };
-                std::mem::forget(item);
-                raw
-            } else {
-                0usize
-            }
-        })
-        .unwrap_or(0);
-
-    tracing::info!(
-        "[TRAY] NSStatusItem ptr from ns_status_item(): {:#x}",
-        status_item_ptr
-    );
-    setup_appearance_observer(status_item_ptr);
-
-    Ok(())
-}
-
-#[cfg(not(target_os = "macos"))]
-pub fn setup(_app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    Ok(())
-}
-
-pub fn handle_menu_event(_app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
-    #[cfg(target_os = "macos")]
-    if event.id() == "quit" {
-        APP_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
-    }
-}
-
-pub fn handle_window_event<R: tauri::Runtime>(
-    window: &tauri::Window<R>,
-    event: &tauri::WindowEvent,
-) {
-    #[cfg(target_os = "macos")]
-    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
-        if window.label() == "main"
-            && !APP_QUIT_REQUESTED.load(std::sync::atomic::Ordering::Relaxed)
-        {
-            let prevent_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                api.prevent_close();
-            }));
-            if prevent_result.is_ok() {
-                let _ = window.hide();
-            } else {
-                tracing::warn!(
-                    "CloseRequested: prevent_close panicked, allowing close during terminate flow"
-                );
-            }
-        }
-    }
-}
-
-pub fn handle_run_event(app_handle: &tauri::AppHandle, event: tauri::RunEvent) {
-    match event {
-        #[cfg(target_os = "macos")]
-        tauri::RunEvent::ExitRequested { .. } => {
-            APP_QUIT_REQUESTED.store(true, std::sync::atomic::Ordering::Relaxed);
-        }
-        #[cfg(target_os = "macos")]
-        tauri::RunEvent::Reopen { .. } => {
-            show_main_window(app_handle);
-        }
-        _ => {}
     }
 }
