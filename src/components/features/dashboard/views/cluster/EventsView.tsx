@@ -52,7 +52,7 @@ export function EventsView() {
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(event.message);
-        toast.success("Copied to clipboard");
+        toast.success(t("common.copiedToClipboard"));
       },
     },
   ];

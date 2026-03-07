@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { Copy, Eye, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { NamespaceColorDot } from "@/components/features/resources/components/NamespaceColorDot";
+import { CustomResourceStatusBadge } from "@/components/features/resources/components/badges";
 import { ResourceList } from "@/components/features/resources/ResourceList";
 import type { CustomResourceInfo } from "@/lib/types";
 import type { CustomResourceDefinitionRef } from "@/lib/custom-resources";
@@ -70,11 +71,12 @@ export function CustomResourcesView({
         key: "status",
         label: "STATUS",
         sortable: true,
-        render: (resource) => (
-          <span className="text-xs text-muted-foreground">
-            {resource.status || "-"}
-          </span>
-        ),
+        render: (resource) =>
+          resource.status ? (
+            <CustomResourceStatusBadge status={resource.status} />
+          ) : (
+            <span className="text-xs text-muted-foreground">-</span>
+          ),
       },
       {
         key: "created_at",
@@ -89,7 +91,7 @@ export function CustomResourcesView({
 
   const getContextMenu = (resource: CustomResourceInfo): ContextMenuItemDef[] => [
     {
-      label: "View Details",
+      label: t("common.viewDetails"),
       icon: <Eye className="size-4" />,
       onClick: () =>
         openResourceDetail(
@@ -100,16 +102,16 @@ export function CustomResourcesView({
     },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Copy Name",
+      label: t("common.copyName"),
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(resource.name);
-        toast.success("Copied to clipboard", { description: resource.name });
+        toast.success(t("common.copiedToClipboard"), { description: resource.name });
       },
     },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Delete",
+      label: t("common.delete"),
       icon: <Trash2 className="size-4" />,
       onClick: () =>
         handleDeleteFromContext(
@@ -137,7 +139,7 @@ export function CustomResourcesView({
           ? (resource) => resource.namespace || ""
           : undefined
       }
-      emptyMessage={`No ${definition.kind} resources found`}
+      emptyMessage={t("empty.customResources", { kind: definition.kind })}
       contextMenuItems={getContextMenu}
       onRowClick={(resource) =>
         openResourceDetail(

@@ -31,16 +31,16 @@ export function NodesView() {
 
     return [
       {
-        label: "View Details",
+        label: t("common.viewDetails"),
         icon: <Eye className="size-4" />,
         onClick: () => openResourceDetail("node", node.name),
       },
       {
-        label: "Copy Name",
+        label: t("common.copyName"),
         icon: <Copy className="size-4" />,
         onClick: () => {
           navigator.clipboard.writeText(node.name);
-          toast.success("Copied to clipboard", { description: node.name });
+          toast.success(t("common.copiedToClipboard"), { description: node.name });
         },
       },
       { separator: true, label: "", onClick: () => {} },

@@ -122,7 +122,7 @@ export function createResourceView<T extends BaseResource>(
     const getContextMenu = (resource: T): ContextMenuItemDef[] => {
       const items: ContextMenuItemDef[] = [
         {
-          label: "View Details",
+          label: t("common.viewDetails"),
           icon: <Eye className="size-4" />,
           onClick: () => openResourceDetail(
             resourceType,
@@ -142,11 +142,11 @@ export function createResourceView<T extends BaseResource>(
 
       // Copy name
       items.push({
-        label: "Copy Name",
+        label: t("common.copyName"),
         icon: <Copy className="size-4" />,
         onClick: () => {
           navigator.clipboard.writeText(resource.name);
-          toast.success("Copied to clipboard", { description: resource.name });
+          toast.success(t("common.copiedToClipboard"), { description: resource.name });
         },
       });
 
@@ -159,7 +159,7 @@ export function createResourceView<T extends BaseResource>(
             icon: <Copy className="size-4" />,
             onClick: () => {
               navigator.clipboard.writeText(value);
-              toast.success("Copied to clipboard", { description: value });
+              toast.success(t("common.copiedToClipboard"), { description: value });
             },
           });
         }
@@ -169,7 +169,7 @@ export function createResourceView<T extends BaseResource>(
       if (!hideDelete) {
         items.push({ separator: true, label: "", onClick: () => {} });
         items.push({
-          label: "Delete",
+          label: t("common.delete"),
           icon: <Trash2 className="size-4" />,
           onClick: () => handleDeleteFromContext(
             resourceType,

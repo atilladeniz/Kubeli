@@ -30,17 +30,17 @@ export function LeasesView() {
       onClick: () => {
         if (lease.holder_identity) {
           navigator.clipboard.writeText(lease.holder_identity);
-          toast.success("Copied to clipboard", { description: lease.holder_identity });
+          toast.success(t("common.copiedToClipboard"), { description: lease.holder_identity });
         }
       },
       disabled: !lease.holder_identity,
     },
     {
-      label: "Copy Name",
+      label: t("common.copyName"),
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(lease.name);
-        toast.success("Copied to clipboard", { description: lease.name });
+        toast.success(t("common.copiedToClipboard"), { description: lease.name });
       },
     },
   ];

@@ -39,7 +39,7 @@ export function HelmReleasesView() {
 
     // View Details for all releases (different resource type based on managed_by)
     items.push({
-      label: "View Details",
+      label: t("common.viewDetails"),
       icon: <Eye className="size-4" />,
       onClick: () => openResourceDetail(
         release.managed_by === "flux" ? "helmrelease" : "helm-release",
@@ -98,11 +98,11 @@ export function HelmReleasesView() {
     items.push({ separator: true, label: "", onClick: () => {} });
     items.push(
       {
-        label: "Copy Name",
+        label: t("common.copyName"),
         icon: <Copy className="size-4" />,
         onClick: () => {
           navigator.clipboard.writeText(release.name);
-          toast.success("Copied to clipboard", { description: release.name });
+          toast.success(t("common.copiedToClipboard"), { description: release.name });
         },
       },
       {
@@ -111,7 +111,7 @@ export function HelmReleasesView() {
         onClick: () => {
           const chartInfo = `${release.chart}-${release.chart_version}`;
           navigator.clipboard.writeText(chartInfo);
-          toast.success("Copied to clipboard", { description: chartInfo });
+          toast.success(t("common.copiedToClipboard"), { description: chartInfo });
         },
       }
     );
@@ -120,7 +120,7 @@ export function HelmReleasesView() {
     items.push({ separator: true, label: "", onClick: () => {} });
     if (release.managed_by === "flux") {
       items.push({
-        label: "Delete",
+        label: t("common.delete"),
         icon: <Trash2 className="size-4" />,
         onClick: () => handleDeleteFromContext("helmrelease", release.name, release.namespace, refresh),
         variant: "destructive",

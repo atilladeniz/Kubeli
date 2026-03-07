@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Copy, Trash2, Eye, RefreshCw, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useFluxKustomizations } from "@/lib/hooks/useK8sResources";
@@ -20,6 +21,7 @@ import {
 } from "@/lib/tauri/commands";
 
 export function FluxKustomizationsView() {
+  const t = useTranslations();
   const { data, isLoading, error, refresh, retry } = useFluxKustomizations({
     autoRefresh: true,
     refreshInterval: 30000,
@@ -33,7 +35,7 @@ export function FluxKustomizationsView() {
 
   const getKustomizationContextMenu = (k: FluxKustomizationInfo): ContextMenuItemDef[] => [
     {
-      label: "View Details",
+      label: t("common.viewDetails"),
       icon: <Eye className="size-4" />,
       onClick: () => openResourceDetail("kustomization", k.name, k.namespace),
     },
@@ -80,11 +82,11 @@ export function FluxKustomizationsView() {
         },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Copy Name",
+      label: t("common.copyName"),
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(k.name);
-        toast.success("Copied to clipboard", { description: k.name });
+        toast.success(t("common.copiedToClipboard"), { description: k.name });
       },
     },
     {
@@ -92,7 +94,7 @@ export function FluxKustomizationsView() {
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(k.path);
-        toast.success("Copied to clipboard", { description: k.path });
+        toast.success(t("common.copiedToClipboard"), { description: k.path });
       },
     },
     {
@@ -100,12 +102,12 @@ export function FluxKustomizationsView() {
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(k.source_ref);
-        toast.success("Copied to clipboard", { description: k.source_ref });
+        toast.success(t("common.copiedToClipboard"), { description: k.source_ref });
       },
     },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Delete",
+      label: t("common.delete"),
       icon: <Trash2 className="size-4" />,
       onClick: () => handleDeleteFromContext("kustomization", k.name, k.namespace, refresh),
       variant: "destructive",

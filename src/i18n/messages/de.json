@@ -68,7 +68,10 @@
     "ignore": "Ignorieren",
     "toggleSection": "Bereich {section} umschalten",
     "addToFavorites": "{name} zu Favoriten hinzufügen",
-    "removeFromFavorites": "{name} aus Favoriten entfernen"
+    "removeFromFavorites": "{name} aus Favoriten entfernen",
+    "viewDetails": "Details anzeigen",
+    "copyName": "Name kopieren",
+    "copiedToClipboard": "In Zwischenablage kopiert"
   },
   "navigation": {
     "cluster": "Cluster",
@@ -123,7 +126,7 @@
     "roleBindings": "Rollenbindungen",
     "clusterRoles": "Cluster-Rollen",
     "clusterRoleBindings": "Cluster-Rollenbindungen",
-    "customResources": "Custom Resources",
+    "customResources": "Benutzerdefinierte Ressourcen",
     "crds": "CRDs",
     "priorityClasses": "Prioritätsklassen",
     "runtimeClasses": "Laufzeitklassen",
@@ -1094,6 +1097,8 @@
     "mutatingwebhooks": "Keine Mutating Webhooks gefunden",
     "validatingwebhooks": "Keine Validating Webhooks gefunden",
     "helmreleases": "Keine Helm Releases gefunden",
+    "fluxkustomizations": "Keine Flux-Kustomizations gefunden",
+    "customResources": "Keine {kind}-Ressourcen gefunden",
     "noPodSelected": "Kein Pod ausgewählt",
     "podNotFound": "Pod nicht gefunden",
     "podNotFoundDescription": "Der Pod \"{podName}\" im Namespace \"{namespace}\" existiert nicht mehr.",

@@ -68,7 +68,10 @@
     "ignore": "Ignore",
     "toggleSection": "Toggle {section} section",
     "addToFavorites": "Add {name} to favorites",
-    "removeFromFavorites": "Remove {name} from favorites"
+    "removeFromFavorites": "Remove {name} from favorites",
+    "viewDetails": "View Details",
+    "copyName": "Copy Name",
+    "copiedToClipboard": "Copied to clipboard"
   },
   "navigation": {
     "cluster": "Cluster",
@@ -1094,6 +1097,8 @@
     "mutatingwebhooks": "No mutating webhooks found",
     "validatingwebhooks": "No validating webhooks found",
     "helmreleases": "No Helm releases found",
+    "fluxkustomizations": "No Flux kustomizations found",
+    "customResources": "No {kind} resources found",
     "noPodSelected": "No pod selected",
     "podNotFound": "Pod not found",
     "podNotFoundDescription": "The pod \"{podName}\" in namespace \"{namespace}\" no longer exists.",

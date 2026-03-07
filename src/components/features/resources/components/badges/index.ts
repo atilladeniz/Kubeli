@@ -6,3 +6,4 @@ export { FluxKustomizationStatusBadge } from "./FluxKustomizationStatusBadge";
 export { PVStatusBadge } from "./PVStatusBadge";
 export { PVCStatusBadge } from "./PVCStatusBadge";
 export { VolumeAttachmentStatusBadge } from "./VolumeAttachmentStatusBadge";
+export { CustomResourceStatusBadge } from "./CustomResourceStatusBadge";

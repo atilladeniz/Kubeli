@@ -196,7 +196,7 @@ export function ServicesView() {
 
     return [
       {
-        label: "View Details",
+        label: t("common.viewDetails"),
         icon: <Eye className="size-4" />,
         onClick: () => openResourceDetail("service", svc.name, svc.namespace),
       },
@@ -218,11 +218,11 @@ export function ServicesView() {
       },
       { separator: true, label: "", onClick: () => {} },
       {
-        label: "Copy Name",
+        label: t("common.copyName"),
         icon: <Copy className="size-4" />,
         onClick: () => {
           navigator.clipboard.writeText(svc.name);
-          toast.success("Copied to clipboard", { description: svc.name });
+          toast.success(t("common.copiedToClipboard"), { description: svc.name });
         },
       },
       {
@@ -230,13 +230,13 @@ export function ServicesView() {
         icon: <Copy className="size-4" />,
         onClick: () => {
           navigator.clipboard.writeText(svc.cluster_ip || "");
-          toast.success("Copied to clipboard", { description: svc.cluster_ip });
+          toast.success(t("common.copiedToClipboard"), { description: svc.cluster_ip });
         },
         disabled: !svc.cluster_ip,
       },
       { separator: true, label: "", onClick: () => {} },
       {
-        label: "Delete",
+        label: t("common.delete"),
         icon: <Trash2 className="size-4" />,
         onClick: () => handleDeleteFromContext("service", svc.name, svc.namespace, refresh),
         variant: "destructive",

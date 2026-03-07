@@ -319,7 +319,7 @@ export function PodsView() {
 
     return [
       {
-        label: "View Details",
+        label: t("common.viewDetails"),
         icon: <Eye className="size-4" />,
         onClick: () => {
           openResourceDetail("pod", pod.name, pod.namespace);
@@ -393,11 +393,11 @@ export function PodsView() {
       },
       { separator: true, label: "", onClick: () => {} },
       {
-        label: "Copy Name",
+        label: t("common.copyName"),
         icon: <Copy className="size-4" />,
         onClick: () => {
           navigator.clipboard.writeText(pod.name);
-          toast.success("Copied to clipboard", { description: pod.name });
+          toast.success(t("common.copiedToClipboard"), { description: pod.name });
         },
       },
       {
@@ -406,7 +406,7 @@ export function PodsView() {
         onClick: () => {
           const fullName = `${pod.namespace}/${pod.name}`;
           navigator.clipboard.writeText(fullName);
-          toast.success("Copied to clipboard", { description: fullName });
+          toast.success(t("common.copiedToClipboard"), { description: fullName });
         },
       },
       { separator: true, label: "", onClick: () => {} },

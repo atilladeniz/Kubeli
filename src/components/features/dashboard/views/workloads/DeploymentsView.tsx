@@ -39,7 +39,7 @@ export function DeploymentsView() {
     const isFav = isFavorite(clusterContext, "deployments", dep.name, dep.namespace);
     return [
     {
-      label: "View Details",
+      label: t("common.viewDetails"),
       icon: <Eye className="size-4" />,
       onClick: () => openResourceDetail("deployment", dep.name, dep.namespace),
     },
@@ -65,11 +65,11 @@ export function DeploymentsView() {
     },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Copy Name",
+      label: t("common.copyName"),
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(dep.name);
-        toast.success("Copied to clipboard", { description: dep.name });
+        toast.success(t("common.copiedToClipboard"), { description: dep.name });
       },
     },
     {
@@ -79,7 +79,7 @@ export function DeploymentsView() {
     },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Delete",
+      label: t("common.delete"),
       icon: <Trash2 className="size-4" />,
       onClick: () => handleDeleteFromContext("deployment", dep.name, dep.namespace, refresh),
       variant: "destructive",
