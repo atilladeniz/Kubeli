@@ -29,10 +29,7 @@ export function CustomResourcesView({
   definition,
 }: CustomResourcesViewProps) {
   const t = useTranslations();
-  const { data, isLoading, error, refresh, retry } = useCustomResources(definition, {
-    autoRefresh: true,
-    refreshInterval: 30000,
-  });
+  const { data, isLoading, error, refresh, retry } = useCustomResources(definition);
   const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");

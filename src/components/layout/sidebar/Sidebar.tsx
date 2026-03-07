@@ -92,10 +92,7 @@ export function Sidebar({
     toggleNavFavorite,
   } = useSidebarUiState();
   const navigationSections = useNavigationSections();
-  const { data: crds } = useCRDs({
-    autoRefresh: true,
-    refreshInterval: 30000,
-  });
+  const { data: crds } = useCRDs();
   const customResourceGroups = useMemo(() => groupCustomResources(crds), [crds]);
   const { modKeySymbol } = usePlatform();
 
