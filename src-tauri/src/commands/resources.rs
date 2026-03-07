@@ -316,6 +316,7 @@ pub struct NodeInfo {
     pub name: String,
     pub uid: String,
     pub status: String,
+    pub unschedulable: bool,
     pub roles: Vec<String>,
     pub version: Option<String>,
     pub os_image: Option<String>,
@@ -669,9 +670,11 @@ pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, Kub
         .into_iter()
         .map(|node| {
             let metadata = node.metadata;
+            let spec = node.spec.unwrap_or_default();
             let status = node.status.unwrap_or_default();
+            let unschedulable = spec.unschedulable.unwrap_or(false);
 
-            // Determine node status from conditions
+            // Determine node status from conditions.
             let node_status = status
                 .conditions
                 .as_ref()
@@ -721,6 +724,7 @@ pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, Kub
                 name: metadata.name.unwrap_or_default(),
                 uid: metadata.uid.unwrap_or_default(),
                 status: node_status,
+                unschedulable,
                 roles: if roles.is_empty() {
                     vec!["<none>".to_string()]
                 } else {

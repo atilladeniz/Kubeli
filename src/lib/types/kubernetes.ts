@@ -326,6 +326,7 @@ export interface NodeInfo {
   name: string;
   uid: string;
   status: string;
+  unschedulable: boolean;
   roles: string[];
   version: string | null;
   os_image: string | null;

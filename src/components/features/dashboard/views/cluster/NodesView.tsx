@@ -14,6 +14,7 @@ import {
 } from "../../../resources/columns";
 import { useResourceDetail } from "../../context";
 import type { NodeInfo } from "@/lib/types";
+import { getNodeSchedulingAction } from "./node-scheduling";
 
 export function NodesView() {
   const t = useTranslations();
@@ -25,34 +26,38 @@ export function NodesView() {
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
-  const getNodeContextMenu = (node: NodeInfo): ContextMenuItemDef[] => [
-    {
-      label: "View Details",
-      icon: <Eye className="size-4" />,
-      onClick: () => openResourceDetail("node", node.name),
-    },
-    {
-      label: "Copy Name",
-      icon: <Copy className="size-4" />,
-      onClick: () => {
-        navigator.clipboard.writeText(node.name);
-        toast.success("Copied to clipboard", { description: node.name });
+  const getNodeContextMenu = (node: NodeInfo): ContextMenuItemDef[] => {
+    const schedulingAction = getNodeSchedulingAction(node);
+
+    return [
+      {
+        label: "View Details",
+        icon: <Eye className="size-4" />,
+        onClick: () => openResourceDetail("node", node.name),
       },
-    },
-    { separator: true, label: "", onClick: () => {} },
-    {
-      label: "Cordon",
-      icon: <AlertCircle className="size-4" />,
-      onClick: () => toast.info("Coming soon", { description: `Cordon ${node.name}` }),
-      disabled: node.status !== "Ready",
-    },
-    {
-      label: "Drain",
-      icon: <Trash2 className="size-4" />,
-      onClick: () => toast.info("Coming soon", { description: `Drain ${node.name}` }),
-      variant: "destructive",
-    },
-  ];
+      {
+        label: "Copy Name",
+        icon: <Copy className="size-4" />,
+        onClick: () => {
+          navigator.clipboard.writeText(node.name);
+          toast.success("Copied to clipboard", { description: node.name });
+        },
+      },
+      { separator: true, label: "", onClick: () => {} },
+      {
+        label: schedulingAction.label,
+        icon: <AlertCircle className="size-4" />,
+        onClick: () => toast.info("Coming soon", { description: schedulingAction.description }),
+        disabled: schedulingAction.disabled,
+      },
+      {
+        label: "Drain",
+        icon: <Trash2 className="size-4" />,
+        onClick: () => toast.info("Coming soon", { description: `Drain ${node.name}` }),
+        variant: "destructive",
+      },
+    ];
+  };
 
   return (
     <ResourceList
