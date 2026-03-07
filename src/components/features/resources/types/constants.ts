@@ -40,6 +40,13 @@ export interface K8sEvent {
   firstTimestamp?: string;
 }
 
+export interface NavigationPathEntry {
+  kind: string;
+  name: string;
+  resourceType: string;
+  namespace?: string;
+}
+
 export interface ResourceDetailProps {
   resource: ResourceData | null;
   resourceType: string;
@@ -47,4 +54,7 @@ export interface ResourceDetailProps {
   onSave?: (yaml: string) => Promise<void>;
   onDelete?: () => Promise<void>;
   onNavigateToOwner?: (kind: string, name: string, namespace?: string) => void;
+  onNavigateBack?: () => void;
+  onNavigateToPathIndex?: (index: number) => void;
+  navigationPath?: NavigationPathEntry[];
 }

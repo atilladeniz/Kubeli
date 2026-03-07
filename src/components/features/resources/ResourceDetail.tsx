@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { Fragment, useState, useEffect, useRef, useCallback } from "react";
 import {
   X,
   Trash2,
@@ -10,6 +10,7 @@ import {
   Activity,
   FileText,
   ArrowRightLeft,
+  ChevronLeft,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +29,14 @@ import { PortForwardTab } from "./components/PortForwardTab";
 import { DeleteResourceDialog } from "./dialogs/DeleteResourceDialog";
 import { DiscardChangesDialog } from "./dialogs/DiscardChangesDialog";
 import { isCustomResourceType } from "@/lib/custom-resources";
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from "@/components/ui/breadcrumb";
 
 export type { ResourceDetailProps, ResourceData } from "./types";
 import type { ResourceDetailProps } from "./types";
@@ -43,6 +52,9 @@ export function ResourceDetail({
   onSave,
   onDelete,
   onNavigateToOwner,
+  onNavigateBack,
+  onNavigateToPathIndex,
+  navigationPath,
 }: ResourceDetailProps) {
   const t = useTranslations();
   // Normalize plural forms (e.g. "pods" → "pod") so tab conditions work
@@ -188,6 +200,42 @@ export function ResourceDetail({
           <X className="size-4" />
         </Button>
       </div>
+
+      {/* Navigation Breadcrumb */}
+      {onNavigateBack && navigationPath && navigationPath.length > 0 && (
+        <div className="flex items-center gap-2 border-b border-border px-4 py-1.5 overflow-x-auto hide-scrollbar">
+          <button
+            type="button"
+            onClick={onNavigateBack}
+            className="inline-flex items-center gap-1 shrink-0 rounded px-1.5 py-0.5 text-xs text-muted-foreground hover:bg-muted/60 hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className="size-3" />
+            {t("common.back")}
+          </button>
+          <Breadcrumb>
+            <BreadcrumbList className="flex-nowrap text-xs sm:gap-1.5">
+              {navigationPath.map((entry, i) => (
+                <Fragment key={i}>
+                  <BreadcrumbItem className="shrink-0">
+                    <BreadcrumbLink
+                      className="cursor-pointer"
+                      onClick={() => onNavigateToPathIndex?.(i)}
+                    >
+                      {entry.kind}
+                    </BreadcrumbLink>
+                  </BreadcrumbItem>
+                  <BreadcrumbSeparator className="shrink-0" />
+                </Fragment>
+              ))}
+              <BreadcrumbItem className="shrink-0">
+                <BreadcrumbPage className="font-medium">
+                  {resource?.kind || displayResourceType}
+                </BreadcrumbPage>
+              </BreadcrumbItem>
+            </BreadcrumbList>
+          </Breadcrumb>
+        </div>
+      )}
 
       {/* Error Alert */}
       {error && (
