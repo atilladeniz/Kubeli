@@ -1,4 +1,5 @@
 export * from "./commands/cluster";
+export * from "./commands/app";
 export * from "./commands/resources";
 export * from "./commands/watch";
 export * from "./commands/logs";

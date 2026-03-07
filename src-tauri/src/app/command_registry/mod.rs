@@ -2,6 +2,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Syn
     tauri::generate_handler![
         crate::app::tray::show_main_window_command,
         crate::app::tray::quit_app,
+        crate::app::tray::restart_app,
         crate::commands::clusters::list_clusters,
         crate::commands::clusters::add_cluster,
         crate::commands::clusters::remove_cluster,

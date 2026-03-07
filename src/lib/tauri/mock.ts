@@ -213,6 +213,8 @@ export function mockInvoke(command: string, payload?: Record<string, unknown>) {
       return Promise.resolve(mockKubeconfigSourceInfos[0]);
     case "list_pods":
       return Promise.resolve(mockPods);
+    case "restart_app":
+      return Promise.resolve();
     case "check_metrics_server":
       return Promise.resolve(true);
     case "get_pod_metrics":

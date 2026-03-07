@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useRef } from "react";
 import { check } from "@tauri-apps/plugin-updater";
 import { relaunch, exit } from "@tauri-apps/plugin-process";
+import { type as getOsType } from "@tauri-apps/plugin-os";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { useUpdaterStore, isDev } from "@/lib/stores/updater-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { Progress } from "@/components/ui/progress";
+import { restartApp } from "@/lib/tauri/commands";
 
 // Debug logger - only logs in development
 const debug = (...args: unknown[]) => {
@@ -235,6 +237,10 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
 
     debug(" Relaunching app...");
     try {
+      if (await getOsType() === "macos") {
+        await restartApp();
+        return;
+      }
       await relaunch();
     } catch (err) {
       console.error("[Updater] Relaunch failed, trying exit:", err);
