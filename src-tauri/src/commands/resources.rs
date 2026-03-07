@@ -979,6 +979,140 @@ pub struct ResourceYaml {
     pub created_at: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+struct DynamicResourceDescriptor {
+    group: String,
+    version: String,
+    kind: String,
+    plural: String,
+    namespaced: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomResourceQuery {
+    pub group: String,
+    pub version: String,
+    pub kind: String,
+    pub plural: String,
+    pub namespaced: bool,
+    pub namespace: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CustomResourceInfo {
+    pub name: String,
+    pub uid: String,
+    pub namespace: Option<String>,
+    pub kind: String,
+    pub api_version: String,
+    pub status: Option<String>,
+    pub created_at: Option<String>,
+    pub labels: HashMap<String, String>,
+}
+
+fn build_api_version(group: &str, version: &str) -> String {
+    if group.is_empty() {
+        version.to_string()
+    } else {
+        format!("{group}/{version}")
+    }
+}
+
+fn build_api_resource(descriptor: &DynamicResourceDescriptor) -> ApiResource {
+    ApiResource {
+        group: descriptor.group.clone(),
+        version: descriptor.version.clone(),
+        kind: descriptor.kind.clone(),
+        plural: descriptor.plural.clone(),
+        api_version: build_api_version(&descriptor.group, &descriptor.version),
+    }
+}
+
+fn parse_custom_resource_type(resource_type: &str) -> Option<DynamicResourceDescriptor> {
+    let mut parts = resource_type.split(':');
+    let prefix = parts.next()?;
+    let group = parts.next()?;
+    let version = parts.next()?;
+    let kind = parts.next()?;
+    let plural = parts.next()?;
+    let scope = parts.next()?;
+
+    if prefix != "custom-resource"
+        || (scope != "ns" && scope != "cluster")
+        || parts.next().is_some()
+    {
+        return None;
+    }
+
+    Some(DynamicResourceDescriptor {
+        group: group.to_string(),
+        version: version.to_string(),
+        kind: kind.to_string(),
+        plural: plural.to_string(),
+        namespaced: scope == "ns",
+    })
+}
+
+fn summarize_dynamic_status(obj: &DynamicObject) -> Option<String> {
+    let status = obj.data.get("status")?;
+
+    if let Some(phase) = status.get("phase").and_then(|value| value.as_str()) {
+        return Some(phase.to_string());
+    }
+
+    let conditions = status
+        .get("conditions")
+        .and_then(|value| value.as_array())?;
+    let preferred_types = [
+        "Ready",
+        "Established",
+        "Available",
+        "Healthy",
+        "Reconciled",
+        "Synced",
+    ];
+
+    for preferred in preferred_types {
+        if let Some(condition) = conditions.iter().find(|condition| {
+            condition
+                .get("type")
+                .and_then(|value| value.as_str())
+                .map(|value| value == preferred)
+                .unwrap_or(false)
+        }) {
+            let status_value = condition
+                .get("status")
+                .and_then(|value| value.as_str())
+                .unwrap_or("Unknown");
+            let reason = condition
+                .get("reason")
+                .and_then(|value| value.as_str())
+                .unwrap_or(preferred);
+
+            return Some(if status_value == "True" {
+                preferred.to_string()
+            } else {
+                reason.to_string()
+            });
+        }
+    }
+
+    conditions.iter().find_map(|condition| {
+        let condition_type = condition.get("type")?.as_str()?;
+        let status_value = condition.get("status").and_then(|value| value.as_str())?;
+
+        if status_value == "True" {
+            Some(condition_type.to_string())
+        } else {
+            condition
+                .get("reason")
+                .and_then(|value| value.as_str())
+                .map(|value| value.to_string())
+                .or_else(|| Some(condition_type.to_string()))
+        }
+    })
+}
+
 /// Get resource as YAML
 #[command]
 pub async fn get_resource_yaml(
@@ -1219,6 +1353,20 @@ fn resolve_resource_type(resource_type: &str) -> Option<(&str, &str, &str, &str,
     }
 }
 
+fn resolve_dynamic_resource_type(resource_type: &str) -> Option<DynamicResourceDescriptor> {
+    parse_custom_resource_type(resource_type).or_else(|| {
+        resolve_resource_type(resource_type).map(|(group, version, kind, plural, namespaced)| {
+            DynamicResourceDescriptor {
+                group: group.to_string(),
+                version: version.to_string(),
+                kind: kind.to_string(),
+                plural: plural.to_string(),
+                namespaced,
+            }
+        })
+    })
+}
+
 /// Fetch any resource type dynamically using kube discovery
 async fn get_resource_yaml_dynamic(
     client: kube::Client,
@@ -1226,24 +1374,12 @@ async fn get_resource_yaml_dynamic(
     name: &str,
     namespace: Option<&str>,
 ) -> Result<ResourceYaml, KubeliError> {
-    let (group, version, kind, plural, namespaced) = resolve_resource_type(resource_type)
+    let descriptor = resolve_dynamic_resource_type(resource_type)
         .ok_or_else(|| format!("Unsupported resource type: {}", resource_type))?;
+    let api_version = build_api_version(&descriptor.group, &descriptor.version);
+    let ar = build_api_resource(&descriptor);
 
-    let api_version = if group.is_empty() {
-        version.to_string()
-    } else {
-        format!("{}/{}", group, version)
-    };
-
-    let ar = ApiResource {
-        group: group.to_string(),
-        version: version.to_string(),
-        kind: kind.to_string(),
-        plural: plural.to_string(),
-        api_version: api_version.clone(),
-    };
-
-    let api: Api<DynamicObject> = if namespaced {
+    let api: Api<DynamicObject> = if descriptor.namespaced {
         let ns = namespace.ok_or_else(|| format!("Namespace required for {}", resource_type))?;
         Api::namespaced_with(client, ns, &ar)
     } else {
@@ -1261,7 +1397,7 @@ async fn get_resource_yaml_dynamic(
     Ok(ResourceYaml {
         yaml,
         api_version,
-        kind: kind.to_string(),
+        kind: descriptor.kind,
         name: resource.name_any(),
         namespace: resource.namespace(),
         uid: resource.metadata.uid.unwrap_or_default(),
@@ -1337,24 +1473,11 @@ pub async fn delete_resource(
 ) -> Result<(), KubeliError> {
     let client = state.k8s.get_client().await?;
 
-    let (group, version, kind, plural, namespaced) = resolve_resource_type(&resource_type)
+    let descriptor = resolve_dynamic_resource_type(&resource_type)
         .ok_or_else(|| format!("Unsupported resource type: {}", resource_type))?;
+    let ar = build_api_resource(&descriptor);
 
-    let api_version = if group.is_empty() {
-        version.to_string()
-    } else {
-        format!("{}/{}", group, version)
-    };
-
-    let ar = ApiResource {
-        group: group.to_string(),
-        version: version.to_string(),
-        kind: kind.to_string(),
-        plural: plural.to_string(),
-        api_version,
-    };
-
-    let api: Api<DynamicObject> = if namespaced {
+    let api: Api<DynamicObject> = if descriptor.namespaced {
         let ns = namespace.ok_or_else(|| format!("Namespace required for {}", resource_type))?;
         Api::namespaced_with(client, &ns, &ar)
     } else {
@@ -1365,6 +1488,63 @@ pub async fn delete_resource(
 
     tracing::info!("Deleted {} {}", resource_type, name);
     Ok(())
+}
+
+#[command]
+pub async fn list_custom_resources(
+    state: State<'_, AppState>,
+    query: CustomResourceQuery,
+) -> Result<Vec<CustomResourceInfo>, KubeliError> {
+    let client = state.k8s.get_client().await?;
+
+    let descriptor = DynamicResourceDescriptor {
+        group: query.group.clone(),
+        version: query.version.clone(),
+        kind: query.kind.clone(),
+        plural: query.plural.clone(),
+        namespaced: query.namespaced,
+    };
+    let ar = build_api_resource(&descriptor);
+    let api_version = build_api_version(&descriptor.group, &descriptor.version);
+
+    let api: Api<DynamicObject> = if descriptor.namespaced {
+        if let Some(namespace) = query.namespace.as_deref() {
+            Api::namespaced_with(client, namespace, &ar)
+        } else {
+            Api::all_with(client, &ar)
+        }
+    } else {
+        Api::all_with(client, &ar)
+    };
+
+    let list = api.list(&ListParams::default()).await?;
+    let infos: Vec<CustomResourceInfo> = list
+        .items
+        .into_iter()
+        .map(|resource| CustomResourceInfo {
+            name: resource.metadata.name.clone().unwrap_or_default(),
+            uid: resource.metadata.uid.clone().unwrap_or_default(),
+            namespace: resource.metadata.namespace.clone(),
+            kind: descriptor.kind.clone(),
+            api_version: api_version.clone(),
+            status: summarize_dynamic_status(&resource),
+            created_at: resource
+                .metadata
+                .creation_timestamp
+                .as_ref()
+                .map(|timestamp| timestamp.0.to_string()),
+            labels: btree_to_hashmap(resource.metadata.labels.clone()),
+        })
+        .collect();
+
+    tracing::info!(
+        "Listed {} custom resources for {}/{}",
+        infos.len(),
+        descriptor.group,
+        descriptor.kind
+    );
+
+    Ok(infos)
 }
 
 /// Scale a deployment by changing replica count
@@ -4221,5 +4401,77 @@ mod tests {
         assert_eq!(resolve_field_ref("status.podIP", &pod), None);
         assert_eq!(resolve_field_ref("status.hostIP", &pod), None);
         assert_eq!(resolve_field_ref("spec.serviceAccountName", &pod), None);
+    }
+
+    #[test]
+    fn test_parse_custom_resource_type() {
+        assert_eq!(
+            parse_custom_resource_type(
+                "custom-resource:cert-manager.io:v1:Certificate:certificates:ns"
+            ),
+            Some(DynamicResourceDescriptor {
+                group: "cert-manager.io".to_string(),
+                version: "v1".to_string(),
+                kind: "Certificate".to_string(),
+                plural: "certificates".to_string(),
+                namespaced: true,
+            })
+        );
+    }
+
+    #[test]
+    fn test_resolve_dynamic_resource_type_falls_back_to_builtin_resources() {
+        assert_eq!(
+            resolve_dynamic_resource_type("pods"),
+            Some(DynamicResourceDescriptor {
+                group: "".to_string(),
+                version: "v1".to_string(),
+                kind: "Pod".to_string(),
+                plural: "pods".to_string(),
+                namespaced: true,
+            })
+        );
+    }
+
+    #[test]
+    fn test_summarize_dynamic_status_prefers_ready_condition() {
+        let resource: DynamicObject = serde_json::from_value(serde_json::json!({
+            "apiVersion": "cert-manager.io/v1",
+            "kind": "Certificate",
+            "metadata": {
+                "name": "demo"
+            },
+            "status": {
+                "conditions": [
+                    { "type": "Ready", "status": "True" }
+                ]
+            }
+        }))
+        .expect("valid dynamic object");
+
+        assert_eq!(
+            summarize_dynamic_status(&resource),
+            Some("Ready".to_string())
+        );
+    }
+
+    #[test]
+    fn test_summarize_dynamic_status_uses_phase_when_present() {
+        let resource: DynamicObject = serde_json::from_value(serde_json::json!({
+            "apiVersion": "example.io/v1",
+            "kind": "Example",
+            "metadata": {
+                "name": "demo"
+            },
+            "status": {
+                "phase": "Active"
+            }
+        }))
+        .expect("valid dynamic object");
+
+        assert_eq!(
+            summarize_dynamic_status(&resource),
+            Some("Active".to_string())
+        );
     }
 }

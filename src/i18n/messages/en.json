@@ -123,6 +123,7 @@
     "roleBindings": "Role Bindings",
     "clusterRoles": "Cluster Roles",
     "clusterRoleBindings": "Cluster Role Bindings",
+    "customResources": "Custom Resources",
     "crds": "CRDs",
     "priorityClasses": "Priority Classes",
     "runtimeClasses": "Runtime Classes",

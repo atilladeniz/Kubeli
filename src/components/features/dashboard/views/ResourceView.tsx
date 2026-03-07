@@ -1,6 +1,7 @@
 "use client";
 
 import type { ResourceType } from "@/components/layout/sidebar/Sidebar";
+import { isCustomResourceType, parseCustomResourceType } from "@/lib/custom-resources";
 import { ResourceDiagram } from "../../visualization";
 import { ComingSoon } from "../components";
 
@@ -83,12 +84,25 @@ import {
   HelmReleasesView,
   FluxKustomizationsView,
 } from "./gitops";
+import { CustomResourcesView } from "./custom-resources/CustomResourcesView";
 
 interface ResourceViewProps {
   activeResource: ResourceType;
 }
 
 export function ResourceView({ activeResource }: ResourceViewProps) {
+  if (isCustomResourceType(activeResource)) {
+    const definition = parseCustomResourceType(activeResource);
+    if (definition) {
+      return (
+        <CustomResourcesView
+          resourceType={activeResource}
+          definition={definition}
+        />
+      );
+    }
+  }
+
   switch (activeResource) {
     // Overview
     case "cluster-overview":

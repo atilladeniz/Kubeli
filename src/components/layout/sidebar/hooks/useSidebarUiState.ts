@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  implementedViews,
+  isImplementedView,
   readSidebarUiState,
   saveSidebarUiState,
 } from "../types/constants";
@@ -42,10 +42,7 @@ export function useSidebarUiState(): SidebarUiStateHook {
 
     const unique = new Set<ResourceType>();
     for (const value of initialSidebarUiState.navFavorites) {
-      if (
-        typeof value === "string" &&
-        implementedViews.includes(value as ResourceType)
-      ) {
+      if (typeof value === "string" && isImplementedView(value as ResourceType)) {
         unique.add(value as ResourceType);
       }
     }

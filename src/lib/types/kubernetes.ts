@@ -999,6 +999,17 @@ export interface CRDInfo {
   labels: Record<string, string>;
 }
 
+export interface CustomResourceInfo {
+  name: string;
+  uid: string;
+  namespace: string | null;
+  kind: string;
+  api_version: string;
+  status: string | null;
+  created_at: string | null;
+  labels: Record<string, string>;
+}
+
 // Priority Classes
 export interface PriorityClassInfo {
   name: string;

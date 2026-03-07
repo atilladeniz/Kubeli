@@ -2,6 +2,7 @@
 
 import {
   listCRDs,
+  listCustomResources,
   listPriorityClasses,
   listRuntimeClasses,
   listMutatingWebhooks,
@@ -11,6 +12,7 @@ import {
 } from "../../../tauri/commands";
 import type {
   CRDInfo,
+  CustomResourceInfo,
   PriorityClassInfo,
   RuntimeClassInfo,
   MutatingWebhookInfo,
@@ -19,11 +21,32 @@ import type {
   FluxKustomizationInfo,
 } from "../../../types";
 import { createClusterScopedHook, createOptionalNamespaceHook } from "../factory";
+import { useK8sResource } from "../useK8sResource";
+import type { UseK8sResourcesOptions, UseK8sResourcesReturn } from "../types";
+import type { CustomResourceDefinitionRef } from "@/lib/custom-resources";
 
 /**
  * Hook for fetching CustomResourceDefinitions (cluster-scoped).
  */
 export const useCRDs = createClusterScopedHook<CRDInfo>("CRDs", listCRDs);
+
+export function useCustomResources(
+  definition: CustomResourceDefinitionRef,
+  options: UseK8sResourcesOptions = {}
+): UseK8sResourcesReturn<CustomResourceInfo> {
+  return useK8sResource<CustomResourceInfo>(
+    {
+      displayName: `Custom Resources:${definition.group}:${definition.kind}`,
+      clusterScoped: !definition.namespaced,
+      listFn: (listOptions = {}) =>
+        listCustomResources({
+          ...definition,
+          namespace: definition.namespaced ? listOptions.namespace : undefined,
+        }),
+    },
+    options
+  );
+}
 
 /**
  * Hook for fetching PriorityClasses (cluster-scoped).

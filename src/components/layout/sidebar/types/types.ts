@@ -1,8 +1,9 @@
 import type { FavoriteResource } from "@/lib/stores/favorites-store";
 import type { RecentResource } from "@/lib/stores/favorites-store";
 import type { PortForwardInfo } from "@/lib/types";
+import type { CustomResourceType } from "@/lib/custom-resources";
 
-export type ResourceType =
+export type KnownResourceType =
   // Cluster
   | "cluster-overview"
   | "resource-diagram"
@@ -58,6 +59,8 @@ export type ResourceType =
   | "validating-webhooks"
   // Special views
   | "pod-logs";
+
+export type ResourceType = KnownResourceType | CustomResourceType;
 
 export interface NavItem {
   id: ResourceType;

@@ -10,7 +10,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { cn } from "@/lib/utils";
-import { implementedViews } from "../types/constants";
+import { isImplementedView } from "../types/constants";
 import type { NavSection, ResourceType } from "../types/types";
 
 interface NavSectionCollapsibleProps {
@@ -51,7 +51,7 @@ export function NavSectionCollapsible({
       </CollapsibleTrigger>
       <CollapsibleContent className="ml-4 mt-0.5 space-y-0.5">
         {section.items.map((item) => {
-          const isImplemented = implementedViews.includes(item.id);
+          const isImplemented = isImplementedView(item.id);
           const favoriteActive = isNavFavorite(item.id);
 
           return (

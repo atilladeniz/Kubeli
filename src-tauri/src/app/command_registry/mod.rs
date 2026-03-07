@@ -58,6 +58,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Syn
         crate::commands::resources::list_cluster_roles,
         crate::commands::resources::list_cluster_role_bindings,
         crate::commands::resources::list_crds,
+        crate::commands::resources::list_custom_resources,
         crate::commands::resources::list_priority_classes,
         crate::commands::resources::list_runtime_classes,
         crate::commands::resources::list_mutating_webhooks,

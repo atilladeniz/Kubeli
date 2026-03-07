@@ -164,6 +164,28 @@ const cases: TestCase[] = [
   { name: "listClusterRoles", run: () => resources.listClusterRoles(), expectedCommand: "list_cluster_roles" },
   { name: "listClusterRoleBindings", run: () => resources.listClusterRoleBindings(), expectedCommand: "list_cluster_role_bindings" },
   { name: "listCRDs", run: () => resources.listCRDs(), expectedCommand: "list_crds" },
+  {
+    name: "listCustomResources",
+    run: () => resources.listCustomResources({
+      group: "cert-manager.io",
+      version: "v1",
+      kind: "Certificate",
+      plural: "certificates",
+      namespaced: true,
+      namespace: "default",
+    }),
+    expectedCommand: "list_custom_resources",
+    expectedPayload: {
+      query: {
+        group: "cert-manager.io",
+        version: "v1",
+        kind: "Certificate",
+        plural: "certificates",
+        namespaced: true,
+        namespace: "default",
+      },
+    },
+  },
   { name: "listPriorityClasses", run: () => resources.listPriorityClasses(), expectedCommand: "list_priority_classes" },
   { name: "listRuntimeClasses", run: () => resources.listRuntimeClasses(), expectedCommand: "list_runtime_classes" },
   { name: "listMutatingWebhooks", run: () => resources.listMutatingWebhooks(), expectedCommand: "list_mutating_webhooks" },

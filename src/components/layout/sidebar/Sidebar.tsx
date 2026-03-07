@@ -10,7 +10,9 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
+import { useCRDs } from "@/lib/hooks/useK8sResources";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
+import { groupCustomResources } from "@/lib/custom-resources";
 import {
   Tooltip,
   TooltipContent,
@@ -23,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
 import {
   FavoritesSection,
+  CustomResourcesSection,
   NavSectionCollapsible,
   NamespaceSection,
   PortForwardsSection,
@@ -89,6 +92,11 @@ export function Sidebar({
     toggleNavFavorite,
   } = useSidebarUiState();
   const navigationSections = useNavigationSections();
+  const { data: crds } = useCRDs({
+    autoRefresh: true,
+    refreshInterval: 30000,
+  });
+  const customResourceGroups = useMemo(() => groupCustomResources(crds), [crds]);
   const { modKeySymbol } = usePlatform();
 
   const clusterContext = currentCluster?.context || "";
@@ -101,8 +109,13 @@ export function Sidebar({
         map.set(item.id, item.label);
       }
     }
+    for (const group of customResourceGroups) {
+      for (const resource of group.resources) {
+        map.set(resource.id, resource.label);
+      }
+    }
     return map;
-  }, [navigationSections]);
+  }, [customResourceGroups, navigationSections]);
   const handleOpenForwardInBrowser = async (port: number) => {
     try {
       const { openUrl } = await import("@tauri-apps/plugin-opener");
@@ -250,6 +263,14 @@ export function Sidebar({
               soonLabel={tNav("soon")}
             />
           ))}
+          <CustomResourcesSection
+            groups={customResourceGroups}
+            activeResource={activeResource}
+            onResourceSelect={onResourceSelect}
+            onResourceSelectNewTab={onResourceSelectNewTab}
+            isNavFavorite={isNavFavorite}
+            onToggleNavFavorite={toggleNavFavorite}
+          />
         </nav>
       </ScrollArea>
 

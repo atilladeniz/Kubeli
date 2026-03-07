@@ -3,12 +3,18 @@
 import { useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { RESOURCE_I18N_KEYS } from "../constants";
+import { getCustomResourceTabTitle } from "@/lib/custom-resources";
 
 export function useTabTitle() {
   const tNav = useTranslations("navigation");
 
   return useCallback(
     (type: string): string => {
+      const customTitle = getCustomResourceTabTitle(type);
+      if (customTitle) {
+        return customTitle;
+      }
+
       const keys = RESOURCE_I18N_KEYS[type];
       if (!keys) return type;
 

@@ -27,6 +27,7 @@ import { DangerZoneTab } from "./components/DangerZoneTab";
 import { PortForwardTab } from "./components/PortForwardTab";
 import { DeleteResourceDialog } from "./dialogs/DeleteResourceDialog";
 import { DiscardChangesDialog } from "./dialogs/DiscardChangesDialog";
+import { isCustomResourceType } from "@/lib/custom-resources";
 
 export type { ResourceDetailProps, ResourceData } from "./types";
 import type { ResourceDetailProps } from "./types";
@@ -45,7 +46,12 @@ export function ResourceDetail({
   const t = useTranslations();
   // Normalize plural forms (e.g. "pods" → "pod") so tab conditions work
   // regardless of whether the detail was opened from a list or a favorite shortcut.
-  const resourceType = rawResourceType.replace(/s$/, "");
+  const resourceType = isCustomResourceType(rawResourceType)
+    ? rawResourceType
+    : rawResourceType.replace(/s$/, "");
+  const displayResourceType = isCustomResourceType(rawResourceType)
+    ? resource?.kind?.toLowerCase() || "custom resource"
+    : resourceType;
   const yamlTabRef = useRef<YamlTabHandle>(null);
   const tabsContainerRef = useRef<HTMLDivElement>(null);
   const [activeTab, setActiveTab] = useState("overview");
@@ -172,7 +178,7 @@ export function ResourceDetail({
           <div>
             <h2 className="text-lg font-semibold">{resource.name}</h2>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Badge variant="secondary">{resourceType}</Badge>
+              <Badge variant="secondary">{displayResourceType}</Badge>
               {resource.namespace && <span>in {resource.namespace}</span>}
             </div>
           </div>
@@ -312,7 +318,7 @@ export function ResourceDetail({
           <TabsContent value="danger" className="flex-1 overflow-hidden m-0">
             <DangerZoneTab
               resourceName={resource.name}
-              resourceType={resourceType}
+              resourceType={displayResourceType}
               onDeleteClick={() => setShowDeleteDialog(true)}
             />
           </TabsContent>
@@ -330,7 +336,7 @@ export function ResourceDetail({
         onOpenChange={setShowDeleteDialog}
         onConfirm={handleDelete}
         resourceName={resource.name}
-        resourceType={resourceType}
+        resourceType={displayResourceType}
         namespace={resource.namespace}
       />
     </div>

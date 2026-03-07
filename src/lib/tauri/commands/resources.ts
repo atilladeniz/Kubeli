@@ -1,5 +1,6 @@
 import type {
   CRDInfo,
+  CustomResourceInfo,
   CSIDriverInfo,
   CSINodeInfo,
   ConfigMapInfo,
@@ -41,6 +42,7 @@ import type {
 } from "../../types";
 
 import { invoke } from "./core";
+import type { CustomResourceDefinitionRef } from "@/lib/custom-resources";
 
 // Resource commands
 export async function listPods(options: ListOptions = {}): Promise<PodInfo[]> {
@@ -214,6 +216,12 @@ export async function listClusterRoleBindings(): Promise<ClusterRoleBindingInfo[
 // Administration resources
 export async function listCRDs(): Promise<CRDInfo[]> {
   return invoke<CRDInfo[]>("list_crds");
+}
+
+export async function listCustomResources(
+  query: CustomResourceDefinitionRef & { namespace?: string }
+): Promise<CustomResourceInfo[]> {
+  return invoke<CustomResourceInfo[]>("list_custom_resources", { query });
 }
 
 export async function listPriorityClasses(): Promise<PriorityClassInfo[]> {

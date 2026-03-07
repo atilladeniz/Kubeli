@@ -1,9 +1,10 @@
-import type { ResourceType, SidebarUiState } from "./types";
+import { isCustomResourceType } from "@/lib/custom-resources";
+import type { KnownResourceType, ResourceType, SidebarUiState } from "./types";
 
 const SIDEBAR_UI_STATE_STORAGE_KEY = "kubeli-sidebar-ui-state";
 
 // Views that are implemented (not "coming soon")
-export const implementedViews: ResourceType[] = [
+export const implementedViews: KnownResourceType[] = [
   "cluster-overview",
   "resource-diagram",
   "nodes",
@@ -49,6 +50,10 @@ export const implementedViews: ResourceType[] = [
   "helm-releases",
   "flux-kustomizations",
 ];
+
+export function isImplementedView(resource: ResourceType): boolean {
+  return isCustomResourceType(resource) || implementedViews.includes(resource as KnownResourceType);
+}
 
 export function readSidebarUiState(): SidebarUiState {
   if (typeof window === "undefined") return {};

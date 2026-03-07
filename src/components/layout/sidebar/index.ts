@@ -1,15 +1,17 @@
 export { FavoriteItem } from "./components/FavoriteItem";
 export { NavSectionCollapsible } from "./components/NavSectionCollapsible";
 export { ReconnectingTimer } from "./components/ReconnectingTimer";
-export { implementedViews } from "./types/constants";
+export { implementedViews, isImplementedView } from "./types/constants";
 export { useNavigationSections } from "./navigation";
 export { FavoritesSection } from "./sections/FavoritesSection";
+export { CustomResourcesSection } from "./sections/CustomResourcesSection";
 export { NamespaceSection } from "./sections/NamespaceSection";
 export { PortForwardsSection } from "./sections/PortForwardsSection";
 export { QuickAccessSection } from "./sections/QuickAccessSection";
 export { RecentSection } from "./sections/RecentSection";
 export { useSidebarUiState } from "./hooks/useSidebarUiState";
 export type {
+  KnownResourceType,
   NavSection,
   ResourceType,
   SidebarProps,
