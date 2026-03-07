@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.58] - 2026-03-07
+
+- Updated app icon to v2 design
+- Added crash resilience system documentation
+
 ## [0.3.57] - 2026-03-07
 
 - Fixed macOS crash on startup and after updater restart
