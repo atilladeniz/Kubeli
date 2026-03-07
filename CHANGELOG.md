@@ -2,6 +2,14 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.56] - 2026-03-07
+
+- Added owner references display in resource detail panel
+- Added custom resource navigation and views
+- Fixed uncordon action not showing for cordoned nodes
+- Improved frontend and Rust test coverage
+- Refactored Tauri app bootstrap, setup, and macOS tray into separate modules
+
 ## [0.3.55] - 2026-03-04
 
 - Fixed macOS crash when quitting via Cmd+Q and system tray
