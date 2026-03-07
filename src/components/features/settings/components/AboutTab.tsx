@@ -29,9 +29,9 @@ export function AboutTab({ appVersion }: AboutTabProps) {
 
   return (
     <div className="flex flex-col items-center text-center py-4">
-      <div className="mb-4 rounded-2xl bg-muted p-4">
+      <div className="mb-4">
         <img
-          src="/kubeli-icon.png"
+          src="/kubeli-icon-v2.png"
           alt="Kubeli"
           width={80}
           height={80}
