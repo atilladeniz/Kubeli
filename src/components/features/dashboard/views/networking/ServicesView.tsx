@@ -28,7 +28,7 @@ export function ServicesView() {
     autoRefresh: true,
     refreshInterval: 30000,
   });
-  const { forwards, startForward, stopForward } = usePortForward();
+  const { forwards, requestForward, stopForward } = usePortForward();
   const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -62,7 +62,7 @@ export function ServicesView() {
   const handlePortForward = (svc: ServiceInfo, port?: ServicePortInfo) => {
     const p = port ?? svc.ports[0];
     if (p) {
-      startForward(svc.namespace, svc.name, "service", p.port);
+      requestForward(svc.namespace, svc.name, "service", p.port);
     }
   };
 

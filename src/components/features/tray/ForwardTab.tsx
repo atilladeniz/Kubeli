@@ -25,7 +25,7 @@ export function ForwardTab() {
   const [forwardingId, setForwardingId] = useState<string | null>(null);
   const [nsOpen, setNsOpen] = useState(false);
   const hasLoaded = useRef(false);
-  const startForward = usePortForwardStore((s) => s.startForward);
+  const requestForward = usePortForwardStore((s) => s.requestForward);
   const forwards = usePortForwardStore((s) => s.forwards);
   const namespaces = useClusterStore((s) => s.namespaces);
   const selectedNamespaces = useClusterStore((s) => s.selectedNamespaces);
@@ -142,14 +142,8 @@ export function ForwardTab() {
     );
   };
 
-  const handleForward = async (item: ForwardableItem) => {
-    const itemId = `${item.targetType}-${item.namespace}-${item.name}-${item.port}`;
-    setForwardingId(itemId);
-    try {
-      await startForward(item.namespace, item.name, item.targetType, item.port);
-    } finally {
-      setForwardingId(null);
-    }
+  const handleForward = (item: ForwardableItem) => {
+    requestForward(item.namespace, item.name, item.targetType, item.port);
   };
 
   // First load with no cached data: show centered spinner
