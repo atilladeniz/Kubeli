@@ -666,19 +666,23 @@ screenshots: screenshot-setup ## Capture screenshots of all views via deep links
 
 ## Code Verification (Vet)
 
-vet: ## Verify code changes with AI review (uses Claude Code subscription)
+vet: ## Verify all branch changes against main with AI review
 	@if ! command -v vet >/dev/null 2>&1; then \
 		echo "$(YELLOW)vet not found. Installing...$(RESET)"; \
 		$(MAKE) vet-install; \
 	fi
-	@GOAL=""; \
+	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	BASE=$$(git merge-base main HEAD); \
+	COMMIT_COUNT=$$(git rev-list --count $$BASE..HEAD); \
 	if [ -n "$(GOAL)" ]; then \
 		GOAL="$(GOAL)"; \
 	else \
-		GOAL="$$(git log -1 --pretty=%s 2>/dev/null || echo 'Review code changes')"; \
+		GOAL="$$(git log $$BASE..HEAD --pretty=%s | paste -sd ', ' -)"; \
 	fi; \
-	echo "$(CYAN)Running vet: $$GOAL$(RESET)"; \
-	vet "$$GOAL" --agentic --agent-harness claude
+	echo "$(CYAN)Reviewing branch '$$BRANCH' ($$COMMIT_COUNT commits since main)$(RESET)"; \
+	echo "$(CYAN)Goal: $$GOAL$(RESET)"; \
+	echo ""; \
+	vet "$$GOAL" --base-commit $$BASE --agentic --agent-harness claude
 
 vet-install: ## Install vet CLI for AI code verification
 	@if command -v vet >/dev/null 2>&1; then \

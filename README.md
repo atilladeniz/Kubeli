@@ -239,10 +239,10 @@ make security-semgrep  # Static code analysis
 ### Quick Start
 
 ```bash
-# Verify current changes (uses last commit message as goal)
+# Review all changes in current branch against main
 make vet
 
-# Verify with a specific goal
+# Review with a specific goal
 make vet GOAL="Refactor storage layer without breaking API"
 ```
 
@@ -250,9 +250,9 @@ make vet GOAL="Refactor storage layer without breaking API"
 
 | Scenario | Command | Description |
 |----------|---------|-------------|
-| **Pre-commit review** | `make vet` | Catch bugs and logic errors before committing |
+| **Branch review** | `make vet` | Review all commits in the branch against main |
 | **Goal verification** | `make vet GOAL="Add auth to API"` | Verify changes match the intended goal |
-| **PR preparation** | `make vet GOAL="..."` | Self-review before opening a pull request |
+| **PR preparation** | `make vet GOAL="..."` | Self-review entire branch before opening a PR |
 | **Post-refactor check** | `make vet GOAL="Refactor X without breaking Y"` | Ensure refactoring didn't introduce regressions |
 | **Security review** | `make vet GOAL="Harden input validation"` | Check for security issues in new code |
 
