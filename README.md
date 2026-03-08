@@ -232,6 +232,50 @@ make security-semgrep  # Static code analysis
 - `trivy-secret.yaml` - Secret detection rules
 - `.semgrep.yaml` - Custom SAST rules for TypeScript and Rust
 
+## Code Verification (Vet)
+
+[Vet](https://github.com/imbue-ai/vet) is an AI-powered code verification tool that reviews code changes for correctness, security issues, and goal adherence. It uses your existing Claude Code subscription (no extra API keys needed).
+
+### Quick Start
+
+```bash
+# Review all changes in current branch against main
+# (auto-generates goal from commit messages if GOAL is omitted)
+make vet
+
+# Review with a specific goal
+make vet GOAL="Refactor storage layer without breaking API"
+```
+
+### Use Cases
+
+| Scenario | Command | Description |
+|----------|---------|-------------|
+| **Branch review** | `make vet` | Review all commits in the branch against main |
+| **Goal verification** | `make vet GOAL="Add auth to API"` | Verify changes match the intended goal |
+| **PR preparation** | `make vet GOAL="..."` | Self-review entire branch before opening a PR |
+| **Post-refactor check** | `make vet GOAL="Refactor X without breaking Y"` | Ensure refactoring didn't introduce regressions |
+| **Security review** | `make vet GOAL="Harden input validation"` | Check for security issues in new code |
+
+### How It Works
+
+1. Vet compares all commits in the current branch against `main` (full branch diff)
+2. Sends the diff + your goal description to Claude (via Claude Code)
+3. Returns a list of issues: logic errors, security problems, goal mismatches
+4. Exit code `0` = no issues, `10` = issues found
+
+### Installation
+
+`make install` will attempt to install vet automatically (requires Python with pipx, uv, or pip). If Python is not available, vet is skipped with a warning. To install separately:
+
+```bash
+make vet-install
+```
+
+### Agent Skill
+
+Vet is also installed as a Claude Code skill (`.claude/skills/vet/`). When using Claude Code for development, the agent will proactively run vet after code changes to catch issues early.
+
 ## Platform Support
 
 ### macOS

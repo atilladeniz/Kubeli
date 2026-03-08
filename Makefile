@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public build-deploy release generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build
+.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public build-deploy release generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build vet vet-install
 
 # Default target
 .DEFAULT_GOAL := help
@@ -275,6 +275,7 @@ clean-all: clean ## Deep clean including node_modules
 install: ## Install all dependencies
 	npm install
 	cd src-tauri && cargo fetch
+	@$(MAKE) vet-install || echo "$(YELLOW)vet installation skipped (optional, requires Python)$(RESET)"
 
 install-windows-build-deps: ## Install dependencies for cross-compiling Windows builds on macOS
 	@echo "$(CYAN)Installing Windows cross-compile dependencies...$(RESET)"
@@ -662,6 +663,44 @@ screenshots: screenshot-setup ## Capture screenshots of all views via deep links
 		$(MAKE) screenshot-build; \
 	fi
 	@./scripts/capture-screenshots.sh $(SCREENSHOT_DIR)
+
+## Code Verification (Vet)
+
+vet: ## Verify all branch changes against main with AI review
+	@if ! command -v vet >/dev/null 2>&1; then \
+		echo "$(YELLOW)vet not found. Installing...$(RESET)"; \
+		$(MAKE) vet-install; \
+	fi
+	@BRANCH=$$(git rev-parse --abbrev-ref HEAD); \
+	BASE=$$(git merge-base main HEAD); \
+	COMMIT_COUNT=$$(git rev-list --count $$BASE..HEAD); \
+	if [ -n "$(GOAL)" ]; then \
+		GOAL="$(GOAL)"; \
+	else \
+		GOAL="$$(git log $$BASE..HEAD --pretty=%s | paste -sd ', ' -)"; \
+	fi; \
+	echo "$(CYAN)Reviewing branch '$$BRANCH' ($$COMMIT_COUNT commits since main)$(RESET)"; \
+	echo "$(CYAN)Goal: $$GOAL$(RESET)"; \
+	echo ""; \
+	vet "$$GOAL" --base-commit $$BASE --agentic --agent-harness claude
+
+vet-install: ## Install vet CLI for AI code verification
+	@if command -v vet >/dev/null 2>&1; then \
+		echo "$(GREEN)✓ vet already installed ($$(vet --version))$(RESET)"; \
+	else \
+		echo "$(CYAN)Installing vet (verify-everything)...$(RESET)"; \
+		if command -v pipx >/dev/null 2>&1; then \
+			pipx install verify-everything; \
+		elif command -v uv >/dev/null 2>&1; then \
+			uv tool install verify-everything; \
+		elif command -v pip >/dev/null 2>&1; then \
+			pip install verify-everything; \
+		else \
+			echo "$(YELLOW)Error: No Python package manager found (pipx, uv, or pip required)$(RESET)"; \
+			exit 1; \
+		fi; \
+		echo "$(GREEN)✓ vet installed$(RESET)"; \
+	fi
 
 ## Help
 

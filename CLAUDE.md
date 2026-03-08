@@ -40,7 +40,9 @@ make build
 | `make rust-check` | Check Rust code |
 | `make rust-fmt` | Format Rust code |
 | `make clean` | Clean build artifacts |
-| `make install` | Install all dependencies |
+| `make install` | Install all dependencies (incl. vet if Python available) |
+| `make vet` | AI code review of all branch changes against main |
+| `make vet-install` | Install vet CLI for AI code verification |
 | `make help` | Show all available commands |
 
 ### Release & Deploy
