@@ -258,7 +258,7 @@ make vet GOAL="Refactor storage layer without breaking API"
 
 ### How It Works
 
-1. Vet snapshots the repo diff (staged + unstaged changes)
+1. Vet compares all commits in the current branch against `main` (full branch diff)
 2. Sends the diff + your goal description to Claude (via Claude Code)
 3. Returns a list of issues: logic errors, security problems, goal mismatches
 4. Exit code `0` = no issues, `10` = issues found

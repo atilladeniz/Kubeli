@@ -275,7 +275,7 @@ clean-all: clean ## Deep clean including node_modules
 install: ## Install all dependencies
 	npm install
 	cd src-tauri && cargo fetch
-	@$(MAKE) vet-install
+	@$(MAKE) vet-install || echo "$(YELLOW)vet installation skipped (optional, requires Python)$(RESET)"
 
 install-windows-build-deps: ## Install dependencies for cross-compiling Windows builds on macOS
 	@echo "$(CYAN)Installing Windows cross-compile dependencies...$(RESET)"
