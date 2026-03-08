@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 
 function ForwardPortContent() {
   const t = useTranslations("portForward");
+  const tc = useTranslations("common");
   const { pendingForwardRequest, confirmForward, dismissForwardDialog, checkPort } =
     usePortForwardStore();
   const [localPortValue, setLocalPortValue] = useState("");
@@ -106,17 +107,17 @@ function ForwardPortContent() {
 
       <div className="py-2 space-y-2">
         <Label htmlFor="local-port" className="text-sm">
-          {t("customLocalPort")}
+          {t("customLocalPort")} <span className="text-muted-foreground font-normal">(optional)</span>
         </Label>
         <Input
           id="local-port"
-          type="number"
-          min={1024}
-          max={65535}
+          type="text"
+          inputMode="numeric"
           placeholder={t("autoPortPlaceholder")}
           value={localPortValue}
           onChange={(e) => {
-            setLocalPortValue(e.target.value);
+            const val = e.target.value.replace(/\D/g, "");
+            setLocalPortValue(val);
             setPortError(null);
           }}
           onBlur={handleBlur}
@@ -127,6 +128,7 @@ function ForwardPortContent() {
             }
           }}
           className={portError ? "border-red-500" : ""}
+          autoComplete="off"
         />
         {portError && (
           <p className="text-xs text-red-500">{portError}</p>
@@ -135,7 +137,7 @@ function ForwardPortContent() {
 
       <AlertDialogFooter>
         <Button variant="outline" onClick={handleDismiss} disabled={isSubmitting}>
-          {t("stop")}
+          {tc("cancel")}
         </Button>
         <Button onClick={handleForward} disabled={isSubmitting || !!portError}>
           {t("forward")}
