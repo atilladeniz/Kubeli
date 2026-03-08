@@ -80,6 +80,7 @@ const defaultState = {
   listeners: new Map(),
   initialized: false,
   pendingBrowserOpen: null,
+  pendingForwardRequest: null,
 };
 
 describe("PortForwardStore", () => {
@@ -764,6 +765,100 @@ describe("PortForwardStore", () => {
       expect(mockPortforwardStop).toHaveBeenCalledTimes(2);
       expect(mockPortforwardStop).toHaveBeenCalledWith(mockForward.forward_id);
       expect(mockPortforwardStop).toHaveBeenCalledWith("id-2");
+    });
+  });
+
+  describe("forward dialog", () => {
+    it("requestForward sets pendingForwardRequest correctly", () => {
+      act(() => {
+        usePortForwardStore.getState().requestForward("default", "my-svc", "service", 8080);
+      });
+
+      const pending = usePortForwardStore.getState().pendingForwardRequest;
+      expect(pending).toEqual({
+        namespace: "default",
+        name: "my-svc",
+        targetType: "service",
+        targetPort: 8080,
+      });
+    });
+
+    it("confirmForward with custom port calls startForward with correct args and clears pending", async () => {
+      mockPortforwardStart.mockResolvedValue({ ...mockForward, local_port: 9090 });
+
+      // Set pending request
+      act(() => {
+        usePortForwardStore.getState().requestForward("default", "test-svc", "service", 8080);
+      });
+
+      expect(usePortForwardStore.getState().pendingForwardRequest).not.toBeNull();
+
+      await act(async () => {
+        const result = await usePortForwardStore.getState().confirmForward(9090);
+        expect(result).not.toBeNull();
+      });
+
+      // Pending should be cleared
+      expect(usePortForwardStore.getState().pendingForwardRequest).toBeNull();
+
+      // startForward should have been called with the custom port
+      expect(mockPortforwardStart).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          namespace: "default",
+          name: "test-svc",
+          target_type: "service",
+          target_port: 8080,
+          local_port: 9090,
+        })
+      );
+    });
+
+    it("confirmForward without port calls startForward with localPort undefined", async () => {
+      mockPortforwardStart.mockResolvedValue({ ...mockForward });
+
+      act(() => {
+        usePortForwardStore.getState().requestForward("default", "test-svc", "service", 8080);
+      });
+
+      await act(async () => {
+        await usePortForwardStore.getState().confirmForward();
+      });
+
+      expect(mockPortforwardStart).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          namespace: "default",
+          name: "test-svc",
+          target_type: "service",
+          target_port: 8080,
+          local_port: undefined,
+        })
+      );
+    });
+
+    it("confirmForward returns null if no pending request", async () => {
+      let result: unknown;
+      await act(async () => {
+        result = await usePortForwardStore.getState().confirmForward(9090);
+      });
+
+      expect(result).toBeNull();
+      expect(mockPortforwardStart).not.toHaveBeenCalled();
+    });
+
+    it("dismissForwardDialog clears pendingForwardRequest", () => {
+      act(() => {
+        usePortForwardStore.getState().requestForward("default", "my-svc", "service", 8080);
+      });
+
+      expect(usePortForwardStore.getState().pendingForwardRequest).not.toBeNull();
+
+      act(() => {
+        usePortForwardStore.getState().dismissForwardDialog();
+      });
+
+      expect(usePortForwardStore.getState().pendingForwardRequest).toBeNull();
     });
   });
 });
