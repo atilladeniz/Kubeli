@@ -232,6 +232,49 @@ make security-semgrep  # Static code analysis
 - `trivy-secret.yaml` - Secret detection rules
 - `.semgrep.yaml` - Custom SAST rules for TypeScript and Rust
 
+## Code Verification (Vet)
+
+[Vet](https://github.com/imbue-ai/vet) is an AI-powered code verification tool that reviews code changes for correctness, security issues, and goal adherence. It uses your existing Claude Code subscription (no extra API keys needed).
+
+### Quick Start
+
+```bash
+# Verify current changes (uses last commit message as goal)
+make vet
+
+# Verify with a specific goal
+make vet GOAL="Refactor storage layer without breaking API"
+```
+
+### Use Cases
+
+| Scenario | Command | Description |
+|----------|---------|-------------|
+| **Pre-commit review** | `make vet` | Catch bugs and logic errors before committing |
+| **Goal verification** | `make vet GOAL="Add auth to API"` | Verify changes match the intended goal |
+| **PR preparation** | `make vet GOAL="..."` | Self-review before opening a pull request |
+| **Post-refactor check** | `make vet GOAL="Refactor X without breaking Y"` | Ensure refactoring didn't introduce regressions |
+| **Security review** | `make vet GOAL="Harden input validation"` | Check for security issues in new code |
+
+### How It Works
+
+1. Vet snapshots the repo diff (staged + unstaged changes)
+2. Sends the diff + your goal description to Claude (via Claude Code)
+3. Returns a list of issues: logic errors, security problems, goal mismatches
+4. Exit code `0` = no issues, `10` = issues found
+
+### Installation
+
+Vet is automatically installed with `make install`. To install separately:
+
+```bash
+make vet-install
+```
+
+### Agent Skill
+
+Vet is also installed as a Claude Code skill (`.claude/skills/vet/`). When using Claude Code for development, the agent will proactively run vet after code changes to catch issues early.
+
 ## Platform Support
 
 ### macOS
