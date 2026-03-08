@@ -69,17 +69,13 @@ function ForwardPortContent() {
     }
 
     setIsSubmitting(true);
-    const result = await confirmForward(port);
+    await confirmForward(port);
     setIsSubmitting(false);
-
-    if (result === null && pendingForwardRequest === null) {
-      // startForward failed — error toast is already shown by startForward's catch block
-    }
 
     // Reset local state
     setLocalPortValue("");
     setPortError(null);
-  }, [localPortValue, confirmForward, validatePort, pendingForwardRequest, t]);
+  }, [localPortValue, confirmForward, validatePort, t]);
 
   const handleDismiss = useCallback(() => {
     setLocalPortValue("");
