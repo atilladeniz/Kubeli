@@ -24,6 +24,8 @@ export function usePortForward(_options?: UsePortForwardOptions) {
     checkPort,
     getForward,
     refreshForwards,
+    requestForward,
+    dismissForwardDialog,
   } = usePortForwardStore();
 
   // Initialize only once across all hook instances
@@ -41,5 +43,7 @@ export function usePortForward(_options?: UsePortForwardOptions) {
     checkPort,
     getForward,
     refreshForwards,
+    requestForward,
+    dismissForwardDialog,
   };
 }

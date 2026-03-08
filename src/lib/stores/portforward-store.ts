@@ -21,6 +21,13 @@ interface PendingBrowserOpen {
   localPort: number;
 }
 
+interface PendingForwardRequest {
+  namespace: string;
+  name: string;
+  targetType: PortForwardTargetType;
+  targetPort: number;
+}
+
 interface PortForwardState {
   forwards: PortForwardInfo[];
   isLoading: boolean;
@@ -30,6 +37,9 @@ interface PortForwardState {
 
   // Browser dialog state
   pendingBrowserOpen: PendingBrowserOpen | null;
+
+  // Forward dialog state
+  pendingForwardRequest: PendingForwardRequest | null;
 
   // Actions
   initialize: () => Promise<void>;
@@ -45,6 +55,16 @@ interface PortForwardState {
   stopAllForwards: () => Promise<void>;
   checkPort: (port: number) => Promise<boolean>;
   getForward: (forwardId: string) => PortForwardInfo | undefined;
+
+  // Forward dialog actions
+  requestForward: (
+    namespace: string,
+    name: string,
+    targetType: PortForwardTargetType,
+    targetPort: number
+  ) => void;
+  confirmForward: (localPort?: number) => Promise<PortForwardInfo | null>;
+  dismissForwardDialog: () => void;
 
   // Browser dialog actions
   confirmOpenBrowser: (rememberChoice: boolean) => void;
@@ -75,6 +95,7 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
   listeners: new Map(),
   initialized: false,
   pendingBrowserOpen: null,
+  pendingForwardRequest: null,
 
   initialize: async () => {
     // Only initialize once
@@ -353,6 +374,26 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
 
   setError: (error: string | null) => {
     set({ error });
+  },
+
+  requestForward: (namespace, name, targetType, targetPort) => {
+    set({
+      pendingForwardRequest: { namespace, name, targetType, targetPort },
+    });
+  },
+
+  confirmForward: async (localPort) => {
+    const { pendingForwardRequest, startForward } = get();
+    if (!pendingForwardRequest) return null;
+
+    const { namespace, name, targetType, targetPort } = pendingForwardRequest;
+    set({ pendingForwardRequest: null });
+
+    return startForward(namespace, name, targetType, targetPort, localPort);
+  },
+
+  dismissForwardDialog: () => {
+    set({ pendingForwardRequest: null });
   },
 
   confirmOpenBrowser: (rememberChoice: boolean) => {
