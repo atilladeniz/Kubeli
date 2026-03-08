@@ -240,6 +240,7 @@ make security-semgrep  # Static code analysis
 
 ```bash
 # Review all changes in current branch against main
+# (auto-generates goal from commit messages if GOAL is omitted)
 make vet
 
 # Review with a specific goal
@@ -265,7 +266,7 @@ make vet GOAL="Refactor storage layer without breaking API"
 
 ### Installation
 
-Vet is automatically installed with `make install`. To install separately:
+`make install` will attempt to install vet automatically (requires Python with pipx, uv, or pip). If Python is not available, vet is skipped with a warning. To install separately:
 
 ```bash
 make vet-install
