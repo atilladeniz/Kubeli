@@ -1,8 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, ArrowRightLeft } from "lucide-react";
+import { toast } from "sonner";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import {
   AlertDialog,
@@ -14,9 +15,137 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-export function BrowserOpenDialog() {
+function ForwardPortContent() {
+  const t = useTranslations("portForward");
+  const { pendingForwardRequest, confirmForward, dismissForwardDialog, checkPort } =
+    usePortForwardStore();
+  const [localPortValue, setLocalPortValue] = useState("");
+  const [portError, setPortError] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const validatePort = useCallback(
+    async (port: number) => {
+      const available = await checkPort(port);
+      if (!available) {
+        setPortError(t("portNotAvailable", { port }));
+      } else {
+        setPortError(null);
+      }
+      return available;
+    },
+    [checkPort, t]
+  );
+
+  const handleBlur = useCallback(() => {
+    const port = parseInt(localPortValue, 10);
+    if (localPortValue && !isNaN(port) && port >= 1024 && port <= 65535) {
+      validatePort(port);
+    } else if (localPortValue && !isNaN(port)) {
+      setPortError(t("portNotAvailable", { port }));
+    } else {
+      setPortError(null);
+    }
+  }, [localPortValue, validatePort, t]);
+
+  const handleForward = useCallback(async () => {
+    const port = localPortValue ? parseInt(localPortValue, 10) : undefined;
+
+    if (port !== undefined) {
+      if (isNaN(port) || port < 1024 || port > 65535) {
+        setPortError(t("portNotAvailable", { port: localPortValue }));
+        return;
+      }
+      setIsSubmitting(true);
+      const available = await validatePort(port);
+      if (!available) {
+        setIsSubmitting(false);
+        toast.error(t("portNotAvailable", { port }));
+        return;
+      }
+    }
+
+    setIsSubmitting(true);
+    const result = await confirmForward(port);
+    setIsSubmitting(false);
+
+    if (result === null && pendingForwardRequest === null) {
+      // startForward failed — error toast is already shown by startForward's catch block
+    }
+
+    // Reset local state
+    setLocalPortValue("");
+    setPortError(null);
+  }, [localPortValue, confirmForward, validatePort, pendingForwardRequest, t]);
+
+  const handleDismiss = useCallback(() => {
+    setLocalPortValue("");
+    setPortError(null);
+    dismissForwardDialog();
+  }, [dismissForwardDialog]);
+
+  if (!pendingForwardRequest) return null;
+
+  return (
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle className="flex items-center gap-2">
+          <ArrowRightLeft className="size-5" />
+          {t("forwardPort")}
+        </AlertDialogTitle>
+        <AlertDialogDescription>
+          {t("forwardDialogDesc", {
+            name: pendingForwardRequest.name,
+            targetPort: pendingForwardRequest.targetPort,
+            namespace: pendingForwardRequest.namespace,
+          })}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+
+      <div className="py-2 space-y-2">
+        <Label htmlFor="local-port" className="text-sm">
+          {t("customLocalPort")}
+        </Label>
+        <Input
+          id="local-port"
+          type="number"
+          min={1024}
+          max={65535}
+          placeholder={t("autoPortPlaceholder")}
+          value={localPortValue}
+          onChange={(e) => {
+            setLocalPortValue(e.target.value);
+            setPortError(null);
+          }}
+          onBlur={handleBlur}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleForward();
+            }
+          }}
+          className={portError ? "border-red-500" : ""}
+        />
+        {portError && (
+          <p className="text-xs text-red-500">{portError}</p>
+        )}
+      </div>
+
+      <AlertDialogFooter>
+        <Button variant="outline" onClick={handleDismiss} disabled={isSubmitting}>
+          {t("stop")}
+        </Button>
+        <Button onClick={handleForward} disabled={isSubmitting || !!portError}>
+          {t("forward")}
+        </Button>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  );
+}
+
+function BrowserOpenContent() {
   const t = useTranslations("portForward");
   const { pendingBrowserOpen, confirmOpenBrowser, dismissBrowserDialog } =
     usePortForwardStore();
@@ -27,44 +156,55 @@ export function BrowserOpenDialog() {
   }
 
   return (
-    <AlertDialog open={!!pendingBrowserOpen}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle className="flex items-center gap-2">
-            <ExternalLink className="size-5" />
-            {t("openInBrowser")}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("browserDialogDesc", { port: pendingBrowserOpen.localPort })}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
+    <AlertDialogContent>
+      <AlertDialogHeader>
+        <AlertDialogTitle className="flex items-center gap-2">
+          <ExternalLink className="size-5" />
+          {t("openInBrowser")}
+        </AlertDialogTitle>
+        <AlertDialogDescription>
+          {t("browserDialogDesc", { port: pendingBrowserOpen.localPort })}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
 
-        <div className="flex items-center space-x-2 py-2">
-          <Checkbox
-            id="remember"
-            checked={rememberChoice}
-            onCheckedChange={(checked) => setRememberChoice(checked === true)}
-          />
-          <Label
-            htmlFor="remember"
-            className="text-sm text-muted-foreground cursor-pointer"
-          >
-            {t("rememberChoice")}
-          </Label>
-        </div>
+      <div className="flex items-center space-x-2 py-2">
+        <Checkbox
+          id="remember"
+          checked={rememberChoice}
+          onCheckedChange={(checked) => setRememberChoice(checked === true)}
+        />
+        <Label
+          htmlFor="remember"
+          className="text-sm text-muted-foreground cursor-pointer"
+        >
+          {t("rememberChoice")}
+        </Label>
+      </div>
 
-        <AlertDialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => dismissBrowserDialog(rememberChoice)}
-          >
-            {t("noThanks")}
-          </Button>
-          <Button onClick={() => confirmOpenBrowser(rememberChoice)}>
-            {t("openBrowser")}
-          </Button>
-        </AlertDialogFooter>
-      </AlertDialogContent>
+      <AlertDialogFooter>
+        <Button
+          variant="outline"
+          onClick={() => dismissBrowserDialog(rememberChoice)}
+        >
+          {t("noThanks")}
+        </Button>
+        <Button onClick={() => confirmOpenBrowser(rememberChoice)}>
+          {t("openBrowser")}
+        </Button>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  );
+}
+
+export function BrowserOpenDialog() {
+  const pendingForwardRequest = usePortForwardStore((s) => s.pendingForwardRequest);
+  const pendingBrowserOpen = usePortForwardStore((s) => s.pendingBrowserOpen);
+
+  const isOpen = !!pendingForwardRequest || !!pendingBrowserOpen;
+
+  return (
+    <AlertDialog open={isOpen}>
+      {pendingForwardRequest ? <ForwardPortContent /> : <BrowserOpenContent />}
     </AlertDialog>
   );
 }
