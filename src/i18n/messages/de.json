@@ -419,7 +419,13 @@
     "reconnected": "Neu verbunden",
     "portForwardLost": "Port-Weiterleitung verloren",
     "podRemoved": "Pod wurde entfernt",
-    "reconnectingTo": "Verbinde mit neuem Pod"
+    "reconnectingTo": "Verbinde mit neuem Pod",
+    "forwardPort": "Port weiterleiten",
+    "forwardDialogDesc": "{name}:{targetPort} in {namespace} weiterleiten",
+    "customLocalPort": "Lokaler Port",
+    "autoPortPlaceholder": "Auto (zufälliger verfügbarer Port)",
+    "forward": "Weiterleiten",
+    "portNotAvailable": "Port {port} ist nicht verfügbar"
   },
   "settings": {
     "title": "Einstellungen",

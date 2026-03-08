@@ -419,7 +419,13 @@
     "reconnected": "Reconnected",
     "portForwardLost": "Port forward lost",
     "podRemoved": "Pod was removed",
-    "reconnectingTo": "Reconnecting to new pod"
+    "reconnectingTo": "Reconnecting to new pod",
+    "forwardPort": "Forward Port",
+    "forwardDialogDesc": "Forward {name}:{targetPort} in {namespace}",
+    "customLocalPort": "Local Port",
+    "autoPortPlaceholder": "Auto (random available port)",
+    "forward": "Forward",
+    "portNotAvailable": "Port {port} is not available"
   },
   "settings": {
     "title": "Settings",
