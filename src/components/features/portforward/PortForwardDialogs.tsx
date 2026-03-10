@@ -75,14 +75,18 @@ function ForwardPortContent() {
 
     if (!result) {
       if (port !== undefined) {
+        // Custom port failed — keep dialog open so user can try another port
         setPortError(t("portNotAvailable", { port }));
+        return;
       }
+      // Auto port failed — dismiss dialog, store toast shows the real error
+      dismissForwardDialog();
       return;
     }
 
     setLocalPortValue("");
     setPortError(null);
-  }, [localPortValue, confirmForward, validatePort, t]);
+  }, [localPortValue, confirmForward, dismissForwardDialog, validatePort, t]);
 
   const handleDismiss = useCallback(() => {
     setLocalPortValue("");
