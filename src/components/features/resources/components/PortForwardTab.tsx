@@ -148,7 +148,7 @@ export function PortForwardTab({
                           if (isForwarded) {
                             stopForward(forward.forward_id);
                           } else {
-                            requestForward(svc.namespace, svc.name, "service", port.port);
+                            requestForward(svc.namespace, svc.name, "service", port.port, port.name ?? undefined);
                           }
                         }}
                       >

@@ -199,6 +199,10 @@ export interface PortForwardInfo {
   status: PortForwardStatus;
   pod_name?: string;
   pod_uid?: string;
+  /** Original service port before backend resolution (frontend-only, not from Rust) */
+  requested_port?: number;
+  /** Port name from the service spec, e.g. "amqp", "http" (frontend-only) */
+  port_name?: string;
 }
 
 export type PortForwardEventType = "Started" | "Connected" | "Reconnecting" | "Reconnected" | "PodDied" | "Disconnected" | "Error" | "Stopped";

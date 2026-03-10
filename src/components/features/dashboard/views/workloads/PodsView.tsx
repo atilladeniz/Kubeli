@@ -186,7 +186,7 @@ export function PodsView() {
     const service = findServiceForPod(pod);
     if (service && service.ports.length > 0) {
       const p = port ?? service.ports[0];
-      requestForward(service.namespace, service.name, "service", p.port);
+      requestForward(service.namespace, service.name, "service", p.port, p.name ?? undefined);
     }
   };
 

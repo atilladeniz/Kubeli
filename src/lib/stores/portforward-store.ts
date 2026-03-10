@@ -26,6 +26,7 @@ interface PendingForwardRequest {
   name: string;
   targetType: PortForwardTargetType;
   targetPort: number;
+  portName?: string;
 }
 
 interface PortForwardState {
@@ -49,7 +50,8 @@ interface PortForwardState {
     name: string,
     targetType: PortForwardTargetType,
     targetPort: number,
-    localPort?: number
+    localPort?: number,
+    portName?: string
   ) => Promise<PortForwardInfo | null>;
   stopForward: (forwardId: string) => Promise<void>;
   stopAllForwards: () => Promise<void>;
@@ -61,7 +63,8 @@ interface PortForwardState {
     namespace: string,
     name: string,
     targetType: PortForwardTargetType,
-    targetPort: number
+    targetPort: number,
+    portName?: string
   ) => void;
   confirmForward: (localPort?: number) => Promise<PortForwardInfo | null>;
   dismissForwardDialog: () => void;
@@ -108,7 +111,15 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
 
   refreshForwards: async () => {
     try {
-      const forwards = await portforwardList();
+      const backendForwards = await portforwardList();
+      const existing = get().forwards;
+      // Preserve frontend-only fields (requested_port, port_name) from existing state
+      const forwards = backendForwards.map((bf) => {
+        const prev = existing.find((e) => e.forward_id === bf.forward_id);
+        return prev
+          ? { ...bf, requested_port: prev.requested_port, port_name: prev.port_name }
+          : bf;
+      });
       set({ forwards });
 
       // Setup listeners for any forwards we don't have listeners for
@@ -261,7 +272,7 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
     }
   },
 
-  startForward: async (namespace, name, targetType, targetPort, localPort) => {
+  startForward: async (namespace, name, targetType, targetPort, localPort, portName) => {
     set({ isLoading: true, error: null });
 
     try {
@@ -279,6 +290,8 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
         status: "connecting",
         pod_name: undefined,
         pod_uid: undefined,
+        requested_port: targetPort,
+        port_name: portName,
       };
 
       set((state) => ({
@@ -376,9 +389,9 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
     set({ error });
   },
 
-  requestForward: (namespace, name, targetType, targetPort) => {
+  requestForward: (namespace, name, targetType, targetPort, portName) => {
     set({
-      pendingForwardRequest: { namespace, name, targetType, targetPort },
+      pendingForwardRequest: { namespace, name, targetType, targetPort, portName },
     });
   },
 
@@ -386,8 +399,8 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
     const { pendingForwardRequest, startForward } = get();
     if (!pendingForwardRequest) return null;
 
-    const { namespace, name, targetType, targetPort } = pendingForwardRequest;
-    const result = await startForward(namespace, name, targetType, targetPort, localPort);
+    const { namespace, name, targetType, targetPort, portName } = pendingForwardRequest;
+    const result = await startForward(namespace, name, targetType, targetPort, localPort, portName);
 
     if (result) {
       set({ pendingForwardRequest: null });

@@ -142,7 +142,7 @@ export function ForwardTab() {
   };
 
   const handleForward = (item: ForwardableItem) => {
-    requestForward(item.namespace, item.name, item.targetType, item.port);
+    requestForward(item.namespace, item.name, item.targetType, item.port, item.portName);
   };
 
   // First load with no cached data: show centered spinner

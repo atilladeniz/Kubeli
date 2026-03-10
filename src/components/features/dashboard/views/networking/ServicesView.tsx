@@ -62,7 +62,7 @@ export function ServicesView() {
   const handlePortForward = (svc: ServiceInfo, port?: ServicePortInfo) => {
     const p = port ?? svc.ports[0];
     if (p) {
-      requestForward(svc.namespace, svc.name, "service", p.port);
+      requestForward(svc.namespace, svc.name, "service", p.port, p.name ?? undefined);
     }
   };
 

@@ -27,7 +27,10 @@ function getForwardForPort(
 ): PortForwardInfo | undefined {
   const targetPortNum = parseInt(port.target_port, 10);
   return forwards.find(
-    (f) => f.target_port === port.port || (!isNaN(targetPortNum) && f.target_port === targetPortNum)
+    (f) =>
+      f.target_port === port.port ||
+      (!isNaN(targetPortNum) && f.target_port === targetPortNum) ||
+      f.requested_port === port.port
   );
 }
 
