@@ -25,7 +25,10 @@ function getForwardForPort(
   forwards: PortForwardInfo[],
   port: ServicePortInfo
 ): PortForwardInfo | undefined {
-  return forwards.find((f) => f.target_port === port.port);
+  const targetPortNum = parseInt(port.target_port, 10);
+  return forwards.find(
+    (f) => f.target_port === port.port || (!isNaN(targetPortNum) && f.target_port === targetPortNum)
+  );
 }
 
 export function PortSelectPopover({
