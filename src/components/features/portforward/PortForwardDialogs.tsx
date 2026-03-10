@@ -17,6 +17,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+const PORT_MIN = 1024;
+const PORT_MAX = 65535;
+
 function ForwardPortContent() {
   const t = useTranslations("portForward");
   const tc = useTranslations("common");
@@ -41,10 +44,10 @@ function ForwardPortContent() {
 
   const handleBlur = useCallback(() => {
     const port = parseInt(localPortValue, 10);
-    if (localPortValue && !isNaN(port) && port >= 1024 && port <= 65535) {
+    if (localPortValue && !isNaN(port) && port >= PORT_MIN && port <= PORT_MAX) {
       validatePort(port);
     } else if (localPortValue && !isNaN(port)) {
-      setPortError(t("portNotAvailable", { port }));
+      setPortError(t("portOutOfRange"));
     } else {
       setPortError(null);
     }
@@ -54,7 +57,7 @@ function ForwardPortContent() {
     const port = localPortValue ? parseInt(localPortValue, 10) : undefined;
 
     if (port !== undefined) {
-      if (isNaN(port) || port < 1024 || port > 65535) {
+      if (isNaN(port) || port < PORT_MIN || port > PORT_MAX) {
         setPortError(t("portOutOfRange"));
         return;
       }
@@ -113,8 +116,9 @@ function ForwardPortContent() {
           inputMode="numeric"
           placeholder={t("autoPortPlaceholder")}
           value={localPortValue}
+          maxLength={5}
           onChange={(e) => {
-            const val = e.target.value.replace(/\D/g, "");
+            const val = e.target.value.replace(/\D/g, "").slice(0, 5);
             setLocalPortValue(val);
             setPortError(null);
           }}

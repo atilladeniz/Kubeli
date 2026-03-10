@@ -8,7 +8,7 @@ import { CreateResourcePanel } from "../resources/CreateResourcePanel";
 import { AIAssistant } from "../ai/AIAssistant";
 import { TerminalTabsProvider, useTerminalTabs } from "../terminal";
 import { SettingsPanel } from "../settings/SettingsPanel";
-import { BrowserOpenDialog } from "../portforward/BrowserOpenDialog";
+import { BrowserOpenDialog } from "../portforward/PortForwardDialogs";
 import { RestartDialog } from "../updater/RestartDialog";
 import { useTabTitle } from "@/components/layout/tabbar/TabBar";
 import { ShortcutsHelpDialog } from "../shortcuts/ShortcutsHelpDialog";

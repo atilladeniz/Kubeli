@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ExternalLink, Power, ChevronDown, Loader2, Circle, Check } from "lucide-react";
 import { ForwardTab } from "./ForwardTab";
 import { ActiveTab } from "./ActiveTab";
-import { BrowserOpenDialog } from "../portforward/BrowserOpenDialog";
+import { BrowserOpenDialog } from "../portforward/PortForwardDialogs";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
