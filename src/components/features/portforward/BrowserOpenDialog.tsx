@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import { ExternalLink, ArrowRightLeft } from "lucide-react";
-import { toast } from "sonner";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import {
   AlertDialog,
@@ -56,25 +55,28 @@ function ForwardPortContent() {
 
     if (port !== undefined) {
       if (isNaN(port) || port < 1024 || port > 65535) {
-        setPortError(t("portNotAvailable", { port: localPortValue }));
+        setPortError(t("portOutOfRange"));
         return;
       }
       setIsSubmitting(true);
       const available = await validatePort(port);
       if (!available) {
         setIsSubmitting(false);
-        toast.error(t("portNotAvailable", { port }));
         return;
       }
     }
 
     setIsSubmitting(true);
-    await confirmForward(port);
-    setIsSubmitting(false);
-
-    // Reset local state
-    setLocalPortValue("");
-    setPortError(null);
+    try {
+      await confirmForward(port);
+      // Reset local state only on success
+      setLocalPortValue("");
+      setPortError(null);
+    } catch {
+      setPortError(t("portNotAvailable", { port: localPortValue }));
+    } finally {
+      setIsSubmitting(false);
+    }
   }, [localPortValue, confirmForward, validatePort, t]);
 
   const handleDismiss = useCallback(() => {
@@ -103,7 +105,7 @@ function ForwardPortContent() {
 
       <div className="py-2 space-y-2">
         <Label htmlFor="local-port" className="text-sm">
-          {t("customLocalPort")} <span className="text-muted-foreground font-normal">(optional)</span>
+          {t("customLocalPort")} <span className="text-muted-foreground font-normal">({tc("optional")})</span>
         </Label>
         <Input
           id="local-port"

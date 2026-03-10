@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Search, ArrowRight, Loader2, ChevronDown, Check } from "lucide-react";
+import { Search, ArrowRight, ChevronDown, Check, Loader2 } from "lucide-react";
 import { listPods, listServices } from "@/lib/tauri/commands";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
@@ -22,7 +22,6 @@ export function ForwardTab() {
   const [search, setSearch] = useState("");
   const [items, setItems] = useState<ForwardableItem[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [forwardingId, setForwardingId] = useState<string | null>(null);
   const [nsOpen, setNsOpen] = useState(false);
   const hasLoaded = useRef(false);
   const requestForward = usePortForwardStore((s) => s.requestForward);
@@ -253,9 +252,7 @@ export function ForwardTab() {
                 {namespace}
               </div>
               {nsItems.map((item, idx) => {
-                const itemId = `${item.targetType}-${item.namespace}-${item.name}-${item.port}`;
                 const forwarded = isAlreadyForwarded(item);
-                const isForwarding = forwardingId === itemId;
 
                 return (
                   <div
@@ -278,18 +275,14 @@ export function ForwardTab() {
                       <TooltipTrigger asChild>
                         <button
                           onClick={() => handleForward(item)}
-                          disabled={forwarded || isForwarding}
+                          disabled={forwarded}
                           className={`p-1 rounded-md transition-all shrink-0 ${
                             forwarded
                               ? "text-green-500/70"
-                              : isForwarding
-                                ? "text-muted-foreground"
-                                : "text-muted-foreground/40 hover:text-primary hover:bg-primary/10"
+                              : "text-muted-foreground/40 hover:text-primary hover:bg-primary/10"
                           }`}
                         >
-                          {isForwarding ? (
-                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                          ) : forwarded ? (
+                          {forwarded ? (
                             <Check className="h-3.5 w-3.5" />
                           ) : (
                             <ArrowRight className="h-3.5 w-3.5" />

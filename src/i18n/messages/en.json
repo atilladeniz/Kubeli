@@ -425,7 +425,8 @@
     "customLocalPort": "Local Port",
     "autoPortPlaceholder": "Auto (random available port)",
     "forward": "Forward",
-    "portNotAvailable": "Port {port} is not available"
+    "portNotAvailable": "Port {port} is not available",
+    "portOutOfRange": "Port must be between 1024 and 65535"
   },
   "settings": {
     "title": "Settings",

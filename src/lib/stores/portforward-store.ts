@@ -387,9 +387,10 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
     if (!pendingForwardRequest) return null;
 
     const { namespace, name, targetType, targetPort } = pendingForwardRequest;
+    const result = await startForward(namespace, name, targetType, targetPort, localPort);
     set({ pendingForwardRequest: null });
 
-    return startForward(namespace, name, targetType, targetPort, localPort);
+    return result;
   },
 
   dismissForwardDialog: () => {
