@@ -70,16 +70,16 @@ function ForwardPortContent() {
     }
 
     setIsSubmitting(true);
-    try {
-      await confirmForward(port);
-      // Reset local state only on success
-      setLocalPortValue("");
-      setPortError(null);
-    } catch {
+    const result = await confirmForward(port);
+    setIsSubmitting(false);
+
+    if (!result) {
       setPortError(t("portNotAvailable", { port: localPortValue }));
-    } finally {
-      setIsSubmitting(false);
+      return;
     }
+
+    setLocalPortValue("");
+    setPortError(null);
   }, [localPortValue, confirmForward, validatePort, t]);
 
   const handleDismiss = useCallback(() => {
@@ -200,7 +200,7 @@ function BrowserOpenContent() {
   );
 }
 
-export function BrowserOpenDialog() {
+export function PortForwardDialogs() {
   const pendingForwardRequest = usePortForwardStore((s) => s.pendingForwardRequest);
   const pendingBrowserOpen = usePortForwardStore((s) => s.pendingBrowserOpen);
 

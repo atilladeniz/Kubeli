@@ -388,7 +388,10 @@ export const usePortForwardStore = create<PortForwardState>((set, get) => ({
 
     const { namespace, name, targetType, targetPort } = pendingForwardRequest;
     const result = await startForward(namespace, name, targetType, targetPort, localPort);
-    set({ pendingForwardRequest: null });
+
+    if (result) {
+      set({ pendingForwardRequest: null });
+    }
 
     return result;
   },

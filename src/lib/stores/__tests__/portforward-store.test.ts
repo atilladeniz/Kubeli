@@ -847,7 +847,7 @@ describe("PortForwardStore", () => {
       expect(mockPortforwardStart).not.toHaveBeenCalled();
     });
 
-    it("confirmForward keeps pendingForwardRequest on startForward error", async () => {
+    it("confirmForward keeps pendingForwardRequest when startForward fails", async () => {
       mockPortforwardStart.mockRejectedValue(new Error("Port in use"));
 
       act(() => {
@@ -858,12 +858,11 @@ describe("PortForwardStore", () => {
 
       await act(async () => {
         const result = await usePortForwardStore.getState().confirmForward(9090);
-        // startForward catches errors internally and returns null
         expect(result).toBeNull();
       });
 
-      // Pending should still be cleared (startForward catches its own errors)
-      expect(usePortForwardStore.getState().pendingForwardRequest).toBeNull();
+      // Pending should NOT be cleared so dialog stays open for retry
+      expect(usePortForwardStore.getState().pendingForwardRequest).not.toBeNull();
     });
 
     it("dismissForwardDialog clears pendingForwardRequest", () => {

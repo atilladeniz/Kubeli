@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { ExternalLink, Power, ChevronDown, Loader2, Circle, Check } from "lucide-react";
 import { ForwardTab } from "./ForwardTab";
 import { ActiveTab } from "./ActiveTab";
-import { BrowserOpenDialog } from "../portforward/PortForwardDialogs";
+import { PortForwardDialogs } from "../portforward/PortForwardDialogs";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
@@ -63,7 +63,7 @@ export function TrayPopup() {
 
   return (
     <div className="h-[480px] w-[360px] flex flex-col overflow-hidden bg-background/80 backdrop-blur-xl">
-      <BrowserOpenDialog />
+      <PortForwardDialogs />
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 shrink-0 border-b border-border">
         {/* Cluster selector */}
