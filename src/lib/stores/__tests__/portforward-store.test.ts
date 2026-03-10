@@ -242,9 +242,8 @@ describe("PortForwardStore", () => {
       usePortForwardStore.setState({ forwards: [forwardWithFrontendFields] });
 
       // Backend returns the same forward without frontend-only fields
-      const backendForward: PortForwardInfo = { ...mockForward };
-      delete (backendForward as Record<string, unknown>).requested_port;
-      delete (backendForward as Record<string, unknown>).port_name;
+       
+      const { requested_port: _, port_name: __, ...backendForward } = forwardWithFrontendFields;
       mockPortforwardList.mockResolvedValue([backendForward]);
 
       await act(async () => {

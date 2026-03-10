@@ -1,4 +1,3 @@
-import { describe, it, expect } from "vitest";
 import { getForwardForPort } from "../PortSelectPopover";
 import type { PortForwardInfo, ServicePortInfo } from "@/lib/types";
 
