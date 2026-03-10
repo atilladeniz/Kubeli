@@ -426,7 +426,8 @@
     "autoPortPlaceholder": "Auto (zufälliger verfügbarer Port)",
     "forward": "Weiterleiten",
     "portNotAvailable": "Port {port} ist nicht verfügbar",
-    "portOutOfRange": "Port muss zwischen 1024 und 65535 liegen"
+    "portOutOfRange": "Port muss zwischen 1024 und 65535 liegen",
+    "forwardFailed": "Port-Weiterleitung konnte nicht gestartet werden"
   },
   "settings": {
     "title": "Einstellungen",

@@ -73,8 +73,9 @@ function ForwardPortContent() {
 
     if (!result) {
       if (port !== undefined) {
-        // Custom port failed — keep dialog open so user can try another port
-        setPortError(t("portNotAvailable", { port }));
+        // Custom port failed — show store error or generic message
+        const storeError = usePortForwardStore.getState().error;
+        setPortError(storeError ?? t("forwardFailed"));
         return;
       }
       // Auto port failed — dismiss dialog, store toast shows the real error

@@ -426,7 +426,8 @@
     "autoPortPlaceholder": "Auto (random available port)",
     "forward": "Forward",
     "portNotAvailable": "Port {port} is not available",
-    "portOutOfRange": "Port must be between 1024 and 65535"
+    "portOutOfRange": "Port must be between 1024 and 65535",
+    "forwardFailed": "Failed to start port forward"
   },
   "settings": {
     "title": "Settings",
