@@ -21,7 +21,7 @@ interface PortSelectPopoverProps {
   disabled?: boolean;
 }
 
-function getForwardForPort(
+export function getForwardForPort(
   forwards: PortForwardInfo[],
   port: ServicePortInfo
 ): PortForwardInfo | undefined {

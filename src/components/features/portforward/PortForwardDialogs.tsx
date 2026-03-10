@@ -61,10 +61,8 @@ function ForwardPortContent() {
         setPortError(t("portOutOfRange"));
         return;
       }
-      setIsSubmitting(true);
       const available = await validatePort(port);
       if (!available) {
-        setIsSubmitting(false);
         return;
       }
     }
