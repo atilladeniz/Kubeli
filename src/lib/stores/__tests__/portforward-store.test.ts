@@ -889,6 +889,26 @@ describe("PortForwardStore", () => {
       expect(usePortForwardStore.getState().pendingForwardRequest).not.toBeNull();
     });
 
+    it("portName propagates through requestForward -> confirmForward -> forward's port_name", async () => {
+      mockPortforwardStart.mockResolvedValue({ ...mockForward, target_port: 5672, local_port: 9090 });
+
+      act(() => {
+        usePortForwardStore.getState().requestForward("default", "test-svc", "service", 5672, "amqp");
+      });
+
+      const pending = usePortForwardStore.getState().pendingForwardRequest;
+      expect(pending?.portName).toBe("amqp");
+
+      await act(async () => {
+        await usePortForwardStore.getState().confirmForward();
+      });
+
+      const forwards = usePortForwardStore.getState().forwards;
+      const forward = forwards[forwards.length - 1];
+      expect(forward?.port_name).toBe("amqp");
+      expect(forward?.requested_port).toBe(5672);
+    });
+
     it("dismissForwardDialog clears pendingForwardRequest", () => {
       act(() => {
         usePortForwardStore.getState().requestForward("default", "my-svc", "service", 8080);
