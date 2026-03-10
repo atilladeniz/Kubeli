@@ -231,6 +231,30 @@ describe("PortForwardStore", () => {
       // Should not throw, forwards remain empty
       expect(usePortForwardStore.getState().forwards).toEqual([]);
     });
+
+    it("should preserve frontend-only fields (requested_port, port_name) on refresh", async () => {
+      // Seed store with a forward that has frontend-only fields
+      const forwardWithFrontendFields: PortForwardInfo = {
+        ...mockForward,
+        requested_port: 80,
+        port_name: "http",
+      };
+      usePortForwardStore.setState({ forwards: [forwardWithFrontendFields] });
+
+      // Backend returns the same forward without frontend-only fields
+      const backendForward: PortForwardInfo = { ...mockForward };
+      delete (backendForward as Record<string, unknown>).requested_port;
+      delete (backendForward as Record<string, unknown>).port_name;
+      mockPortforwardList.mockResolvedValue([backendForward]);
+
+      await act(async () => {
+        await usePortForwardStore.getState().refreshForwards();
+      });
+
+      const refreshed = usePortForwardStore.getState().forwards[0];
+      expect(refreshed.requested_port).toBe(80);
+      expect(refreshed.port_name).toBe("http");
+    });
   });
 
   describe("startForward", () => {
