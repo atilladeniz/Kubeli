@@ -74,7 +74,9 @@ function ForwardPortContent() {
     setIsSubmitting(false);
 
     if (!result) {
-      setPortError(t("portNotAvailable", { port: localPortValue }));
+      if (port !== undefined) {
+        setPortError(t("portNotAvailable", { port }));
+      }
       return;
     }
 
