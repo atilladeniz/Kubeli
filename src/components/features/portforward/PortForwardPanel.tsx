@@ -194,6 +194,9 @@ function PortForwardItem({ forward, onStop }: PortForwardItemProps) {
               <span>localhost:{forward.local_port}</span>
               <ArrowRight className="size-3 shrink-0" />
               <span>:{forward.target_port}</span>
+              {forward.port_name && (
+                <span className="text-muted-foreground/60 font-sans">({forward.port_name})</span>
+              )}
             </div>
           </div>
 

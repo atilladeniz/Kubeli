@@ -67,7 +67,7 @@ export function PodsView() {
     return map;
   }, [podMetricsData]);
 
-  const { forwards, startForward, stopForward } = usePortForward();
+  const { forwards, requestForward, stopForward } = usePortForward();
   const { addTab } = useTerminalTabs();
   const { openResourceDetail, handleDeleteFromContext, closeResourceDetail } = useResourceDetail();
   const openTabStore = useTabsStore((s) => s.openTab);
@@ -186,7 +186,7 @@ export function PodsView() {
     const service = findServiceForPod(pod);
     if (service && service.ports.length > 0) {
       const p = port ?? service.ports[0];
-      startForward(service.namespace, service.name, "service", p.port);
+      requestForward(service.namespace, service.name, "service", p.port, p.name ?? undefined);
     }
   };
 

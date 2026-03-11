@@ -140,10 +140,17 @@ export function PortForwardsView() {
                 </div>
 
                 {/* Row 3: Port mapping */}
-                <div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-1 w-fit">
-                  <span className="text-xs font-mono">localhost:{forward.local_port}</span>
-                  <ArrowRightLeft className="size-3 text-muted-foreground shrink-0" />
-                  <span className="text-xs font-mono">{forward.target_port}</span>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 rounded-md bg-muted px-2.5 py-1">
+                    <span className="text-xs font-mono">localhost:{forward.local_port}</span>
+                    <ArrowRightLeft className="size-3 text-muted-foreground shrink-0" />
+                    <span className="text-xs font-mono">{forward.target_port}</span>
+                  </div>
+                  {forward.port_name && (
+                    <Badge variant="outline" className="text-[10px] text-muted-foreground">
+                      {forward.port_name}
+                    </Badge>
+                  )}
                 </div>
               </div>
             ))}

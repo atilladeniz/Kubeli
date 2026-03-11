@@ -46,7 +46,7 @@ export function PortForwardTab({
 }: PortForwardTabProps) {
   const t = useTranslations();
   const { data: services } = useServices({ autoRefresh: true, refreshInterval: 30000 });
-  const { forwards, startForward, stopForward } = usePortForward();
+  const { forwards, requestForward, stopForward } = usePortForward();
 
   // Find matching service(s)
   let displayServices: ServiceInfo[] = [];
@@ -148,7 +148,7 @@ export function PortForwardTab({
                           if (isForwarded) {
                             stopForward(forward.forward_id);
                           } else {
-                            startForward(svc.namespace, svc.name, "service", port.port);
+                            requestForward(svc.namespace, svc.name, "service", port.port, port.name ?? undefined);
                           }
                         }}
                       >
