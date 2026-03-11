@@ -12,8 +12,30 @@ pub struct Args {
 
 pub fn initialize() -> Args {
     install_macos_panic_hook();
+    configure_linux_webview();
     extend_path_with_common_cli_dirs();
     Args::parse()
+}
+
+/// Work around the WebKitGTK EGL crash on Linux systems where hardware
+/// compositing is unavailable (e.g. missing/incompatible GPU drivers, VMs,
+/// Wayland edge-cases). Setting `WEBKIT_DISABLE_COMPOSITING_MODE=1` tells
+/// WebKitGTK to fall back to software rendering instead of aborting with
+/// "Could not create default EGL display: EGL_BAD_PARAMETER".
+///
+/// We only set the variable when the user hasn't already provided it, so
+/// users with working GPU acceleration can opt back in via the environment.
+///
+/// See: https://github.com/nicbarker/clay/issues/224
+///      https://github.com/nicbarker/clay/pull/228
+fn configure_linux_webview() {
+    #[cfg(target_os = "linux")]
+    {
+        if env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
+            env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
+            tracing::info!("Set WEBKIT_DISABLE_COMPOSITING_MODE=1 to prevent EGL display errors");
+        }
+    }
 }
 
 pub fn install_rustls_provider() {
