@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.59] - 2026-03-11
+
+- Added user-defined local port option for port forwarding
+- Added vet AI code verification integration
+- Fixed security vulnerability by updating quinn-proto to 0.11.14
+- Updated CI dependencies (actions/github-script v8, trivy-action 0.35.0)
+
 ## [0.3.58] - 2026-03-07
 
 - Updated app icon to v2 design
