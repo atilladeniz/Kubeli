@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { usePlatform } from "@/lib/hooks/usePlatform";
+import { useWidthRatchet } from "@/lib/hooks/useWidthRatchet";
 import { useTranslations } from "next-intl";
 
 import { Layers, Cog } from "lucide-react";
@@ -19,7 +20,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
@@ -95,6 +96,8 @@ export function Sidebar({
   const { data: crds } = useCRDs();
   const customResourceGroups = useMemo(() => groupCustomResources(crds), [crds]);
   const { modKeySymbol } = usePlatform();
+  const sidebarRef = useRef<HTMLElement>(null);
+  useWidthRatchet(sidebarRef);
 
   const clusterContext = currentCluster?.context || "";
   const favorites = getFavorites(clusterContext);
@@ -124,7 +127,7 @@ export function Sidebar({
   };
 
   return (
-    <aside className="flex w-fit max-w-64 shrink-0 flex-col border-r border-border bg-card/50 overflow-hidden">
+    <aside ref={sidebarRef} className="flex w-fit min-w-52 max-w-64 shrink-0 flex-col border-r border-border bg-card/50 overflow-hidden">
       {/* Traffic lights safe area */}
       <div data-tauri-drag-region className="h-8 shrink-0" />
 
@@ -232,8 +235,8 @@ export function Sidebar({
       />
 
       {/* Navigation */}
-      <ScrollArea className="flex-1 min-h-0">
-        <nav className="p-2 pr-3 pb-4">
+      <ScrollArea className="flex-1 min-h-0 *:data-[slot=scroll-area-scrollbar]:absolute *:data-[slot=scroll-area-scrollbar]:right-0" type="scroll">
+        <nav className="p-2 pr-2 pb-4">
           <QuickAccessSection
             navFavorites={navFavorites}
             navLabelById={navLabelById}
