@@ -42,20 +42,33 @@ export function NavSectionCollapsible({
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start gap-2 px-2 font-medium text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+          className="w-full justify-start gap-2 px-2 font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
         >
-          {section.icon}
           <span className="flex-1 text-left">{section.title}</span>
           <ChevronRight className="chevron size-3.5 transition-transform" />
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="ml-4 mt-0.5 space-y-0.5">
-        {section.items.map((item) => {
+      <CollapsibleContent className="relative ml-[11px] mt-0.5 space-y-0.5">
+        {/* Tree vertical line */}
+        <div className="absolute left-0 top-0 bottom-2 w-px bg-border/60" />
+        {section.items.map((item, index) => {
           const isImplemented = isImplementedView(item.id);
           const favoriteActive = isNavFavorite(item.id);
+          const isLast = index === section.items.length - 1;
 
           return (
-            <div key={item.id} className="group relative">
+            <div key={item.id} className="group relative flex items-center">
+              {/* Tree horizontal connector */}
+              <div
+                className={cn(
+                  "absolute left-0 top-1/2 h-px w-2.5 bg-border/60",
+                  isLast && "after:absolute after:left-0 after:top-0 after:h-1/2 after:w-px after:bg-card/50",
+                )}
+              />
+              {/* Hide vertical line below last item */}
+              {isLast && (
+                <div className="absolute left-0 top-1/2 bottom-0 w-px bg-card/50" />
+              )}
               <Button
                 variant="ghost"
                 size="sm"
@@ -69,7 +82,7 @@ export function NavSectionCollapsible({
                 }}
                 disabled={!isImplemented}
                 className={cn(
-                  "w-full justify-between px-2 pr-9 font-normal",
+                  "ml-4 w-[calc(100%-1rem)] justify-between gap-1.5 px-1.5 pr-8 font-normal text-xs",
                   activeResource === item.id
                     ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                     : isImplemented
@@ -77,7 +90,21 @@ export function NavSectionCollapsible({
                       : "text-muted-foreground/50 cursor-not-allowed",
                 )}
               >
-                <span>{item.label}</span>
+                <span className="flex items-center gap-1.5 truncate">
+                  {item.icon && (
+                    <span
+                      className={cn(
+                        "shrink-0",
+                        activeResource === item.id
+                          ? "text-primary"
+                          : "text-muted-foreground/70",
+                      )}
+                    >
+                      {item.icon}
+                    </span>
+                  )}
+                  <span className="truncate">{item.label}</span>
+                </span>
                 {!isImplemented && (
                   <Badge
                     variant="outline"

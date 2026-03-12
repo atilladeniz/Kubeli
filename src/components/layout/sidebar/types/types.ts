@@ -65,6 +65,7 @@ export type ResourceType = KnownResourceType | CustomResourceType;
 export interface NavItem {
   id: ResourceType;
   label: string;
+  icon?: React.ReactNode;
 }
 
 export interface NavSection {
