@@ -116,6 +116,15 @@ export function Sidebar({
     }
     return map;
   }, [customResourceGroups, navigationSections]);
+  const navIconById = useMemo(() => {
+    const map = new Map<ResourceType, React.ReactNode>();
+    for (const section of navigationSections) {
+      for (const item of section.items) {
+        if (item.icon) map.set(item.id, item.icon);
+      }
+    }
+    return map;
+  }, [navigationSections]);
   const handleOpenForwardInBrowser = async (port: number) => {
     try {
       const { openUrl } = await import("@tauri-apps/plugin-opener");
@@ -240,6 +249,7 @@ export function Sidebar({
           <QuickAccessSection
             navFavorites={navFavorites}
             navLabelById={navLabelById}
+            navIconById={navIconById}
             activeResource={activeResource}
             isNavFavoritesSectionOpen={isNavFavoritesSectionOpen}
             setIsNavFavoritesSectionOpen={setIsNavFavoritesSectionOpen}

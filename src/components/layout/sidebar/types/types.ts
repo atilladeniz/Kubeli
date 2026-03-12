@@ -160,6 +160,7 @@ export interface RecentSectionProps {
 export interface QuickAccessSectionProps {
   navFavorites: ResourceType[];
   navLabelById: Map<ResourceType, string>;
+  navIconById: Map<ResourceType, React.ReactNode>;
   activeResource: ResourceType;
   isNavFavoritesSectionOpen: boolean;
   setIsNavFavoritesSectionOpen: (open: boolean) => void;
