@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { ChevronRight, Star } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -15,6 +16,7 @@ export function QuickAccessSection({
   navFavorites,
   navLabelById,
   navIconById,
+  navSectionById,
   activeResource,
   isNavFavoritesSectionOpen,
   setIsNavFavoritesSectionOpen,
@@ -26,6 +28,13 @@ export function QuickAccessSection({
 
   if (navFavorites.length === 0) {
     return null;
+  }
+
+  // Find duplicate labels to disambiguate with section prefix
+  const labelCounts = new Map<string, number>();
+  for (const r of navFavorites) {
+    const l = navLabelById.get(r);
+    if (l) labelCounts.set(l, (labelCounts.get(l) ?? 0) + 1);
   }
 
   return (
@@ -52,6 +61,8 @@ export function QuickAccessSection({
           const label = navLabelById.get(resource);
           if (!label) return null;
           const icon = navIconById.get(resource);
+          const section = navSectionById.get(resource);
+          const isDuplicate = (labelCounts.get(label) ?? 0) > 1;
           const isLast = index === navFavorites.length - 1;
 
           return (
@@ -66,13 +77,13 @@ export function QuickAccessSection({
                 size="sm"
                 onClick={() => onResourceSelect(resource)}
                 className={cn(
-                  "ml-4 w-[calc(100%-1rem)] justify-between gap-1.5 px-1.5 pr-8 font-normal text-xs",
+                  "ml-4 w-[calc(100%-1rem)] gap-1.5 px-1.5 pr-8 font-normal text-xs",
                   activeResource === resource
                     ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <span className="flex items-center gap-1.5 truncate">
+                <span className="flex items-center gap-1.5 min-w-0 flex-1">
                   {icon && (
                     <span
                       className={cn(
@@ -86,6 +97,9 @@ export function QuickAccessSection({
                     </span>
                   )}
                   <span className="truncate">{label}</span>
+                  {isDuplicate && section && (
+                    <Badge variant="outline" className="h-3.5 max-w-16 truncate rounded px-1 text-[9px] font-normal text-muted-foreground/60 border-border/40">{section}</Badge>
+                  )}
                 </span>
               </Button>
               <Button
