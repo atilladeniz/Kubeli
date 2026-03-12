@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronRight, Star } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -35,14 +36,22 @@ export function NavSectionCollapsible({
   soonLabel,
 }: NavSectionCollapsibleProps) {
   const t = useTranslations();
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  const hasActiveChild = section.items.some((item) => activeResource === item.id);
+  const showHeaderHighlight = !isOpen && hasActiveChild;
 
   return (
-    <Collapsible defaultOpen={defaultOpen} className="mb-1">
+    <Collapsible defaultOpen={defaultOpen} onOpenChange={setIsOpen} className="mb-1">
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start gap-2 px-2 font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+          className={cn(
+            "w-full justify-start gap-2 px-2 font-medium text-xs uppercase tracking-wider hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90",
+            showHeaderHighlight
+              ? "text-primary bg-primary/10 hover:bg-primary/20 hover:text-primary"
+              : "text-muted-foreground",
+          )}
         >
           <span className="flex-1 text-left">{section.title}</span>
           <ChevronRight className="chevron size-3.5 transition-transform" />
