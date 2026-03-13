@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.60] - 2026-03-13
+
+- Added resource icons and tree lines to sidebar navigation
+- Fixed EGL display crash on Linux by disabling WebKitGTK compositing
+
 ## [0.3.59] - 2026-03-11
 
 - Added user-defined local port option for port forwarding
