@@ -2,6 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { ChevronRight, Star } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Collapsible,
@@ -14,6 +15,8 @@ import type { QuickAccessSectionProps } from "../types/types";
 export function QuickAccessSection({
   navFavorites,
   navLabelById,
+  navIconById,
+  navSectionById,
   activeResource,
   isNavFavoritesSectionOpen,
   setIsNavFavoritesSectionOpen,
@@ -27,6 +30,13 @@ export function QuickAccessSection({
     return null;
   }
 
+  // Find duplicate labels to disambiguate with section prefix
+  const labelCounts = new Map<string, number>();
+  for (const r of navFavorites) {
+    const l = navLabelById.get(r);
+    if (l) labelCounts.set(l, (labelCounts.get(l) ?? 0) + 1);
+  }
+
   return (
     <Collapsible
       open={isNavFavoritesSectionOpen}
@@ -37,32 +47,60 @@ export function QuickAccessSection({
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start gap-2 px-2 font-medium text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+          className="w-full justify-start gap-2 px-2 font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
         >
-          <Star className="size-4 text-muted-foreground" />
+          <Star className="size-3.5 text-yellow-500 fill-yellow-500" />
           <span className="flex-1 text-left">{tNav("quickAccess")}</span>
           <ChevronRight className="chevron size-3.5 transition-transform" />
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="ml-4 mt-0.5 space-y-0.5">
-        {navFavorites.map((resource) => {
+      <CollapsibleContent className="relative ml-[11px] mt-0.5 space-y-0.5">
+        {/* Tree vertical line */}
+        <div className="absolute left-0 top-0 bottom-2 w-px bg-border/60" />
+        {navFavorites.map((resource, index) => {
           const label = navLabelById.get(resource);
           if (!label) return null;
+          const icon = navIconById.get(resource);
+          const section = navSectionById.get(resource);
+          const isDuplicate = (labelCounts.get(label) ?? 0) > 1;
+          const isLast = index === navFavorites.length - 1;
 
           return (
-            <div key={resource} className="group relative">
+            <div key={resource} className="group relative flex items-center">
+              {/* Tree horizontal connector */}
+              <div className="absolute left-0 top-1/2 h-px w-2.5 bg-border/60" />
+              {isLast && (
+                <div className="absolute left-0 top-1/2 bottom-0 w-px bg-card/50" />
+              )}
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => onResourceSelect(resource)}
                 className={cn(
-                  "w-full justify-start px-2 pr-9 font-normal",
+                  "ml-4 w-[calc(100%-1rem)] gap-1.5 px-1.5 pr-8 font-normal text-xs",
                   activeResource === resource
                     ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                {label}
+                <span className="flex items-center gap-1.5 min-w-0 flex-1">
+                  {icon && (
+                    <span
+                      className={cn(
+                        "shrink-0",
+                        activeResource === resource
+                          ? "text-primary"
+                          : "text-muted-foreground/70",
+                      )}
+                    >
+                      {icon}
+                    </span>
+                  )}
+                  <span className="truncate">{label}</span>
+                  {isDuplicate && section && (
+                    <Badge variant="outline" className="h-3.5 max-w-16 truncate rounded px-1 text-[9px] font-normal text-muted-foreground/60 border-border/40">{section}</Badge>
+                  )}
+                </span>
               </Button>
               <Button
                 variant="ghost"
