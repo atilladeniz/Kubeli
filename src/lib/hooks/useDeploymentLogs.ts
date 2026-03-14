@@ -74,14 +74,20 @@ export function useDeploymentLogs(
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const selectorRef = useRef<Record<string, string>>({});
+  // Stable color assignment - remembers colors for pods that have disappeared
+  const colorAssignmentsRef = useRef(new Map<string, PodColorEntry>());
+  const nextColorIndexRef = useRef(0);
 
-  // Pod color assignment
+  // Pod color map - assigns stable colors, never forgets a pod
   const podColorMap = useMemo(() => {
-    const map = new Map<string, PodColorEntry>();
-    pods.forEach((pod, index) => {
-      map.set(pod.name, POD_COLOR_PAIRS[index % POD_COLOR_PAIRS.length]);
-    });
-    return map;
+    const assignments = colorAssignmentsRef.current;
+    for (const pod of pods) {
+      if (!assignments.has(pod.name)) {
+        assignments.set(pod.name, POD_COLOR_PAIRS[nextColorIndexRef.current % POD_COLOR_PAIRS.length]);
+        nextColorIndexRef.current++;
+      }
+    }
+    return new Map(assignments);
   }, [pods]);
 
   const togglePodFilter = useCallback((podName: string) => {

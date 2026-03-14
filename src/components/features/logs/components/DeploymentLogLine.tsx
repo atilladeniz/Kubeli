@@ -3,7 +3,7 @@
 import React, { memo, useMemo } from "react";
 import type { LogEntry } from "@/lib/types";
 import { LOG_LEVEL_COLORS } from "../types";
-import { getLogLevel, formatTimestamp, escapeRegExp } from "../lib";
+import { getLogLevel, formatTimestamp } from "../lib";
 
 interface DeploymentLogLineProps {
   log: LogEntry;
@@ -93,16 +93,29 @@ function highlightWithString(text: string, query: string): React.ReactNode {
     return text;
   }
 
-  const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
-  const parts = text.split(regex);
+  const lowerText = text.toLowerCase();
+  const lowerQuery = query.toLowerCase();
+  const result: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let idx = lowerText.indexOf(lowerQuery, lastIndex);
+  let key = 0;
 
-  return parts.map((part, i) =>
-    regex.test(part) ? (
-      <mark key={i} className="bg-yellow-500/30 text-yellow-200">
-        {part}
+  while (idx !== -1) {
+    if (idx > lastIndex) {
+      result.push(text.slice(lastIndex, idx));
+    }
+    result.push(
+      <mark key={key++} className="bg-yellow-500/30 text-yellow-200">
+        {text.slice(idx, idx + query.length)}
       </mark>
-    ) : (
-      part
-    )
-  );
+    );
+    lastIndex = idx + query.length;
+    idx = lowerText.indexOf(lowerQuery, lastIndex);
+  }
+
+  if (lastIndex < text.length) {
+    result.push(text.slice(lastIndex));
+  }
+
+  return result.length > 0 ? result : text;
 }
