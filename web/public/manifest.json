@@ -1,0 +1,16 @@
+{
+  "name": "Kubeli",
+  "short_name": "Kubeli",
+  "description": "Native Kubernetes Desktop App for macOS, Windows & Linux",
+  "start_url": "/",
+  "display": "browser",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
+  "icons": [
+    {
+      "src": "/kubeli.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ]
+}

@@ -4,6 +4,63 @@ import { FAQSection } from "../components/FAQSection";
 import pkg from "../../../package.json";
 
 const version = pkg.version;
+
+// FAQ Schema (schema.org/FAQPage)
+const faqSchema = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "What makes Kubeli different from Lens?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Kubeli is a native desktop app built with Tauri and Rust - not Electron like Lens. This means significantly lower memory usage (~100MB vs ~350MB), faster startup, and better OS integration. Plus: Kubeli is 100% open source and free."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is Kubeli an Electron app?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "No! Kubeli uses Tauri 2.0 with a Rust backend. This makes the app about 10x smaller than comparable Electron apps and much more resource-efficient. The native webview integration provides a true native experience on macOS, Windows, and Linux."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "How does the AI assistant work?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Kubeli integrates with Claude Code CLI and OpenAI Codex CLI. You can analyze logs, get troubleshooting help, and request cluster insights in natural language. The AI runs locally - no cluster data is sent to the cloud."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which Kubernetes versions are supported?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Kubeli supports all current Kubernetes versions through k8s-openapi v1.32. This includes local clusters (Minikube, kind, Docker Desktop) as well as cloud providers like GKE, EKS, and AKS."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Which platforms are supported?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Kubeli runs natively on macOS (10.15+), Windows (10/11), and Linux (x64 AppImage). All platforms support auto-updates, so you'll always have the latest features and security fixes."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Is my cluster data secure?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Absolutely. Kubeli processes all data locally on your machine. There's no cloud connection, no telemetry, no data collection. Your kubeconfig stays on your device."
+      }
+    }
+  ]
+};
+
 const dmgUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_aarch64.dmg`;
 const exeUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_x64-setup.exe`;
 const appImageUrl = `https://github.com/atilladeniz/Kubeli/releases/download/v${version}/Kubeli_${version}_amd64.AppImage`;
@@ -43,7 +100,7 @@ const features = [
 ];
 ---
 
-<BaseLayout title="Home" activeNav="home" canonicalPath="/">
+<BaseLayout title="Home" activeNav="home" canonicalPath="/" extraSchema={[faqSchema]}>
   <!-- Hero Section -->
   <section class="mx-auto flex max-w-6xl flex-col items-center px-4 sm:px-8 py-12 sm:py-20">
     <!-- Badges -->
