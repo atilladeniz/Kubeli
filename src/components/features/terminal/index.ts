@@ -4,5 +4,8 @@ export type { TerminalProps, TerminalHandle } from "./Terminal";
 export { PodTerminal } from "./PodTerminal";
 export type { PodTerminalProps } from "./PodTerminal";
 
+export { NodeTerminal } from "./NodeTerminal";
+export type { NodeTerminalProps } from "./NodeTerminal";
+
 export { TerminalTabs, TerminalTabsProvider, useTerminalTabs } from "./TerminalTabs";
 export type { TerminalTab } from "./TerminalTabs";

@@ -3,16 +3,20 @@
 import { useState, useCallback, createContext, useContext, ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { PodTerminal } from "./PodTerminal";
+import { NodeTerminal } from "./NodeTerminal";
 import { Button } from "@/components/ui/button";
-import { X } from "lucide-react";
+import { X, Server, Box } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export interface TerminalTab {
   id: string;
+  type: "pod" | "node";
   namespace: string;
   podName: string;
   container?: string;
   title?: string;
+  /** For node shell tabs, the node name */
+  nodeName?: string;
 }
 
 export function TerminalTabs({ className = "" }: { className?: string }) {
@@ -42,6 +46,11 @@ export function TerminalTabs({ className = "" }: { className?: string }) {
             )}
             onClick={() => setActiveTab(tab.id)}
           >
+            {tab.type === "node" ? (
+              <Server className="size-3.5 text-[#cba6f7] shrink-0" />
+            ) : (
+              <Box className="size-3.5 text-[#89b4fa] shrink-0" />
+            )}
             <span className="text-sm truncate max-w-[150px]">
               {tab.title || tab.podName}
             </span>
@@ -71,14 +80,23 @@ export function TerminalTabs({ className = "" }: { className?: string }) {
             )}
             style={{ display: tab.id === activeTabId ? "block" : "none" }}
           >
-            <PodTerminal
-              namespace={tab.namespace}
-              podName={tab.podName}
-              container={tab.container}
-              sessionId={tab.id}
-              onClose={() => removeTab(tab.id)}
-              className="h-full"
-            />
+            {tab.type === "node" && tab.nodeName ? (
+              <NodeTerminal
+                nodeName={tab.nodeName}
+                sessionId={tab.id}
+                onClose={() => removeTab(tab.id)}
+                className="h-full"
+              />
+            ) : (
+              <PodTerminal
+                namespace={tab.namespace}
+                podName={tab.podName}
+                container={tab.container}
+                sessionId={tab.id}
+                onClose={() => removeTab(tab.id)}
+                className="h-full"
+              />
+            )}
           </div>
         ))}
       </div>
@@ -91,6 +109,7 @@ interface TerminalTabsContextValue {
   tabs: TerminalTab[];
   activeTabId: string | null;
   addTab: (namespace: string, podName: string, container?: string) => string;
+  addNodeTab: (nodeName: string) => string;
   removeTab: (id: string) => void;
   setActiveTab: (id: string) => void;
   closePanel: () => void;
@@ -110,10 +129,30 @@ export function TerminalTabsProvider({ children }: { children: ReactNode }) {
       const id = `terminal-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
       const newTab: TerminalTab = {
         id,
+        type: "pod",
         namespace,
         podName,
         container,
         title: `${podName}${container ? ` (${container})` : ""}`,
+      };
+      setTabs((prev) => [...prev, newTab]);
+      setActiveTabId(id);
+      setIsOpen(true);
+      return id;
+    },
+    []
+  );
+
+  const addNodeTab = useCallback(
+    (nodeName: string) => {
+      const id = `node-shell-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+      const newTab: TerminalTab = {
+        id,
+        type: "node",
+        namespace: "kube-system",
+        podName: nodeName,
+        nodeName,
+        title: `node/${nodeName}`,
       };
       setTabs((prev) => [...prev, newTab]);
       setActiveTabId(id);
@@ -158,6 +197,7 @@ export function TerminalTabsProvider({ children }: { children: ReactNode }) {
         tabs,
         activeTabId,
         addTab,
+        addNodeTab,
         removeTab,
         setActiveTab,
         closePanel,

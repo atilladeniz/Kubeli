@@ -83,6 +83,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Syn
         crate::commands::shell::shell_resize,
         crate::commands::shell::shell_close,
         crate::commands::shell::shell_list_sessions,
+        crate::commands::shell::node_shell_start,
+        crate::commands::shell::node_shell_cleanup,
         crate::commands::portforward::portforward_start,
         crate::commands::portforward::portforward_stop,
         crate::commands::portforward::portforward_list,

@@ -1,4 +1,4 @@
-import type { ShellOptions } from "../../types";
+import type { ShellOptions, NodeShellOptions } from "../../types";
 
 import { invoke } from "./core";
 
@@ -31,4 +31,16 @@ export async function shellClose(sessionId: string): Promise<void> {
 
 export async function shellListSessions(): Promise<string[]> {
   return invoke<string[]>("shell_list_sessions");
+}
+
+// Node shell commands
+export async function nodeShellStart(
+  sessionId: string,
+  options: NodeShellOptions
+): Promise<void> {
+  return invoke("node_shell_start", { sessionId, options });
+}
+
+export async function nodeShellCleanup(sessionId: string): Promise<void> {
+  return invoke("node_shell_cleanup", { sessionId });
 }
