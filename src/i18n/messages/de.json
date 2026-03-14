@@ -370,7 +370,9 @@
     "downloadError": "Fehler beim Speichern der Logs",
     "previousLogsNoStream": "Streaming für vorherige Logs nicht verfügbar",
     "sendToAI": "An KI senden",
-    "aiSelectionPrompt": "Analysiere die folgenden ausgewählten Log-Zeilen vom Pod {namespace}/{podName}:"
+    "aiSelectionPrompt": "Analysiere die folgenden ausgewählten Log-Zeilen vom Pod {namespace}/{podName}:",
+    "podLegend": "Pods",
+    "noPodsFound": "Keine laufenden Pods für dieses Deployment gefunden"
   },
   "terminal": {
     "title": "Terminal",

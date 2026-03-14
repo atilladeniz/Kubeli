@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { LogViewer } from "../logs/LogViewer";
+import { DeploymentLogViewer } from "../logs/DeploymentLogViewer";
 import { OverviewTab } from "./components/OverviewTab";
 import { YamlTab, type YamlTabHandle } from "./components/YamlTab";
 import { ConditionsTab } from "./components/ConditionsTab";
@@ -263,7 +264,7 @@ export function ResourceDetail({
               <FileJson className="size-4" />
               {t("resourceDetail.yaml")}
             </TabsTrigger>
-            {resourceType === "pod" && resource.namespace && (
+            {(resourceType === "pod" || resourceType === "deployment") && resource.namespace && (
               <TabsTrigger value="logs" className="gap-2">
                 <FileText className="size-4" />
                 {t("resourceDetail.logs")}
@@ -333,6 +334,15 @@ export function ResourceDetail({
               namespace={resource.namespace}
               podName={resource.name}
               logTabId={`detail-${resource.namespace}-${resource.name}`}
+            />
+          </TabsContent>
+        )}
+
+        {resourceType === "deployment" && resource.namespace && (
+          <TabsContent value="logs" className="flex-1 overflow-hidden m-0">
+            <DeploymentLogViewer
+              deploymentName={resource.name}
+              namespace={resource.namespace}
             />
           </TabsContent>
         )}

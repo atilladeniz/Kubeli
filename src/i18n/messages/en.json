@@ -370,7 +370,9 @@
     "downloadError": "Failed to save logs",
     "previousLogsNoStream": "Streaming not available for previous logs",
     "sendToAI": "Send to AI",
-    "aiSelectionPrompt": "Analyze the following selected log lines from pod {namespace}/{podName}:"
+    "aiSelectionPrompt": "Analyze the following selected log lines from pod {namespace}/{podName}:",
+    "podLegend": "Pods",
+    "noPodsFound": "No running pods found for this deployment"
   },
   "terminal": {
     "title": "Terminal",

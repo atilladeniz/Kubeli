@@ -37,6 +37,7 @@ export interface FilterProps {
   onPreviousLogsToggle: (checked: boolean) => void;
   previousLogsLabel: string;
   isStreaming?: boolean;
+  hidePreviousLogs?: boolean;
 }
 
 export interface StreamProps {
@@ -73,6 +74,8 @@ interface LogToolbarProps {
   onClear: () => void;
   clearLabel: string;
   hideClear?: boolean;
+  hideDownload?: boolean;
+  hideAI?: boolean;
 }
 
 /**
@@ -88,9 +91,11 @@ export function LogToolbar({
   onClear,
   clearLabel,
   hideClear,
+  hideDownload,
+  hideAI,
 }: LogToolbarProps) {
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-4 py-2">
+    <div className="flex items-center gap-x-3 border-b border-border px-4 py-2 overflow-x-auto hide-scrollbar">
       {/* Search with regex toggle */}
       <SearchInput
         value={search.query}
@@ -115,16 +120,18 @@ export function LogToolbar({
       />
 
       {/* Previous logs toggle (disabled during streaming) */}
-      <ToggleCheckbox
-        id="previous-logs"
-        checked={filter.showPreviousLogs}
-        onCheckedChange={filter.onPreviousLogsToggle}
-        label={filter.previousLogsLabel}
-        disabled={filter.isStreaming}
-      />
+      {!filter.hidePreviousLogs && (
+        <ToggleCheckbox
+          id="previous-logs"
+          checked={filter.showPreviousLogs}
+          onCheckedChange={filter.onPreviousLogsToggle}
+          label={filter.previousLogsLabel}
+          disabled={filter.isStreaming}
+        />
+      )}
 
       {/* Spacer */}
-      <div className="flex-1" />
+      <div className="flex-1 min-w-0" />
 
       {/* Actions */}
       <div className="flex items-center gap-0.5 shrink-0">
@@ -147,19 +154,23 @@ export function LogToolbar({
             tooltip={stream.fetchTooltip}
           />
 
-          <DownloadButton
-            isDownloading={download.isDownloading}
-            disabled={download.logsCount === 0}
-            onDownload={download.onDownload}
-          />
+          {!hideDownload && (
+            <DownloadButton
+              isDownloading={download.isDownloading}
+              disabled={download.logsCount === 0}
+              onDownload={download.onDownload}
+            />
+          )}
 
-          <AIButton
-            isAvailable={ai.isAvailable}
-            disabled={download.logsCount === 0}
-            onClick={ai.onAnalyze}
-            tooltip={ai.tooltip}
-            unavailableTooltip={ai.unavailableTooltip}
-          />
+          {!hideAI && (
+            <AIButton
+              isAvailable={ai.isAvailable}
+              disabled={download.logsCount === 0}
+              onClick={ai.onAnalyze}
+              tooltip={ai.tooltip}
+              unavailableTooltip={ai.unavailableTooltip}
+            />
+          )}
 
           <ClearButton disabled={download.logsCount === 0 || !!hideClear} onClick={onClear} tooltip={clearLabel} />
         </TooltipProvider>
