@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.61] - 2026-03-14
+
+- Added direct node shell access
+- Fixed npm audit vulnerabilities
+
 ## [0.3.60] - 2026-03-13
 
 - Added resource icons and tree lines to sidebar navigation
