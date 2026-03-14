@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { AlertCircle, Copy, Trash2, Eye } from "lucide-react";
+import { AlertCircle, Copy, Trash2, Eye, TerminalIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useNodes } from "@/lib/hooks/useK8sResources";
 import { ResourceList } from "../../../resources/ResourceList";
@@ -13,6 +13,7 @@ import {
   type ContextMenuItemDef,
 } from "../../../resources/columns";
 import { useResourceDetail } from "../../context";
+import { useTerminalTabs } from "../../../terminal";
 import type { NodeInfo } from "@/lib/types";
 import { getNodeSchedulingAction } from "./node-scheduling";
 
@@ -23,8 +24,13 @@ export function NodesView() {
     refreshInterval: 30000,
   });
   const { openResourceDetail } = useResourceDetail();
+  const { addNodeTab } = useTerminalTabs();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  const handleOpenNodeShell = (node: NodeInfo) => {
+    addNodeTab(node.name);
+  };
 
   const getNodeContextMenu = (node: NodeInfo): ContextMenuItemDef[] => {
     const schedulingAction = getNodeSchedulingAction(node);
@@ -44,6 +50,12 @@ export function NodesView() {
         },
       },
       { separator: true, label: "", onClick: () => {} },
+      {
+        label: t("terminal.shell"),
+        icon: <TerminalIcon className="size-4" />,
+        onClick: () => handleOpenNodeShell(node),
+        disabled: node.status !== "Ready",
+      },
       {
         label: schedulingAction.label,
         icon: <AlertCircle className="size-4" />,
