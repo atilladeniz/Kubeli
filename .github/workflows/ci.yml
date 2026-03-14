@@ -57,6 +57,42 @@ jobs:
         working-directory: web
         run: npm run build
 
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: web/dist/
+          retention-days: 1
+
+  deploy-web:
+    name: Deploy Landing Page
+    runs-on: ubuntu-latest
+    needs: [build-web]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: web-dist
+          path: dist/
+
+      - name: Deploy to FTP
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          DEPLOY_LANDING_FTP_PATH: ${{ secrets.DEPLOY_LANDING_FTP_PATH }}
+        run: |
+          cd dist
+          find . -type f | while read -r file; do
+            REMOTE_PATH="${file#./}"
+            echo "Uploading $REMOTE_PATH..."
+            curl -s -T "$file" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$REMOTE_PATH" --ftp-create-dirs
+          done
+          echo "Landing page deployed to production"
+
   lint-frontend:
     name: Frontend Lint & Type Check
     needs: [detect-changes]
