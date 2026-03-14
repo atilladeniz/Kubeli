@@ -160,16 +160,21 @@ const features = [
         Download for Linux
       </a>
     </div>
-    <p class="text-xs text-neutral-400 mt-3">
+    <p class="text-xs text-neutral-500 mt-3">
       v{version} · macOS 10.15+ · Windows 10/11 · Linux (x64)
     </p>
 
     <!-- Hero Screenshot -->
     <div class="mt-12 w-full max-w-4xl">
       <img
-        src="/screens/02-cluster-overview.webp"
+        src="/screens/02-cluster-overview-896w.webp"
+        srcset="/screens/02-cluster-overview-896w.webp 896w, /screens/02-cluster-overview.webp 1600w"
+        sizes="(max-width: 896px) 100vw, 896px"
+        width="896"
+        height="554"
         alt="Kubeli Cluster Overview"
         class="w-full"
+        fetchpriority="high"
       />
     </div>
   </section>
@@ -181,17 +186,17 @@ const features = [
         <div>
           <div class="text-4xl font-bold text-black">26.8MB</div>
           <div class="text-neutral-500 mt-1">App Size</div>
-          <div class="text-xs text-neutral-400 mt-1">vs ~1.9GB Lens</div>
+          <div class="text-xs text-neutral-500 mt-1">vs ~1.9GB Lens</div>
         </div>
         <div>
           <div class="text-4xl font-bold text-black">~100MB</div>
           <div class="text-neutral-500 mt-1">Memory Usage</div>
-          <div class="text-xs text-neutral-400 mt-1">vs ~350MB Electron apps</div>
+          <div class="text-xs text-neutral-500 mt-1">vs ~350MB Electron apps</div>
         </div>
         <div>
           <div class="text-4xl font-bold text-black">&lt;1s</div>
           <div class="text-neutral-500 mt-1">Startup Time</div>
-          <div class="text-xs text-neutral-400 mt-1">Native performance</div>
+          <div class="text-xs text-neutral-500 mt-1">Native performance</div>
         </div>
       </div>
     </div>
@@ -312,25 +317,25 @@ const features = [
               <td class="py-4 px-3">AI Integration</td>
               <td class="py-4 px-3 text-center font-medium text-green-600">Claude + OpenAI</td>
               <td class="py-4 px-3 text-center text-neutral-500">Lens Prism</td>
-              <td class="py-4 px-3 text-center text-neutral-400">-</td>
-              <td class="py-4 px-3 text-center text-neutral-400">-</td>
-              <td class="py-4 px-3 text-center text-neutral-400">-</td>
+              <td class="py-4 px-3 text-center text-neutral-500">-</td>
+              <td class="py-4 px-3 text-center text-neutral-500">-</td>
+              <td class="py-4 px-3 text-center text-neutral-500">-</td>
             </tr>
             <tr>
               <td class="py-4 px-3">MCP Server</td>
               <td class="py-4 px-3 text-center font-medium text-green-600">Yes</td>
-              <td class="py-4 px-3 text-center text-neutral-400">-</td>
-              <td class="py-4 px-3 text-center text-neutral-400">-</td>
-              <td class="py-4 px-3 text-center text-neutral-400">-</td>
-              <td class="py-4 px-3 text-center text-neutral-400">-</td>
+              <td class="py-4 px-3 text-center text-neutral-500">-</td>
+              <td class="py-4 px-3 text-center text-neutral-500">-</td>
+              <td class="py-4 px-3 text-center text-neutral-500">-</td>
+              <td class="py-4 px-3 text-center text-neutral-500">-</td>
             </tr>
             <tr>
               <td class="py-4 px-3">Resource Diagram</td>
               <td class="py-4 px-3 text-center font-medium text-green-600">Yes</td>
               <td class="py-4 px-3 text-center text-neutral-500">Yes</td>
-              <td class="py-4 px-3 text-center text-neutral-400">-</td>
+              <td class="py-4 px-3 text-center text-neutral-500">-</td>
               <td class="py-4 px-3 text-center text-neutral-500">Limited</td>
-              <td class="py-4 px-3 text-center text-neutral-400">-</td>
+              <td class="py-4 px-3 text-center text-neutral-500">-</td>
             </tr>
             <tr>
               <td class="py-4 px-3">Log Streaming</td>
@@ -359,7 +364,7 @@ const features = [
             <tr>
               <td class="py-4 px-3">Open Source</td>
               <td class="py-4 px-3 text-center font-medium text-green-600">Yes</td>
-              <td class="py-4 px-3 text-center text-neutral-400">Partial</td>
+              <td class="py-4 px-3 text-center text-neutral-500">Partial</td>
               <td class="py-4 px-3 text-center text-neutral-500">Yes</td>
               <td class="py-4 px-3 text-center text-neutral-500">Yes</td>
               <td class="py-4 px-3 text-center text-neutral-500">Yes</td>
