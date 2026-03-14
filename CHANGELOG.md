@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.62] - 2026-03-14
+
+- Added aggregated log viewing from multiple pods at the Deployment level
+
 ## [0.3.61] - 2026-03-14
 
 - Added direct node shell access
