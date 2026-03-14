@@ -1,7 +1,7 @@
 use crate::k8s::AppState;
 use futures::SinkExt;
 use k8s_openapi::api::core::v1::Pod;
-use kube::api::{Api, AttachParams, AttachedProcess, TerminalSize};
+use kube::api::{Api, AttachParams, AttachedProcess, DeleteParams, PostParams, TerminalSize};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -14,6 +14,15 @@ use tokio::sync::{mpsc, RwLock};
 struct ShellSession {
     stop_flag: Arc<AtomicBool>,
     input_tx: mpsc::Sender<ShellInput>,
+    /// For node shell sessions, track the debug pod name for cleanup
+    debug_pod: Option<DebugPodInfo>,
+}
+
+/// Info about a debug pod created for node shell access
+#[derive(Clone)]
+struct DebugPodInfo {
+    pod_name: String,
+    namespace: String,
 }
 
 /// Input types for shell session
@@ -83,6 +92,11 @@ impl ShellSessionManager {
         let sessions = self.sessions.read().await;
         sessions.contains_key(id)
     }
+
+    async fn get_debug_pod_info(&self, id: &str) -> Option<DebugPodInfo> {
+        let sessions = self.sessions.read().await;
+        sessions.get(id).and_then(|s| s.debug_pod.clone())
+    }
 }
 
 impl Default for ShellSessionManager {
@@ -142,6 +156,7 @@ pub async fn shell_start(
     let session = ShellSession {
         stop_flag: stop_flag.clone(),
         input_tx,
+        debug_pod: None,
     };
     shell_manager.add_session(session_id.clone(), session).await;
 
@@ -322,4 +337,301 @@ pub async fn shell_list_sessions(
 ) -> Result<Vec<String>, String> {
     let sessions = shell_manager.sessions.read().await;
     Ok(sessions.keys().cloned().collect())
+}
+
+/// Options for starting a node shell session
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NodeShellOptions {
+    pub node_name: String,
+    pub image: Option<String>,
+}
+
+const DEFAULT_NODE_SHELL_IMAGE: &str = "docker.io/alpine:3.21";
+const NODE_SHELL_NAMESPACE: &str = "kube-system";
+
+/// Start an interactive shell session on a node via a debug pod
+#[command]
+pub async fn node_shell_start(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    shell_manager: State<'_, Arc<ShellSessionManager>>,
+    session_id: String,
+    options: NodeShellOptions,
+) -> Result<(), String> {
+    if shell_manager.is_active(&session_id).await {
+        return Err(format!("Session {} already exists", session_id));
+    }
+
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    let event_name = format!("shell-{}", session_id);
+
+    // Verify the node exists
+    let nodes: Api<k8s_openapi::api::core::v1::Node> = Api::all(client.clone());
+    nodes
+        .get(&options.node_name)
+        .await
+        .map_err(|e| format!("Failed to get node: {}", e))?;
+
+    let image = options
+        .image
+        .clone()
+        .unwrap_or_else(|| DEFAULT_NODE_SHELL_IMAGE.to_string());
+
+    // Create debug pod name
+    let debug_pod_name = format!(
+        "kubeli-node-shell-{}",
+        &session_id
+            .chars()
+            .filter(|c| c.is_alphanumeric() || *c == '-')
+            .collect::<String>()
+            .chars()
+            .rev()
+            .take(20)
+            .collect::<String>()
+            .chars()
+            .rev()
+            .collect::<String>()
+    );
+
+    let pods: Api<Pod> = Api::namespaced(client.clone(), NODE_SHELL_NAMESPACE);
+
+    // Build the debug pod spec
+    let debug_pod: Pod = serde_json::from_value(serde_json::json!({
+        "apiVersion": "v1",
+        "kind": "Pod",
+        "metadata": {
+            "name": debug_pod_name,
+            "namespace": NODE_SHELL_NAMESPACE,
+            "labels": {
+                "app.kubernetes.io/managed-by": "kubeli",
+                "kubeli/purpose": "node-shell",
+                "kubeli/node": options.node_name,
+                "kubeli/session-id": session_id,
+            }
+        },
+        "spec": {
+            "nodeName": options.node_name,
+            "hostPID": true,
+            "hostIPC": true,
+            "hostNetwork": true,
+            "restartPolicy": "Never",
+            "terminationGracePeriodSeconds": 0,
+            "priorityClassName": "system-node-critical",
+            "tolerations": [{
+                "operator": "Exists"
+            }],
+            "containers": [{
+                "name": "node-shell",
+                "image": image,
+                "command": ["nsenter"],
+                "args": ["-t", "1", "-m", "-u", "-i", "-n", "sleep", "14000"],
+                "stdin": true,
+                "stdinOnce": false,
+                "tty": true,
+                "securityContext": {
+                    "privileged": true
+                },
+                "resources": {
+                    "requests": {
+                        "cpu": "10m",
+                        "memory": "16Mi"
+                    },
+                    "limits": {
+                        "cpu": "100m",
+                        "memory": "64Mi"
+                    }
+                }
+            }]
+        }
+    }))
+    .map_err(|e| format!("Failed to build debug pod spec: {}", e))?;
+
+    // Emit status
+    let _ = app.emit(
+        &event_name,
+        ShellEvent::Output(format!(
+            "Creating debug pod on node {}...\r\n",
+            options.node_name
+        )),
+    );
+
+    // Create the debug pod
+    pods.create(&PostParams::default(), &debug_pod)
+        .await
+        .map_err(|e| format!("Failed to create debug pod: {}", e))?;
+
+    tracing::info!(
+        "Created debug pod {} on node {}",
+        debug_pod_name,
+        options.node_name
+    );
+
+    // Wait for the pod to be running (up to 60 seconds)
+    let _ = app.emit(
+        &event_name,
+        ShellEvent::Output("Waiting for debug pod to start...\r\n".to_string()),
+    );
+
+    let deadline = tokio::time::Instant::now() + tokio::time::Duration::from_secs(60);
+    loop {
+        if tokio::time::Instant::now() > deadline {
+            // Clean up the pod
+            let _ = pods.delete(&debug_pod_name, &DeleteParams::default()).await;
+            return Err("Timeout waiting for debug pod to become ready".to_string());
+        }
+
+        match pods.get(&debug_pod_name).await {
+            Ok(pod) => {
+                if let Some(status) = &pod.status {
+                    if let Some(phase) = &status.phase {
+                        if phase == "Running" {
+                            break;
+                        }
+                        if phase == "Failed" || phase == "Succeeded" {
+                            let _ = pods.delete(&debug_pod_name, &DeleteParams::default()).await;
+                            return Err(format!("Debug pod entered {} phase", phase));
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = pods.delete(&debug_pod_name, &DeleteParams::default()).await;
+                return Err(format!("Failed to check debug pod status: {}", e));
+            }
+        }
+
+        tokio::time::sleep(tokio::time::Duration::from_millis(500)).await;
+    }
+
+    // Exec into the debug pod with a proper shell (try bash, ash, sh in order)
+    let exec_cmd = vec![
+        "sh".to_string(),
+        "-c".to_string(),
+        "((clear && bash) || (clear && ash) || (clear && sh))".to_string(),
+    ];
+    let attach_params = AttachParams::interactive_tty().container("node-shell");
+
+    let (input_tx, mut input_rx) = mpsc::channel::<ShellInput>(256);
+    let stop_flag = Arc::new(AtomicBool::new(false));
+
+    let session = ShellSession {
+        stop_flag: stop_flag.clone(),
+        input_tx,
+        debug_pod: Some(DebugPodInfo {
+            pod_name: debug_pod_name.clone(),
+            namespace: NODE_SHELL_NAMESPACE.to_string(),
+        }),
+    };
+    shell_manager.add_session(session_id.clone(), session).await;
+
+    let session_id_clone = session_id.clone();
+    let shell_manager_clone = Arc::clone(&shell_manager);
+    let debug_pod_name_for_log = debug_pod_name.clone();
+    let debug_pod_name_clone = debug_pod_name;
+    let event_name_clone = event_name.clone();
+    let node_name = options.node_name.clone();
+    let cleanup_client = client.clone();
+
+    // Emit started event
+    let _ = app.emit(
+        &event_name,
+        ShellEvent::Started {
+            session_id: session_id.clone(),
+        },
+    );
+
+    // Spawn the shell session task
+    tokio::spawn(async move {
+        match pods
+            .exec(&debug_pod_name_clone, exec_cmd, &attach_params)
+            .await
+        {
+            Ok(attached) => {
+                let _ = app.emit(
+                    &event_name_clone,
+                    ShellEvent::Output(format!(
+                        "\x1b[32mConnected to node {}\x1b[0m\r\n",
+                        node_name
+                    )),
+                );
+                run_shell_session(
+                    attached,
+                    app.clone(),
+                    &event_name_clone,
+                    stop_flag,
+                    &mut input_rx,
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = app.emit(
+                    &event_name_clone,
+                    ShellEvent::Error(format!("Failed to attach to debug pod: {}", e)),
+                );
+            }
+        }
+
+        // Clean up: delete the debug pod
+        let cleanup_pods: Api<Pod> = Api::namespaced(cleanup_client, NODE_SHELL_NAMESPACE);
+        match cleanup_pods
+            .delete(&debug_pod_name_clone, &DeleteParams::default())
+            .await
+        {
+            Ok(_) => tracing::info!("Cleaned up debug pod {}", debug_pod_name_clone),
+            Err(e) => tracing::warn!(
+                "Failed to clean up debug pod {}: {}",
+                debug_pod_name_clone,
+                e
+            ),
+        }
+
+        shell_manager_clone.remove_session(&session_id_clone).await;
+        let _ = app.emit(
+            &event_name_clone,
+            ShellEvent::Closed {
+                session_id: session_id_clone,
+            },
+        );
+    });
+
+    tracing::info!(
+        "Started node shell session {} for node {} via pod {}",
+        session_id,
+        options.node_name,
+        debug_pod_name_for_log
+    );
+    Ok(())
+}
+
+/// Clean up a node shell debug pod (called when closing a node shell tab)
+#[command]
+pub async fn node_shell_cleanup(
+    state: State<'_, AppState>,
+    shell_manager: State<'_, Arc<ShellSessionManager>>,
+    session_id: String,
+) -> Result<(), String> {
+    // First close the shell session
+    if shell_manager.stop_session(&session_id).await {
+        // Get debug pod info before removing session
+        if let Some(debug_info) = shell_manager.get_debug_pod_info(&session_id).await {
+            let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+            let pods: Api<Pod> = Api::namespaced(client, &debug_info.namespace);
+            match pods
+                .delete(&debug_info.pod_name, &DeleteParams::default())
+                .await
+            {
+                Ok(_) => tracing::info!("Cleaned up debug pod {}", debug_info.pod_name),
+                Err(e) => {
+                    tracing::warn!(
+                        "Failed to clean up debug pod {}: {}",
+                        debug_info.pod_name,
+                        e
+                    )
+                }
+            }
+        }
+        shell_manager.remove_session(&session_id).await;
+        tracing::info!("Closed node shell session {}", session_id);
+    }
+    Ok(())
 }

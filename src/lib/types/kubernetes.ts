@@ -158,6 +158,11 @@ export interface ShellOptions {
   command?: string[];
 }
 
+export interface NodeShellOptions {
+  node_name: string;
+  image?: string;
+}
+
 export type ShellEventType = "Output" | "Error" | "Started" | "Closed";
 
 export type ShellEvent =
