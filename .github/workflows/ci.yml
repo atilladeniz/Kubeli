@@ -44,18 +44,16 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v6
-        with:
-          node-version: '20'
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
 
       - name: Install dependencies
         working-directory: web
-        run: npm install --frozen-lockfile 2>/dev/null || npm install
+        run: bun install
 
       - name: Build Astro
         working-directory: web
-        run: npm run build
+        run: bun run build
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v7
