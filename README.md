@@ -59,8 +59,8 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 | Layer | Technology |
 |-------|------------|
 | Frontend | Vite, React 19, TypeScript, Tailwind CSS 4 |
-| Desktop | Tauri 2.0 (Rust) |
-| K8s Client | kube-rs with k8s-openapi v1.32 |
+| Desktop | Tauri 2.9 (Rust) |
+| K8s Client | kube-rs with k8s-openapi v1.35 |
 | State | Zustand |
 | UI Components | Radix UI, Lucide Icons |
 | Editor | Monaco Editor |
@@ -74,7 +74,7 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 **Prerequisites:**
 - Node.js 18+
 - Rust 1.70+
-- pnpm (recommended) or npm
+- npm (default) or pnpm
 
 ```bash
 # Clone the repository
@@ -315,8 +315,9 @@ kubeli/
 ├── src/                    # React frontend (Vite)
 │   ├── app/                # App styles/tests
 │   ├── components/         # React components
-│   │   ├── features/       # Dashboard, Resources, Logs, Terminal
-│   │   ├── layout/         # Sidebar, Titlebar
+│   │   ├── features/       # AI, Dashboard, Home, Logs, Port Forward, Resources,
+│   │   │                   # Settings, Shortcuts, Terminal, Updater, Visualization
+│   │   ├── layout/         # Sidebar, Tabbar, Titlebar
 │   │   └── ui/             # Radix UI components
 │   └── lib/
 │       ├── hooks/          # useK8sResources, useLogs, useShell, etc.
@@ -325,8 +326,12 @@ kubeli/
 │       └── types/          # TypeScript definitions
 ├── src-tauri/              # Tauri/Rust backend
 │   └── src/
-│       ├── commands/       # clusters, resources, logs, shell, portforward
-│       └── k8s/            # KubeClientManager, config parsing
+│       ├── commands/       # clusters, resources, logs, shell, portforward,
+│       │                   # flux, helm, metrics, mcp, network, watch, etc.
+│       ├── k8s/            # KubeClientManager, config parsing
+│       ├── ai/             # AI assistant integration
+│       └── mcp/            # MCP server
+├── web/                    # Landing page (Astro)
 └── Makefile                # Development shortcuts
 ```
 

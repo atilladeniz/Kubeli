@@ -51,7 +51,6 @@ make build
 |---------|-------------|
 | `make release` | Release via CI: version bump, changelog, commit, tag push → CI builds all platforms |
 | `make build-deploy` | Alias for `make release` |
-| `make build-deploy-legacy` | (Legacy) Build all platforms locally, deploy, and create GitHub release |
 
 The release flow: `make release` → tag push triggers GitHub Actions → builds macOS (ARM + x86), Windows, Linux → waits for manual approval → deploys to FTP + publishes GitHub Release.
 
@@ -85,14 +84,21 @@ Kubeli/
 │   ├── App.tsx
 │   ├── main.tsx
 │   ├── components/         # React components
+│   │   ├── features/       # AI, Dashboard, Home, Logs, Resources, Terminal, etc.
+│   │   ├── layout/         # Sidebar, Tabbar, Titlebar
+│   │   └── ui/             # Radix UI components
 │   └── lib/
+│       ├── hooks/          # Custom React hooks
 │       ├── stores/         # Zustand stores
 │       ├── tauri/          # Tauri command bindings
 │       └── types/          # TypeScript types
 ├── src-tauri/              # Tauri/Rust backend
 │   └── src/
 │       ├── commands/       # Tauri command handlers
-│       └── k8s/            # Kubernetes client logic
+│       ├── k8s/            # Kubernetes client logic
+│       ├── ai/             # AI assistant integration
+│       └── mcp/            # MCP server
+├── web/                    # Landing page (Astro)
 └── Makefile                # Development shortcuts
 ```
 

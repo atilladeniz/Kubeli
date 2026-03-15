@@ -55,11 +55,14 @@ Kubeli/
 │   ├── main.tsx            # Frontend bootstrap
 │   ├── App.tsx             # App shell
 │   ├── components/         # React components
+│   │   ├── features/       # AI, Dashboard, Home, Logs, Resources, Terminal, etc.
+│   │   ├── layout/         # Sidebar, Tabbar, Titlebar
+│   │   └── ui/             # Radix UI components (shadcn/ui)
 │   └── lib/                # Hooks, stores, tauri commands, utilities
-├── src-tauri/              # Tauri backend (Rust)
+├── src-tauri/              # Tauri 2.9 backend (Rust)
 │   └── src/
 │       ├── commands/       # Tauri command handlers
-│       ├── k8s/            # Kubernetes client logic
+│       ├── k8s/            # Kubernetes client logic (kube-rs)
 │       ├── ai/             # AI assistant integration
 │       └── mcp/            # MCP server
 └── web/                    # Landing page (Astro)
