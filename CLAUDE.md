@@ -234,6 +234,7 @@ This project includes custom Claude skills for code quality based on industry be
 |-------|---------|-------|
 | `/software-design-review` | Analyzes code against 15 Ousterhout principles | `/software-design-review src/lib/stores/cluster-store.ts` |
 | `/refactor` | Strategic refactoring with safety-first approach | `/refactor src/lib/stores/cluster-store.ts` |
+| `/humanizer` | Remove AI writing patterns from text | `/humanizer` |
 
 ### `/software-design-review` (Analysis)
 
@@ -263,6 +264,18 @@ Key rules enforced:
 - Boy Scout Rule: Leave code cleaner than you found it
 
 ---
+
+### `/humanizer` (Writing Quality)
+
+Detects and removes 24 common AI writing patterns (based on Wikipedia's "Signs of AI writing").
+Use `/humanizer` when writing or editing:
+
+- **README, CHANGELOG, PR descriptions** - user-facing documentation
+- **Landing page copy** (`web/`) - marketing text on kubeli.dev
+- **Release notes** (`.release-notes.md`) - announcement text
+- **CONTRIBUTING, SECURITY, AI_POLICY** - community-facing docs
+
+Not needed for code comments, commit messages, or internal CLAUDE.md notes.
 
 ## Git Commit Guidelines
 
