@@ -2,205 +2,259 @@
 
 ## Architecture Overview
 
+Follows k8sgpt's proven pattern: **rule-based analyzers extract structured errors BEFORE the LLM sees data**. This minimizes context consumption, reduces hallucination, and works well with small models.
+
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      Kubeli App                         │
-│                                                         │
-│  ┌──────────────┐   ┌──────────────┐   ┌────────────┐ │
-│  │  AI Feature   │   │   Settings   │   │  Log View  │ │
-│  │  (React)      │   │  Model Setup │   │  "Analyze" │ │
-│  └──────┬───────┘   └──────┬───────┘   └─────┬──────┘ │
-│         │                   │                  │        │
-│  ┌──────▼───────────────────▼──────────────────▼──────┐ │
-│  │              Tauri Commands (Rust)                  │ │
-│  │                                                     │ │
-│  │  ┌─────────────┐  ┌──────────┐  ┌───────────────┐ │ │
-│  │  │ llmfit-core │  │ Ollama   │  │ K8s Context   │ │ │
-│  │  │ (hardware   │  │ Client   │  │ Builder       │ │ │
-│  │  │  detection) │  │ (REST)   │  │ (system       │ │ │
-│  │  │             │  │          │  │  prompt +      │ │ │
-│  │  │             │  │          │  │  log context)  │ │ │
-│  │  └─────────────┘  └────┬─────┘  └───────────────┘ │ │
-│  └─────────────────────────┼──────────────────────────┘ │
-└─────────────────────────────┼───────────────────────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │   Ollama Server   │
-                    │   (localhost:      │
-                    │    11434)          │
-                    │                   │
-                    │  ┌─────────────┐  │
-                    │  │ qwen3:4b    │  │
-                    │  │ or best-fit │  │
-                    │  │ model       │  │
-                    │  └─────────────┘  │
-                    └───────────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                         Kubeli App                                │
+│                                                                   │
+│  ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────────┐ │
+│  │ AI Chat  │   │ Settings │   │ Log View │   │ Event View   │ │
+│  │ (React)  │   │ Model    │   │ "Analyze"│   │ "Explain"    │ │
+│  └────┬─────┘   └────┬─────┘   └────┬─────┘   └──────┬───────┘ │
+│       │               │              │                 │         │
+│  ┌────▼───────────────▼──────────────▼─────────────────▼───────┐ │
+│  │                  Tauri Commands (Rust)                       │ │
+│  │                                                              │ │
+│  │  ┌──────────┐ ┌──────────┐ ┌────────────┐ ┌──────────────┐ │ │
+│  │  │ llmfit-  │ │ ollama-  │ │ K8s        │ │ Log          │ │ │
+│  │  │ core     │ │ rs       │ │ Analyzers  │ │ Preprocessor │ │ │
+│  │  │ (hw      │ │ (v0.3.4) │ │ (k8sgpt    │ │ (filter →    │ │ │
+│  │  │  detect) │ │ (stream) │ │  pattern)  │ │  dedup →     │ │ │
+│  │  │          │ │          │ │            │ │  chunk)      │ │ │
+│  │  └──────────┘ └────┬─────┘ └────────────┘ └──────────────┘ │ │
+│  │                     │                                        │ │
+│  │  ┌──────────────────▼───────────────────────────────────┐   │ │
+│  │  │              Data Sanitizer                          │   │ │
+│  │  │  (strip secrets, emails, tokens, IPs before LLM)     │   │ │
+│  │  └──────────────────┬───────────────────────────────────┘   │ │
+│  └──────────────────────┼──────────────────────────────────────┘ │
+└──────────────────────────┼──────────────────────────────────────┘
+                           │ Tauri 2 Channel API (token streaming)
+                 ┌─────────▼─────────┐
+                 │   Ollama Server   │
+                 │  127.0.0.1:11434  │
+                 │  (pinned ≥0.3.15) │
+                 │                   │
+                 │  ┌─────────────┐  │
+                 │  │ qwen3:4b    │  │
+                 │  │ Q4_K_M      │  │
+                 │  └─────────────┘  │
+                 └───────────────────┘
 ```
 
 ## Component Design
 
-### 1. Hardware Detection (llmfit integration)
+### 1. Hardware Detection (llmfit-core)
 
-Two options evaluated:
+**Decision changed: llmfit-core as Rust crate dependency (not CLI).**
 
-**Option A: llmfit as Rust crate dependency**
-- Add `llmfit-core` to `src-tauri/Cargo.toml`
-- Call hardware detection and model scoring directly from Rust
-- Pro: No external binary needed, faster, tighter integration
-- Con: Pulls in llmfit's dependency tree
+Research shows `llmfit-core` (v0.7.3, MIT, ~6K monthly downloads on crates.io) exposes a stable public API: `SystemSpecs::detect()`, `ModelDatabase`, `ModelFit`, `OllamaProvider`. Apple Silicon unified memory is handled correctly. Documentation coverage is only 31.68% so source reading is needed.
 
-**Option B: llmfit as CLI sidecar**
-- Detect if `llmfit` is installed, prompt to install if not
-- Call `llmfit recommend --json --use-case general --limit 5`
-- Pro: Loose coupling, user can update llmfit independently
-- Con: External dependency, slower startup
+```toml
+# src-tauri/Cargo.toml
+[dependencies]
+llmfit-core = "0.7"
+```
 
-**Decision: Option B (CLI sidecar) for v1, Option A for v2.**
-llmfit is still evolving. CLI integration is simpler and avoids version coupling.
+Key APIs:
+- `SystemSpecs::detect()` - CPU, RAM, GPU, VRAM, backend
+- `ModelDatabase` - 497+ model registry with fit scoring
+- `FitLevel::Perfect | Good | Marginal | TooTight`
+
+Reserve 2-4 GB for OS + Kubeli when computing available memory on Apple Silicon.
+
+Calibrate llmfit estimates (±20-30% accuracy) with a quick 50-token benchmark on first model setup.
 
 ### 2. Model Selection Strategy
 
-Based on research, the recommended model priority for K8s log analysis:
+Research confirms Qwen3:4b as clear winner (AI Index: 12, tool calling: 0.880, 95.64% log classification with RAG). Granite 3.1 MoE:3b is the lightweight fallback (only ~800M active params, 40-80% faster than dense 4B).
 
-| Priority | Model | Params | RAM | Why |
-|----------|-------|--------|-----|-----|
-| 1 | `qwen3:4b` | 4B | ~3GB | Best tool-calling + reasoning at this size, "thinking" mode |
-| 2 | `qwen3:1.7b` | 1.7B | ~1.5GB | Fallback for low-RAM systems, still has tool support |
-| 3 | `phi4-mini:3.8b` | 3.8B | ~2.5GB | Strong reasoning, 128K context window |
-| 4 | `granite4:3b` | 3B | ~2GB | IBM enterprise model, good at structured data |
-| 5 | `qwen3:8b` | 8B | ~5GB | If hardware allows, best quality |
+| Priority | Model | Params | RAM (Q4_K_M) | Context | Why |
+|----------|-------|--------|-------------|---------|-----|
+| 1 | `qwen3:4b` | 4B | ~5.2GB | 32K | Best tool-calling + thinking mode, Apache 2.0 |
+| 2 | `granite3.1-moe:3b` | 3B (800M active) | ~2.2GB | 128K | Fast fallback for ≤8GB RAM |
+| 3 | `phi4-mini` | 3.8B | ~2.5GB | 128K | MIT license alternative, strong STEM |
+| 4 | `qwen3:8b` | 8B | ~5GB | 32K | Quality pick for ≥16GB RAM |
 
-Selection flow:
-```
-1. Run `llmfit recommend --json --limit 5`
-2. Filter results by our curated list above
-3. Pick highest-priority model that llmfit rates as "good" or "perfect" fit
-4. If no match: fall back to smallest model (qwen3:1.7b)
-5. Present recommendation to user in Settings UI
-```
+Quantization guidance:
+- **Q5_K_M** for structured tasks (JSON parsing, kubectl generation) - subtle errors matter
+- **Q4_K_M** for interactive analysis where speed matters more
+- Never go below Q4_K_M at ≤4B scale
 
-### 3. Ollama Management
+### 3. K8s Analyzers (k8sgpt Pattern)
+
+The critical architectural insight: **detect issues programmatically, then explain with the LLM.**
 
 ```
-┌─────────────────────────────────────────┐
-│           Ollama Status Check           │
-└────────────────┬────────────────────────┘
-                 │
-         ┌───────▼────────┐
-         │ Ollama running? │
-         └───┬────────┬───┘
-           No│        │Yes
-    ┌────────▼──┐  ┌──▼────────────┐
-    │ Show      │  │ Check model   │
-    │ install   │  │ installed?    │
-    │ prompt    │  └──┬─────────┬──┘
-    └───────────┘   No│         │Yes
-              ┌───────▼──┐  ┌──▼──────┐
-              │ Pull      │  │ Ready!  │
-              │ recommended│  │ Show    │
-              │ model     │  │ status  │
-              └───────────┘  └─────────┘
+Raw K8s State ──► Rust Analyzers ──► Structured Errors ──► LLM Explains
+                  (rule-based)       (compact, factual)    (human-readable)
 ```
 
-Tauri commands needed:
-- `check_ollama_status()` - Is Ollama running? What models installed?
-- `get_hardware_recommendation()` - Run llmfit, return best model
-- `pull_ollama_model(model: String)` - Pull model with progress events
-- `query_local_model(prompt: String, context: K8sContext)` - Chat completion
+Analyzer modules to build in `src-tauri/src/ai/analyzers/`:
 
-### 4. K8s Context Builder
+| Analyzer | Detects |
+|----------|---------|
+| `pod_analyzer` | CrashLoopBackOff, ImagePullBackOff, OOMKilled, Pending, Evicted |
+| `event_analyzer` | Warning events, FailedScheduling, FailedMount, Unhealthy |
+| `service_analyzer` | No endpoints, selector mismatches |
+| `ingress_analyzer` | Missing backend services, TLS issues |
+| `hpa_analyzer` | ScaleUp/Down failures, metrics unavailable |
+| `pdb_analyzer` | Disruption budget violations |
+| `node_analyzer` | NotReady, DiskPressure, MemoryPressure |
 
-The key differentiator: we inject K8s-specific context that generic models don't have.
+Each analyzer outputs a structured error string. Only these strings go to the LLM, not raw K8s state. This is why k8sgpt works well even with small models.
+
+### 4. Log Preprocessor (Highest-Leverage Investment)
+
+Research shows a 4B model can effectively process ~46-76 log lines in its working window. Log preprocessing is the most critical pipeline component.
+
+```
+Raw Logs (thousands of lines)
+    │
+    ▼
+┌─────────────────────────┐
+│ 1. FILTER               │  Regex: ERROR/WARN lines + ±3 context lines
+│    (80-95% reduction)    │  Preserve: timestamps, pod names, error codes
+└───────────┬─────────────┘
+            ▼
+┌─────────────────────────┐
+│ 2. DEDUPLICATE          │  Template mining (Drain3-style)
+│    (75-95% further)     │  "OOMKilled in pod-xyz" × 47 → one line + count
+└───────────┬─────────────┘
+            ▼
+┌─────────────────────────┐
+│ 3. SANITIZE             │  Strip: emails, IPs, JWTs (eyJ...), basic auth URLs,
+│                         │  high-entropy strings (likely secrets)
+│                         │  Replace with deterministic placeholders
+└───────────┬─────────────┘
+            ▼
+┌─────────────────────────┐
+│ 4. CHUNK (if needed)    │  If > token budget: map-reduce
+│                         │  Max 5 map iterations to bound latency
+│                         │  Carry JSON state between chunks
+└───────────┬─────────────┘
+            ▼
+    Processed Logs (~50-100 lines, clean, safe)
+```
+
+Build in Rust using `regex` (121K records/sec/CPU), `serde_json`, `rayon` for parallelism.
+
+### 5. Context Budget (8K Effective Window)
+
+Despite Qwen3:4b's 32K advertised window, research shows quality peaks at 8-16K. Budget for 8K effective:
+
+| Component | Tokens | % |
+|-----------|--------|---|
+| System prompt | 500 | 6% |
+| K8s analyzer output | 800 | 10% |
+| Log content | 4,652 | 59% |
+| Output reserve | 2,048 | 25% |
+
+### 6. System Prompt (Under 500 Tokens)
+
+Based on research: small models need extreme concision, structured output format, explicit grounding, and few-shot examples.
+
+```
+You are a Kubernetes troubleshooting assistant in Kubeli.
+
+RULES:
+- Only reference resources listed in CONTEXT below
+- Reply "unknown" if unsure - never invent resource names
+- Output JSON: {"error": "...", "cause": "...", "fix": "...", "commands": ["..."]}
+
+COMMON PATTERNS:
+- CrashLoopBackOff: check logs for exit code, OOM, config errors
+- ImagePullBackOff: verify image name, registry auth, network
+- Pending: check node resources, taints, PVC binding
+- OOMKilled: compare memory limits vs actual usage
+
+CONTEXT:
+Cluster: {cluster_name} ({provider})
+Namespace: {namespace}
+Pods: {pod_names}
+Recent warnings: {analyzer_output}
+
+EXAMPLE:
+User: Pod nginx-abc is CrashLoopBackOff
+Assistant: {"error":"CrashLoopBackOff","cause":"Exit code 137 (OOMKilled). Container memory limit 128Mi, peak usage ~200Mi.","fix":"Increase memory limit to 256Mi","commands":["kubectl set resources deployment/nginx --limits=memory=256Mi -n default"]}
+```
+
+Use Qwen3's **non-thinking mode** for structured JSON output, **thinking mode** for root cause analysis.
+
+Temperature: 0.6 + TopP 0.95 (thinking), 0.7 + TopP 0.8 (non-thinking).
+
+### 7. Ollama Integration
+
+**Crate: `ollama-rs = "0.3.4"` with `features = ["stream"]`**
+
+All Ollama calls proxied through Rust backend (never from frontend). Solves CORS issues and enables data sanitization.
+
+Stream responses via **Tauri 2 Channel API** (`tauri::ipc::Channel<ChatEvent>`):
 
 ```rust
-struct K8sContext {
-    /// Current namespace and cluster info
-    cluster_info: String,
-    /// Recent events (warnings/errors)
-    recent_events: Vec<String>,
-    /// Resource state summary
-    resource_summary: String,
-    /// The actual logs being analyzed
-    logs: String,
+enum ChatEvent {
+    Token(String),
+    Done { total_tokens: u32, duration_ms: u64 },
+    Error(String),
 }
 ```
 
-System prompt template:
-```
-You are a Kubernetes troubleshooting assistant running inside Kubeli,
-a K8s management desktop app. You have direct access to cluster state.
+Lifecycle:
+1. On app startup: try `GET http://127.0.0.1:11434/api/tags` (non-blocking)
+2. If unavailable: try spawning `ollama serve` via `std::process::Command`
+3. Health poll every 5s via `/api/tags`
+4. Verify binding is 127.0.0.1 (not 0.0.0.0) - warn if exposed
 
-Current context:
-- Cluster: {cluster_name} ({provider})
-- Namespace: {namespace}
+**Security: pin minimum Ollama version ≥0.3.15** (all known CVEs patched).
 
-Recent cluster events:
-{events}
-
-Resource state:
-{resource_summary}
-
-Your job:
-- Analyze the logs provided by the user
-- Identify errors, warnings, and anomalies
-- Suggest specific kubectl commands or resource changes to fix issues
-- Be concise and actionable
-
-Do not hallucinate resource names. Only reference resources that appear
-in the context above.
-```
-
-### 5. Provider Priority Chain
-
-User-configurable in Settings:
+### 8. Settings UI
 
 ```
-Default order: Local -> Claude CLI -> OpenAI CLI
-
-If local model available and query is log/troubleshooting:
-  -> Use local model (fast, private, free)
-
-If query is complex architecture question:
-  -> Use Claude/OpenAI (better reasoning at scale)
-
-User can override per-query or change default order.
+┌─────────────────────────────────────────────────┐
+│ Local AI Model                                   │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│ Hardware:                                       │
+│   Apple M2 Pro · 12 cores · 16 GB · Metal       │
+│                                                 │
+│ Recommended: qwen3:4b (Q4_K_M)                  │
+│   ~35 tok/s · 5.2 GB RAM · Fit: Perfect         │
+│                                                 │
+│ [Download & Setup]  [Change Model ▾]            │
+│                                                 │
+│ ████████████████░░░░ 78% (4.1 / 5.2 GB)         │
+│                                                 │
+│ Status: ● Ready                                  │
+│                                                 │
+│ Provider Priority:          [drag to reorder]    │
+│   1. Local Model (qwen3:4b)                      │
+│   2. Claude Code CLI                             │
+│   3. OpenAI Codex CLI                            │
+│                                                 │
+│ ⚠ Your cluster data stays on this machine.       │
+│   AI analysis runs locally, no cloud API needed. │
+│                                                 │
+└─────────────────────────────────────────────────┘
 ```
 
-### 6. Settings UI
+## Key Decisions (Updated After Research)
 
-New section in Settings: "AI Model"
+1. **llmfit-core as Rust crate** (changed) - API is stable enough, avoids CLI dependency
+2. **ollama-rs for Ollama client** - Production-ready, 988 stars, streaming support
+3. **Tauri 2 Channel API for streaming** - Purpose-built, type-safe, no SSE/WS needed
+4. **Analyzer-first pattern from k8sgpt** - Rule-based detection before LLM, proven approach
+5. **Log preprocessing pipeline** - Highest-leverage investment, filter → dedup → sanitize → chunk
+6. **Data sanitization layer** - Strip secrets/emails/tokens before LLM sees any data
+7. **Qwen3:4b default, Granite MoE fallback** - Validated by benchmarks
+8. **System prompt under 500 tokens** - Small models degrade with longer prompts
+9. **Ollama pinned ≥0.3.15** - CVE mitigation, verify 127.0.0.1 binding
+10. **No fine-tuning for v1** - System prompt + context injection achieves 95.64% on log classification
 
-```
-┌─────────────────────────────────────────────┐
-│ AI Model                                     │
-├─────────────────────────────────────────────┤
-│                                             │
-│ Hardware Detected:                          │
-│   CPU: Apple M2 Pro (12 cores)             │
-│   RAM: 32 GB                                │
-│   GPU: Apple Silicon (Metal)                │
-│                                             │
-│ Recommended Model: qwen3:4b                 │
-│   Estimated: ~25 tok/s, 3.2 GB RAM          │
-│   Fit: Perfect ✓                            │
-│                                             │
-│ [Download & Setup]  [Change Model ▾]        │
-│                                             │
-│ Status: ● Ready (qwen3:4b loaded)           │
-│                                             │
-│ Provider Priority:                          │
-│   1. ☐ Local Model (qwen3:4b)              │
-│   2. ☐ Claude Code CLI                      │
-│   3. ☐ OpenAI Codex CLI                    │
-│   [drag to reorder]                         │
-│                                             │
-└─────────────────────────────────────────────┘
-```
+## v2 Roadmap (After v1 Ships)
 
-## Key Decisions
-
-1. **llmfit CLI first, crate later** - Avoids tight coupling during llmfit's active development
-2. **Ollama as runtime** - Mature, OpenAI-compatible API, handles model management
-3. **System prompt over fine-tuning** - 80/20 rule: good system prompt + K8s context is enough for v1
-4. **Qwen3 4B as default** - Best tool-calling and reasoning in the 3-5B range
-5. **No bundled model** - Models are 2-5GB, too large to bundle. Download on first use.
+- Fine-tuning: 30K StackOverflow dataset + synthetic pairs, QLoRA via Unsloth, $1-50 cost
+- Contribute `UseCase::Kubernetes` to llmfit upstream
+- Optional RAG over K8s docs (embedded SQLite + cosine similarity)
+- Consider bundling Ollama as Tauri sidecar (`externalBin`) for one-click install
+- kubectl-ai-style action mode (generate + execute commands)
