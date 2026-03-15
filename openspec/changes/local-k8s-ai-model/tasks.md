@@ -2,10 +2,11 @@
 
 ## Phase 1: Rust backend
 
-### Task 1: Ollama client via ollama-rs
+### Task 1: OllamaManager (follows LogStreamManager pattern)
 - [ ] Add `ollama-rs = { version = "0.3.4", features = ["stream"] }` to `src-tauri/Cargo.toml`
-- [ ] Create `src-tauri/src/ai/ollama_client.rs`
+- [ ] Create `src-tauri/src/ai/ollama_manager.rs`
 - [ ] Register module in `src-tauri/src/ai/mod.rs`
+- [ ] Register `Arc::new(OllamaManager::new())` in `src-tauri/src/app/state.rs`
 - [ ] `check_ollama_status()` → connect to `127.0.0.1:11434/api/tags`, return list of installed models
 - [ ] Verify Ollama binds to 127.0.0.1 (warn if 0.0.0.0)
 - [ ] Check Ollama version ≥0.3.15 (warn if older, CVE risk)
@@ -346,17 +347,82 @@ settings.ai.providerPriority.codex
 
 ---
 
+## Phase 0: Refactoring (before new code)
+
+### Task 0: Rename AiCliProvider to AiProvider
+- [ ] Rename `AiCliProvider` → `AiProvider` in `src-tauri/src/ai/agent_manager.rs`
+- [ ] Add `Local` variant to the enum
+- [ ] Update all Rust references (commands.rs, session_store.rs, etc.)
+- [ ] Rename TypeScript `AiCliProvider` → `AiProvider` in `src/lib/tauri/commands/ai.ts`
+- [ ] Update `src/lib/stores/ui-store.ts` type
+- [ ] Update `ProviderBadge.tsx`, `AiTab.tsx`, `useAISession.ts`
+- [ ] Run `make lint && make check && make rust-check` to catch all references
+- [ ] This is a standalone refactor, commit separately before adding new features
+
+---
+
+## Conventions to follow
+
+### Rust conventions (match existing patterns)
+
+**Error handling:**
+- All commands return `Result<T, KubeliError>`, never `Result<T, String>`
+- Use `KubeliError::new(ErrorKind::X, "message")` with `.with_suggestions()`
+- Error kinds: `Network` (Ollama down), `NotFound` (model missing), `ServerError` (Ollama error), `Timeout`
+
+**State management:**
+- Shared state wrapped in `Arc<RwLock<T>>` or `Arc<AtomicBool>` (stop flags)
+- New managers registered in `src-tauri/src/app/state.rs` with `.manage()`
+- Follow `LogStreamManager` / `ShellSessionManager` pattern for `OllamaManager`
+
+**Streaming/events:**
+- Spawn `tokio::spawn` task for long-running operations
+- Use `Arc<AtomicBool>` stop flag for cancellation
+- Emit events via `app.emit(&event_name, AIEvent::X { ... })`
+- Use existing `AIEvent` tagged enum (serde: `#[serde(tag = "type", content = "data")]`)
+
+**Command registration:**
+- Register in `src-tauri/src/app/command_registry/mod.rs` via `generate_handler!`
+- Commands use `State<'_, T>` injection for accessing managers
+
+### Frontend conventions (match existing patterns)
+
+**Tauri command bindings:**
+- Wrapper functions in `src/lib/tauri/commands/` calling `invoke<T>(name, args)`
+- Type-safe with explicit return types
+- Follow pattern in `ai.ts`
+
+**Event listening:**
+- Use `listen<T>(eventName, callback)` from `@tauri-apps/api/event`
+- Store `unlisten` function for cleanup
+- Follow pattern in `useAIEvents.ts` and `log-store.ts`
+
+**Zustand stores:**
+- Action slice pattern: `createXActions(set, get)` returning action object
+- External Maps for non-UI state (listeners, timers)
+- `persist` middleware if settings need saving
+
+**Settings tabs:**
+- Use `SettingSection` wrapper for consistent layout
+- Accept hook return values as props
+- Use existing UI components: `Select`, `Separator`, `Label`, `Button`
+
+**Testing:**
+- Rust: inline `#[cfg(test)]` at bottom of file, `#[tokio::test]` for async
+- Frontend: Jest with `jest.doMock` for Tauri invoke mocking
+
+---
+
 ## File change summary
 
 ### New files
 
 **Rust backend (`src-tauri/src/ai/`):**
 ```
-ollama_client.rs       # Ollama REST client via ollama-rs
+ollama_manager.rs      # OllamaManager: session management, streaming, lifecycle
 hardware.rs            # llmfit-core hardware detection + model recommendation
 sanitizer.rs           # Data sanitization (secrets, emails, tokens)
 log_preprocessor.rs    # Filter → dedup → sanitize → chunk pipeline
-context_builder.rs     # System prompt + K8s context assembly
 analyzers/
   mod.rs               # Analyzer trait + aggregator
   pod_analyzer.rs      # Pod status analysis
@@ -395,17 +461,27 @@ local-ai.ts                 # HardwareInfo, ModelRecommendation, OllamaStatus, e
 
 | File | Change |
 |------|--------|
+| **Rust refactoring (Task 0)** | |
+| `src-tauri/src/ai/agent_manager.rs` | Rename `AiCliProvider` → `AiProvider`, add `Local` variant, delegate to OllamaManager |
+| `src-tauri/src/ai/commands.rs` | Update types, add ollama-specific commands |
+| `src-tauri/src/ai/cli_detector.rs` | Add `detect_ollama()` function |
+| `src-tauri/src/ai/context_builder.rs` | Add `build_local_context()` for short prompts |
+| `src-tauri/src/ai/mod.rs` | Register new modules (ollama_manager, hardware, sanitizer, etc.) |
+| **Rust new features** | |
 | `src-tauri/Cargo.toml` | Add ollama-rs, llmfit-core |
-| `src-tauri/src/ai/mod.rs` | Register new modules |
-| `src-tauri/src/commands/mod.rs` | Register new Tauri commands |
+| `src-tauri/src/app/state.rs` | Register `Arc::new(OllamaManager::new())` |
+| `src-tauri/src/app/command_registry/mod.rs` | Add new commands to `generate_handler!` |
+| **Frontend refactoring (Task 0)** | |
+| `src/lib/tauri/commands/ai.ts` | Rename `AiCliProvider` → `AiProvider`, add `"local"` |
+| `src/components/features/ai/components/ProviderBadge.tsx` | Add "local" provider (blue badge) |
+| **Frontend new features** | |
 | `src/components/features/settings/components/AiTab.tsx` | Add LocalModelSection + ProviderPriority above existing content |
 | `src/components/features/settings/components/index.ts` | Export new components |
 | `src/components/features/settings/hooks/index.ts` | Export new hooks |
-| `src/components/features/ai/components/ProviderBadge.tsx` | Add "local" provider with blue badge |
-| `src/lib/stores/ui-store.ts` | Add localModel, ollamaHost, providerPriority, smartRouting to Settings |
+| `src/lib/stores/ui-store.ts` | Add localModel, ollamaHost, providerPriority, smartRouting |
 | `src/lib/stores/ai-store/types.ts` | Add activeProvider to AIState |
 | `src/lib/tauri/commands/index.ts` | Re-export ai-local commands |
-| i18n EN + DE files | Add ~25 translation keys for local AI section |
+| i18n EN + DE files | Add ~25 translation keys |
 
 ---
 

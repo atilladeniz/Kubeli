@@ -238,18 +238,125 @@ Lifecycle:
 └─────────────────────────────────────────────────┘
 ```
 
+## Integration with existing codebase
+
+### Provider enum
+
+The existing `AiCliProvider` enum (`Claude | Codex`) needs a `Local` variant. The name "Cli" no longer fits, so rename to `AiProvider`:
+
+```rust
+// src-tauri/src/ai/agent_manager.rs
+pub enum AiProvider {
+    Claude,  // Claude Code CLI
+    Codex,   // OpenAI Codex CLI
+    Local,   // Ollama local model
+}
+```
+
+Update all references: `AiCliProvider` → `AiProvider` across Rust + TypeScript.
+
+### Separate OllamaManager (SRP)
+
+Do NOT add Ollama logic into the existing `AgentManager`. AgentManager spawns CLI child processes, reads JSONL stdout, handles stop flags. Ollama uses HTTP REST with streaming JSON. Different execution model, different error modes.
+
+Instead, create `OllamaManager` following the same pattern as `LogStreamManager` and `ShellSessionManager`:
+
+```rust
+// src-tauri/src/ai/ollama_manager.rs
+pub struct OllamaManager {
+    client: ollama_rs::Ollama,
+    active_sessions: RwLock<HashMap<String, OllamaSession>>,
+}
+
+struct OllamaSession {
+    stop_flag: Arc<AtomicBool>,
+    model: String,
+}
+```
+
+Register in `src-tauri/src/app/state.rs`:
+```rust
+.manage(Arc::new(OllamaManager::new()))
+```
+
+### Routing: AgentManager vs OllamaManager
+
+`ai_send_message` command checks the provider and delegates:
+
+```rust
+match provider {
+    AiProvider::Claude | AiProvider::Codex => agent_manager.send(...),
+    AiProvider::Local => ollama_manager.send(...),
+}
+```
+
+Both emit the same `AIEvent` enum via `app.emit()`, so the frontend event handler (`useAIEvents.ts`) needs zero changes.
+
+### Error handling
+
+All new commands return `Result<T, KubeliError>`, not `Result<T, String>`.
+
+Use the existing error kinds:
+- `ErrorKind::Network` - Ollama not reachable
+- `ErrorKind::NotFound` - model not installed
+- `ErrorKind::ServerError` - Ollama returned error
+- `ErrorKind::Timeout` - model generation timeout
+
+Add suggestions:
+```rust
+KubeliError::new(ErrorKind::Network, "Ollama is not running")
+    .with_suggestions(vec![
+        "Start Ollama: ollama serve".into(),
+        "Install: brew install ollama".into(),
+    ])
+```
+
+### State registration
+
+New state in `src-tauri/src/app/state.rs`:
+```rust
+.manage(Arc::new(OllamaManager::new()))
+// llmfit-core does not need managed state - call SystemSpecs::detect() on demand
+```
+
+### Session store compatibility
+
+The existing `session_store.rs` already stores provider per session. Just needs the new `Local` variant serialized. SQLite schema does not change.
+
+### Frontend event reuse
+
+`useAIEvents.ts` listens to `ai-session-{sessionId}` events. Since `OllamaManager` emits the same `AIEvent` tagged enum, the hook works as-is. Only `ProviderBadge.tsx` needs a third color.
+
+### Context builder reuse
+
+`context_builder.rs` generates a system prompt from live K8s state. For local models, we replace this with a shorter prompt (see Section 6) because 4B models need <500 tokens. The existing builder stays for Claude/Codex (they handle longer prompts fine). Add a `build_local_context()` function alongside the existing `build_context()`.
+
+### Files that need renaming/refactoring
+
+| File | Change |
+|------|--------|
+| `AiCliProvider` enum | Rename to `AiProvider`, add `Local` variant |
+| TypeScript `AiCliProvider` type | Rename to `AiProvider`, add `"local"` |
+| `AIConfigState.claude_cli_info` | Keep as-is, add `ollama_info: RwLock<Option<OllamaInfo>>` |
+| `cli_detector.rs` | Add `detect_ollama()` function (check port 11434) |
+| `commands.rs` | Add ollama-specific commands, update session commands for Local provider |
+| `src/lib/tauri/commands/ai.ts` | Update types, add local AI command wrappers |
+
 ## Decisions
 
-1. **llmfit-core as Rust crate** (changed from CLI) - stable API, no external binary needed
-2. **ollama-rs** - MIT, 988 stars, handles streaming and model management
-3. **Tauri 2 Channel API** - type-safe token streaming without SSE/WS
-4. **Analyzers before LLM** (k8sgpt pattern) - rule-based detection feeds compact errors to model
-5. **Log preprocessing** - filter → dedup → sanitize → chunk before anything hits the model
-6. **Data sanitization** - secrets/emails/tokens stripped before LLM sees data
-7. **Qwen3:4b default, Granite MoE fallback** - benchmarked, both Apache 2.0
-8. **System prompt under 500 tokens** - quality drops fast with longer prompts at 4B scale
-9. **Ollama ≥0.3.15** - older versions have known RCE vulnerabilities
-10. **No fine-tuning for v1** - system prompt + context injection already hits 95.64% on log classification
+1. **Separate OllamaManager** (not in AgentManager) - different execution model, follows SRP
+2. **Rename `AiCliProvider` to `AiProvider`** - "Cli" no longer accurate with local models
+3. **Reuse `AIEvent` enum** - same events for all providers, frontend stays untouched
+4. **`KubeliError` everywhere** - no `Result<T, String>`, use existing error kinds + suggestions
+5. **llmfit-core as Rust crate** - stable API, no external binary needed
+6. **ollama-rs** - MIT, 988 stars, handles streaming and model management
+7. **Analyzers before LLM** (k8sgpt pattern) - rule-based detection feeds compact errors to model
+8. **Log preprocessing** - filter → dedup → sanitize → chunk before anything hits the model
+9. **Data sanitization** - secrets/emails/tokens stripped before LLM sees data
+10. **Qwen3:4b default, Granite MoE fallback** - benchmarked, both Apache 2.0
+11. **System prompt under 500 tokens** - quality drops fast with longer prompts at 4B scale
+12. **Ollama ≥0.3.15** - older versions have known RCE vulnerabilities
+13. **No fine-tuning for v1** - system prompt + context injection hits 95.64% on log classification
 
 ## v2 Roadmap (After v1 Ships)
 
