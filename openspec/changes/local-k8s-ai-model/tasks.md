@@ -10,8 +10,8 @@
 - [ ] `check_ollama_status()` → connect to `127.0.0.1:11434/api/tags`, return list of installed models
 - [ ] Verify Ollama binds to 127.0.0.1 (warn if 0.0.0.0)
 - [ ] Check Ollama version ≥0.3.15 (warn if older, CVE risk)
-- [ ] `pull_ollama_model(model: String, channel: Channel<PullProgress>)` → stream pull progress
-- [ ] `query_local_model(prompt: String, context: K8sContext, channel: Channel<ChatEvent>)` → stream tokens
+- [ ] `pull_ollama_model(model: String, channel: AppHandle)` → stream pull progress
+- [ ] `query_local_model(prompt: String, context: K8sContext, app: AppHandle)` → stream tokens
 - [ ] Define enums:
   ```rust
   enum ChatEvent { Token(String), Done { total_tokens: u32, duration_ms: u64 }, Error(String) }
@@ -23,8 +23,8 @@
 **Tauri commands to register in `src-tauri/src/commands/`:**
 ```rust
 #[tauri::command] async fn check_ollama() -> Result<OllamaStatus, String>
-#[tauri::command] async fn pull_model(model: String, channel: Channel<PullProgress>) -> Result<(), String>
-#[tauri::command] async fn query_local_ai(prompt: String, context: K8sContext, channel: Channel<ChatEvent>) -> Result<(), String>
+#[tauri::command] async fn pull_model(model: String, channel: AppHandle) -> Result<(), String>
+#[tauri::command] async fn query_local_ai(prompt: String, context: K8sContext, app: AppHandle) -> Result<(), String>
 #[tauri::command] async fn get_ollama_models() -> Result<Vec<OllamaModelInfo>, String>
 ```
 
@@ -86,6 +86,10 @@
   - Output: `"3x FailedScheduling for pod api-xyz: insufficient memory (requested 2Gi, available 500Mi)"`
 - [ ] `service_analyzer.rs` - No endpoints, selector mismatches
 - [ ] `node_analyzer.rs` - NotReady, DiskPressure, MemoryPressure, PIDPressure
+- [ ] `deployment_analyzer.rs` - Unavailable replicas, rollout stuck, image mismatch
+- [ ] `pvc_analyzer.rs` - Pending binding, capacity issues
+- [ ] `job_analyzer.rs` - Failed completions, backoff limit reached
+- [ ] `ingress_analyzer.rs` - Missing backend service, TLS cert issues
 - [ ] Each analyzer returns `Vec<AnalyzerFinding>`:
   ```rust
   struct AnalyzerFinding {
@@ -308,20 +312,26 @@ settings.ai.providerPriority.codex
 - [ ] Update `src-tauri/src/ai/agent_manager.rs` to read priority order
 - [ ] Try providers in order: if first fails/unavailable, fall through to next
 
-### Task 9: Log analysis integration
-- [ ] Add "Analyze with Local AI" button/context menu to log view
-  - File: `src/components/features/logs/` (find the log action bar)
-- [ ] On click: gather current logs + namespace + cluster context
-- [ ] Call preprocessor → sanitizer → context builder → Ollama pipeline
-- [ ] Stream response tokens to AI chat panel (reuse existing `MessageRenderer.tsx`)
-- [ ] Update `ProviderBadge.tsx` to show "Local" / "Claude" / "Codex" (currently only claude/codex)
+### Task 9: Log analysis integration (extend existing infrastructure)
+
+Already exists and works:
+- `useLogAnalysis` hook: `src/components/features/logs/hooks/useLogAnalysis.ts`
+- `AIButton` toolbar component: `src/components/features/logs/components/toolbar/AIButton.tsx`
+- `PendingAnalysis` type + `setPendingAnalysis` action in ai-store
+- i18n keys: `logs.analyzeWithAI`, `logs.sendToAI`, `logs.aiPromptTitle`, etc.
+- @dnd-kit already installed (used in tabbar) - reuse for ProviderPriorityList
+
+Changes needed:
+- [ ] Extend `useLogAnalysis` hook: check Ollama availability alongside CLI checks
+- [ ] Route through preprocessor → sanitizer → context builder → OllamaManager
+- [ ] Reuse existing `setPendingAnalysis` → open AI panel flow
+- [ ] Stream response via `app.emit()` events (same pattern as existing AI events)
+- [ ] Update `ProviderBadge.tsx` to show "Local" (blue) alongside Claude/Codex
   ```tsx
-  // Add to ProviderBadge.tsx:
   provider === "local" ? "bg-blue-500/10 text-blue-500" : ...
-  // Label: "Local" or model name "qwen3:4b"
   ```
 - [ ] For large logs: map-reduce with progress ("Analyzing chunk 2/4...")
-- [ ] Open AI panel automatically when analysis starts (reuse existing pattern)
+- [ ] Add ~3 new i18n keys: `aiLocalModelUnavailable`, `aiLocalModelPulling`, `aiAnalyzingChunk`
 
 ---
 
@@ -500,6 +510,34 @@ local-ai.ts                 # HardwareInfo, ModelRecommendation, OllamaStatus, e
 ollama-rs = { version = "0.3.4", features = ["stream"] }
 llmfit-core = "0.7"
 ```
+
+### Bundle size impact
+
+Estimated +8-15 MB to release binary (mostly llmfit model database).
+Consider Cargo feature flag to make local AI optional:
+
+```toml
+[features]
+default = ["local-ai"]
+local-ai = ["dep:ollama-rs", "dep:llmfit-core"]
+```
+
+Current binary has ~68 direct crate dependencies (7.8K line Cargo.lock).
+
+### Existing infrastructure to reuse (no new code needed)
+
+| What | Where | Status |
+|------|-------|--------|
+| Log analysis button | `src/components/features/logs/components/toolbar/AIButton.tsx` | Exists |
+| Log analysis hook | `src/components/features/logs/hooks/useLogAnalysis.ts` | Exists, extend |
+| PendingAnalysis flow | `ai-store/types.ts` + `control-actions.ts` | Exists |
+| AI event handler | `src/components/features/ai/hooks/useAIEvents.ts` | Exists, works as-is |
+| Drag and drop | `@dnd-kit/sortable` in `package.json` | Exists |
+| Settings persistence | `localStorage` via Zustand persist in `ui-store.ts` | Exists |
+| i18n AI keys | `src/i18n/messages/en.json` + `de.json` | Partial, add ~3 keys |
+| Provider badge | `src/components/features/ai/components/ProviderBadge.tsx` | Exists, add "local" |
+| Session storage | `ai/session_store.rs` (SQLite) | Exists, works with new provider |
+| CSP / Tauri permissions | `tauri.conf.json` | No changes needed (Rust-proxied) |
 
 ## Research sources
 

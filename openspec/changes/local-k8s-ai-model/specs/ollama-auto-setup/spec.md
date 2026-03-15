@@ -48,7 +48,7 @@ struct PullProgress {
 }
 ```
 
-Stream progress to frontend via Tauri 2 Channel API:
+Stream progress to frontend via app.emit() (same pattern as log streaming):
 ```rust
 channel.send(PullProgress { ... })?;
 ```

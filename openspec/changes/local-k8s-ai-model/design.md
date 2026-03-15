@@ -30,7 +30,7 @@ Same approach as k8sgpt: **rule-based analyzers extract structured errors before
 │  │  └──────────────────┬───────────────────────────────────┘   │ │
 │  └──────────────────────┼──────────────────────────────────────┘ │
 └──────────────────────────┼──────────────────────────────────────┘
-                           │ Tauri 2 Channel API (token streaming)
+                           │ app.emit() event streaming (same as logs.rs)
                  ┌─────────▼─────────┐
                  │   Ollama Server   │
                  │  127.0.0.1:11434  │
@@ -190,7 +190,7 @@ Uses `ollama-rs = "0.3.4"` with `features = ["stream"]`.
 
 All Ollama calls go through the Rust backend, not the frontend. This avoids CORS problems (Windows Tauri uses `http://tauri.localhost`, which Ollama does not whitelist) and lets us sanitize data before it reaches the model.
 
-Streaming via Tauri 2 Channel API (`tauri::ipc::Channel<ChatEvent>`):
+Streaming via `app.emit()` + `listen()` (same pattern as log streaming in `logs.rs`, NOT Channel API):
 
 ```rust
 enum ChatEvent {
