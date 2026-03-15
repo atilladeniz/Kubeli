@@ -15,7 +15,7 @@ const faqSchema = {
       "name": "What makes Kubeli different from Lens?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Kubeli is a native desktop app built with Tauri and Rust - not Electron like Lens. This means significantly lower memory usage (~100MB vs ~350MB), faster startup, and better OS integration. Plus: Kubeli is 100% open source and free."
+        "text": "Kubeli is built with Tauri and Rust, not Electron. It uses ~100MB of RAM (vs ~350MB for Lens), starts in under a second, and is 100% open source under MIT license."
       }
     },
     {
@@ -23,7 +23,7 @@ const faqSchema = {
       "name": "Is Kubeli an Electron app?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "No! Kubeli uses Tauri 2.0 with a Rust backend. This makes the app about 10x smaller than comparable Electron apps and much more resource-efficient. The native webview integration provides a true native experience on macOS, Windows, and Linux."
+        "text": "No. Kubeli uses Tauri 2.9 with a Rust backend. The app is 26.8MB (vs ~1.9GB for Lens). It uses the OS webview instead of bundling Chromium, which keeps the download small and memory usage low."
       }
     },
     {
@@ -39,7 +39,7 @@ const faqSchema = {
       "name": "Which Kubernetes versions are supported?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Kubeli supports all current Kubernetes versions through k8s-openapi v1.32. This includes local clusters (Minikube, kind, Docker Desktop) as well as cloud providers like GKE, EKS, and AKS."
+        "text": "Kubeli supports Kubernetes through k8s-openapi v1.35. It works with local clusters (Minikube, kind, Docker Desktop) and cloud providers (GKE, EKS, AKS)."
       }
     },
     {
@@ -55,7 +55,7 @@ const faqSchema = {
       "name": "Is my cluster data secure?",
       "acceptedAnswer": {
         "@type": "Answer",
-        "text": "Absolutely. Kubeli processes all data locally on your machine. There's no cloud connection, no telemetry, no data collection. Your kubeconfig stays on your device."
+        "text": "Yes. Kubeli processes everything locally. There is no telemetry, no data collection, and no outbound network connections except to your Kubernetes API servers and the update check endpoint."
       }
     }
   ]
@@ -73,28 +73,28 @@ const features = [
     icon: "M21 12a9 9 0 0 1-9 9m9-9a9 9 0 0 0-9-9m9 9H3m9 9a9 9 0 0 1-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 0 1 9-9"
   },
   {
-    title: "AI-Powered Analysis",
-    description: "Integrated Claude & OpenAI support for intelligent log analysis, troubleshooting, and cluster insights.",
+    title: "AI Log Analysis",
+    description: "Use Claude Code CLI or OpenAI Codex CLI to analyze logs and troubleshoot directly inside Kubeli.",
     icon: "M9.813 15.904 9 18.75l-.813-2.846a4.5 4.5 0 0 0-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 0 0 3.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 0 0 3.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 0 0-3.09 3.09ZM18.259 8.715 18 9.75l-.259-1.035a3.375 3.375 0 0 0-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 0 0 2.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 0 0 2.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 0 0-2.456 2.456ZM16.894 20.567 16.5 21.75l-.394-1.183a2.25 2.25 0 0 0-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 0 0 1.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 0 0 1.423 1.423l1.183.394-1.183.394a2.25 2.25 0 0 0-1.423 1.423Z"
   },
   {
-    title: "Interactive Resource Diagram",
-    description: "Visualize your cluster topology with interactive diagrams. See namespaces, deployments, and pods at a glance.",
+    title: "Resource Diagram",
+    description: "See your cluster topology as a visual diagram. Namespaces, deployments, and pods are shown as nested groups.",
     icon: "M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z"
   },
   {
-    title: "Real-Time Log Streaming",
-    description: "Stream logs in real-time with search, timestamps, and error highlighting. AI-powered analysis helps identify issues.",
+    title: "Log Streaming",
+    description: "Stream pod logs with search, timestamps, and error highlighting. Optionally pipe them to the AI assistant.",
     icon: "M3.75 9.776c.112-.017.227-.026.344-.026h15.812c.117 0 .232.009.344.026m-16.5 0a2.25 2.25 0 0 0-1.883 2.542l.857 6a2.25 2.25 0 0 0 2.227 1.932H19.05a2.25 2.25 0 0 0 2.227-1.932l.857-6a2.25 2.25 0 0 0-1.883-2.542m-16.5 0V6A2.25 2.25 0 0 1 6 3.75h3.879a1.5 1.5 0 0 1 1.06.44l2.122 2.12a1.5 1.5 0 0 0 1.06.44H18A2.25 2.25 0 0 1 20.25 9v.776"
   },
   {
     title: "Port Forwarding",
-    description: "Manage port forwards with an intuitive interface. Map local ports to services and open them directly in browser.",
+    description: "Map local ports to pods or services. Open forwarded ports in your browser with one click.",
     icon: "M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5"
   },
   {
-    title: "Native Desktop Experience",
-    description: "Built with Tauri 2.0 and Rust. Lightweight, fast, and integrates seamlessly with macOS, Windows, and Linux.",
+    title: "Tauri + Rust",
+    description: "26.8MB download, ~100MB RAM. Uses the OS webview instead of bundling Chromium.",
     icon: "M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0V12a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 12V5.25"
   }
 ];
@@ -132,8 +132,8 @@ const features = [
     </h1>
 
     <p class="text-neutral-500 max-w-xl mx-auto text-center mt-6 text-lg">
-      A modern, native desktop app for managing your Kubernetes clusters.
-      Built with Tauri & Rust. Integrated AI for intelligent troubleshooting.
+      A Kubernetes desktop app built with Tauri and Rust.
+      26.8MB download. Claude and OpenAI integration for log analysis.
     </p>
 
     <!-- Download Buttons -->
@@ -206,9 +206,9 @@ const features = [
   <section class="py-16 sm:py-24">
     <div class="mx-auto max-w-6xl px-4 sm:px-8">
       <div class="text-center mb-12 sm:mb-16">
-        <h2 class="text-2xl sm:text-3xl font-bold">Everything you need for Kubernetes</h2>
+        <h2 class="text-2xl sm:text-3xl font-bold">What's included</h2>
         <p class="text-neutral-500 mt-3 max-w-xl mx-auto">
-          Powerful features for managing your clusters, built into a native desktop experience.
+          The features you'd expect from a K8s GUI, plus a few you wouldn't.
         </p>
       </div>
 
@@ -234,7 +234,7 @@ const features = [
       <div class="text-center mb-12">
         <h2 class="text-2xl sm:text-3xl font-bold">What makes Kubeli different</h2>
         <p class="text-neutral-400 mt-3 max-w-xl mx-auto">
-          Features you won't find in other Kubernetes clients.
+          Things we built because we wanted them and couldn't find them elsewhere.
         </p>
       </div>
 
@@ -243,31 +243,30 @@ const features = [
           <div class="text-sm font-medium text-blue-400 mb-2">Exclusive</div>
           <h3 class="text-xl font-semibold mb-3">Dual AI Integration</h3>
           <p class="text-neutral-400 leading-relaxed">
-            Choose between Claude Code CLI or OpenAI Codex CLI for AI-powered analysis.
-            Analyze logs, troubleshoot issues, and understand your cluster with natural language queries.
-            No other Kubernetes client offers this flexibility.
+            Pick Claude Code CLI or OpenAI Codex CLI. Ask questions about logs, get troubleshooting suggestions,
+            or have the AI explain what's happening in your cluster. Runs locally.
           </p>
         </div>
         <div class="p-8 rounded-xl bg-neutral-800">
           <div class="text-sm font-medium text-green-400 mb-2">Exclusive</div>
           <h3 class="text-xl font-semibold mb-3">MCP Server for IDE Integration</h3>
           <p class="text-neutral-400 leading-relaxed">
-            Kubeli includes an MCP server that integrates with VS Code, Cursor, and Claude Code.
-            Query your cluster state directly from your IDE. No competitor offers this.
+            Kubeli ships with an MCP server. Connect it to VS Code, Cursor, or Claude Code
+            and query your cluster state without leaving your editor.
           </p>
         </div>
         <div class="p-8 rounded-xl bg-neutral-800">
           <h3 class="text-xl font-semibold mb-3">Corporate Proxy Support</h3>
           <p class="text-neutral-400 leading-relaxed">
-            Built for enterprise environments. Full support for corporate proxies and private registries.
-            Connect to clusters behind firewalls without workarounds.
+            HTTP, HTTPS, and SOCKS5 proxy support. Connect to clusters behind corporate firewalls
+            without extra tooling.
           </p>
         </div>
         <div class="p-8 rounded-xl bg-neutral-800">
           <h3 class="text-xl font-semibold mb-3">True Native Performance</h3>
           <p class="text-neutral-400 leading-relaxed">
-            Built with Tauri 2.0 and Rust - not Electron. Native OS integration on macOS, Windows, and Linux,
-            system-level features, and a fraction of the memory footprint.
+            Tauri 2.9 + Rust backend. Uses the OS webview, not bundled Chromium.
+            26.8MB app vs ~1.9GB for Lens. ~100MB RAM vs ~350MB.
           </p>
         </div>
       </div>
@@ -280,7 +279,7 @@ const features = [
       <div class="text-center mb-12">
         <h2 class="text-2xl sm:text-3xl font-bold">How Kubeli compares</h2>
         <p class="text-neutral-500 mt-3 max-w-xl mx-auto">
-          See how Kubeli stacks up against other Kubernetes management tools.
+          Side-by-side with other Kubernetes tools.
         </p>
       </div>
 
@@ -389,9 +388,9 @@ const features = [
   <!-- CTA Section -->
   <section class="py-16 sm:py-24">
     <div class="mx-auto max-w-3xl px-4 sm:px-8 text-center">
-      <h2 class="text-2xl sm:text-3xl font-bold">Ready to manage Kubernetes the native way?</h2>
+      <h2 class="text-2xl sm:text-3xl font-bold">Try it</h2>
       <p class="text-neutral-500 mt-4 max-w-xl mx-auto">
-        Download Kubeli for free and experience a faster, lighter Kubernetes client.
+        Free, open source, MIT licensed. Works on macOS, Windows, and Linux.
       </p>
       <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
         <a
