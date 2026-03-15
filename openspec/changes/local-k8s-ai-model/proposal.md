@@ -1,4 +1,4 @@
-# Proposal: Local K8s AI Model with Hardware-Aware Auto-Setup
+# Proposal: Local K8s AI model with hardware-aware auto-setup
 
 ## Problem
 
@@ -14,7 +14,7 @@ Users behind corporate firewalls, with privacy requirements, or without API subs
 Ship a local AI capability that:
 1. Uses **llmfit** to detect the user's hardware and recommend the best-fitting model
 2. Auto-downloads and configures the optimal model via **Ollama**
-3. Specializes in Kubernetes log analysis, troubleshooting, and resource understanding
+3. Focuses on Kubernetes log analysis and troubleshooting
 4. Runs entirely offline after initial setup
 
 ## Scope

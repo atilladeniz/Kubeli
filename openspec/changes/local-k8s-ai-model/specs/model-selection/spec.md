@@ -1,36 +1,36 @@
-# Spec: Model Selection
+# Spec: Model selection
 
 ## Purpose
 
-Automatically recommend and configure the best local LLM for K8s analysis based on the user's hardware.
+Pick the best local LLM for K8s log analysis based on the user's hardware.
 
 ## Requirements
 
-### Hardware Detection
+### Hardware detection
 - Detect CPU (cores, architecture), RAM (total, available), GPU (vendor, VRAM)
-- Use llmfit CLI if available, fallback to sysinfo crate for basic detection
-- Display hardware info in Settings UI
+- Use `llmfit-core` crate (`SystemSpecs::detect()`)
+- Fallback: `sysinfo` crate for basic detection if llmfit fails
+- Show hardware info in Settings UI
 
-### Model Recommendation
-- Maintain curated list of K8s-suitable models with priority ranking
+### Model recommendation
+- Curated list of K8s-suitable models, ranked by priority
 - Cross-reference llmfit fit scores with curated list
-- Recommend highest-priority model that fits user's hardware
-- Always have a fallback (qwen3:1.7b fits on 8GB RAM systems)
+- Pick highest-priority model that scores `Perfect` or `Good`
+- Always have a fallback (granite3.1-moe:3b runs on 8GB RAM)
 
-### Model Criteria
-- Must support tool calling (for structured K8s queries)
-- Must have "thinking" mode (for reasoning about logs)
-- Minimum 32K context window (for log analysis)
-- Available on Ollama (no manual download)
-- Under 8B parameters (desktop hardware constraint)
+### Model criteria
+- Tool calling support (for structured K8s queries)
+- "Thinking" mode (for reasoning about logs)
+- Minimum 32K context window
+- Available on Ollama
+- Under 8B parameters (desktop hardware)
 
-## Curated Model Priority
+## Curated model priority
 
-1. qwen3:4b - Best balance of quality, speed, and tool support
-2. qwen3:1.7b - Minimum viable for low-RAM systems
-3. phi4-mini - Alternative with 128K context for long logs
-4. granite4:3b - Enterprise-oriented alternative
-5. qwen3:8b - Quality pick for high-RAM systems
+1. qwen3:4b - Highest benchmark scores at this size, dual think/no-think mode
+2. granite3.1-moe:3b - Only 800M active params, runs on low-RAM systems, 128K context
+3. phi4-mini - MIT license, 128K context, strong at STEM/reasoning
+4. qwen3:8b - Best quality if the hardware allows it
 
 ## API
 
@@ -46,9 +46,9 @@ interface HardwareInfo {
 interface ModelRecommendation {
   model: string;           // e.g. "qwen3:4b"
   params_b: number;        // e.g. 4
-  estimated_ram_gb: number; // e.g. 3.2
-  estimated_tps: number;   // e.g. 25
+  estimated_ram_gb: number; // e.g. 5.2
+  estimated_tps: number;   // e.g. 25 (±20-30%, calibrate with benchmark)
   fit: "perfect" | "good" | "marginal";
-  reason: string;          // e.g. "Best fit for 16GB Apple Silicon"
+  reason: string;          // e.g. "Fits 16GB Apple Silicon with 10GB headroom"
 }
 ```

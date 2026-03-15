@@ -1,51 +1,44 @@
-# Spec: llmfit Integration
+# Spec: llmfit integration
 
 ## Purpose
 
-Use llmfit to detect hardware capabilities and score model compatibility, so Kubeli recommends models that will actually run well on the user's machine.
+Detect hardware and score model compatibility so Kubeli picks a model that actually runs well.
 
-## Integration Approach
+## Integration approach
 
-### Phase 1: CLI Sidecar
-- Detect llmfit in PATH
-- Call `llmfit recommend --json --limit 10` for recommendations
-- Call `llmfit --json system` for hardware info
-- Parse JSON output into Rust structs
-- If llmfit not installed: use basic sysinfo detection + static model table
+Use `llmfit-core` (v0.7.3, MIT, crates.io) as a Rust crate dependency.
 
-### Phase 2 (Future): Rust Crate
-- Add `llmfit-core` as Cargo dependency
-- Call hardware detection and scoring APIs directly
-- No CLI dependency needed
-
-## llmfit CLI Commands Used
-
-```bash
-# Hardware detection
-llmfit --json system
-# Returns: { cpu, cores, ram_gb, gpu_name, vram_gb, backend }
-
-# Model recommendations
-llmfit recommend --json --limit 10
-# Returns: { models: [{ name, params, score, tps, fit, quant, mem_pct }] }
-
-# Specific model check
-llmfit info "qwen3:4b" --json
-# Returns: detailed model info with fit analysis
+```toml
+[dependencies]
+llmfit-core = "0.7"
 ```
 
-## Fallback (no llmfit)
+### APIs used
 
-If llmfit is not installed:
+- `SystemSpecs::detect()` - CPU, RAM, GPU, VRAM, backend detection
+- `ModelDatabase` - 497+ model registry
+- `ModelFit` / `FitLevel` - per-model scoring (Perfect, Good, Marginal, TooTight)
+- `OllamaProvider` - checks which models are already installed
+
+### Apple Silicon handling
+
+llmfit detects unified memory via `system_profiler` and treats full system RAM as VRAM (Metal backend). We need to subtract 2-4 GB for OS + Kubeli before scoring.
+
+### Accuracy
+
+llmfit tok/s estimates are ±20-30% off from real Ollama performance. On first model setup, run a 50-token benchmark to calibrate the displayed estimate.
+
+## Fallback (if llmfit detection fails)
+
 1. Use `sysinfo` crate for CPU cores and RAM
 2. On macOS: detect Apple Silicon via `sysctl`
-3. Apply static rules:
+3. Static rules:
    - RAM >= 16GB: recommend qwen3:4b
-   - RAM >= 8GB: recommend qwen3:1.7b
-   - RAM < 8GB: warn that local AI may be slow, suggest cloud providers
+   - RAM >= 8GB: recommend granite3.1-moe:3b
+   - RAM < 8GB: warn that local AI will be slow, suggest cloud providers
 
-## Error Handling
+## Error handling
 
-- llmfit not in PATH: fallback to static rules, suggest `brew install llmfit`
-- llmfit returns error: log error, use fallback
-- No suitable model found: show warning in UI, suggest cloud providers
+- llmfit panics or returns error: catch, log, use fallback rules
+- No model fits: show warning in UI, suggest Claude CLI or OpenAI CLI
+- Apple Silicon VRAM misdetected: let user override via Settings

@@ -1,42 +1,44 @@
-# Spec: Ollama Auto-Setup
+# Spec: Ollama auto-setup
 
 ## Purpose
 
-One-click local AI setup: detect Ollama, pull the recommended model, and configure Kubeli to use it.
+Detect Ollama, pull the recommended model, configure Kubeli to use it. Should take under 5 minutes.
 
-## Setup Flow
+## Setup flow
 
 ### 1. Detection (app startup, non-blocking)
 ```
-GET http://localhost:11434/api/tags
+GET http://127.0.0.1:11434/api/tags
 ```
-- Success: Ollama running, parse installed models
-- Connection refused: Ollama not installed or not running
-- Respect OLLAMA_HOST env var for custom endpoints
+- 200 OK: Ollama running, parse installed models
+- Connection refused: not installed or not running
+- Respect `OLLAMA_HOST` env var for custom endpoints
+- Verify binding is 127.0.0.1, warn if 0.0.0.0 (security risk)
+- Check version ≥0.3.15 (older versions have known RCE vulnerabilities)
 
-### 2. First-Time Setup Wizard (Settings > AI Model)
+### 2. First-time setup (Settings > AI Model)
 
-Step 1: Ollama Status
-- Running + model installed: "Ready" (skip wizard)
-- Running + no model: "Pull recommended model?"
-- Not running: "Install Ollama" link + instructions per platform
+Step 1: Check Ollama status
+- Running + model installed → skip to "Ready"
+- Running + no model → offer to pull recommended model
+- Not running → show install instructions for the user's platform
 
-Step 2: Model Selection
-- Show hardware info (from llmfit or sysinfo)
-- Show recommended model with estimated performance
-- "Download" button → streams pull progress
+Step 2: Model selection
+- Show hardware info (from llmfit-core)
+- Show recommended model with estimated tok/s (as range, not exact number)
+- "Download" button starts streaming pull
 
-Step 3: Verification
-- Send test prompt to verify model responds
-- Show estimated tokens/second
-- "Setup complete"
+Step 3: Verify
+- Send test prompt, confirm model responds
+- Display measured tok/s
+- Done
 
-### 3. Model Pull with Progress
+### 3. Model pull with progress
 
 ```rust
-// POST http://localhost:11434/api/pull
+// POST http://127.0.0.1:11434/api/pull
 // Body: { "name": "qwen3:4b", "stream": true }
-// Response: streaming JSON lines with progress
+// Response: streaming JSON lines
 
 struct PullProgress {
     status: String,        // "pulling manifest", "downloading", "verifying"
@@ -46,16 +48,15 @@ struct PullProgress {
 }
 ```
 
-Emit Tauri events for frontend progress bar:
+Stream progress to frontend via Tauri 2 Channel API:
 ```rust
-app.emit("ollama-pull-progress", &progress)?;
+channel.send(PullProgress { ... })?;
 ```
 
-### 4. Chat Completion
+### 4. Chat completion
 
 ```rust
-// POST http://localhost:11434/api/chat
-// Body:
+// POST http://127.0.0.1:11434/api/chat
 {
     "model": "qwen3:4b",
     "messages": [
@@ -66,33 +67,33 @@ app.emit("ollama-pull-progress", &progress)?;
 }
 ```
 
-Stream response tokens via Tauri events for real-time display.
+Stream response tokens via Tauri Channel for real-time display in the AI chat panel.
 
-## Ollama REST Endpoints Used
+## Ollama endpoints used
 
-| Endpoint | Method | Purpose |
-|----------|--------|---------|
+| Endpoint | Method | What it does |
+|----------|--------|-------------|
 | `/api/tags` | GET | List installed models |
 | `/api/pull` | POST | Download model (streaming) |
 | `/api/chat` | POST | Chat completion (streaming) |
 | `/api/show` | POST | Model details (size, params) |
 
-## Platform-Specific Install Instructions
+## Install instructions by platform
 
-| Platform | How to Install Ollama |
-|----------|----------------------|
-| macOS | `brew install ollama` or download from ollama.com |
-| Windows | Download installer from ollama.com |
+| Platform | Command |
+|----------|---------|
+| macOS | `brew install ollama` or ollama.com download |
+| Windows | Installer from ollama.com |
 | Linux | `curl -fsSL https://ollama.com/install.sh \| sh` |
 
-## Configuration Storage
+## Configuration
 
-Store in Kubeli settings (Tauri store):
+Stored in Kubeli settings (Tauri store):
 ```json
 {
     "ai": {
         "local_model": "qwen3:4b",
-        "ollama_host": "http://localhost:11434",
+        "ollama_host": "http://127.0.0.1:11434",
         "provider_priority": ["local", "claude-cli", "openai-cli"],
         "auto_route": true
     }

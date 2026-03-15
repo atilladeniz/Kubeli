@@ -2,7 +2,7 @@
 
 ## Architecture Overview
 
-Follows k8sgpt's proven pattern: **rule-based analyzers extract structured errors BEFORE the LLM sees data**. This minimizes context consumption, reduces hallucination, and works well with small models.
+Same approach as k8sgpt: **rule-based analyzers extract structured errors before the LLM sees data**. Less context needed, fewer hallucinations.
 
 ```
 ┌──────────────────────────────────────────────────────────────────┐
@@ -68,7 +68,7 @@ Calibrate llmfit estimates (±20-30% accuracy) with a quick 50-token benchmark o
 
 ### 2. Model Selection Strategy
 
-Research confirms Qwen3:4b as clear winner (AI Index: 12, tool calling: 0.880, 95.64% log classification with RAG). Granite 3.1 MoE:3b is the lightweight fallback (only ~800M active params, 40-80% faster than dense 4B).
+Qwen3:4b scores highest in this size range (AI Index: 12, tool calling: 0.880, 95.64% log classification with RAG). Granite 3.1 MoE:3b uses only ~800M active params, so it runs 40-80% faster than dense 4B models.
 
 | Priority | Model | Params | RAM (Q4_K_M) | Context | Why |
 |----------|-------|--------|-------------|---------|-----|
@@ -84,7 +84,7 @@ Quantization guidance:
 
 ### 3. K8s Analyzers (k8sgpt Pattern)
 
-The critical architectural insight: **detect issues programmatically, then explain with the LLM.**
+The idea: **detect issues programmatically, then let the LLM explain them.**
 
 ```
 Raw K8s State ──► Rust Analyzers ──► Structured Errors ──► LLM Explains
@@ -105,9 +105,9 @@ Analyzer modules to build in `src-tauri/src/ai/analyzers/`:
 
 Each analyzer outputs a structured error string. Only these strings go to the LLM, not raw K8s state. This is why k8sgpt works well even with small models.
 
-### 4. Log Preprocessor (Highest-Leverage Investment)
+### 4. Log preprocessor
 
-Research shows a 4B model can effectively process ~46-76 log lines in its working window. Log preprocessing is the most critical pipeline component.
+A 4B model can handle roughly 46-76 log lines in its working window. Everything above that needs preprocessing.
 
 ```
 Raw Logs (thousands of lines)
@@ -153,7 +153,7 @@ Despite Qwen3:4b's 32K advertised window, research shows quality peaks at 8-16K.
 
 ### 6. System Prompt (Under 500 Tokens)
 
-Based on research: small models need extreme concision, structured output format, explicit grounding, and few-shot examples.
+Small models need short prompts, a fixed output format, and explicit grounding to avoid hallucinating resource names.
 
 ```
 You are a Kubernetes troubleshooting assistant in Kubeli.
@@ -186,11 +186,11 @@ Temperature: 0.6 + TopP 0.95 (thinking), 0.7 + TopP 0.8 (non-thinking).
 
 ### 7. Ollama Integration
 
-**Crate: `ollama-rs = "0.3.4"` with `features = ["stream"]`**
+Uses `ollama-rs = "0.3.4"` with `features = ["stream"]`.
 
-All Ollama calls proxied through Rust backend (never from frontend). Solves CORS issues and enables data sanitization.
+All Ollama calls go through the Rust backend, not the frontend. This avoids CORS problems (Windows Tauri uses `http://tauri.localhost`, which Ollama does not whitelist) and lets us sanitize data before it reaches the model.
 
-Stream responses via **Tauri 2 Channel API** (`tauri::ipc::Channel<ChatEvent>`):
+Streaming via Tauri 2 Channel API (`tauri::ipc::Channel<ChatEvent>`):
 
 ```rust
 enum ChatEvent {
@@ -238,18 +238,18 @@ Lifecycle:
 └─────────────────────────────────────────────────┘
 ```
 
-## Key Decisions (Updated After Research)
+## Decisions
 
-1. **llmfit-core as Rust crate** (changed) - API is stable enough, avoids CLI dependency
-2. **ollama-rs for Ollama client** - Production-ready, 988 stars, streaming support
-3. **Tauri 2 Channel API for streaming** - Purpose-built, type-safe, no SSE/WS needed
-4. **Analyzer-first pattern from k8sgpt** - Rule-based detection before LLM, proven approach
-5. **Log preprocessing pipeline** - Highest-leverage investment, filter → dedup → sanitize → chunk
-6. **Data sanitization layer** - Strip secrets/emails/tokens before LLM sees any data
-7. **Qwen3:4b default, Granite MoE fallback** - Validated by benchmarks
-8. **System prompt under 500 tokens** - Small models degrade with longer prompts
-9. **Ollama pinned ≥0.3.15** - CVE mitigation, verify 127.0.0.1 binding
-10. **No fine-tuning for v1** - System prompt + context injection achieves 95.64% on log classification
+1. **llmfit-core as Rust crate** (changed from CLI) - stable API, no external binary needed
+2. **ollama-rs** - MIT, 988 stars, handles streaming and model management
+3. **Tauri 2 Channel API** - type-safe token streaming without SSE/WS
+4. **Analyzers before LLM** (k8sgpt pattern) - rule-based detection feeds compact errors to model
+5. **Log preprocessing** - filter → dedup → sanitize → chunk before anything hits the model
+6. **Data sanitization** - secrets/emails/tokens stripped before LLM sees data
+7. **Qwen3:4b default, Granite MoE fallback** - benchmarked, both Apache 2.0
+8. **System prompt under 500 tokens** - quality drops fast with longer prompts at 4B scale
+9. **Ollama ≥0.3.15** - older versions have known RCE vulnerabilities
+10. **No fine-tuning for v1** - system prompt + context injection already hits 95.64% on log classification
 
 ## v2 Roadmap (After v1 Ships)
 
