@@ -2,6 +2,14 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.63] - 2026-03-17
+
+- Fixed blurry Windows app icon on 4K / high-DPI screens
+- Improved landing page performance and accessibility
+- Added SEO structured data and web app manifest for the website
+- Refined and humanized landing page copy
+- Updated project documentation and aligned docs with the current setup
+
 ## [0.3.62] - 2026-03-14
 
 - Added aggregated log viewing from multiple pods at the Deployment level
