@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.63] - 2026-03-17
+
+API Error: 500 {"type":"error","error":{"type":"api_error","message":"Internal server error"},"request_id":"req_011CZ9EnSzHx2u94W5bcCiws"}
+
 ## [0.3.62] - 2026-03-14
 
 - Added aggregated log viewing from multiple pods at the Deployment level
