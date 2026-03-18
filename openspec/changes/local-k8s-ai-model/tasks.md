@@ -29,7 +29,7 @@
 ```
 
 ### Task 2: llmfit-core integration
-- [ ] Add `llmfit-core = "0.7"` to `src-tauri/Cargo.toml`
+- [ ] Add `llmfit-core = "0.7.7"` to `src-tauri/Cargo.toml`
 - [ ] Create `src-tauri/src/ai/hardware.rs`
 - [ ] `detect_hardware()` → `SystemSpecs::detect()`, return `HardwareInfo` struct
 - [ ] `recommend_model()` → filter `ModelDatabase` against curated K8s model list
@@ -508,7 +508,7 @@ local-ai.ts                 # HardwareInfo, ModelRecommendation, OllamaStatus, e
 
 ```toml
 ollama-rs = { version = "0.3.4", features = ["stream"] }
-llmfit-core = "0.7"
+llmfit-core = "0.7.7"
 ```
 
 ### Bundle size impact
@@ -539,11 +539,147 @@ Current binary has ~68 direct crate dependencies (7.8K line Cargo.lock).
 | Session storage | `ai/session_store.rs` (SQLite) | Exists, works with new provider |
 | CSP / Tauri permissions | `tauri.conf.json` | No changes needed (Rust-proxied) |
 
+---
+
+## Phase 4: Dataset & Fine-Tuning (v2)
+
+### Task 12: Training infrastructure setup
+
+**Windows RTX 3090 (training server):**
+- [ ] Install WSL2 + Ubuntu (if not already)
+- [ ] Install CUDA toolkit 12.1+ and verify with `nvidia-smi`
+- [ ] Install Python 3.12 + `uv` package manager
+- [ ] Install Unsloth: `pip install unsloth[cu121]`
+- [ ] Verify Unsloth Studio: `unsloth studio` (web UI on :7860)
+- [ ] Install Ollama on Windows for local model testing
+- [ ] Set up remote access from Mac:
+  - Option A: Tailscale mesh VPN (recommended, zero-config)
+  - Option B: SSH via WSL2 (`sudo apt install openssh-server`)
+- [ ] Shared storage for datasets: Syncthing or NFS mount between Mac ↔ Windows
+- [ ] Test: `ssh windows-box "nvidia-smi"` from Mac
+
+**Cloud GPU fallback (only if 3090 unavailable):**
+- [ ] Vast.ai account + API key (cheapest on-demand 3090s at ~$0.20/hr)
+- [ ] RunPod account (reliable A100s for larger experiments)
+- [ ] Template Docker image: `unsloth/unsloth` with our scripts baked in
+
+### Task 13: Data harvesting pipeline
+
+Create `.dev/training-data/` directory structure:
+```
+.dev/training-data/
+├── harvest.sh              # Clone all source repos
+├── convert_docs.py         # MD/MDX → instruction pairs
+├── convert_stackoverflow.py # SO dataset → instruction pairs
+├── convert_k8sgpt.py       # k8sgpt analyzer patterns → pairs
+├── generate_synthetic.py   # YAML mutation + error generation
+├── merge_and_filter.py     # Deduplicate, quality filter, balance
+├── raw/                    # Cloned repos (gitignored)
+├── processed/              # JSONL files per source
+└── final/                  # Merged, filtered training set
+```
+
+**Harvesting tasks:**
+- [ ] `harvest.sh`: clone repos with `--depth 1`
+  - `kubernetes/website` (Apache 2.0, ~15K pairs from EN docs)
+  - `k8sgpt-ai/k8sgpt` (Apache 2.0, analyzer patterns)
+  - `kubernauts/practical-kubernetes-problems` (troubleshooting scenarios)
+  - `iam-veeramalla/kubernetes-troubleshooting-zero-to-hero` (error walkthroughs)
+  - HuggingFace `mcipriano/stackoverflow-kubernetes-questions` (30K Q&A, MIT)
+  - HuggingFace `ComponentSoft/k8s-kubectl-35k` (kubectl examples)
+- [ ] `convert_docs.py`: parse K8s website markdown
+  - Strip Hugo frontmatter (`---\n...\n---`)
+  - Split by H2/H3 sections, keep code blocks intact
+  - Classify: troubleshooting / howto / concept / reference
+  - Generate instruction-response pairs (Alpaca format)
+  - Preserve original source path for traceability
+- [ ] `convert_stackoverflow.py`: transform SO Q&A
+  - Filter: only accepted answers with score ≥ 3
+  - Clean HTML tags, format code blocks
+  - Pair: question title + body → accepted answer
+- [ ] `convert_k8sgpt.py`: extract analyzer patterns from Go code
+  - Parse analyzer files for error conditions and messages
+  - Expand each pattern into multiple instruction variants
+  - "What does CrashLoopBackOff mean?" / "My pod keeps restarting" / "Exit code 137"
+- [ ] `generate_synthetic.py`: create error→fix pairs
+  - Take valid K8s YAML → introduce common mistakes → generate diagnosis
+  - Mistake types: wrong apiVersion, missing labels, bad selectors, resource typos
+  - ~3K pairs from YAML mutation
+- [ ] `merge_and_filter.py`: final dataset assembly
+  - Deduplicate with MinHash (datasketch library)
+  - Remove pairs < 50 tokens or > 2000 tokens
+  - Balance categories (max 30% from any single source)
+  - Validate kubectl syntax in command outputs
+  - Output: `final/kubeli-k8s-train.jsonl` + `final/kubeli-k8s-eval.jsonl` (90/10 split)
+- [ ] Add `.dev/training-data/raw/` to `.gitignore` (cloned repos are large)
+
+**Target: 50K+ high-quality instruction-response pairs**
+
+### Task 14: Unsloth fine-tuning
+
+Create `.dev/training-data/train.py`:
+- [ ] Load Qwen3-4B via Unsloth (`unsloth/Qwen3-4B`, 4-bit QLoRA)
+- [ ] LoRA config: r=16, target all linear layers, alpha=16, dropout=0
+- [ ] Training args: batch=4, grad_accum=4, epochs=3, lr=2e-4, bf16
+- [ ] Max seq length: 8192 (matches our context budget)
+- [ ] Train on `final/kubeli-k8s-train.jsonl`
+- [ ] Export to GGUF: Q4_K_M (speed) + Q5_K_M (accuracy)
+- [ ] Generate Ollama Modelfile with our system prompt baked in
+- [ ] Test: `ollama create kubeli-k8s:4b -f Modelfile`
+- [ ] Run eval set and compare against base Qwen3:4b + prompt engineering
+
+**Alternative: Unsloth Studio (no-code):**
+- [ ] Upload `kubeli-k8s-train.jsonl` via Studio web UI
+- [ ] Use Data Recipes if more synthetic data needed from raw docs
+- [ ] Configure training params in UI, start training
+- [ ] Export GGUF directly from Studio
+
+### Task 15: Eval pipeline
+
+Create `.dev/training-data/eval.py` + `.dev/ai-eval/` test set:
+- [ ] 500 test examples covering:
+  - Error diagnosis: CrashLoopBackOff, OOM, ImagePull, Pending (150)
+  - kubectl generation: create, scale, debug, rollout (100)
+  - YAML debugging: find the error in this manifest (100)
+  - Networking: service selectors, ingress, DNS (75)
+  - RBAC: permission denied scenarios (75)
+- [ ] Automated scoring:
+  - JSON validity (structured output check)
+  - kubectl syntax validation
+  - Resource name grounding (no hallucinated names)
+  - Error category accuracy
+- [ ] Comparison matrix: base model vs fine-tuned vs prompt-only
+- [ ] Output: markdown report with accuracy per category
+
+### Task 16: Model distribution
+
+- [ ] Publish to Ollama registry: `kubeli/k8s:4b` (Q4_K_M default)
+- [ ] Also publish `kubeli/k8s:4b-q5` (higher accuracy variant)
+- [ ] Add to llmfit curated list in Kubeli (priority 0, above generic qwen3:4b)
+- [ ] Update Settings UI: show "Kubeli K8s Model" as recommended default
+- [ ] Create model card (README) with benchmarks, training data sources, license info
+- [ ] Automate: GitHub Action that retrains monthly on updated docs + new SO questions
+
+---
+
+## Training Infrastructure
+
+| Machine | Specs | Role |
+|---------|-------|------|
+| MacBook Air M4 | 32 GB, 1.1 TB free, Metal 3 | Dataset curation, eval, inference testing |
+| Windows Desktop | RTX 3090 24 GB VRAM, CUDA 12 | QLoRA training via Unsloth (~30 min per run) |
+| Cloud (fallback) | Vast.ai RTX 3090 $0.20/hr | If local GPU unavailable |
+
 ## Research sources
 
 - k8sgpt analyzer architecture (Apache 2.0, 7.4K stars)
 - Masri et al. (Jan 2026): Qwen3-4B 95.64% log classification with RAG
 - ollama-rs (v0.3.4, MIT, 988 stars)
-- llmfit-core (v0.7.3, MIT, crates.io)
+- llmfit-core (v0.7.7, MIT, docs.rs verified)
 - Cisco Talos / Trend Micro: Ollama security (CVE-2024-37032)
 - Stanford "Lost in the Middle" (Liu et al. 2023)
+- Unsloth Studio docs (unsloth.ai/docs/new/studio)
+- HuggingFace datasets: mcipriano/stackoverflow-kubernetes-questions (CC-BY-SA-4.0)
+- HuggingFace datasets: ComponentSoft/k8s-kubectl-35k
+- kubernetes/website (Apache 2.0, official K8s docs)
+- k8sgpt-ai/k8sgpt (Apache 2.0, analyzer patterns)

@@ -26,10 +26,14 @@ Ship a local AI capability that:
 - Model selection UI in Settings with hardware info and recommendations
 - Fallback chain: local model -> Claude CLI -> OpenAI CLI (user-configurable order)
 
+### Phase 2 (v2, after v1 ships)
+- Fine-tune "kubeli-k8s:4b" on 50K+ K8s pairs via Unsloth QLoRA (RTX 3090 available)
+- Data pipeline: harvest GitHub K8s docs (MDX/MD), SO questions, k8sgpt patterns
+- Publish to Ollama registry as `kubeli/k8s:4b`
+- Monthly retrain on updated docs
+
 ### Out of Scope
-- Fine-tuning a custom K8s model (future phase)
 - Embedding inference directly in Tauri (Kalosm/candle - future phase)
-- Training data collection or model training pipeline
 - BitNet or other experimental inference frameworks
 
 ## Why Now
