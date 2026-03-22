@@ -30,11 +30,6 @@ ignore = [
     # fxhash: unmaintained, pulled in by tauri ecosystem
     "RUSTSEC-2025-0057",
 
-    # bytes: integer overflow in BytesMut::reserve, transitive via hyper/tokio
-    "RUSTSEC-2026-0007",
-
-    # serde_json: DoS via stack exhaustion, transitive dep
-    "RUSTSEC-2026-0009",
 ]
 
 # -- Licenses: ensure all crate licenses are acceptable --
