@@ -17,23 +17,38 @@ pub fn initialize() -> Args {
     Args::parse()
 }
 
-/// Work around the WebKitGTK EGL crash on Linux systems where hardware
-/// compositing is unavailable (e.g. missing/incompatible GPU drivers, VMs,
-/// Wayland edge-cases). Setting `WEBKIT_DISABLE_COMPOSITING_MODE=1` tells
-/// WebKitGTK to fall back to software rendering instead of aborting with
-/// "Could not create default EGL display: EGL_BAD_PARAMETER".
+/// Work around WebKitGTK EGL crashes on Linux.
 ///
-/// We only set the variable when the user hasn't already provided it, so
-/// users with working GPU acceleration can opt back in via the environment.
+/// Two separate failure modes exist:
+///
+/// 1. **Compositing mode** — WebKitGTK tries to create a hardware-accelerated
+///    EGL display and aborts with `EGL_BAD_PARAMETER` when the GPU driver is
+///    missing or incompatible. Fixed by `WEBKIT_DISABLE_COMPOSITING_MODE=1`.
+///
+/// 2. **DMA-BUF renderer** (WebKitGTK 2.42+) — A newer renderer allocates
+///    buffers via GBM. On NVIDIA proprietary drivers with Wayland, GBM
+///    support is often broken, causing `Could not create GBM EGL display:
+///    EGL_SUCCESS` followed by SIGABRT. Fixed by
+///    `WEBKIT_DISABLE_DMABUF_RENDERER=1`.
+///
+/// Both variables are only set when the user hasn't already provided them,
+/// so users with working GPU setups can opt back in via the environment.
 ///
 /// See: https://github.com/nicbarker/clay/issues/224
-///      https://github.com/nicbarker/clay/pull/228
+///      https://bugs.webkit.org/show_bug.cgi?id=297921
+///      https://bugs.webkit.org/show_bug.cgi?id=302796
 fn configure_linux_webview() {
     #[cfg(target_os = "linux")]
     {
         if env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
             env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
             tracing::info!("Set WEBKIT_DISABLE_COMPOSITING_MODE=1 to prevent EGL display errors");
+        }
+        if env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
+            env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
+            tracing::info!(
+                "Set WEBKIT_DISABLE_DMABUF_RENDERER=1 to prevent GBM EGL display errors"
+            );
         }
     }
 }
