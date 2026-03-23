@@ -1,0 +1,76 @@
+# Sample ArgoCD Application resources for local testing
+# These simulate ArgoCD-managed Applications with various statuses
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-frontend
+  namespace: kubeli-demo
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/example/demo-app.git
+    path: frontend
+    targetRevision: main
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubeli-demo
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+status:
+  sync:
+    status: Synced
+    revision: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+  health:
+    status: Healthy
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-backend
+  namespace: kubeli-demo
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/example/demo-app.git
+    path: backend
+    targetRevision: v2.1.0
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: kubeli-demo
+  syncPolicy: {}
+status:
+  sync:
+    status: OutOfSync
+    revision: b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3
+  health:
+    status: Progressing
+    message: "Waiting for rollout to finish: 1 of 3 updated replicas are available"
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-monitoring
+  namespace: kubeli-demo
+spec:
+  project: infrastructure
+  source:
+    repoURL: https://github.com/example/infra-config.git
+    path: monitoring/prometheus
+    targetRevision: HEAD
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+status:
+  sync:
+    status: OutOfSync
+    revision: c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
+  health:
+    status: Degraded
+    message: "Service demo-prometheus has no endpoints"

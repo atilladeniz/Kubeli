@@ -83,6 +83,7 @@ import {
 import {
   HelmReleasesView,
   FluxKustomizationsView,
+  ArgoCDApplicationsView,
 } from "./gitops";
 import { CustomResourcesView } from "./custom-resources/CustomResourcesView";
 
@@ -209,6 +210,8 @@ export function ResourceView({ activeResource }: ResourceViewProps) {
       return <HelmReleasesView />;
     case "flux-kustomizations":
       return <FluxKustomizationsView />;
+    case "argocd-applications":
+      return <ArgoCDApplicationsView />;
 
     // Special views
     case "pod-logs":

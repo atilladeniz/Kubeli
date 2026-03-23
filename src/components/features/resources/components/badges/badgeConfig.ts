@@ -1,6 +1,6 @@
 import type { StatusBadgeTone } from "./statusBadgeStyles";
 
-export type BadgeNamespace = "common" | "workloads" | "storage" | "helm";
+export type BadgeNamespace = "common" | "workloads" | "storage" | "helm" | "argocd";
 
 export interface BadgeNamespaceKeys {
   common:
@@ -37,6 +37,15 @@ export interface BadgeNamespaceKeys {
     | "superseded"
     | "uninstalled"
     | "uninstalling";
+  argocd:
+    | "synced"
+    | "outOfSync"
+    | "healthy"
+    | "progressing"
+    | "degraded"
+    | "suspended"
+    | "missing"
+    | "unknown";
 }
 
 export type BadgeLabelRef<N extends BadgeNamespace = BadgeNamespace> = {
@@ -160,6 +169,21 @@ export const pvcStatusConfig = {
 export const failurePolicyConfig = {
   Fail: { tone: "danger", label: { namespace: "common", key: "fail" } },
   Ignore: { tone: "neutral", label: { namespace: "common", key: "ignore" } },
+} as const satisfies Record<string, StatusBadgeConfig>;
+
+export const argoCDSyncStatusConfig = {
+  synced: { tone: "success", label: { namespace: "argocd", key: "synced" } },
+  outofsync: { tone: "warning", label: { namespace: "argocd", key: "outOfSync" } },
+  unknown: { tone: "neutral", label: { namespace: "argocd", key: "unknown" } },
+} as const satisfies Record<string, StatusBadgeConfig>;
+
+export const argoCDHealthStatusConfig = {
+  healthy: { tone: "success", label: { namespace: "argocd", key: "healthy" } },
+  progressing: { tone: "info", label: { namespace: "argocd", key: "progressing" } },
+  degraded: { tone: "danger", label: { namespace: "argocd", key: "degraded" } },
+  suspended: { tone: "neutral", label: { namespace: "argocd", key: "suspended" } },
+  missing: { tone: "warning", label: { namespace: "argocd", key: "missing" } },
+  unknown: { tone: "neutral", label: { namespace: "argocd", key: "unknown" } },
 } as const satisfies Record<string, StatusBadgeConfig>;
 
 export const crdScopeLabels = {

@@ -1334,6 +1334,14 @@ fn resolve_resource_type(resource_type: &str) -> Option<(&str, &str, &str, &str,
             "mutatingwebhookconfigurations",
             false,
         )),
+        // ArgoCD CRDs
+        "application" | "applications" => Some((
+            "argoproj.io",
+            "v1alpha1",
+            "Application",
+            "applications",
+            true,
+        )),
         // Flux CRDs
         "kustomization" | "kustomizations" => Some((
             "kustomize.toolkit.fluxcd.io",

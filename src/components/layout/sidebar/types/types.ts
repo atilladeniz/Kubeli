@@ -15,6 +15,8 @@ export type KnownResourceType =
   | "helm-releases"
   // Flux
   | "flux-kustomizations"
+  // ArgoCD
+  | "argocd-applications"
   // Workloads
   | "workloads-overview"
   | "deployments"
