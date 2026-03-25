@@ -16,6 +16,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn } from "@/lib/utils";
 import { ReconnectingTimer } from "../components/ReconnectingTimer";
 import type { PortForwardsSectionProps } from "../types/types";
@@ -109,9 +110,10 @@ export function PortForwardsSection({
                   />
                   <div className="min-w-0 flex-1 overflow-hidden">
                     <div className="flex items-center gap-1">
-                      <span className="truncate font-medium max-w-[80px]">
-                        {forward.name}
-                      </span>
+                      <TruncateTooltip
+                        content={forward.name}
+                        className="max-w-[80px] truncate font-medium"
+                      />
                       <span className="text-muted-foreground shrink-0 tabular-nums">
                         :{forward.local_port}
                       </span>

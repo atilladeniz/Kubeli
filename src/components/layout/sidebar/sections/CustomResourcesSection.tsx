@@ -9,6 +9,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn } from "@/lib/utils";
 import type { CustomResourceGroup } from "@/lib/custom-resources";
 import type { ResourceType } from "../types/types";
@@ -50,17 +51,17 @@ export function CustomResourcesSection({
           size="sm"
           className="w-full justify-start gap-2 px-2 font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
         >
-          <span className="min-w-0 flex-1 truncate text-left">{t("customResources")}</span>
+          <span className="flex-1 truncate text-left">{t("customResources")}</span>
           <Badge
             variant="outline"
-            className="h-4 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"
+            className="h-4 shrink-0 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"
           >
             {resourceCount}
           </Badge>
-          <ChevronRight className="chevron size-3.5 transition-transform" />
+          <ChevronRight className="chevron size-3.5 shrink-0 transition-transform" />
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-0.5 space-y-0.5 overflow-hidden">
+      <CollapsibleContent className="mt-0.5 space-y-0.5">
         {groups.map((group) => {
           const hasActiveChild = group.resources.some(
             (r) => activeResource === r.id,
@@ -74,33 +75,39 @@ export function CustomResourcesSection({
             >
               {/* Tree vertical line for provider */}
               <div className="absolute left-0 top-0 bottom-0 w-px bg-border/60" />
-              <div className="relative flex items-center min-w-0 overflow-hidden">
+              <div className="relative min-w-0 pl-4">
                 <div className="absolute left-0 top-1/2 h-px w-2.5 bg-border/60" />
                 <CollapsibleTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="ml-4 w-[calc(100%-1rem)] min-w-0 justify-start gap-1.5 px-1.5 font-normal text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+                    className="w-full min-w-0 justify-start gap-1.5 overflow-hidden px-1.5 font-normal text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
                   >
                     <ChevronRight className="chevron size-3 shrink-0 transition-transform" />
-                    <span className="truncate text-xs" title={group.provider}>{group.provider}</span>
+                    <TruncateTooltip
+                      content={group.provider}
+                      className="min-w-0 w-0 flex-1 truncate text-left text-xs"
+                    />
                     <Badge
                       variant="outline"
-                      className="ml-auto h-4 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"
+                      className="ml-auto h-4 shrink-0 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"
                     >
                       {group.resources.length}
                     </Badge>
                   </Button>
                 </CollapsibleTrigger>
               </div>
-              <CollapsibleContent className="relative ml-4 mt-0.5 space-y-0.5 overflow-hidden">
+              <CollapsibleContent className="relative ml-4 mt-0.5 space-y-0.5">
                 {/* Tree vertical line for resources */}
                 <div className="absolute left-[11px] top-0 bottom-2 w-px bg-border/60" />
                 {group.resources.map((resource, index) => {
                   const favoriteActive = isNavFavorite(resource.id);
                   const isLast = index === group.resources.length - 1;
                   return (
-                    <div key={resource.id} className="group relative flex items-center min-w-0 overflow-hidden">
+                    <div
+                      key={resource.id}
+                      className="group relative min-w-0 pl-7"
+                    >
                       {/* Tree horizontal connector */}
                       <div className="absolute left-[11px] top-1/2 h-px w-2.5 bg-border/60" />
                       {isLast && (
@@ -123,16 +130,18 @@ export function CustomResourcesSection({
                           }
                         }}
                         className={cn(
-                          "ml-7 w-[calc(100%-1.75rem)] min-w-0 justify-between px-1.5 pr-8 font-normal text-xs",
+                          "w-full min-w-0 justify-start gap-1.5 overflow-hidden px-1.5 font-normal text-xs",
                           activeResource === resource.id
                             ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                             : "text-muted-foreground hover:text-foreground",
                         )}
                       >
-                        <span className="flex items-center gap-1.5 truncate">
-                          <Boxes className="size-3.5 shrink-0 text-muted-foreground/70" />
-                          <span className="truncate" title={resource.label}>{resource.label}</span>
-                        </span>
+                        <Boxes className="size-3.5 shrink-0 text-muted-foreground/70" />
+                        <TruncateTooltip
+                          content={resource.label}
+                          className="min-w-0 w-0 flex-1 truncate text-left"
+                        />
+                        <span aria-hidden="true" className="size-7 shrink-0" />
                       </Button>
                       <Button
                         variant="ghost"
@@ -142,7 +151,7 @@ export function CustomResourcesSection({
                           onToggleNavFavorite(resource.id);
                         }}
                         className={cn(
-                          "absolute right-1 top-1/2 size-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
+                          "absolute right-1 top-1/2 z-10 size-7 -translate-y-1/2 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100",
                           favoriteActive
                             ? "text-yellow-500 hover:text-yellow-400"
                             : "text-muted-foreground hover:text-yellow-400",
