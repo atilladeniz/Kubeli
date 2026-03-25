@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.65] - 2026-03-25
+
+- Fixed long custom resource names in sidebar being truncated with tooltip on overflow
+- Updated Rust dependencies (rmcp 1.2.0, rusqlite 0.39.0, tungstenite 0.29.0)
+- Updated CI dependencies (paths-filter v4, download-artifact v8)
+
 ## [0.3.64] - 2026-03-22
 
 - Fixed GBM EGL display crash on NVIDIA Wayland (Linux)
