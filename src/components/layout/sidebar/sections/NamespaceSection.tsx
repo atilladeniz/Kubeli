@@ -24,6 +24,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn } from "@/lib/utils";
 import { getNamespaceColor } from "@/lib/utils/colors";
 import type { NamespaceSectionProps } from "../types/types";
@@ -141,7 +142,10 @@ export function NamespaceSection({
                     variant="secondary"
                     className="max-w-[130px] px-2 py-0 text-[10px]"
                   >
-                    <span className="truncate">{badgeLabel}</span>
+                    <TruncateTooltip
+                      content={badgeLabel}
+                      className="block truncate"
+                    />
                   </Badge>
                 )}
                 <ChevronRight
@@ -171,7 +175,10 @@ export function NamespaceSection({
                           getNamespaceColor(selectedNamespaces[0]).dot,
                         )}
                       />
-                      <span className="truncate">{selectedNamespaces[0]}</span>
+                      <TruncateTooltip
+                        content={selectedNamespaces[0]}
+                        className="block truncate"
+                      />
                     </span>
                   ) : isMultiSelected ? (
                     <span className="flex items-center gap-2 min-w-0">
@@ -186,7 +193,10 @@ export function NamespaceSection({
                           />
                         ))}
                       </span>
-                      <span className="truncate">{triggerLabel}</span>
+                      <TruncateTooltip
+                        content={triggerLabel}
+                        className="block truncate"
+                      />
                     </span>
                   ) : (
                     tCluster("allNamespaces")

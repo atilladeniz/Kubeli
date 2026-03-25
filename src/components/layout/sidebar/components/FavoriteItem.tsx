@@ -6,6 +6,7 @@ import { Eye, FileText, MoreHorizontal, Trash2 } from "lucide-react";
 import type { FavoriteResource } from "@/lib/stores/favorites-store";
 import { cn } from "@/lib/utils";
 import { Kbd } from "@/components/ui/kbd";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -59,18 +60,18 @@ export function FavoriteItem({
           isActive ? "text-foreground" : "hover:text-foreground"
         )}
       >
-        <span className="w-full truncate text-xs font-medium leading-tight">
-          {favorite.name}
-        </span>
+        <TruncateTooltip
+          content={favorite.name}
+          className="block w-full truncate text-xs font-medium leading-tight"
+        />
         {favorite.namespace && (
-          <span
+          <TruncateTooltip
+            content={favorite.namespace}
             className={cn(
-              "w-full truncate text-[10px] leading-tight",
+              "block w-full truncate text-[10px] leading-tight",
               isActive ? "text-muted-foreground" : "text-muted-foreground/60"
             )}
-          >
-            {favorite.namespace}
-          </span>
+          />
         )}
       </button>
       <div className="ml-1 flex shrink-0 items-center gap-1 self-start">
