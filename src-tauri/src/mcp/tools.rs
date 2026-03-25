@@ -8,8 +8,8 @@ use kube::api::{Api, ListParams, LogParams};
 use kube::ResourceExt;
 use rmcp::model::{
     CallToolRequestParams, CallToolResult, Content, Implementation, InitializeRequestParams,
-    InitializeResult, ListToolsResult, PaginatedRequestParams, ProtocolVersion, ServerCapabilities,
-    ServerInfo, Tool, ToolAnnotations, ToolsCapability,
+    InitializeResult, ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo,
+    Tool, ToolAnnotations,
 };
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler};
@@ -231,17 +231,28 @@ impl KubeliMcpServer {
         }
     }
 
-    fn read_only_annotations() -> Option<ToolAnnotations> {
-        Some(ToolAnnotations::new().read_only(true))
+    fn read_only_tool(
+        name: &'static str,
+        title: &str,
+        description: &'static str,
+        schema: serde_json::Value,
+    ) -> Tool {
+        Tool::new(
+            name,
+            description,
+            schema.as_object().cloned().expect("json object"),
+        )
+        .with_title(title)
+        .with_annotations(ToolAnnotations::new().read_only(true))
     }
 
     fn get_tools() -> Vec<Tool> {
         vec![
-            Tool {
-                name: "get_pods".into(),
-                title: Some("Get Pods".into()),
-                description: Some("List pods with health-focused summary. Returns counts + ONLY problem pods in detail. Healthy pods are counted but not listed in detail. Use namespace filter to scope results.".into()),
-                input_schema: json!({
+            Self::read_only_tool(
+                "get_pods",
+                "Get Pods",
+                "List pods with health-focused summary. Returns counts + ONLY problem pods in detail. Healthy pods are counted but not listed in detail. Use namespace filter to scope results.",
+                json!({
                     "type": "object",
                     "properties": {
                         "namespace": {
@@ -249,22 +260,13 @@ impl KubeliMcpServer {
                             "description": "Namespace to filter pods. If not provided, lists from all namespaces."
                         }
                     }
-                })
-                .as_object()
-                .cloned()
-                .expect("json object")
-                .into(),
-                output_schema: None,
-                annotations: Self::read_only_annotations(),
-                execution: None,
-                icons: None,
-                meta: None,
-            },
-            Tool {
-                name: "get_deployments".into(),
-                title: Some("Get Deployments".into()),
-                description: Some("List deployments with health summary. Returns total/healthy/degraded counts + ONLY degraded deployments in detail. Healthy deployments are listed by name only.".into()),
-                input_schema: json!({
+                }),
+            ),
+            Self::read_only_tool(
+                "get_deployments",
+                "Get Deployments",
+                "List deployments with health summary. Returns total/healthy/degraded counts + ONLY degraded deployments in detail. Healthy deployments are listed by name only.",
+                json!({
                     "type": "object",
                     "properties": {
                         "namespace": {
@@ -272,22 +274,13 @@ impl KubeliMcpServer {
                             "description": "Namespace to filter deployments."
                         }
                     }
-                })
-                .as_object()
-                .cloned()
-                .expect("json object")
-                .into(),
-                output_schema: None,
-                annotations: Self::read_only_annotations(),
-                execution: None,
-                icons: None,
-                meta: None,
-            },
-            Tool {
-                name: "get_services".into(),
-                title: Some("Get Services".into()),
-                description: Some("List Kubernetes services with type, ports, and cluster IP. Limited to 200 results. Use namespace filter to scope.".into()),
-                input_schema: json!({
+                }),
+            ),
+            Self::read_only_tool(
+                "get_services",
+                "Get Services",
+                "List Kubernetes services with type, ports, and cluster IP. Limited to 200 results. Use namespace filter to scope.",
+                json!({
                     "type": "object",
                     "properties": {
                         "namespace": {
@@ -295,22 +288,13 @@ impl KubeliMcpServer {
                             "description": "Namespace to filter services."
                         }
                     }
-                })
-                .as_object()
-                .cloned()
-                .expect("json object")
-                .into(),
-                output_schema: None,
-                annotations: Self::read_only_annotations(),
-                execution: None,
-                icons: None,
-                meta: None,
-            },
-            Tool {
-                name: "get_logs".into(),
-                title: Some("Get Pod Logs".into()),
-                description: Some("Get logs from a Kubernetes pod. Defaults to the last 200 lines. For investigating issues, start with the default. If you need more context, use since_seconds (e.g., 3600 for last hour). Use previous=true for crashed container logs.".into()),
-                input_schema: json!({
+                }),
+            ),
+            Self::read_only_tool(
+                "get_logs",
+                "Get Pod Logs",
+                "Get logs from a Kubernetes pod. Defaults to the last 200 lines. For investigating issues, start with the default. If you need more context, use since_seconds (e.g., 3600 for last hour). Use previous=true for crashed container logs.",
+                json!({
                     "type": "object",
                     "properties": {
                         "namespace": {
@@ -339,58 +323,31 @@ impl KubeliMcpServer {
                         }
                     },
                     "required": ["namespace", "pod_name"]
-                })
-                .as_object()
-                .cloned()
-                .expect("json object")
-                .into(),
-                output_schema: None,
-                annotations: Self::read_only_annotations(),
-                execution: None,
-                icons: None,
-                meta: None,
-            },
-            Tool {
-                name: "get_namespaces".into(),
-                title: Some("Get Namespaces".into()),
-                description: Some("List all Kubernetes namespaces. Lightweight call — use first to discover available namespaces before scoping other queries.".into()),
-                input_schema: json!({
+                }),
+            ),
+            Self::read_only_tool(
+                "get_namespaces",
+                "Get Namespaces",
+                "List all Kubernetes namespaces. Lightweight call — use first to discover available namespaces before scoping other queries.",
+                json!({
                     "type": "object",
                     "properties": {}
-                })
-                .as_object()
-                .cloned()
-                .expect("json object")
-                .into(),
-                output_schema: None,
-                annotations: Self::read_only_annotations(),
-                execution: None,
-                icons: None,
-                meta: None,
-            },
-            Tool {
-                name: "get_cluster_info".into(),
-                title: Some("Get Cluster Info".into()),
-                description: Some("Get Kubernetes cluster version, node count, and namespace count. Use as a starting point before diving into specifics.".into()),
-                input_schema: json!({
+                }),
+            ),
+            Self::read_only_tool(
+                "get_cluster_info",
+                "Get Cluster Info",
+                "Get Kubernetes cluster version, node count, and namespace count. Use as a starting point before diving into specifics.",
+                json!({
                     "type": "object",
                     "properties": {}
-                })
-                .as_object()
-                .cloned()
-                .expect("json object")
-                .into(),
-                output_schema: None,
-                annotations: Self::read_only_annotations(),
-                execution: None,
-                icons: None,
-                meta: None,
-            },
-            Tool {
-                name: "get_events".into(),
-                title: Some("Get Events".into()),
-                description: Some("List Kubernetes events. Defaults to Warning events from the last 60 minutes. Use event_type='Normal' for normal events or 'All' for all types. Limited to 50 most recent.".into()),
-                input_schema: json!({
+                }),
+            ),
+            Self::read_only_tool(
+                "get_events",
+                "Get Events",
+                "List Kubernetes events. Defaults to Warning events from the last 60 minutes. Use event_type='Normal' for normal events or 'All' for all types. Limited to 50 most recent.",
+                json!({
                     "type": "object",
                     "properties": {
                         "namespace": {
@@ -406,22 +363,13 @@ impl KubeliMcpServer {
                             "description": "Only show events from the last N minutes. Defaults to 60."
                         }
                     }
-                })
-                .as_object()
-                .cloned()
-                .expect("json object")
-                .into(),
-                output_schema: None,
-                annotations: Self::read_only_annotations(),
-                execution: None,
-                icons: None,
-                meta: None,
-            },
-            Tool {
-                name: "get_yaml".into(),
-                title: Some("Get Resource YAML".into()),
-                description: Some("Get YAML of a Kubernetes resource. Automatically strips managedFields and last-applied-configuration to reduce noise.".into()),
-                input_schema: json!({
+                }),
+            ),
+            Self::read_only_tool(
+                "get_yaml",
+                "Get Resource YAML",
+                "Get YAML of a Kubernetes resource. Automatically strips managedFields and last-applied-configuration to reduce noise.",
+                json!({
                     "type": "object",
                     "properties": {
                         "kind": {
@@ -438,17 +386,8 @@ impl KubeliMcpServer {
                         }
                     },
                     "required": ["kind", "name"]
-                })
-                .as_object()
-                .cloned()
-                .expect("json object")
-                .into(),
-                output_schema: None,
-                annotations: Self::read_only_annotations(),
-                execution: None,
-                icons: None,
-                meta: None,
-            },
+                }),
+            ),
         ]
     }
 
@@ -959,24 +898,13 @@ impl KubeliMcpServer {
 
 impl ServerHandler for KubeliMcpServer {
     fn get_info(&self) -> ServerInfo {
-        ServerInfo {
-            protocol_version: ProtocolVersion::LATEST,
-            capabilities: ServerCapabilities {
-                tools: Some(ToolsCapability {
-                    list_changed: Some(false),
-                }),
-                ..Default::default()
-            },
-            server_info: Implementation {
-                name: "kubeli".into(),
-                version: env!("CARGO_PKG_VERSION").into(),
-                title: Some("Kubeli Kubernetes MCP Server".into()),
-                description: None,
-                icons: None,
-                website_url: None,
-            },
-            instructions: Some("Kubeli MCP Server for Kubernetes management. Use the available tools to interact with your Kubernetes cluster.".into()),
-        }
+        ServerInfo::new(
+            ServerCapabilities::builder().enable_tools().build(),
+        )
+        .with_server_info(
+            Implementation::new("kubeli", env!("CARGO_PKG_VERSION")),
+        )
+        .with_instructions("Kubeli MCP Server for Kubernetes management. Use the available tools to interact with your Kubernetes cluster.")
     }
 
     async fn initialize(
@@ -992,11 +920,7 @@ impl ServerHandler for KubeliMcpServer {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, McpError> {
-        Ok(ListToolsResult {
-            tools: Self::get_tools(),
-            next_cursor: None,
-            meta: None,
-        })
+        Ok(ListToolsResult::with_all_items(Self::get_tools()))
     }
 
     async fn call_tool(
@@ -1111,18 +1035,11 @@ impl ServerHandler for KubeliMcpServer {
         };
 
         match result {
-            Ok(text) => Ok(CallToolResult {
-                content: vec![Content::text(text)],
-                is_error: Some(false),
-                meta: None,
-                structured_content: None,
-            }),
-            Err(e) => Ok(CallToolResult {
-                content: vec![Content::text(format!("Error: {}", e))],
-                is_error: Some(true),
-                meta: None,
-                structured_content: None,
-            }),
+            Ok(text) => Ok(CallToolResult::success(vec![Content::text(text)])),
+            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+                "Error: {}",
+                e
+            ))])),
         }
     }
 }
