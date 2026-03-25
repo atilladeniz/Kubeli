@@ -95,28 +95,7 @@ export function Sidebar({
   } = useSidebarUiState();
   const navigationSections = useNavigationSections();
   const { data: crds } = useCRDs();
-  const customResourceGroups = useMemo(() => {
-    const groups = groupCustomResources(crds);
-    // DEV ONLY: Add mock CRDs with long names to test sidebar truncation
-    if (import.meta.env.DEV) {
-      groups.push({
-        provider: "superlongprovider.extremely-verbose-organization.infrastructure.io",
-        resources: [
-          {
-            id: "custom-resource:superlongprovider.extremely-verbose-organization.infrastructure.io:v1alpha1:VeryLongCustomResourceDefinitionNameForTesting:verylongcustomresourcedefinitionnamefortestings:ns" as import("@/lib/custom-resources").CustomResourceType,
-            label: "VeryLongCustomResourceDefinitionNameForTesting",
-            definition: { group: "superlongprovider.extremely-verbose-organization.infrastructure.io", version: "v1alpha1", kind: "VeryLongCustomResourceDefinitionNameForTesting", plural: "verylongcustomresourcedefinitionnamefortestings", namespaced: true },
-          },
-          {
-            id: "custom-resource:superlongprovider.extremely-verbose-organization.infrastructure.io:v1:AnotherExtremelyLongResourceName:anotherextremelylongresourcenames:ns" as import("@/lib/custom-resources").CustomResourceType,
-            label: "AnotherExtremelyLongResourceName",
-            definition: { group: "superlongprovider.extremely-verbose-organization.infrastructure.io", version: "v1", kind: "AnotherExtremelyLongResourceName", plural: "anotherextremelylongresourcenames", namespaced: true },
-          },
-        ],
-      });
-    }
-    return groups;
-  }, [crds]);
+  const customResourceGroups = useMemo(() => groupCustomResources(crds), [crds]);
   const { modKeySymbol } = usePlatform();
   const sidebarRef = useRef<HTMLElement>(null);
   useWidthRatchet(sidebarRef);
