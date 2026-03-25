@@ -60,7 +60,7 @@ export function CustomResourcesSection({
           <ChevronRight className="chevron size-3.5 transition-transform" />
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-0.5 space-y-0.5">
+      <CollapsibleContent className="mt-0.5 space-y-0.5 overflow-hidden">
         {groups.map((group) => {
           const hasActiveChild = group.resources.some(
             (r) => activeResource === r.id,
@@ -74,16 +74,16 @@ export function CustomResourcesSection({
             >
               {/* Tree vertical line for provider */}
               <div className="absolute left-0 top-0 bottom-0 w-px bg-border/60" />
-              <div className="relative flex items-center">
+              <div className="relative flex items-center min-w-0 overflow-hidden">
                 <div className="absolute left-0 top-1/2 h-px w-2.5 bg-border/60" />
                 <CollapsibleTrigger asChild>
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="ml-4 w-[calc(100%-1rem)] justify-start gap-1.5 px-1.5 font-normal text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+                    className="ml-4 w-[calc(100%-1rem)] min-w-0 justify-start gap-1.5 px-1.5 font-normal text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
                   >
                     <ChevronRight className="chevron size-3 shrink-0 transition-transform" />
-                    <span className="truncate text-xs">{group.provider}</span>
+                    <span className="truncate text-xs" title={group.provider}>{group.provider}</span>
                     <Badge
                       variant="outline"
                       className="ml-auto h-4 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"
@@ -93,14 +93,14 @@ export function CustomResourcesSection({
                   </Button>
                 </CollapsibleTrigger>
               </div>
-              <CollapsibleContent className="relative ml-4 mt-0.5 space-y-0.5">
+              <CollapsibleContent className="relative ml-4 mt-0.5 space-y-0.5 overflow-hidden">
                 {/* Tree vertical line for resources */}
                 <div className="absolute left-[11px] top-0 bottom-2 w-px bg-border/60" />
                 {group.resources.map((resource, index) => {
                   const favoriteActive = isNavFavorite(resource.id);
                   const isLast = index === group.resources.length - 1;
                   return (
-                    <div key={resource.id} className="group relative flex items-center">
+                    <div key={resource.id} className="group relative flex items-center min-w-0 overflow-hidden">
                       {/* Tree horizontal connector */}
                       <div className="absolute left-[11px] top-1/2 h-px w-2.5 bg-border/60" />
                       {isLast && (
@@ -123,7 +123,7 @@ export function CustomResourcesSection({
                           }
                         }}
                         className={cn(
-                          "ml-7 w-[calc(100%-1.75rem)] justify-between px-1.5 pr-8 font-normal text-xs",
+                          "ml-7 w-[calc(100%-1.75rem)] min-w-0 justify-between px-1.5 pr-8 font-normal text-xs",
                           activeResource === resource.id
                             ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                             : "text-muted-foreground hover:text-foreground",
@@ -131,7 +131,7 @@ export function CustomResourcesSection({
                       >
                         <span className="flex items-center gap-1.5 truncate">
                           <Boxes className="size-3.5 shrink-0 text-muted-foreground/70" />
-                          <span className="truncate">{resource.label}</span>
+                          <span className="truncate" title={resource.label}>{resource.label}</span>
                         </span>
                       </Button>
                       <Button

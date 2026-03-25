@@ -94,7 +94,28 @@ export function Sidebar({
   } = useSidebarUiState();
   const navigationSections = useNavigationSections();
   const { data: crds } = useCRDs();
-  const customResourceGroups = useMemo(() => groupCustomResources(crds), [crds]);
+  const customResourceGroups = useMemo(() => {
+    const groups = groupCustomResources(crds);
+    // DEV ONLY: Add mock CRDs with long names to test sidebar truncation
+    if (import.meta.env.DEV) {
+      groups.push({
+        provider: "superlongprovider.extremely-verbose-organization.infrastructure.io",
+        resources: [
+          {
+            id: "custom-resource:superlongprovider.extremely-verbose-organization.infrastructure.io:v1alpha1:VeryLongCustomResourceDefinitionNameForTesting:verylongcustomresourcedefinitionnamefortestings:ns" as import("@/lib/custom-resources").CustomResourceType,
+            label: "VeryLongCustomResourceDefinitionNameForTesting",
+            definition: { group: "superlongprovider.extremely-verbose-organization.infrastructure.io", version: "v1alpha1", kind: "VeryLongCustomResourceDefinitionNameForTesting", plural: "verylongcustomresourcedefinitionnamefortestings", namespaced: true },
+          },
+          {
+            id: "custom-resource:superlongprovider.extremely-verbose-organization.infrastructure.io:v1:AnotherExtremelyLongResourceName:anotherextremelylongresourcenames:ns" as import("@/lib/custom-resources").CustomResourceType,
+            label: "AnotherExtremelyLongResourceName",
+            definition: { group: "superlongprovider.extremely-verbose-organization.infrastructure.io", version: "v1", kind: "AnotherExtremelyLongResourceName", plural: "anotherextremelylongresourcenames", namespaced: true },
+          },
+        ],
+      });
+    }
+    return groups;
+  }, [crds]);
   const { modKeySymbol } = usePlatform();
   const sidebarRef = useRef<HTMLElement>(null);
   useWidthRatchet(sidebarRef);
@@ -254,7 +275,7 @@ export function Sidebar({
 
       {/* Navigation */}
       <ScrollArea className="flex-1 min-h-0 *:data-[slot=scroll-area-scrollbar]:absolute *:data-[slot=scroll-area-scrollbar]:right-0" type="scroll">
-        <nav className="p-2 pr-2 pb-4">
+        <nav className="p-2 pr-2 pb-4 overflow-hidden">
           <QuickAccessSection
             navFavorites={navFavorites}
             navLabelById={navLabelById}
