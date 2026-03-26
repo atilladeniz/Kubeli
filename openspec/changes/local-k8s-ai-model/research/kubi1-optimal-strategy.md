@@ -7,9 +7,9 @@
 
 ## Executive Summary
 
-The existing OpenSpec plan (Qwen3:4b + Ollama + Unsloth QLoRA) is **fundamentally solid**, but several significant developments have occurred:
+The existing OpenSpec plan (Qwen3-4B + llama-server sidecar + Unsloth QLoRA) is **fundamentally solid**, but several significant developments have occurred:
 
-1. **Qwen3.5 is out** (March 2, 2026) — new Small series with 0.8B, 2B, **4B**, 9B. 256K context, thinking/non-thinking, better tool calling. **But: currently NOT available in Ollama** (requires separate mmproj vision files). Use llama.cpp or Unsloth Studio for inference.
+1. **Qwen3.5 is out** (March 2, 2026) — new Small series with 0.8B, 2B, **4B**, 9B. 256K context, thinking/non-thinking, better tool calling. It is a strong future candidate for Kubeli's sidecar-based inference path.
 2. **Unsloth Studio** (March 17, 2026) — No-code UI for training + inference + Data Recipes. Game-changer for workflow.
 3. **Unsloth Data Recipes** — Transforms PDFs/CSVs/docs into synthetic training data automatically. Powered by NVIDIA NeMo Data Designer.
 4. **Local-first training**: RTX 3090 is the primary training machine. Mac connects via SSH/Tailscale. Cloud (Vast.ai) is fallback only.
@@ -19,8 +19,8 @@ The existing OpenSpec plan (Qwen3:4b + Ollama + Unsloth QLoRA) is **fundamentall
 
 | Phase | Model | Reason |
 |-------|-------|--------|
-| **v1 (now)** | `qwen3:4b` via Ollama | Works NOW, Ollama-compatible, stable |
-| **v2 (fine-tune)** | Qwen3.5-4B via Unsloth | Better, 256K context, after Ollama support or llama.cpp direct |
+| **v1 (now)** | `kubi-1` on Qwen3-4B via llama-server | Stable default, zero-install inside Kubeli |
+| **v2 (fine-tune)** | Qwen3.5-4B via Unsloth | Better, 256K context, evaluate as next-gen base |
 | **Fallback** | `qwen3:8b` or `qwen3-30b-a3b` (MoE) | As planned, updated fallback |
 
 ---
@@ -38,7 +38,7 @@ Released March 2, 2026. Small series (0.8B, 2B, 4B, 9B) is especially relevant:
 | Tool Calling | 0.880 | **Improved** (Unsloth fixed chat template bugs) |
 | Vision | ❌ | ✅ (multimodal) |
 | Languages | many | **201 languages** |
-| Ollama | ✅ `qwen3:4b` | ❌ **NOT available** (mmproj issue) |
+| Kubeli sidecar path | ✅ | ✅ |
 | llama.cpp | ✅ | ✅ (recommended) |
 | Unsloth Fine-tune | ✅ | ✅ |
 | License | Apache 2.0 | Apache 2.0 |
@@ -149,7 +149,7 @@ New quantization method from Unsloth:
 
 ### 3.2 Scraping: harvest_k8s.py
 
-Standalone Python script at `.dev/llm/data/harvest_k8s.py`:
+Standalone Python script at `.dev/kubi-1/data/harvest_k8s.py`:
 - Uses GitHub Trees API (1 API call per repo tree)
 - Fetches individual file blobs
 - Rate limiting built in
@@ -180,7 +180,8 @@ Phase 4: Train (Windows RTX 3090)
 
 Phase 5: Test (Mac)
 ├── rsync GGUF back to Mac
-├── ollama create kubeli-k8s:4b
+├── llama-server --model ./models/kubeli-k8s-4b-Q4_K_M.gguf --port 8080
+├── optional: ollama create kubeli-k8s:4b
 └── Run eval.py
 ```
 
@@ -197,7 +198,7 @@ Data harvesting                     Unsloth training
 Data conversion                     GGUF export
 Dataset preparation                 Model testing
 Evaluation                    ←──── Trained model (GGUF)
-Inference testing (Ollama)
+Inference testing (llama-server, optional Ollama compatibility)
 
         ╔═══════════════╗
         ║  Connection   ║
@@ -210,13 +211,13 @@ Inference testing (Ollama)
 
 Already installed on Mac (`/opt/homebrew/bin/tailscale`). Free, zero-config, works everywhere.
 
-See `.dev/llm/SETUP-CONNECTION.md` for full setup.
+See `.dev/kubi-1/SETUP-CONNECTION.md` for full setup.
 
 ### 4.3 Workflow
 
 ```bash
 # Mac: prepare data
-cd .dev/llm/data
+cd .dev/kubi-1/data
 GITHUB_TOKEN=ghp_xxx python harvest_k8s.py
 python load_hf_datasets.py
 python convert_docs.py
@@ -228,13 +229,15 @@ cd ../training
 
 # Mac: pull model back + test
 rsync -avz kubi-train:~/kubi-training/training/kubeli-k8s-4b/*.gguf ../models/
+llama-server --model ../models/kubeli-k8s-4b-Q4_K_M.gguf --port 8080
+# optional compatibility path
 ollama create kubeli-k8s:4b -f ../models/Modelfile
 ```
 
 ### 4.4 Cloud Fallback (Vast.ai)
 
 Only if Windows machine is unavailable. ~$0.10/training run on spot RTX 3090.
-Scripts in `.dev/llm/cloud/`.
+Scripts in `.dev/kubi-1/cloud/` when/if that fallback is added.
 
 ---
 
@@ -242,11 +245,11 @@ Scripts in `.dev/llm/cloud/`.
 
 | Aspect | Current Plan | Change | Reason |
 |--------|-------------|--------|--------|
-| **v1 Model** | Qwen3:4b | ✅ Keep | Ollama-compatible |
+| **v1 Model** | Qwen3-4B | ✅ Keep | Stable default for shipped Kubi-1 |
 | **v2 Model** | Qwen3:4b fine-tuned | **Qwen3.5-4B fine-tuned** | 256K context, better |
 | **MoE Fallback** | granite3.1-moe:3b | **Qwen3-30B-A3B** (~3B active) | Much better |
 | **Training UI** | CLI scripts | **Unsloth Studio + CLI** | No-code option |
-| **Data Pipeline** | Custom scripts only | **Scripts + Data Recipes** | Best of both |
+| **Data Pipeline** | Custom scripts only | **Scripts + Data Recipes eval** | Best of both |
 | **GGUF Export** | Q4_K_M + Q5_K_M | **+ Unsloth Dynamic UD-Q4_K_XL** | Better quality |
 | **Training Focus** | Not specified | **Local RTX 3090 first** | Zero cost, fastest iteration |
 | **Connection** | SSH tunnel suggestion | **Tailscale** | Already installed, stable |

@@ -1,84 +1,90 @@
 # Kubi-1: Kubeli's Local K8s AI Model
 
-Fine-tuned LLM for Kubernetes troubleshooting — runs entirely on-device, no third-party tools needed.
+Fine-tuned LLM for Kubernetes troubleshooting that runs entirely on-device.
 
 ## Key Decisions
 
-- **Model**: Qwen3-4B (fine-tuned) — best tool-calling + thinking at this size
-- **Alternative**: Nemotron-3-Nano-4B — NVIDIA's 1M context, ~3GB RAM, worth evaluating
-- **Inference**: **llama.cpp as Tauri sidecar** — no Ollama required, zero user setup
-- **Training**: QLoRA via Unsloth on local RTX 3090 (Windows)
-- **Data**: GitHub K8s docs + StackOverflow + k8sgpt patterns + synthetic
+- **Default model family**: Kubi-1 Nano / Kubi-1 / Kubi-1 Pro
+- **Primary base**: Qwen3-4B for the mainline model
+- **Inference**: `llama.cpp` as Tauri sidecar, no third-party install required
+- **Training**: QLoRA and CPT via Unsloth on the local RTX 3090
+- **Data**: GitHub K8s docs + StackOverflow + k8sgpt patterns + synthetic pairs
+- **Advanced compatibility**: optional Ollama Modelfiles for users who want external testing
 
-## Why No Ollama?
+## Why No Ollama by Default?
 
-Bundling `llama-server` (from llama.cpp) as a Tauri sidecar means:
-- ✅ User downloads Kubeli → works immediately (model auto-downloads)
-- ✅ No "install Ollama" step — zero friction
-- ✅ OpenAI-compatible REST API (same as Ollama uses internally)
-- ✅ Native Metal on Mac, CUDA on Windows/Linux — no MLX dependency
-- ✅ Full control over version, security, and configuration
-- ❌ Larger app bundle (+5-10MB for llama-server binary)
+Bundling `llama-server` means:
+- User downloads Kubeli and can stay inside Kubeli for setup
+- No extra "install Ollama" step
+- OpenAI-compatible REST API with full control over configuration
+- Native Metal on Mac and portable CPU/GPU variants on desktop platforms
+
+Ollama remains useful for compatibility testing and power-user workflows, but it is no longer the main architecture.
 
 ## Directory Structure
 
-```
+```text
 .dev/kubi-1/
-├── README.md                  # This file
-├── SETUP-WINDOWS.md           # Windows RTX 3090 training server setup
-├── SETUP-CONNECTION.md        # Mac ↔ Windows remote training guide
+├── README.md
+├── SETUP-WINDOWS.md
+├── SETUP-CONNECTION.md
 ├── training/
-│   ├── train_kubi1.py         # Unsloth QLoRA training script
-│   ├── remote_train.sh        # One-command remote training
-│   ├── eval.py                # Evaluation against test set
-│   └── export_gguf.py         # GGUF export + Modelfile
+│   ├── train_kubi1.py
+│   ├── remote_train.sh
+│   └── train_cpt.py                # planned
 ├── data/
-│   ├── harvest_k8s.py         # GitHub K8s docs harvester
-│   ├── load_hf_datasets.py    # Download HuggingFace datasets
-│   ├── convert_docs.py        # MD → instruction pairs
-│   ├── merge_and_filter.py    # Dedup, quality filter, balance
-│   ├── raw/                   # Downloaded source files (gitignored)
-│   ├── processed/             # Per-source JSONL files
-│   └── final/                 # Merged training + eval sets
+│   ├── harvest_k8s.py
+│   ├── load_hf_datasets.py
+│   ├── convert_docs.py
+│   ├── merge_and_filter.py
+│   ├── generate_refusals.py
+│   ├── prepare_cpt_corpus.py
+│   ├── generate_synthetic.py       # planned
+│   ├── test_setup.py
+│   ├── raw/
+│   ├── processed/
+│   └── final/
 ├── eval/
-│   ├── test_cases/            # 500 hand-crafted test cases
-│   └── results/               # Per-model evaluation results
-├── models/                    # Exported GGUF files (gitignored)
-└── cloud/                     # Cloud GPU scripts (Vast.ai fallback)
+│   ├── test_cases/                 # planned
+│   ├── results/                    # planned
+│   └── eval.py                     # planned
+└── models/
 ```
 
 ## Model Candidates (March 2026)
 
-| Model | Params | RAM (Q4) | Context | Tool Calling | Thinking | License |
-|-------|--------|----------|---------|-------------|----------|---------|
-| **Qwen3-4B** | 4B | ~3GB | 32K | ✅ 0.880 | ✅ | Apache 2.0 |
-| **Nemotron-3-Nano-4B** | 4B | ~3GB | **1M** | ✅ | ✅ | Apache 2.0 |
-| Qwen3.5-4B | 4B | ~3GB | 256K | ✅ improved | ✅ | Apache 2.0 |
-| Qwen3-30B-A3B (MoE) | ~3B active | ~4GB | 32K | ✅ | ✅ | Apache 2.0 |
-
-**Top pick: Qwen3-4B** (most proven for fine-tuning, Unsloth-optimized)
-**Worth testing: Nemotron-3-Nano-4B** (1M context, NVIDIA-backed, same RAM)
+| Model | Role | Context | Notes |
+|-------|------|---------|------|
+| **Qwen3-4B** | Mainline default | 32K | proven fine-tune base |
+| Qwen3-1.7B | Nano | 32K | smaller, faster fallback |
+| Qwen3-8B | Pro | 32K | larger quality tier |
+| Qwen3.5-4B | Research candidate | 256K | likely v2 fine-tune candidate |
+| Qwen3-30B-A3B | Research candidate | 32K | MoE fallback candidate |
+| Nemotron-3-Nano-4B | Research candidate | 262K+ | experimental long-context eval |
 
 ## Quick Start
 
 ```bash
-# 1. Set up Windows training box (see SETUP-WINDOWS.md + SETUP-CONNECTION.md)
+# 1. Set up the Windows training box
 
-# 2. Harvest K8s docs (on Mac)
+# 2. Harvest and prepare data on the Mac
 cd data && GITHUB_TOKEN=ghp_xxx python harvest_k8s.py
-
-# 3. Prepare dataset
 python load_hf_datasets.py
 python convert_docs.py
+python generate_refusals.py --count 5000
 python merge_and_filter.py
 
-# 4. Train on Windows RTX 3090
+# 3. Verify local training environment
+python test_setup.py
+
+# 4. Start remote training
 cd ../training && ./remote_train.sh --monitor
 
-# 5. Test the model
-ollama create kubeli-k8s:4b -f ../models/Modelfile
-# or directly via llama-server:
+# 5. Test the exported GGUF directly
 llama-server --model ../models/kubeli-k8s-4b-Q4_K_M.gguf --port 8080
+
+# Optional compatibility test
+ollama create kubeli-k8s:4b -f ../models/Modelfile
 ```
 
 ## Hardware

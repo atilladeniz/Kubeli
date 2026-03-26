@@ -184,7 +184,10 @@ rsync -avz --progress \
   kubi-train:~/kubi-training/training/kubeli-k8s-4b/*.gguf \
   /Users/atilla/Github/Kubeli/.dev/kubi-1/models/
 
-# Test locally with Ollama
+# Test locally with llama-server
+llama-server --model /Users/atilla/Github/Kubeli/.dev/kubi-1/models/kubeli-k8s-4b-Q4_K_M.gguf --port 8080
+
+# Optional compatibility test with Ollama
 ollama create kubeli-k8s:4b -f models/Modelfile
 ollama run kubeli-k8s:4b "My pod nginx-abc is in CrashLoopBackOff"
 ```

@@ -1,7 +1,7 @@
 # Data Pipeline & Training Infrastructure — Technical Reference
 
 > Supplements the main research brief. Contains implementation details.
-> All runnable code lives in `.dev/llm/` — this doc is the design reference.
+> All runnable code lives in `.dev/kubi-1/` — this doc is the design reference.
 
 ---
 
@@ -22,11 +22,11 @@ Setup:
 1. Install Tailscale on Windows: https://tailscale.com/download/windows
 2. Install Tailscale in WSL2: `curl -fsSL https://tailscale.com/install.sh | sh`
 3. `tailscale up` on both machines
-4. Add SSH config entry on Mac (see `.dev/llm/SETUP-CONNECTION.md`)
+4. Add SSH config entry on Mac (see `.dev/kubi-1/SETUP-CONNECTION.md`)
 
 ### Windows Setup
 
-See `.dev/llm/SETUP-WINDOWS.md` for:
+See `.dev/kubi-1/SETUP-WINDOWS.md` for:
 - WSL2 + CUDA verification
 - Unsloth installation (`uv pip install "unsloth[cu121]"`)
 - Unsloth Studio (optional no-code UI)
@@ -36,7 +36,7 @@ See `.dev/llm/SETUP-WINDOWS.md` for:
 
 ## 2. Data Pipeline
 
-All scripts in `.dev/llm/data/`.
+All scripts in `.dev/kubi-1/data/`.
 
 ### Step 1: Harvest GitHub Repos
 
@@ -60,9 +60,11 @@ pip install datasets
 python load_hf_datasets.py
 ```
 
-Downloads:
+Examples of downloaded datasets:
 - `mcipriano/stackoverflow-kubernetes-questions` (~30K, CC-BY-SA-4.0)
 - `ComponentSoft/k8s-kubectl-35k` (~35K, license TBD)
+
+The actual pipeline can pull additional tiered datasets via `load_hf_datasets.py`.
 
 ### Step 3: Convert to Instruction Pairs
 
@@ -89,8 +91,8 @@ python merge_and_filter.py
 - Train/eval split (90/10, stratified by category)
 
 Output:
-- `data/final/kubeli-k8s-train.jsonl` (~45K examples)
-- `data/final/kubeli-k8s-eval.jsonl` (~5K examples)
+- `data/final/kubeli-k8s-train.jsonl` (target: 55K+ examples)
+- `data/final/kubeli-k8s-eval.jsonl` (target: 5K+ examples)
 
 ---
 
@@ -132,7 +134,7 @@ Upload dataset via Studio UI, configure training visually, export GGUF.
 
 ## 4. Evaluation
 
-Test set in `.dev/llm/eval/test_cases/` — 500 hand-crafted examples:
+Test set in `.dev/kubi-1/eval/test_cases/` — 500 hand-crafted examples:
 
 | Category | Count | Tests |
 |----------|-------|-------|

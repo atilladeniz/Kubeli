@@ -165,7 +165,7 @@ def main():
             quantization_method=["q4_k_m", "q5_k_m"],
         )
 
-        # Create Ollama Modelfile
+        # Create optional Ollama Modelfile for compatibility testing
         modelfile = Path(export_dir) / "Modelfile"
         modelfile.write_text(
             f'FROM ./{args.export_name}-Q4_K_M.gguf\n'
@@ -184,8 +184,12 @@ def main():
             '- OOMKilled: compare memory limits vs actual usage\n'
             '"""\n'
         )
-        print(f"✅ Modelfile created: {modelfile}")
-        print(f"\nTo test: ollama create kubeli-k8s:4b -f {modelfile}")
+        print(f"✅ Optional Modelfile created: {modelfile}")
+        print(
+            "\nTo test directly: "
+            f"llama-server --model {Path(export_dir) / f'{args.export_name}-Q4_K_M.gguf'} --port 8080"
+        )
+        print(f"Optional Ollama compatibility test: ollama create kubeli-k8s:4b -f {modelfile}")
 
     print("\n🎉 Done!")
 

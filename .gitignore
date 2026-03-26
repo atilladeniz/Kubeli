@@ -25,6 +25,9 @@
 # misc
 .DS_Store
 *.pem
+__pycache__/
+*.pyc
+*.pyo
 
 # SBOM outputs
 sbom-*.json

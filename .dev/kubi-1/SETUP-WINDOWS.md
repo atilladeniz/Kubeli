@@ -67,7 +67,9 @@ unsloth studio -H 0.0.0.0 -p 8888
 # Opens web UI at http://localhost:8888
 ```
 
-### 6. Install Ollama (for testing exported models)
+### 6. Optional: install Ollama for compatibility testing
+
+You do not need Ollama for the main Kubeli workflow. Install it only if you want to test exported Modelfiles outside the bundled `llama-server` path.
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
@@ -121,32 +123,9 @@ ssh -p 2222 unsloth@localhost
 
 ## Verify Setup
 
-Run this test script to confirm everything works:
+Run the versioned test script from the repo to confirm everything works:
 
 ```bash
-cat << 'EOF' > test_setup.py
-import torch
-from unsloth import FastLanguageModel
-
-print(f"PyTorch: {torch.__version__}")
-print(f"CUDA available: {torch.cuda.is_available()}")
-print(f"GPU: {torch.cuda.get_device_name(0)}")
-print(f"VRAM: {torch.cuda.get_device_properties(0).total_mem / 1024**3:.1f} GB")
-
-# Quick model load test
-model, tokenizer = FastLanguageModel.from_pretrained(
-    model_name="unsloth/Qwen3-4B",
-    max_seq_length=2048,
-    load_in_4bit=True,
-)
-print("Model loaded OK!")
-
-# Quick generation test
-inputs = tokenizer("Hello", return_tensors="pt").to("cuda")
-outputs = model.generate(**inputs, max_new_tokens=10)
-print(f"Generation: {tokenizer.decode(outputs[0])}")
-print("\n✅ All good! Ready for training.")
-EOF
-
+cd /Users/atilla/Github/Kubeli/.dev/kubi-1/data
 python test_setup.py
 ```

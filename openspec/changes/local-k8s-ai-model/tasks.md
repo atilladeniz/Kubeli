@@ -19,6 +19,7 @@
 ### Task 1.1: Fetch and bundle llama-server binaries
 - [ ] Create `scripts/fetch-llama-server.sh`
 - [ ] Download pre-built llama-server from llama.cpp releases (pin version, currently b8530)
+- [ ] Document v1 binary strategy: ship default CPU/Metal-compatible targets first, keep CUDA/Vulkan packaging as follow-up
 - [ ] Rename per Tauri target triple convention:
   - `llama-server-aarch64-apple-darwin` (macOS ARM, includes Metal)
   - `llama-server-x86_64-apple-darwin` (macOS Intel)
@@ -69,13 +70,17 @@
   - Linux: `~/.local/share/com.kubeli/models/`
 - [ ] `manifest.json` — tracks installed model version, SHA-256, download date
 - [ ] `download_model(url, dest, sha256)` — stream download with progress events
+  - Preflight disk-space check before download (`model size + temp file + safety margin`)
+  - Resume partial download when source supports ranged requests
   - SHA-256 verification after download
   - Delete and re-download if checksum fails
   - Emit `ModelDownloadEvent::Started`, `Progress`, `Verifying`, `Complete`, `Error`
+- [ ] `cancel_download()` — abort active download, emit cancelled state, clean temp file
 - [ ] `check_for_update()` — fetch `registry.json` from GitHub (max 1x/day)
   - Compare local version vs remote latest
   - Respect `min_app_version` (don't offer model update if app too old)
 - [ ] `update_model()` — download new GGUF to temp file, stop sidecar, atomic rename, restart
+  - Roll back to previous GGUF if verification or restart fails
 - [ ] `delete_model()` — remove GGUF and update manifest
 - [ ] `get_installed_model()` — read manifest, return model info or None
 - [ ] Download sources (fallback chain):
@@ -86,6 +91,7 @@
 ```rust
 #[tauri::command] async fn get_model_status() -> Result<ModelStatus, KubeliError>
 #[tauri::command] async fn download_model(model_id: String) -> Result<(), KubeliError>
+#[tauri::command] async fn cancel_model_download() -> Result<(), KubeliError>
 #[tauri::command] async fn check_model_update() -> Result<Option<ModelUpdate>, KubeliError>
 #[tauri::command] async fn update_model() -> Result<(), KubeliError>
 #[tauri::command] async fn delete_model() -> Result<(), KubeliError>
@@ -112,6 +118,7 @@
   - `ram < 12GB` → Kubi-1 Nano (Qwen3-1.7B, ~1.2GB)
   - `ram < 24GB` → Kubi-1 (Qwen3-4B, ~2.5GB)
   - `ram >= 24GB` → Kubi-1 Pro (Qwen3-8B, ~5GB)
+- [ ] Keep research candidates (`Qwen3.5-4B`, `Qwen3-30B-A3B`, `Nemotron-3-Nano-4B`) out of default recommendations until eval is complete
 - [ ] Reserve 2-4 GB for OS + Kubeli on Apple Silicon
 - [ ] `benchmark_model()` → 50-token generation, return actual tok/s
 - [ ] Fallback if llmfit fails: basic RAM-based rules via `sysinfo` crate
@@ -203,6 +210,7 @@
   - Hardware info display (CPU, RAM, GPU)
   - Recommended model with size and estimated speed
   - Download button with streaming progress bar
+  - Disk-space / size warning before download when storage is tight
   - Model status: not installed / downloading / ready / update available
   - Update notification with release notes and one-click update
   - Delete model option
@@ -266,6 +274,7 @@
 - [ ] Add SSH config entry on Mac: `Host kubi-train` → Tailscale IP
 - [ ] Verify: `ssh kubi-train "nvidia-smi"` works from Mac
 - [ ] Install Unsloth on Windows: `uv pip install "unsloth[cu121]"`
+- [ ] Create versioned `.dev/kubi-1/data/test_setup.py` for CUDA + model-load verification
 - [ ] Run `.dev/kubi-1/data/test_setup.py` to verify CUDA + Unsloth
 
 ### Task 4.2: Download HuggingFace datasets
@@ -296,7 +305,7 @@
 - [ ] Check output: `data/processed/refusals.jsonl`
 
 ### Task 4.7: Generate synthetic YAML error pairs
-- [ ] Write `generate_synthetic.py`:
+- [ ] Write `.dev/kubi-1/data/generate_synthetic.py`:
   - Take valid K8s YAML → introduce common mistakes → generate diagnosis
   - Mistake types: wrong apiVersion, missing labels, bad selectors, typos in resource names, wrong ports, missing required fields
   - Output: ~3K error→fix pairs
@@ -313,6 +322,11 @@
 - [ ] Run `python prepare_cpt_corpus.py`
 - [ ] Check: raw text chunks (~40M tokens), K8s docs + YAML + Go code + SO answers
 - [ ] Output: `data/final/cpt_corpus.jsonl`
+
+### Task 4.10: Optional data tooling eval
+- [ ] Try Unsloth Studio on the Windows box for one end-to-end dry run
+- [ ] Evaluate Unsloth Data Recipes against the scripted pipeline on a small sample
+- [ ] Document whether either tool materially improves quality or throughput before adopting it
 
 ---
 
@@ -368,8 +382,15 @@
 - [ ] Export Kubi-1 (4B): Q4_K_M + Q5_K_M
 - [ ] Export Kubi-1 Nano (1.7B): Q4_K_M + Q8_0 (small enough for Q8)
 - [ ] Export Kubi-1 Pro (8B): Q4_K_M + Q5_K_M
-- [ ] Create Ollama Modelfile for each with baked-in system prompt
+- [ ] Optionally export Unsloth Dynamic (`UD-Q4_K_XL`) for quality comparison on the main model
+- [ ] Create optional Ollama Modelfile for each with baked-in system prompt (compatibility path only)
+- [ ] Record checksums, sizes, and artifact metadata for `registry.json`
 - [ ] Pull GGUFs to Mac: `rsync -avz kubi-train:~/kubi-training/training/*.gguf models/`
+
+### Task 6.5: Optional GRPO follow-up
+- [ ] If SFT JSON quality is still weak, prototype GRPO on the 4B model
+- [ ] Reward JSON validity, kubectl syntax correctness, and grounded resource references
+- [ ] Compare GRPO result against plain SFT before adopting it
 
 ---
 
@@ -411,6 +432,12 @@
 - [ ] Test 50 K8s questions → model should answer normally
 - [ ] Target: >95% correct behavior
 
+### Task 7.6: Candidate model bake-off
+- [ ] Evaluate `Qwen3.5-4B` as the leading future fine-tune base
+- [ ] Evaluate `Qwen3-30B-A3B` as MoE fallback candidate
+- [ ] Evaluate `Nemotron-3-Nano-4B` only if stable GGUF export/runtime support is confirmed
+- [ ] Write decision note: keep current shipped family or promote a new base in v2
+
 ---
 
 ## Phase 8: Distribution
@@ -429,6 +456,10 @@
 - [ ] Publish to Ollama library: `kubeli/k8s:nano`, `kubeli/k8s:4b`, `kubeli/k8s:pro`
 - [ ] For users who prefer Ollama over built-in sidecar
 
+### Task 8.4: Licensing and release metadata
+- [ ] Capture dataset and model license notes in release docs / model card
+- [ ] If any non-Apache model candidate is promoted, include required attribution and redistribution text
+
 ---
 
 ## Phase 9: CI/CD
@@ -445,6 +476,7 @@
   - Upload to HuggingFace
   - Create GitHub Release with GGUF attached
   - Update registry.json and commit
+  - Validate registry metadata against the produced artifacts before publishing
 
 ### Task 9.3: Monthly retrain automation (future)
 - [ ] GitHub Action: re-harvest K8s docs (latest), re-train, publish new model version
@@ -527,6 +559,7 @@ data/load_hf_datasets.py
 data/clone_repos.sh
 data/convert_docs.py
 data/generate_refusals.py
+data/test_setup.py
 data/generate_synthetic.py           (to write)
 data/prepare_cpt_corpus.py
 data/merge_and_filter.py
@@ -549,6 +582,7 @@ eval/test_cases/*.jsonl              (to write)
 | `src-tauri/src/app/state.rs` | Register LlamaManager + ModelManager |
 | `src-tauri/src/app/command_registry/mod.rs` | Add new commands |
 | `src/lib/tauri/commands/ai.ts` | Rename type, add local commands |
+| `src/lib/tauri/commands/ai-local.ts` | Add local model command wrappers |
 | `src/lib/stores/ui-store.ts` | Add provider priority, local model settings |
 | `src/lib/stores/ai-store/types.ts` | Add activeProvider |
 | `src/components/features/ai/components/ProviderBadge.tsx` | Add "Kubi-1" badge |

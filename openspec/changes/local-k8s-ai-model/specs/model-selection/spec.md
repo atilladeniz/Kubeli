@@ -2,35 +2,50 @@
 
 ## Purpose
 
-Pick the best local LLM for K8s log analysis based on the user's hardware.
+Pick the best local Kubi-1 model for K8s troubleshooting based on the user's hardware.
 
 ## Requirements
 
 ### Hardware detection
-- Detect CPU (cores, architecture), RAM (total, available), GPU (vendor, VRAM)
+- Detect CPU (cores, architecture), RAM (total, available), GPU/backend (Metal, CUDA, Vulkan, CPU)
 - Use `llmfit-core` crate (`SystemSpecs::detect()`)
-- Fallback: `sysinfo` crate for basic detection if llmfit fails
+- Fallback to `sysinfo` crate for basic detection if llmfit fails
 - Show hardware info in Settings UI
 
 ### Model recommendation
-- Curated list of K8s-suitable models, ranked by priority
-- Cross-reference llmfit fit scores with curated list
-- Pick highest-priority model that scores `Perfect` or `Good`
-- Always have a fallback (granite3.1-moe:3b runs on 8GB RAM)
+- Use the shipped Kubi-1 family as the primary recommendation set:
+  - `kubi-1-nano` (Qwen3-1.7B)
+  - `kubi-1` (Qwen3-4B)
+  - `kubi-1-pro` (Qwen3-8B)
+- Cross-reference llmfit fit scores with Kubeli's curated thresholds
+- Pick the highest-priority model that scores `Perfect` or `Good`
+- Always have a safe fallback:
+  - `< 12 GB RAM` -> Nano
+  - `< 24 GB RAM` -> Standard
+  - `>= 24 GB RAM` -> Pro
+- Expose experimental research candidates separately from the default shipped set:
+  - Qwen3.5-4B
+  - Qwen3-30B-A3B
+  - Nemotron-3-Nano-4B
 
 ### Model criteria
-- Tool calling support (for structured K8s queries)
-- "Thinking" mode (for reasoning about logs)
+- Strong tool calling / structured output performance
+- "Thinking" mode or equivalent reasoning path for root-cause analysis
 - Minimum 32K context window
-- Available on Ollama
-- Under 8B parameters (desktop hardware)
+- Must run via bundled `llama-server` using GGUF artifacts
+- Desktop-friendly footprint
 
-## Curated model priority
+## Curated shipped model priority
 
-1. qwen3:4b - Highest benchmark scores at this size, dual think/no-think mode
-2. granite3.1-moe:3b - Only 800M active params, runs on low-RAM systems, 128K context
-3. phi4-mini - MIT license, 128K context, strong at STEM/reasoning
-4. qwen3:8b - Best quality if the hardware allows it
+1. `kubi-1` - Default quality/performance balance for most users
+2. `kubi-1-nano` - Low-RAM fallback, faster startup and download
+3. `kubi-1-pro` - Quality pick for higher-memory systems
+
+## Experimental eval candidates
+
+1. `qwen3.5-4b` - strongest future fine-tune candidate
+2. `qwen3-30b-a3b` - MoE fallback candidate with good efficiency
+3. `nemotron-3-nano-4b` - longer-context experimental candidate
 
 ## API
 
@@ -41,14 +56,15 @@ interface HardwareInfo {
   ram_gb: number;
   gpu: string | null;
   vram_gb: number | null;
+  backend: "metal" | "cuda" | "vulkan" | "cpu" | "unknown";
 }
 
 interface ModelRecommendation {
-  model: string;           // e.g. "qwen3:4b"
-  params_b: number;        // e.g. 4
-  estimated_ram_gb: number; // e.g. 5.2
-  estimated_tps: number;   // e.g. 25 (±20-30%, calibrate with benchmark)
+  model_id: string;          // e.g. "kubi-1"
+  model_name: string;        // e.g. "Kubi-1"
+  size_gb: number;           // e.g. 2.5
+  estimated_tps: number;     // calibrated with benchmark when available
   fit: "perfect" | "good" | "marginal";
-  reason: string;          // e.g. "Fits 16GB Apple Silicon with 10GB headroom"
+  reason: string;
 }
 ```
