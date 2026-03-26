@@ -99,14 +99,26 @@ def section_to_pairs(section: dict, source: str) -> list[dict]:
 
 
 def convert_markdown_files():
-    """Convert all harvested markdown to instruction pairs."""
+    """Convert all harvested markdown to instruction pairs.
+
+    Handles two sources:
+    1. JSONL files from harvest_k8s.py (GitHub API)
+    2. Cloned repos from clone_repos.sh (git clone)
+    """
     all_pairs = []
 
+    # --- Source 1: JSONL from GitHub API harvester ---
     for jsonl_file in RAW.glob("*.jsonl"):
-        if "kubectl_35k" in jsonl_file.name or "so_k8s" in jsonl_file.name:
-            continue  # Skip HF datasets — handled separately
+        # Skip HF datasets — handled separately
+        hf_names = [d.slug for d in __import__('importlib').import_module('load_hf_datasets').DATASETS] \
+            if False else []  # Avoid circular import
+        skip_patterns = ["kubectl_", "so_k8s", "k8s_tool", "k8s_reason", "cosmopedia",
+                         "k8s_cli", "k8s_config", "k8s_qa", "k8s_command", "k8s_task",
+                         "k8s_docs_", "k8s_security", "k8s_operator"]
+        if any(p in jsonl_file.name for p in skip_patterns):
+            continue
 
-        print(f"\n📄 Processing: {jsonl_file.name}")
+        print(f"\n📄 Processing API harvest: {jsonl_file.name}")
         count = 0
 
         with open(jsonl_file) as f:
@@ -114,8 +126,6 @@ def convert_markdown_files():
                 doc = json.loads(line)
                 if not doc.get("content"):
                     continue
-
-                # Only process markdown
                 if not doc["path"].endswith(".md"):
                     continue
 
@@ -123,14 +133,46 @@ def convert_markdown_files():
                 sections = extract_sections(text)
 
                 for section in sections:
-                    pairs = section_to_pairs(
-                        section,
-                        f"{doc['source']}/{doc['path']}"
-                    )
+                    pairs = section_to_pairs(section, f"{doc['source']}/{doc['path']}")
                     all_pairs.extend(pairs)
                     count += len(pairs)
 
         print(f"   Generated {count} pairs")
+
+    # --- Source 2: Cloned repos ---
+    repos_dir = RAW / "repos"
+    if repos_dir.exists():
+        for repo_dir in sorted(repos_dir.iterdir()):
+            if not repo_dir.is_dir() or repo_dir.name.startswith("."):
+                continue
+
+            md_files = list(repo_dir.rglob("*.md"))
+            # Skip test files, changelogs, etc.
+            md_files = [f for f in md_files if not any(
+                s in str(f) for s in ["CHANGELOG", "LICENSE", "vendor/",
+                                       "node_modules/", ".github/", "_test"]
+            )]
+
+            if not md_files:
+                continue
+
+            print(f"\n📄 Processing cloned repo: {repo_dir.name} ({len(md_files)} .md files)")
+            count = 0
+
+            for md_file in md_files:
+                text = md_file.read_text(errors="ignore")
+                text = strip_frontmatter(text)
+                sections = extract_sections(text)
+
+                for section in sections:
+                    pairs = section_to_pairs(
+                        section,
+                        f"{repo_dir.name}/{md_file.relative_to(repo_dir)}"
+                    )
+                    all_pairs.extend(pairs)
+                    count += len(pairs)
+
+            print(f"   Generated {count} pairs")
 
     out_file = OUT / "k8s_docs.jsonl"
     with open(out_file, "w") as f:
@@ -252,6 +294,135 @@ def convert_stackoverflow():
     return len(pairs)
 
 
+# ─── HuggingFace Dataset Converters ──────────────────────────────
+
+
+def convert_hf_passthrough():
+    """Convert HF datasets that are already in instruction format.
+
+    Many HF datasets (kubectl-cot-20k, tool-calling, reasoning, etc.)
+    are already formatted. We normalize them to our Alpaca format.
+    """
+    HF_DATASETS = {
+        "kubectl_cot_20k.jsonl": {
+            "category": "kubectl",
+            "source": "ComponentSoft/k8s-kubectl-cot-20k",
+            "fields": {"instruction": ["instruction", "input", "question", "prompt"],
+                       "output": ["output", "response", "answer", "completion"]},
+        },
+        "k8s_tool_calling_qwen.jsonl": {
+            "category": "tool-calling",
+            "source": "deepfabric/k8s-tool-calling-qwen",
+            "fields": {"instruction": ["instruction", "input", "query"],
+                       "output": ["output", "response"]},
+        },
+        "k8s_tool_calling.jsonl": {
+            "category": "tool-calling",
+            "source": "deepfabric/k8s-tool-calling",
+            "fields": {"instruction": ["instruction", "input", "query"],
+                       "output": ["output", "response"]},
+        },
+        "k8s_reasoning.jsonl": {
+            "category": "troubleshooting",
+            "source": "relai-ai/kubernetes-reasoning",
+            "fields": {"instruction": ["instruction", "input", "question", "prompt"],
+                       "output": ["output", "response", "answer"]},
+        },
+        "kubectl_35k.jsonl": {
+            "category": "kubectl",
+            "source": "ComponentSoft/k8s-kubectl-35k",
+            "fields": {"instruction": ["instruction", "input"],
+                       "output": ["output", "response"]},
+        },
+        "cosmopedia_k8s.jsonl": {
+            "category": "concept",
+            "source": "cosmopedia-kubernetes",
+            "fields": {"instruction": ["prompt", "instruction", "title"],
+                       "output": ["text", "output", "response", "completion"]},
+        },
+        "k8s_cli_20k.jsonl": {
+            "category": "kubectl",
+            "source": "dereklck/kubernetes_cli_dataset_20k",
+            "fields": {"instruction": ["instruction", "input", "prompt"],
+                       "output": ["output", "response"]},
+        },
+        "k8s_config.jsonl": {
+            "category": "reference",
+            "source": "HelloBoieeee/kubernetes_config",
+            "fields": {"instruction": ["instruction", "input"],
+                       "output": ["output", "response", "content"]},
+        },
+        "k8s_qa_pairs.jsonl": {
+            "category": "troubleshooting",
+            "source": "ItshMoh/kubernetes_qa_pairs",
+            "fields": {"instruction": ["question", "instruction", "input"],
+                       "output": ["answer", "output", "response"]},
+        },
+        "k8s_commands.jsonl": {
+            "category": "kubectl",
+            "source": "chowmean/kubernetes_commands",
+            "fields": {"instruction": ["instruction", "input", "command_description"],
+                       "output": ["output", "response", "command"]},
+        },
+    }
+
+    total = 0
+    for filename, config in HF_DATASETS.items():
+        raw_file = RAW / filename
+        if not raw_file.exists():
+            continue
+
+        print(f"\n📄 Processing HF: {filename}")
+        pairs = []
+
+        with open(raw_file) as f:
+            for line in f:
+                try:
+                    row = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+
+                # Find the instruction field
+                instruction = ""
+                for field in config["fields"]["instruction"]:
+                    if field in row and row[field]:
+                        instruction = str(row[field]).strip()
+                        break
+
+                # Find the output field
+                output = ""
+                for field in config["fields"]["output"]:
+                    if field in row and row[field]:
+                        output = str(row[field]).strip()
+                        break
+
+                if not instruction or not output:
+                    continue
+                if len(output) < 20:
+                    continue
+
+                pairs.append({
+                    "instruction": instruction[:1000],
+                    "input": "",
+                    "output": output[:2000],
+                    "source": config["source"],
+                    "category": config["category"],
+                })
+
+        if pairs:
+            out_file = OUT / f"hf_{filename}"
+            with open(out_file, "w") as f:
+                for pair in pairs:
+                    f.write(json.dumps(pair, ensure_ascii=False) + "\n")
+            print(f"   ✅ {len(pairs)} pairs → hf_{filename}")
+            total += len(pairs)
+        else:
+            print(f"   ⚠️  No pairs extracted (check field names)")
+
+    print(f"\n✅ Total HF pairs: {total}")
+    return total
+
+
 # ─── Main ─────────────────────────────────────────────────────────
 
 
@@ -264,6 +435,7 @@ if __name__ == "__main__":
     total += convert_markdown_files()
     total += generate_k8sgpt_pairs()
     total += convert_stackoverflow()
+    total += convert_hf_passthrough()
 
     print(f"\n{'=' * 50}")
     print(f"Grand total: {total} instruction pairs")
