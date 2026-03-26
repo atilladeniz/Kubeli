@@ -1,685 +1,605 @@
-# Tasks: Local K8s AI model
+# Tasks: Kubi-1 — Local K8s AI Model
 
-## Phase 1: Rust backend
+## Phase 0: Refactoring
 
-### Task 1: OllamaManager (follows LogStreamManager pattern)
-- [ ] Add `ollama-rs = { version = "0.3.4", features = ["stream"] }` to `src-tauri/Cargo.toml`
-- [ ] Create `src-tauri/src/ai/ollama_manager.rs`
-- [ ] Register module in `src-tauri/src/ai/mod.rs`
-- [ ] Register `Arc::new(OllamaManager::new())` in `src-tauri/src/app/state.rs`
-- [ ] `check_ollama_status()` → connect to `127.0.0.1:11434/api/tags`, return list of installed models
-- [ ] Verify Ollama binds to 127.0.0.1 (warn if 0.0.0.0)
-- [ ] Check Ollama version ≥0.3.15 (warn if older, CVE risk)
-- [ ] `pull_ollama_model(model: String, channel: AppHandle)` → stream pull progress
-- [ ] `query_local_model(prompt: String, context: K8sContext, app: AppHandle)` → stream tokens
-- [ ] Define enums:
-  ```rust
-  enum ChatEvent { Token(String), Done { total_tokens: u32, duration_ms: u64 }, Error(String) }
-  enum PullProgress { Status(String), Progress { completed: u64, total: u64 }, Done, Error(String) }
-  enum OllamaStatus { Running { version: String, models: Vec<String> }, NotRunning, VersionTooOld(String) }
-  ```
-- [ ] All calls proxied through Rust backend (never frontend-direct → CORS + security)
-
-**Tauri commands to register in `src-tauri/src/commands/`:**
-```rust
-#[tauri::command] async fn check_ollama() -> Result<OllamaStatus, String>
-#[tauri::command] async fn pull_model(model: String, channel: AppHandle) -> Result<(), String>
-#[tauri::command] async fn query_local_ai(prompt: String, context: K8sContext, app: AppHandle) -> Result<(), String>
-#[tauri::command] async fn get_ollama_models() -> Result<Vec<OllamaModelInfo>, String>
-```
-
-### Task 2: llmfit-core integration
-- [ ] Add `llmfit-core = "0.7.7"` to `src-tauri/Cargo.toml`
-- [ ] Create `src-tauri/src/ai/hardware.rs`
-- [ ] `detect_hardware()` → `SystemSpecs::detect()`, return `HardwareInfo` struct
-- [ ] `recommend_model()` → filter `ModelDatabase` against curated K8s model list
-- [ ] Return best-fit model with `FitLevel::Perfect` or `FitLevel::Good`
-- [ ] Reserve 2-4 GB for OS + Kubeli on Apple Silicon unified memory
-- [ ] `benchmark_model(model: String)` → run 50-token generation, return actual tok/s
-- [ ] Fallback: if llmfit detection fails, use basic RAM-based rules:
-  - ≥16GB → qwen3:4b
-  - ≥8GB → granite3.1-moe:3b
-  - <8GB → warn, suggest cloud providers
-
-**Tauri commands:**
-```rust
-#[tauri::command] async fn detect_hardware() -> Result<HardwareInfo, String>
-#[tauri::command] async fn recommend_model() -> Result<ModelRecommendation, String>
-#[tauri::command] async fn benchmark_model(model: String) -> Result<BenchmarkResult, String>
-```
-
-### Task 3: Data sanitizer
-- [ ] Create `src-tauri/src/ai/sanitizer.rs`
-- [ ] Regex patterns for: emails, IPv4/IPv6, JWTs (`eyJ...`), basic auth URLs, connection strings
-- [ ] High-entropy string detection (likely secrets/tokens)
-- [ ] K8s-specific: env var values from pod specs, bearer tokens from headers
-- [ ] Deterministic placeholder replacement (`[EMAIL-1]`, `[IP-2]`, `[TOKEN-3]`) so analysis stays coherent
-- [ ] `sanitize(input: &str) -> SanitizedText` with field for replacement map
-- [ ] Configurable patterns via settings (enterprise users add custom regexes)
-
-### Task 4: Log preprocessor
-- [ ] Create `src-tauri/src/ai/log_preprocessor.rs`
-- [ ] Step 1 - **Filter**: regex for ERROR/WARN/FATAL + ±3 context lines (80-95% reduction)
-- [ ] Step 2 - **Deduplicate**: group identical message patterns, emit one line + count
-- [ ] Step 3 - **Sanitize**: pipe through sanitizer from Task 3
-- [ ] Step 4 - **Chunk**: if exceeds token budget (4,652 tokens), split for map-reduce
-- [ ] Use `rayon` for parallel processing on large log sets
-- [ ] Token counting: approximate with char/4 or use `tiktoken-rs`
-- [ ] Place critical errors at START of output (U-shaped recall in small models)
-- [ ] `preprocess(logs: &str, max_tokens: usize) -> PreprocessedLogs`
-  ```rust
-  struct PreprocessedLogs {
-      chunks: Vec<String>,    // 1 chunk if fits, multiple for map-reduce
-      total_lines: usize,
-      filtered_lines: usize,
-      deduplicated_count: usize,
-  }
-  ```
-
-### Task 5: K8s analyzers (k8sgpt pattern)
-- [ ] Create `src-tauri/src/ai/analyzers/mod.rs`
-- [ ] `pod_analyzer.rs` - CrashLoopBackOff, ImagePullBackOff, OOMKilled, Pending, Evicted
-  - Read pod status, container statuses, restart counts, exit codes
-  - Output: `"Pod nginx-abc: CrashLoopBackOff (exit code 137, OOMKilled). Restarts: 47. Memory limit: 128Mi."`
-- [ ] `event_analyzer.rs` - Warning events from last 30 min
-  - Filter: FailedScheduling, FailedMount, Unhealthy, BackOff
-  - Output: `"3x FailedScheduling for pod api-xyz: insufficient memory (requested 2Gi, available 500Mi)"`
-- [ ] `service_analyzer.rs` - No endpoints, selector mismatches
-- [ ] `node_analyzer.rs` - NotReady, DiskPressure, MemoryPressure, PIDPressure
-- [ ] `deployment_analyzer.rs` - Unavailable replicas, rollout stuck, image mismatch
-- [ ] `pvc_analyzer.rs` - Pending binding, capacity issues
-- [ ] `job_analyzer.rs` - Failed completions, backoff limit reached
-- [ ] `ingress_analyzer.rs` - Missing backend service, TLS cert issues
-- [ ] Each analyzer returns `Vec<AnalyzerFinding>`:
-  ```rust
-  struct AnalyzerFinding {
-      severity: Severity,  // Critical, Warning, Info
-      resource: String,    // "pod/nginx-abc"
-      message: String,     // compact error description
-  }
-  ```
-- [ ] `run_all_analyzers(namespace: &str) -> Vec<AnalyzerFinding>` → aggregate, cap at ≤800 tokens
-
-### Task 6: System prompt + context builder
-- [ ] Create `src-tauri/src/ai/context_builder.rs`
-- [ ] System prompt template: under 500 tokens (see design.md for template)
-- [ ] `build_context(cluster, namespace, findings, logs) -> Vec<ChatMessage>`
-- [ ] Include: role, rules, error patterns, JSON output schema, one few-shot example
-- [ ] Grounding: inject actual pod/service/namespace names in CONTEXT section
-- [ ] Qwen3 mode routing:
-  - Root cause analysis → thinking mode (temperature 0.6, TopP 0.95)
-  - Structured JSON output → non-thinking mode (temperature 0.7, TopP 0.8)
-- [ ] Context budget enforcement:
-  | Component | Max tokens |
-  |-----------|-----------|
-  | System prompt | 500 |
-  | Analyzer findings | 800 |
-  | Log content | 4,652 |
-  | Output reserve | 2,048 |
-
----
-
-## Phase 2: Frontend
-
-### Task 7: Local model settings UI
-
-Extend the existing `AiTab.tsx` in `src/components/features/settings/components/`.
-
-**New components to create:**
-
-```
-src/components/features/settings/components/
-├── AiTab.tsx                    # MODIFY: add LocalModelSection + ProviderPriority
-├── LocalModelSection.tsx        # NEW: hardware info, model recommendation, download
-├── OllamaStatusCard.tsx         # NEW: similar to CliStatusCard but for Ollama
-├── ModelDownloadProgress.tsx     # NEW: streaming progress bar during pull
-└── ProviderPriorityList.tsx     # NEW: drag-to-reorder provider list
-```
-
-**AiTab.tsx layout (after changes):**
-```tsx
-<div className="space-y-6">
-  {/* === NEW: Local AI Model Section === */}
-  <LocalModelSection />
-  <Separator />
-
-  {/* === NEW: Provider Priority === */}
-  <ProviderPriorityList />
-  <Separator />
-
-  {/* === EXISTING: Cloud AI Provider Selector === */}
-  <SettingSection title="Cloud AI Provider" description="...">
-    <Select> claude | codex </Select>
-  </SettingSection>
-  <Separator />
-
-  {/* === EXISTING: CLI Status Cards === */}
-  <CliStatusCard name="Claude Code" ... />
-  <CliStatusCard name="OpenAI Codex" ... />
-  <Separator />
-
-  {/* === EXISTING: How it works === */}
-  <div> ... </div>
-</div>
-```
-
-**LocalModelSection.tsx detail:**
-```
-┌─────────────────────────────────────────────────┐
-│ Local AI Model                                   │
-│ Run AI analysis offline, no API key needed.      │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│ ┌─ OllamaStatusCard ─────────────────────────┐  │
-│ │ Ollama: ● Running (v0.5.2)                │  │
-│ │ or                                         │  │
-│ │ Ollama: ○ Not installed                    │  │
-│ │   brew install ollama (macOS)              │  │
-│ │   winget install Ollama.Ollama (Windows)   │  │
-│ └────────────────────────────────────────────┘  │
-│                                                 │
-│ Hardware:                                       │
-│   Apple M2 Pro · 12 cores · 16 GB · Metal       │
-│                                                 │
-│ Recommended: qwen3:4b (Q4_K_M)                  │
-│   ~30-45 tok/s · 5.2 GB RAM · Fit: Perfect      │
-│                                                 │
-│ ┌─ ModelDownloadProgress ────────────────────┐  │
-│ │ [Download qwen3:4b]                        │  │
-│ │ or                                         │  │
-│ │ ████████████████░░░░ 78% (4.1 / 5.2 GB)   │  │
-│ │ or                                         │  │
-│ │ ● Ready (qwen3:4b) · measured: 38 tok/s   │  │
-│ └────────────────────────────────────────────┘  │
-│                                                 │
-│ [Change Model ▾]  ← dropdown with model list    │
-│                                                 │
-│ ⓘ Cluster data stays on this machine.           │
-│   No cloud API needed after model download.     │
-│                                                 │
-└─────────────────────────────────────────────────┘
-```
-
-**ProviderPriorityList.tsx detail:**
-```
-┌─────────────────────────────────────────────────┐
-│ Provider Priority                                │
-│ Drag to set which AI provider is tried first.    │
-├─────────────────────────────────────────────────┤
-│                                                 │
-│  ≡ 1. Local Model (qwen3:4b)        ● Ready    │
-│  ≡ 2. Claude Code CLI               ● Auth'd   │
-│  ≡ 3. OpenAI Codex CLI              ○ Not inst  │
-│                                                 │
-│  ☐ Smart routing: use local for logs,           │
-│    cloud for complex questions                  │
-│                                                 │
-└─────────────────────────────────────────────────┘
-```
-
-**Frontend hooks to create in `src/components/features/settings/hooks/`:**
-```
-├── useOllamaStatus.ts      # NEW: polls Ollama status, returns OllamaStatus
-├── useHardwareInfo.ts       # NEW: calls detect_hardware, returns HardwareInfo
-├── useModelRecommendation.ts # NEW: calls recommend_model, returns ModelRecommendation
-├── useModelDownload.ts      # NEW: manages pull_model with Channel progress
-```
-
-**Tauri command bindings to add in `src/lib/tauri/commands/`:**
-```typescript
-// src/lib/tauri/commands/ai-local.ts (NEW)
-export async function checkOllama(): Promise<OllamaStatus> { ... }
-export async function pullModel(model: string, onProgress: (p: PullProgress) => void): Promise<void> { ... }
-export async function queryLocalAi(prompt: string, context: K8sContext, onToken: (e: ChatEvent) => void): Promise<void> { ... }
-export async function detectHardware(): Promise<HardwareInfo> { ... }
-export async function recommendModel(): Promise<ModelRecommendation> { ... }
-export async function benchmarkModel(model: string): Promise<BenchmarkResult> { ... }
-export async function getOllamaModels(): Promise<OllamaModelInfo[]> { ... }
-```
-
-**TypeScript types to add in `src/lib/types/`:**
-```typescript
-// src/lib/types/local-ai.ts (NEW)
-interface HardwareInfo { cpu: string; cores: number; ram_gb: number; gpu: string | null; vram_gb: number | null; }
-interface ModelRecommendation { model: string; params_b: number; estimated_ram_gb: number; estimated_tps: number; fit: "perfect" | "good" | "marginal"; reason: string; }
-interface OllamaStatus { status: "running" | "not_running" | "version_too_old"; version?: string; models?: string[]; }
-interface OllamaModelInfo { name: string; size_gb: number; modified_at: string; }
-interface PullProgress { type: "status" | "progress" | "done" | "error"; message?: string; completed?: number; total?: number; }
-interface ChatEvent { type: "token" | "done" | "error"; content?: string; total_tokens?: number; duration_ms?: number; }
-interface BenchmarkResult { model: string; tokens_per_second: number; first_token_ms: number; }
-```
-
-**Store changes:**
-
-Extend `src/lib/stores/ui-store.ts`:
-```typescript
-// Add to Settings type:
-export type AiProvider = "local" | "claude" | "codex";
-interface Settings {
-  // existing...
-  aiCliProvider: AiCliProvider;
-  // new:
-  localModel: string | null;          // e.g. "qwen3:4b"
-  ollamaHost: string;                 // default "http://127.0.0.1:11434"
-  providerPriority: AiProvider[];     // default ["local", "claude", "codex"]
-  smartRouting: boolean;              // default true
-}
-```
-
-Extend `src/lib/stores/ai-store/types.ts`:
-```typescript
-// Add to AIState:
-interface AIState {
-  // existing...
-  activeProvider: AiProvider | null;  // which provider is handling the current query
-}
-```
-
-**i18n keys to add** in both EN and DE translation files:
-```
-settings.ai.localModel.title
-settings.ai.localModel.description
-settings.ai.localModel.hardware
-settings.ai.localModel.recommended
-settings.ai.localModel.download
-settings.ai.localModel.downloading
-settings.ai.localModel.ready
-settings.ai.localModel.changeModel
-settings.ai.localModel.privacyNotice
-settings.ai.localModel.ollamaNotInstalled
-settings.ai.localModel.ollamaInstall.macos
-settings.ai.localModel.ollamaInstall.windows
-settings.ai.localModel.ollamaInstall.linux
-settings.ai.localModel.ollamaVersionWarning
-settings.ai.localModel.fit.perfect
-settings.ai.localModel.fit.good
-settings.ai.localModel.fit.marginal
-settings.ai.localModel.benchmarkResult
-settings.ai.providerPriority.title
-settings.ai.providerPriority.description
-settings.ai.providerPriority.smartRouting
-settings.ai.providerPriority.smartRoutingDescription
-settings.ai.providerPriority.local
-settings.ai.providerPriority.claude
-settings.ai.providerPriority.codex
-```
-
-### Task 8: Provider priority + smart routing
-- [ ] `ProviderPriorityList.tsx` with drag-to-reorder (use existing drag pattern or `@dnd-kit`)
-- [ ] Show status badge per provider (Ready / Authenticated / Not Installed)
-- [ ] "Smart routing" checkbox: logs/troubleshooting → local, complex → cloud
-- [ ] Store priority order in `ui-store` settings
-- [ ] Update `src-tauri/src/ai/agent_manager.rs` to read priority order
-- [ ] Try providers in order: if first fails/unavailable, fall through to next
-
-### Task 9: Log analysis integration (extend existing infrastructure)
-
-Already exists and works:
-- `useLogAnalysis` hook: `src/components/features/logs/hooks/useLogAnalysis.ts`
-- `AIButton` toolbar component: `src/components/features/logs/components/toolbar/AIButton.tsx`
-- `PendingAnalysis` type + `setPendingAnalysis` action in ai-store
-- i18n keys: `logs.analyzeWithAI`, `logs.sendToAI`, `logs.aiPromptTitle`, etc.
-- @dnd-kit already installed (used in tabbar) - reuse for ProviderPriorityList
-
-Changes needed:
-- [ ] Extend `useLogAnalysis` hook: check Ollama availability alongside CLI checks
-- [ ] Route through preprocessor → sanitizer → context builder → OllamaManager
-- [ ] Reuse existing `setPendingAnalysis` → open AI panel flow
-- [ ] Stream response via `app.emit()` events (same pattern as existing AI events)
-- [ ] Update `ProviderBadge.tsx` to show "Local" (blue) alongside Claude/Codex
-  ```tsx
-  provider === "local" ? "bg-blue-500/10 text-blue-500" : ...
-  ```
-- [ ] For large logs: map-reduce with progress ("Analyzing chunk 2/4...")
-- [ ] Add ~3 new i18n keys: `aiLocalModelUnavailable`, `aiLocalModelPulling`, `aiAnalyzingChunk`
-
----
-
-## Phase 3: Polish
-
-### Task 10: Ollama lifecycle management
-- [ ] Auto-detect Ollama on app startup (non-blocking, use `useOllamaStatus` hook)
-- [ ] First-launch setup wizard: if Ollama detected but no model → show banner in AI tab
-- [ ] Platform-specific install instructions in `OllamaStatusCard.tsx`
-- [ ] Handle Ollama going offline mid-session: catch error, fallback to next provider in priority
-- [ ] Redirect Ollama stdout/stderr to log file if spawned by Kubeli
-
-### Task 11: Evaluation framework (prep for v2)
-- [ ] Create 200-500 test examples in `.dev/ai-eval/`:
-  - Error diagnosis (CrashLoopBackOff, OOM, ImagePull, etc.)
-  - kubectl command generation
-  - YAML debugging
-  - Networking issues (service selectors, ingress)
-  - RBAC problems
-- [ ] Automated checks: YAML validation, kubectl syntax, resource name grounding
-- [ ] Optional thumbs up/down in AI chat UI for user feedback
-- [ ] Script to run eval set against local model and score results
-
----
-
-## Phase 0: Refactoring (before new code)
-
-### Task 0: Rename AiCliProvider to AiProvider
+### Task 0.1: Rename AiCliProvider to AiProvider
 - [ ] Rename `AiCliProvider` → `AiProvider` in `src-tauri/src/ai/agent_manager.rs`
 - [ ] Add `Local` variant to the enum
 - [ ] Update all Rust references (commands.rs, session_store.rs, etc.)
 - [ ] Rename TypeScript `AiCliProvider` → `AiProvider` in `src/lib/tauri/commands/ai.ts`
 - [ ] Update `src/lib/stores/ui-store.ts` type
 - [ ] Update `ProviderBadge.tsx`, `AiTab.tsx`, `useAISession.ts`
-- [ ] Run `make lint && make check && make rust-check` to catch all references
-- [ ] This is a standalone refactor, commit separately before adding new features
+- [ ] Run `make lint && make check && make rust-check`
+- [ ] Commit separately before new features
 
 ---
 
-## Conventions to follow
+## Phase 1: llama-server sidecar (replaces Ollama)
 
-### Rust conventions (match existing patterns)
+### Task 1.1: Fetch and bundle llama-server binaries
+- [ ] Create `scripts/fetch-llama-server.sh`
+- [ ] Download pre-built llama-server from llama.cpp releases (pin version, currently b8530)
+- [ ] Rename per Tauri target triple convention:
+  - `llama-server-aarch64-apple-darwin` (macOS ARM, includes Metal)
+  - `llama-server-x86_64-apple-darwin` (macOS Intel)
+  - `llama-server-x86_64-pc-windows-msvc.exe` (Windows CPU)
+  - `llama-server-x86_64-unknown-linux-gnu` (Linux)
+- [ ] Place in `src-tauri/binaries/`
+- [ ] Add `externalBin` to `tauri.conf.json`: `["binaries/llama-server"]`
+- [ ] Add sidecar permission to `src-tauri/capabilities/default.json`:
+  ```json
+  { "identifier": "shell:allow-execute", "allow": [{ "name": "binaries/llama-server", "sidecar": true, "args": true }] }
+  ```
+- [ ] Add `tauri-plugin-shell` to Cargo.toml if not present
+- [ ] Verify sidecar starts on macOS, Windows, Linux
+- [ ] Add `scripts/fetch-llama-server.sh` to CI build workflow (`.github/workflows/build.yml`)
+- [ ] Add `src-tauri/binaries/` to `.gitignore` (binaries fetched during build, not committed)
 
-**Error handling:**
+### Task 1.2: LlamaManager (replaces OllamaManager)
+- [ ] Create `src-tauri/src/ai/llama_manager.rs`
+- [ ] Register module in `src-tauri/src/ai/mod.rs`
+- [ ] Register `Arc::new(LlamaManager::new())` in `src-tauri/src/app/state.rs`
+- [ ] `start()` — launch llama-server sidecar via `app.shell().sidecar("llama-server")`
+  - Bind to `127.0.0.1` on a random free port (security: local only)
+  - Pass model path, context size (8192), thread count, `--flash-attn`, `--cont-batching`
+  - Health check loop: `GET /health` every 1s, timeout after 30s
+- [ ] `stop()` — kill sidecar child process
+- [ ] `chat()` — `POST /v1/chat/completions` with streaming
+  - Parse SSE stream, emit `AIEvent::Token`, `AIEvent::Done`, `AIEvent::Error`
+  - Reuse existing `AIEvent` tagged enum so frontend needs zero changes
+- [ ] `is_running()` — check if sidecar process is alive + health endpoint responds
+- [ ] Lazy start: only launch sidecar on first AI request, not on app startup
+- [ ] Auto-stop after 5 min idle (configurable, save resources)
+- [ ] Restart on crash: detect sidecar exit, show error, offer restart
+- [ ] All errors return `Result<T, KubeliError>` with suggestions
+
+**Tauri commands:**
+```rust
+#[tauri::command] async fn start_local_ai() -> Result<(), KubeliError>
+#[tauri::command] async fn stop_local_ai() -> Result<(), KubeliError>
+#[tauri::command] async fn local_ai_status() -> Result<LocalAiStatus, KubeliError>
+#[tauri::command] async fn query_local_ai(session_id: String, prompt: String, context: K8sContext) -> Result<(), KubeliError>
+```
+
+### Task 1.3: ModelManager (download, verify, update)
+- [ ] Create `src-tauri/src/ai/model_manager.rs`
+- [ ] Model storage in Tauri app data dir:
+  - macOS: `~/Library/Application Support/com.kubeli/models/`
+  - Windows: `%APPDATA%/com.kubeli/models/`
+  - Linux: `~/.local/share/com.kubeli/models/`
+- [ ] `manifest.json` — tracks installed model version, SHA-256, download date
+- [ ] `download_model(url, dest, sha256)` — stream download with progress events
+  - SHA-256 verification after download
+  - Delete and re-download if checksum fails
+  - Emit `ModelDownloadEvent::Started`, `Progress`, `Verifying`, `Complete`, `Error`
+- [ ] `check_for_update()` — fetch `registry.json` from GitHub (max 1x/day)
+  - Compare local version vs remote latest
+  - Respect `min_app_version` (don't offer model update if app too old)
+- [ ] `update_model()` — download new GGUF to temp file, stop sidecar, atomic rename, restart
+- [ ] `delete_model()` — remove GGUF and update manifest
+- [ ] `get_installed_model()` — read manifest, return model info or None
+- [ ] Download sources (fallback chain):
+  1. HuggingFace CDN (primary, fast, resumable)
+  2. GitHub Releases (fallback)
+
+**Tauri commands:**
+```rust
+#[tauri::command] async fn get_model_status() -> Result<ModelStatus, KubeliError>
+#[tauri::command] async fn download_model(model_id: String) -> Result<(), KubeliError>
+#[tauri::command] async fn check_model_update() -> Result<Option<ModelUpdate>, KubeliError>
+#[tauri::command] async fn update_model() -> Result<(), KubeliError>
+#[tauri::command] async fn delete_model() -> Result<(), KubeliError>
+```
+
+### Task 1.4: Model registry (hosted)
+- [ ] Create `registry.json` format:
+  ```json
+  { "latest": "1.0.0", "models": { "1.0.0": { "filename": "...", "size_bytes": ..., "sha256": "...", "urls": [...], "min_app_version": "0.4.0" }}}
+  ```
+- [ ] Host on GitHub: `https://raw.githubusercontent.com/kubeli-app/kubi-1/main/registry.json`
+- [ ] Or host on GitHub Pages / S3 for CDN caching
+- [ ] Create GitHub Actions workflow to update registry.json on model release
+
+---
+
+## Phase 2: K8s intelligence (Rust backend)
+
+### Task 2.1: Hardware detection (llmfit-core)
+- [ ] Add `llmfit-core = "0.7"` to `src-tauri/Cargo.toml`
+- [ ] Create `src-tauri/src/ai/hardware.rs`
+- [ ] `detect_hardware()` → `SystemSpecs::detect()`, return `HardwareInfo`
+- [ ] `recommend_model()` → pick from curated Kubi-1 list:
+  - `ram < 12GB` → Kubi-1 Nano (Qwen3-1.7B, ~1.2GB)
+  - `ram < 24GB` → Kubi-1 (Qwen3-4B, ~2.5GB)
+  - `ram >= 24GB` → Kubi-1 Pro (Qwen3-8B, ~5GB)
+- [ ] Reserve 2-4 GB for OS + Kubeli on Apple Silicon
+- [ ] `benchmark_model()` → 50-token generation, return actual tok/s
+- [ ] Fallback if llmfit fails: basic RAM-based rules via `sysinfo` crate
+
+**Tauri commands:**
+```rust
+#[tauri::command] async fn detect_hardware() -> Result<HardwareInfo, KubeliError>
+#[tauri::command] async fn recommend_model() -> Result<ModelRecommendation, KubeliError>
+#[tauri::command] async fn benchmark_model(model: String) -> Result<BenchmarkResult, KubeliError>
+```
+
+### Task 2.2: Data sanitizer
+- [ ] Create `src-tauri/src/ai/sanitizer.rs`
+- [ ] Regex patterns: emails, IPv4/IPv6, JWTs (`eyJ...`), basic auth URLs, connection strings
+- [ ] High-entropy string detection (likely secrets/tokens)
+- [ ] K8s-specific: env var values from pod specs, bearer tokens from headers
+- [ ] Deterministic placeholders: `[EMAIL-1]`, `[IP-2]`, `[TOKEN-3]` (analysis stays coherent)
+- [ ] `sanitize(input: &str) -> SanitizedText` with replacement map
+- [ ] Configurable patterns via settings (enterprise users add custom regexes)
+- [ ] Unit tests for each pattern type
+
+### Task 2.3: Log preprocessor
+- [ ] Create `src-tauri/src/ai/log_preprocessor.rs`
+- [ ] Step 1 — **Filter**: regex for ERROR/WARN/FATAL + ±3 context lines (80-95% reduction)
+- [ ] Step 2 — **Deduplicate**: group identical patterns, emit one line + count
+- [ ] Step 3 — **Sanitize**: pipe through Task 2.2
+- [ ] Step 4 — **Chunk**: if exceeds token budget (4,652 tokens), split for map-reduce (max 5 chunks)
+- [ ] Critical errors at START of output (U-shaped recall in small models)
+- [ ] Token counting: approximate char/4 or use `tiktoken-rs`
+- [ ] `rayon` for parallel processing on large log sets
+- [ ] `preprocess(logs: &str, max_tokens: usize) -> PreprocessedLogs`
+
+### Task 2.4: K8s analyzers (k8sgpt pattern)
+- [ ] Create `src-tauri/src/ai/analyzers/mod.rs` — trait + aggregator
+- [ ] `pod_analyzer.rs` — CrashLoopBackOff, ImagePullBackOff, OOMKilled, Pending, Evicted
+- [ ] `event_analyzer.rs` — Warning events from last 30 min (FailedScheduling, FailedMount, Unhealthy)
+- [ ] `service_analyzer.rs` — No endpoints, selector mismatches
+- [ ] `node_analyzer.rs` — NotReady, DiskPressure, MemoryPressure, PIDPressure
+- [ ] `deployment_analyzer.rs` — Unavailable replicas, rollout stuck, image mismatch
+- [ ] `pvc_analyzer.rs` — Pending binding, capacity issues
+- [ ] `job_analyzer.rs` — Failed completions, backoff limit reached
+- [ ] `ingress_analyzer.rs` — Missing backend service, TLS cert issues
+- [ ] Each returns `Vec<AnalyzerFinding>` with severity, resource, message
+- [ ] `run_all_analyzers(namespace)` → aggregate, cap at ≤800 tokens
+- [ ] Unit tests per analyzer with mock K8s objects
+
+### Task 2.5: System prompt + context builder
+- [ ] Create `src-tauri/src/ai/local_context_builder.rs`
+- [ ] System prompt under 500 tokens (see design.md template)
+- [ ] `build_local_context(cluster, namespace, findings, logs) -> Vec<ChatMessage>`
+- [ ] Grounding: inject real pod/service/namespace names in CONTEXT
+- [ ] Mode routing:
+  - Root cause analysis → thinking mode (temp 0.6, top_p 0.95)
+  - Structured JSON → non-thinking mode (temp 0.7, top_p 0.8)
+- [ ] Context budget: system 500 + analyzers 800 + logs 4,652 + output reserve 2,048 = 8,000
+
+### Task 2.6: Provider routing
+- [ ] Update `ai_send_message` to check provider and delegate:
+  - `AiProvider::Local` → LlamaManager
+  - `AiProvider::Claude` / `AiProvider::Codex` → existing AgentManager
+- [ ] Both emit same `AIEvent` enum — frontend stays unchanged
+- [ ] Provider priority order from settings: try first, fallback to next
+- [ ] Smart routing (optional): logs → local, complex questions → cloud
+
+---
+
+## Phase 3: Frontend
+
+### Task 3.1: TypeScript types
+- [ ] Create `src/lib/types/local-ai.ts`:
+  ```typescript
+  interface HardwareInfo { cpu: string; cores: number; ram_gb: number; gpu: string | null; vram_gb: number | null }
+  interface ModelRecommendation { model_id: string; model_name: string; size_gb: number; estimated_tps: number; fit: "perfect" | "good" | "marginal"; reason: string }
+  interface ModelStatus { installed: boolean; model_id?: string; version?: string; size_gb?: number; path?: string }
+  interface ModelUpdate { version: string; size_bytes: number; release_notes: string }
+  interface ModelDownloadProgress { stage: "downloading" | "verifying" | "complete" | "error"; downloaded?: number; total?: number; message?: string }
+  interface LocalAiStatus { running: boolean; port?: number; model?: string; uptime_seconds?: number }
+  type AiProvider = "local" | "claude" | "codex"
+  ```
+
+### Task 3.2: Tauri command bindings
+- [ ] Create `src/lib/tauri/commands/ai-local.ts`
+- [ ] Wrappers for all Tauri commands from Phase 1 + 2.1
+- [ ] Type-safe with explicit return types
+- [ ] Event listeners for `model-download` and `ai-session-*` events
+
+### Task 3.3: Settings UI — Kubi-1 model section
+- [ ] Create `src/components/features/settings/components/Kubi1ModelSection.tsx`
+  - Hardware info display (CPU, RAM, GPU)
+  - Recommended model with size and estimated speed
+  - Download button with streaming progress bar
+  - Model status: not installed / downloading / ready / update available
+  - Update notification with release notes and one-click update
+  - Delete model option
+- [ ] Create `src/components/features/settings/components/ModelDownloadProgress.tsx`
+  - Progress bar with percentage and MB downloaded
+  - Cancel button
+  - Error state with retry
+
+### Task 3.4: Settings UI — Provider priority
+- [ ] Create `src/components/features/settings/components/ProviderPriorityList.tsx`
+  - Drag-to-reorder with `@dnd-kit` (already installed)
+  - Status badge per provider: Ready / Not Installed
+  - Smart routing checkbox
+- [ ] Store priority order in `ui-store.ts` (persisted)
+
+### Task 3.5: Settings UI — Advanced / Ollama fallback
+- [ ] Checkbox: "Use external Ollama instead of built-in engine"
+- [ ] When checked: show host input field (default `http://127.0.0.1:11434`)
+- [ ] Test connection button
+- [ ] This is for power users who run Ollama with custom models
+
+### Task 3.6: Store changes
+- [ ] Extend `src/lib/stores/ui-store.ts`:
+  ```typescript
+  localModelId: string | null
+  providerPriority: AiProvider[]  // default ["local", "claude", "codex"]
+  smartRouting: boolean           // default true
+  useExternalOllama: boolean      // default false
+  ollamaHost: string              // default "http://127.0.0.1:11434"
+  ```
+- [ ] Extend `src/lib/stores/ai-store/types.ts`:
+  - Add `activeProvider: AiProvider | null`
+
+### Task 3.7: Provider badge + AI panel
+- [ ] Update `ProviderBadge.tsx`: add "Kubi-1" with blue badge
+- [ ] Update `useLogAnalysis` hook: check local AI availability alongside CLI
+- [ ] Route: preprocessor → sanitizer → context builder → LlamaManager
+- [ ] Map-reduce progress for large logs: "Analyzing chunk 2/4..."
+
+### Task 3.8: i18n
+- [ ] Add ~30 translation keys to EN and DE:
+  - `settings.ai.kubi1.*` (model section)
+  - `settings.ai.providerPriority.*`
+  - `settings.ai.advanced.*` (Ollama fallback)
+  - `ai.localModelUnavailable`, `ai.downloadingModel`, `ai.analyzingChunk`
+
+### Task 3.9: First-launch experience
+- [ ] If no model installed and user opens AI panel → show inline prompt:
+  "Download Kubi-1 (2.5 GB) to analyze logs locally, no internet needed."
+  [Download] [Use Cloud AI Instead]
+- [ ] After download: "Kubi-1 is ready. Your cluster data stays on this device."
+- [ ] If update available: subtle banner in AI panel header
+
+---
+
+## Phase 4: Training data collection
+
+### Task 4.1: Setup training environment
+- [ ] Install Tailscale on Windows RTX 3090 machine
+- [ ] Install Tailscale in WSL2: `curl -fsSL https://tailscale.com/install.sh | sh && tailscale up`
+- [ ] Add SSH config entry on Mac: `Host kubi-train` → Tailscale IP
+- [ ] Verify: `ssh kubi-train "nvidia-smi"` works from Mac
+- [ ] Install Unsloth on Windows: `uv pip install "unsloth[cu121]"`
+- [ ] Run `.dev/kubi-1/data/test_setup.py` to verify CUDA + Unsloth
+
+### Task 4.2: Download HuggingFace datasets
+- [ ] Run `python load_hf_datasets.py --tier 1` (essential: CoT, tool calling, reasoning, SO)
+- [ ] Run `python load_hf_datasets.py --tier 2` (valuable: kubectl-35k, cosmopedia, configs)
+- [ ] Verify each dataset: check schema, count rows, spot-check quality
+- [ ] Document any license concerns for commercial use
+
+### Task 4.3: Clone GitHub repos
+- [ ] Run `./clone_repos.sh --all`
+- [ ] Verify: kubernetes/website, k8sgpt, kubectl, practical-k8s, troubleshooting repos
+- [ ] Check total size, estimate token count
+
+### Task 4.4: Harvest via GitHub API (smaller repos)
+- [ ] Generate GitHub personal access token
+- [ ] Run `GITHUB_TOKEN=ghp_xxx python harvest_k8s.py --tier 1`
+- [ ] Run `GITHUB_TOKEN=ghp_xxx python harvest_k8s.py --tier 2`
+- [ ] Check rate limit usage
+
+### Task 4.5: Convert all data to instruction pairs
+- [ ] Run `python convert_docs.py`
+- [ ] Check output in `data/processed/`: k8s_docs.jsonl, k8sgpt_patterns.jsonl, so_cleaned.jsonl, hf_*.jsonl
+- [ ] Spot-check 20 random pairs per file for quality
+
+### Task 4.6: Generate refusal training data
+- [ ] Run `python generate_refusals.py --count 5000`
+- [ ] Review sample: non-K8s questions get polite decline, K8s-adjacent get scoped help
+- [ ] Check output: `data/processed/refusals.jsonl`
+
+### Task 4.7: Generate synthetic YAML error pairs
+- [ ] Write `generate_synthetic.py`:
+  - Take valid K8s YAML → introduce common mistakes → generate diagnosis
+  - Mistake types: wrong apiVersion, missing labels, bad selectors, typos in resource names, wrong ports, missing required fields
+  - Output: ~3K error→fix pairs
+- [ ] Run and check output
+
+### Task 4.8: Merge, filter, split
+- [ ] Run `python merge_and_filter.py`
+- [ ] Check stats: total pairs, dedup count, per-source distribution, category balance
+- [ ] Verify train/eval split (90/10)
+- [ ] Output: `data/final/kubeli-k8s-train.jsonl` + `kubeli-k8s-eval.jsonl`
+- [ ] Target: 55K+ training pairs, 5K+ eval pairs
+
+### Task 4.9: Prepare CPT corpus
+- [ ] Run `python prepare_cpt_corpus.py`
+- [ ] Check: raw text chunks (~40M tokens), K8s docs + YAML + Go code + SO answers
+- [ ] Output: `data/final/cpt_corpus.jsonl`
+
+---
+
+## Phase 5: Training — Continued Pretraining (CPT)
+
+### Task 5.1: CPT on Qwen3-4B-Base
+- [ ] Upload CPT corpus to Windows: `rsync -avz data/final/cpt_corpus.jsonl kubi-train:~/kubi-training/data/`
+- [ ] Write `training/train_cpt.py`:
+  - Load `unsloth/Qwen3-4B-Base` (BASE model, not Instruct)
+  - LoRA rank 128, target all linear layers + `lm_head` + `embed_tokens`
+  - rsLoRA enabled, alpha=32
+  - `learning_rate=5e-5`, `embedding_learning_rate=5e-6` (10x smaller)
+  - 1 epoch over CPT corpus
+  - Gradient checkpointing "unsloth"
+  - Save adapter: `kubi1-cpt-adapter/`
+- [ ] Run CPT: `ssh kubi-train "cd ~/kubi-training/training && python train_cpt.py"`
+- [ ] Monitor loss curve — should decrease steadily
+- [ ] Estimated time: ~2-4 hours on RTX 3090
+
+### Task 5.2: CPT on Qwen3-1.7B-Base (Nano)
+- [ ] Same pipeline with `unsloth/Qwen3-1.7B-Base`
+- [ ] Save adapter: `kubi1-nano-cpt-adapter/`
+
+### Task 5.3: CPT on Qwen3-8B-Base (Pro)
+- [ ] Same pipeline with `unsloth/Qwen3-8B-Base`
+- [ ] May need reduced batch size (8B is bigger)
+- [ ] Save adapter: `kubi1-pro-cpt-adapter/`
+
+---
+
+## Phase 6: Training — SFT + Refusal
+
+### Task 6.1: SFT on Kubi-1 (4B)
+- [ ] Upload SFT dataset: `rsync -avz data/final/kubeli-k8s-train.jsonl kubi-train:~/kubi-training/data/`
+- [ ] Update `training/train_kubi1.py`:
+  - Load from CPT adapter (`kubi1-cpt-adapter/`), not raw Qwen3 base
+  - LoRA rank 16 (lower than CPT — refining, not shifting)
+  - Standard target modules (no lm_head/embed_tokens needed for SFT)
+  - batch=8, grad_accum=4, epochs=2, lr=2e-4
+  - seq_length=8192
+- [ ] Run SFT
+- [ ] Save merged model: `kubi1-sft/`
+
+### Task 6.2: SFT on Kubi-1 Nano (1.7B)
+- [ ] Same pipeline from `kubi1-nano-cpt-adapter/`
+- [ ] May need 3 epochs (smaller model, needs more passes)
+
+### Task 6.3: SFT on Kubi-1 Pro (8B)
+- [ ] Same pipeline from `kubi1-pro-cpt-adapter/`
+- [ ] 2 epochs, batch=4 (more VRAM usage)
+
+### Task 6.4: Export all models to GGUF
+- [ ] Export Kubi-1 (4B): Q4_K_M + Q5_K_M
+- [ ] Export Kubi-1 Nano (1.7B): Q4_K_M + Q8_0 (small enough for Q8)
+- [ ] Export Kubi-1 Pro (8B): Q4_K_M + Q5_K_M
+- [ ] Create Ollama Modelfile for each with baked-in system prompt
+- [ ] Pull GGUFs to Mac: `rsync -avz kubi-train:~/kubi-training/training/*.gguf models/`
+
+---
+
+## Phase 7: Evaluation
+
+### Task 7.1: Create eval test set
+- [ ] Write 500 test cases in `.dev/kubi-1/eval/test_cases/`:
+  - `error_diagnosis.jsonl` — 150 cases (CrashLoopBackOff, OOM, ImagePull, Pending, Evicted, FailedScheduling)
+  - `kubectl_generation.jsonl` — 100 cases (create, scale, debug, rollout, patch, delete)
+  - `yaml_debugging.jsonl` — 100 cases (broken manifests with specific errors)
+  - `networking.jsonl` — 75 cases (service selectors, ingress, DNS, network policies)
+  - `rbac.jsonl` — 75 cases (permission denied, role bindings, service accounts)
+- [ ] Each case: instruction, expected output format, grading criteria
+
+### Task 7.2: Write eval script
+- [ ] Create `.dev/kubi-1/eval/eval.py`:
+  - Run test set against model via llama-server API
+  - Score per metric:
+    - JSON validity (is output parseable JSON?)
+    - kubectl syntax (is suggested command valid?)
+    - Resource grounding (no hallucinated pod/service names)
+    - Error category accuracy (right diagnosis?)
+    - Fix quality (does suggestion address the problem?)
+  - Aggregate by category
+  - Output: markdown report in `eval/results/`
+
+### Task 7.3: Baseline eval
+- [ ] Run eval on raw Qwen3-4B + system prompt (no fine-tuning) → baseline scores
+- [ ] Save: `eval/results/baseline-qwen3-4b.md`
+
+### Task 7.4: Kubi-1 eval
+- [ ] Run eval on each Kubi-1 model (Nano, Standard, Pro)
+- [ ] Compare against baseline
+- [ ] Save: `eval/results/kubi1-nano.md`, `kubi1-standard.md`, `kubi1-pro.md`
+
+### Task 7.5: Refusal eval
+- [ ] Test 50 non-K8s questions → model should decline all
+- [ ] Test 50 K8s-adjacent questions → model should scope to K8s context
+- [ ] Test 50 K8s questions → model should answer normally
+- [ ] Target: >95% correct behavior
+
+---
+
+## Phase 8: Distribution
+
+### Task 8.1: Upload models
+- [ ] Create HuggingFace repo: `kubeli/kubi-1`
+- [ ] Upload GGUFs: kubi-1-nano, kubi-1, kubi-1-pro (Q4_K_M + Q5_K_M each)
+- [ ] Write model card: architecture, training data, benchmarks, license
+
+### Task 8.2: Create registry.json
+- [ ] Define model entries with version, SHA-256, download URLs, min_app_version
+- [ ] Host on GitHub repo (raw.githubusercontent.com)
+- [ ] Kubeli fetches this to check for model updates
+
+### Task 8.3: Ollama registry (optional)
+- [ ] Publish to Ollama library: `kubeli/k8s:nano`, `kubeli/k8s:4b`, `kubeli/k8s:pro`
+- [ ] For users who prefer Ollama over built-in sidecar
+
+---
+
+## Phase 9: CI/CD
+
+### Task 9.1: Sidecar in app build
+- [ ] Add `scripts/fetch-llama-server.sh` step to GitHub Actions build workflow
+- [ ] Fetch correct binary per build target (macOS ARM, macOS Intel, Windows, Linux)
+- [ ] Verify sidecar is included in built app bundle
+
+### Task 9.2: Model release pipeline
+- [ ] Create `.github/workflows/release-model.yml`:
+  - Manual trigger with version input
+  - Compute SHA-256 of GGUFs
+  - Upload to HuggingFace
+  - Create GitHub Release with GGUF attached
+  - Update registry.json and commit
+
+### Task 9.3: Monthly retrain automation (future)
+- [ ] GitHub Action: re-harvest K8s docs (latest), re-train, publish new model version
+- [ ] Triggered monthly or on demand
+
+---
+
+## Conventions
+
+### Rust
+
 - All commands return `Result<T, KubeliError>`, never `Result<T, String>`
-- Use `KubeliError::new(ErrorKind::X, "message")` with `.with_suggestions()`
-- Error kinds: `Network` (Ollama down), `NotFound` (model missing), `ServerError` (Ollama error), `Timeout`
+- Use `KubeliError::new(ErrorKind::X, "message").with_suggestions(vec![...])`
+- Error kinds: `Network`, `NotFound`, `ServerError`, `Timeout`, `Integrity`, `Spawn`
+- Shared state: `Arc<RwLock<T>>` or `Arc<AtomicBool>` for stop flags
+- Register managers in `src-tauri/src/app/state.rs` with `.manage()`
+- Follow `LogStreamManager` / `ShellSessionManager` pattern
+- Streaming: `tokio::spawn` + `app.emit()` with existing `AIEvent` enum
+- Register commands in `src-tauri/src/app/command_registry/mod.rs`
 
-**State management:**
-- Shared state wrapped in `Arc<RwLock<T>>` or `Arc<AtomicBool>` (stop flags)
-- New managers registered in `src-tauri/src/app/state.rs` with `.manage()`
-- Follow `LogStreamManager` / `ShellSessionManager` pattern for `OllamaManager`
+### Frontend
 
-**Streaming/events:**
-- Spawn `tokio::spawn` task for long-running operations
-- Use `Arc<AtomicBool>` stop flag for cancellation
-- Emit events via `app.emit(&event_name, AIEvent::X { ... })`
-- Use existing `AIEvent` tagged enum (serde: `#[serde(tag = "type", content = "data")]`)
+- Tauri command wrappers in `src/lib/tauri/commands/` with `invoke<T>()`
+- Events via `listen<T>()` from `@tauri-apps/api/event`, store unlisten for cleanup
+- Zustand: action slice pattern `createXActions(set, get)`
+- Settings: `SettingSection` wrapper, `persist` middleware
+- Testing: Jest with `jest.doMock` for Tauri invoke
 
-**Command registration:**
-- Register in `src-tauri/src/app/command_registry/mod.rs` via `generate_handler!`
-- Commands use `State<'_, T>` injection for accessing managers
+### Training
 
-### Frontend conventions (match existing patterns)
-
-**Tauri command bindings:**
-- Wrapper functions in `src/lib/tauri/commands/` calling `invoke<T>(name, args)`
-- Type-safe with explicit return types
-- Follow pattern in `ai.ts`
-
-**Event listening:**
-- Use `listen<T>(eventName, callback)` from `@tauri-apps/api/event`
-- Store `unlisten` function for cleanup
-- Follow pattern in `useAIEvents.ts` and `log-store.ts`
-
-**Zustand stores:**
-- Action slice pattern: `createXActions(set, get)` returning action object
-- External Maps for non-UI state (listeners, timers)
-- `persist` middleware if settings need saving
-
-**Settings tabs:**
-- Use `SettingSection` wrapper for consistent layout
-- Accept hook return values as props
-- Use existing UI components: `Select`, `Separator`, `Label`, `Button`
-
-**Testing:**
-- Rust: inline `#[cfg(test)]` at bottom of file, `#[tokio::test]` for async
-- Frontend: Jest with `jest.doMock` for Tauri invoke mocking
+- All scripts in `.dev/kubi-1/`
+- Python scripts runnable standalone (no framework dependency beyond Unsloth)
+- Remote training via `training/remote_train.sh`
+- Checkpoints saved every 200 steps with `save_total_limit=3`
 
 ---
 
-## File change summary
+## New files summary
 
-### New files
-
-**Rust backend (`src-tauri/src/ai/`):**
+### Rust backend (`src-tauri/src/ai/`)
 ```
-ollama_manager.rs      # OllamaManager: session management, streaming, lifecycle
-hardware.rs            # llmfit-core hardware detection + model recommendation
-sanitizer.rs           # Data sanitization (secrets, emails, tokens)
-log_preprocessor.rs    # Filter → dedup → sanitize → chunk pipeline
+llama_manager.rs           # Sidecar lifecycle, chat streaming
+model_manager.rs           # Download, verify, update models
+hardware.rs                # llmfit-core hardware detection
+sanitizer.rs               # Strip secrets before LLM sees data
+log_preprocessor.rs        # Filter → dedup → sanitize → chunk
+local_context_builder.rs   # Short system prompt + K8s context
 analyzers/
-  mod.rs               # Analyzer trait + aggregator
-  pod_analyzer.rs      # Pod status analysis
-  event_analyzer.rs    # Warning event analysis
-  service_analyzer.rs  # Service endpoint analysis
-  node_analyzer.rs     # Node condition analysis
+  mod.rs                   # Trait + aggregator
+  pod_analyzer.rs
+  event_analyzer.rs
+  service_analyzer.rs
+  node_analyzer.rs
+  deployment_analyzer.rs
+  pvc_analyzer.rs
+  job_analyzer.rs
+  ingress_analyzer.rs
 ```
 
-**Frontend (`src/components/features/settings/components/`):**
+### Frontend
 ```
-LocalModelSection.tsx       # Hardware info + model download + status
-OllamaStatusCard.tsx        # Ollama connection status card
-ModelDownloadProgress.tsx    # Streaming download progress bar
-ProviderPriorityList.tsx     # Drag-to-reorder provider list
-```
-
-**Frontend hooks (`src/components/features/settings/hooks/`):**
-```
-useOllamaStatus.ts          # Poll Ollama status
-useHardwareInfo.ts           # Detect hardware via llmfit-core
-useModelRecommendation.ts    # Get model recommendation
-useModelDownload.ts          # Manage model pull with progress
+src/lib/types/local-ai.ts
+src/lib/tauri/commands/ai-local.ts
+src/components/features/settings/components/Kubi1ModelSection.tsx
+src/components/features/settings/components/ModelDownloadProgress.tsx
+src/components/features/settings/components/ProviderPriorityList.tsx
 ```
 
-**Tauri command bindings (`src/lib/tauri/commands/`):**
+### Build / CI
 ```
-ai-local.ts                 # All new Tauri command bindings for local AI
+scripts/fetch-llama-server.sh
+.github/workflows/release-model.yml  (future)
+src-tauri/binaries/.gitignore
 ```
 
-**Types (`src/lib/types/`):**
+### Training (`.dev/kubi-1/`)
 ```
-local-ai.ts                 # HardwareInfo, ModelRecommendation, OllamaStatus, etc.
+data/harvest_k8s.py
+data/load_hf_datasets.py
+data/clone_repos.sh
+data/convert_docs.py
+data/generate_refusals.py
+data/generate_synthetic.py           (to write)
+data/prepare_cpt_corpus.py
+data/merge_and_filter.py
+training/train_cpt.py                (to write)
+training/train_kubi1.py
+training/remote_train.sh
+eval/eval.py                         (to write)
+eval/test_cases/*.jsonl              (to write)
 ```
 
 ### Modified files
 
 | File | Change |
 |------|--------|
-| **Rust refactoring (Task 0)** | |
-| `src-tauri/src/ai/agent_manager.rs` | Rename `AiCliProvider` → `AiProvider`, add `Local` variant, delegate to OllamaManager |
-| `src-tauri/src/ai/commands.rs` | Update types, add ollama-specific commands |
-| `src-tauri/src/ai/cli_detector.rs` | Add `detect_ollama()` function |
-| `src-tauri/src/ai/context_builder.rs` | Add `build_local_context()` for short prompts |
-| `src-tauri/src/ai/mod.rs` | Register new modules (ollama_manager, hardware, sanitizer, etc.) |
-| **Rust new features** | |
-| `src-tauri/Cargo.toml` | Add ollama-rs, llmfit-core |
-| `src-tauri/src/app/state.rs` | Register `Arc::new(OllamaManager::new())` |
-| `src-tauri/src/app/command_registry/mod.rs` | Add new commands to `generate_handler!` |
-| **Frontend refactoring (Task 0)** | |
-| `src/lib/tauri/commands/ai.ts` | Rename `AiCliProvider` → `AiProvider`, add `"local"` |
-| `src/components/features/ai/components/ProviderBadge.tsx` | Add "local" provider (blue badge) |
-| **Frontend new features** | |
-| `src/components/features/settings/components/AiTab.tsx` | Add LocalModelSection + ProviderPriority above existing content |
-| `src/components/features/settings/components/index.ts` | Export new components |
-| `src/components/features/settings/hooks/index.ts` | Export new hooks |
-| `src/lib/stores/ui-store.ts` | Add localModel, ollamaHost, providerPriority, smartRouting |
-| `src/lib/stores/ai-store/types.ts` | Add activeProvider to AIState |
-| `src/lib/tauri/commands/index.ts` | Re-export ai-local commands |
-| i18n EN + DE files | Add ~25 translation keys |
+| `src-tauri/Cargo.toml` | Add `llmfit-core`, `tauri-plugin-shell`, remove `ollama-rs` |
+| `src-tauri/tauri.conf.json` | Add `externalBin: ["binaries/llama-server"]` |
+| `src-tauri/capabilities/default.json` | Add sidecar execute permission |
+| `src-tauri/src/ai/agent_manager.rs` | Rename enum, add Local variant, delegate to LlamaManager |
+| `src-tauri/src/ai/mod.rs` | Register new modules |
+| `src-tauri/src/app/state.rs` | Register LlamaManager + ModelManager |
+| `src-tauri/src/app/command_registry/mod.rs` | Add new commands |
+| `src/lib/tauri/commands/ai.ts` | Rename type, add local commands |
+| `src/lib/stores/ui-store.ts` | Add provider priority, local model settings |
+| `src/lib/stores/ai-store/types.ts` | Add activeProvider |
+| `src/components/features/ai/components/ProviderBadge.tsx` | Add "Kubi-1" badge |
+| `src/components/features/settings/components/AiTab.tsx` | Add Kubi-1 section + provider priority |
+| `src/components/features/logs/hooks/useLogAnalysis.ts` | Check local AI, route through pipeline |
+| i18n EN + DE files | Add ~30 keys |
+| `.github/workflows/build.yml` | Add fetch-llama-server step |
+
+### Existing infrastructure (no changes needed)
+
+| What | Where |
+|------|-------|
+| Log analysis button | `AIButton.tsx` in logs toolbar |
+| Log analysis hook | `useLogAnalysis.ts` |
+| PendingAnalysis flow | ai-store types + actions |
+| AI event handler | `useAIEvents.ts` |
+| Drag and drop | `@dnd-kit/sortable` |
+| Settings persistence | Zustand persist in ui-store |
+| Session storage (SQLite) | `session_store.rs` |
+| CSP / Tauri permissions | No changes (Rust-proxied) |
 
 ---
 
-## Model candidates
+## Model sizes
 
-| Model | Params | Active | RAM (Q4) | Context | Tool Call | Fit |
-|-------|--------|--------|----------|---------|-----------|-----|
-| `qwen3:4b` | 4B | 4B | ~5.2GB | 32K | 0.880 | Default |
-| `granite3.1-moe:3b` | 3B | ~800M | ~2.2GB | 128K | 0.670 | Low-RAM fallback |
-| `phi4-mini` | 3.8B | 3.8B | ~2.5GB | 128K | 0.880 | MIT alternative |
-| `qwen3:8b` | 8B | 8B | ~5GB | 32K | - | Quality pick |
+| Name | Base | Params | GGUF Q4_K_M | RAM needed | Context |
+|------|------|--------|-------------|-----------|---------|
+| Kubi-1 Nano | Qwen3-1.7B | 1.7B | ~1.2 GB | 8 GB+ | 32K |
+| Kubi-1 | Qwen3-4B | 4B | ~2.5 GB | 16 GB+ | 32K |
+| Kubi-1 Pro | Qwen3-8B | 8B | ~5 GB | 32 GB+ | 32K |
 
-## Rust dependencies (new)
+## Rust dependencies
 
 ```toml
-ollama-rs = { version = "0.3.4", features = ["stream"] }
-llmfit-core = "0.7.7"
+[dependencies]
+llmfit-core = "0.7"
+tauri-plugin-shell = "2"
+# ollama-rs removed — replaced by direct HTTP to llama-server
 ```
 
 ### Bundle size impact
 
-Estimated +8-15 MB to release binary (mostly llmfit model database).
-Consider Cargo feature flag to make local AI optional:
+- llama-server sidecar binary: +10-15 MB per platform
+- llmfit model database: +3-5 MB
+- Total: +13-20 MB to app bundle
+- Acceptable — the model GGUF (~2.5 GB) dwarfs this
+
+### Feature flag (optional)
 
 ```toml
 [features]
 default = ["local-ai"]
-local-ai = ["dep:ollama-rs", "dep:llmfit-core"]
+local-ai = ["dep:llmfit-core"]
 ```
-
-Current binary has ~68 direct crate dependencies (7.8K line Cargo.lock).
-
-### Existing infrastructure to reuse (no new code needed)
-
-| What | Where | Status |
-|------|-------|--------|
-| Log analysis button | `src/components/features/logs/components/toolbar/AIButton.tsx` | Exists |
-| Log analysis hook | `src/components/features/logs/hooks/useLogAnalysis.ts` | Exists, extend |
-| PendingAnalysis flow | `ai-store/types.ts` + `control-actions.ts` | Exists |
-| AI event handler | `src/components/features/ai/hooks/useAIEvents.ts` | Exists, works as-is |
-| Drag and drop | `@dnd-kit/sortable` in `package.json` | Exists |
-| Settings persistence | `localStorage` via Zustand persist in `ui-store.ts` | Exists |
-| i18n AI keys | `src/i18n/messages/en.json` + `de.json` | Partial, add ~3 keys |
-| Provider badge | `src/components/features/ai/components/ProviderBadge.tsx` | Exists, add "local" |
-| Session storage | `ai/session_store.rs` (SQLite) | Exists, works with new provider |
-| CSP / Tauri permissions | `tauri.conf.json` | No changes needed (Rust-proxied) |
-
----
-
-## Phase 4: Dataset & Fine-Tuning (v2)
-
-### Task 12: Training infrastructure setup
-
-**Windows RTX 3090 (training server):**
-- [ ] Install WSL2 + Ubuntu (if not already)
-- [ ] Install CUDA toolkit 12.1+ and verify with `nvidia-smi`
-- [ ] Install Python 3.12 + `uv` package manager
-- [ ] Install Unsloth: `pip install unsloth[cu121]`
-- [ ] Verify Unsloth Studio: `unsloth studio` (web UI on :7860)
-- [ ] Install Ollama on Windows for local model testing
-- [ ] Set up remote access from Mac:
-  - Option A: Tailscale mesh VPN (recommended, zero-config)
-  - Option B: SSH via WSL2 (`sudo apt install openssh-server`)
-- [ ] Shared storage for datasets: Syncthing or NFS mount between Mac ↔ Windows
-- [ ] Test: `ssh windows-box "nvidia-smi"` from Mac
-
-**Cloud GPU fallback (only if 3090 unavailable):**
-- [ ] Vast.ai account + API key (cheapest on-demand 3090s at ~$0.20/hr)
-- [ ] RunPod account (reliable A100s for larger experiments)
-- [ ] Template Docker image: `unsloth/unsloth` with our scripts baked in
-
-### Task 13: Data harvesting pipeline
-
-Create `.dev/training-data/` directory structure:
-```
-.dev/training-data/
-├── harvest.sh              # Clone all source repos
-├── convert_docs.py         # MD/MDX → instruction pairs
-├── convert_stackoverflow.py # SO dataset → instruction pairs
-├── convert_k8sgpt.py       # k8sgpt analyzer patterns → pairs
-├── generate_synthetic.py   # YAML mutation + error generation
-├── merge_and_filter.py     # Deduplicate, quality filter, balance
-├── raw/                    # Cloned repos (gitignored)
-├── processed/              # JSONL files per source
-└── final/                  # Merged, filtered training set
-```
-
-**Harvesting tasks:**
-- [ ] `harvest.sh`: clone repos with `--depth 1`
-  - `kubernetes/website` (Apache 2.0, ~15K pairs from EN docs)
-  - `k8sgpt-ai/k8sgpt` (Apache 2.0, analyzer patterns)
-  - `kubernauts/practical-kubernetes-problems` (troubleshooting scenarios)
-  - `iam-veeramalla/kubernetes-troubleshooting-zero-to-hero` (error walkthroughs)
-  - HuggingFace `mcipriano/stackoverflow-kubernetes-questions` (30K Q&A, MIT)
-  - HuggingFace `ComponentSoft/k8s-kubectl-35k` (kubectl examples)
-- [ ] `convert_docs.py`: parse K8s website markdown
-  - Strip Hugo frontmatter (`---\n...\n---`)
-  - Split by H2/H3 sections, keep code blocks intact
-  - Classify: troubleshooting / howto / concept / reference
-  - Generate instruction-response pairs (Alpaca format)
-  - Preserve original source path for traceability
-- [ ] `convert_stackoverflow.py`: transform SO Q&A
-  - Filter: only accepted answers with score ≥ 3
-  - Clean HTML tags, format code blocks
-  - Pair: question title + body → accepted answer
-- [ ] `convert_k8sgpt.py`: extract analyzer patterns from Go code
-  - Parse analyzer files for error conditions and messages
-  - Expand each pattern into multiple instruction variants
-  - "What does CrashLoopBackOff mean?" / "My pod keeps restarting" / "Exit code 137"
-- [ ] `generate_synthetic.py`: create error→fix pairs
-  - Take valid K8s YAML → introduce common mistakes → generate diagnosis
-  - Mistake types: wrong apiVersion, missing labels, bad selectors, resource typos
-  - ~3K pairs from YAML mutation
-- [ ] `merge_and_filter.py`: final dataset assembly
-  - Deduplicate with MinHash (datasketch library)
-  - Remove pairs < 50 tokens or > 2000 tokens
-  - Balance categories (max 30% from any single source)
-  - Validate kubectl syntax in command outputs
-  - Output: `final/kubeli-k8s-train.jsonl` + `final/kubeli-k8s-eval.jsonl` (90/10 split)
-- [ ] Add `.dev/training-data/raw/` to `.gitignore` (cloned repos are large)
-
-**Target: 50K+ high-quality instruction-response pairs**
-
-### Task 14: Unsloth fine-tuning
-
-Create `.dev/training-data/train.py`:
-- [ ] Load Qwen3-4B via Unsloth (`unsloth/Qwen3-4B`, 4-bit QLoRA)
-- [ ] LoRA config: r=16, target all linear layers, alpha=16, dropout=0
-- [ ] Training args: batch=4, grad_accum=4, epochs=3, lr=2e-4, bf16
-- [ ] Max seq length: 8192 (matches our context budget)
-- [ ] Train on `final/kubeli-k8s-train.jsonl`
-- [ ] Export to GGUF: Q4_K_M (speed) + Q5_K_M (accuracy)
-- [ ] Generate Ollama Modelfile with our system prompt baked in
-- [ ] Test: `ollama create kubeli-k8s:4b -f Modelfile`
-- [ ] Run eval set and compare against base Qwen3:4b + prompt engineering
-
-**Alternative: Unsloth Studio (no-code):**
-- [ ] Upload `kubeli-k8s-train.jsonl` via Studio web UI
-- [ ] Use Data Recipes if more synthetic data needed from raw docs
-- [ ] Configure training params in UI, start training
-- [ ] Export GGUF directly from Studio
-
-### Task 15: Eval pipeline
-
-Create `.dev/training-data/eval.py` + `.dev/ai-eval/` test set:
-- [ ] 500 test examples covering:
-  - Error diagnosis: CrashLoopBackOff, OOM, ImagePull, Pending (150)
-  - kubectl generation: create, scale, debug, rollout (100)
-  - YAML debugging: find the error in this manifest (100)
-  - Networking: service selectors, ingress, DNS (75)
-  - RBAC: permission denied scenarios (75)
-- [ ] Automated scoring:
-  - JSON validity (structured output check)
-  - kubectl syntax validation
-  - Resource name grounding (no hallucinated names)
-  - Error category accuracy
-- [ ] Comparison matrix: base model vs fine-tuned vs prompt-only
-- [ ] Output: markdown report with accuracy per category
-
-### Task 16: Model distribution
-
-- [ ] Publish to Ollama registry: `kubeli/k8s:4b` (Q4_K_M default)
-- [ ] Also publish `kubeli/k8s:4b-q5` (higher accuracy variant)
-- [ ] Add to llmfit curated list in Kubeli (priority 0, above generic qwen3:4b)
-- [ ] Update Settings UI: show "Kubeli K8s Model" as recommended default
-- [ ] Create model card (README) with benchmarks, training data sources, license info
-- [ ] Automate: GitHub Action that retrains monthly on updated docs + new SO questions
-
----
-
-## Training Infrastructure
-
-| Machine | Specs | Role |
-|---------|-------|------|
-| MacBook Air M4 | 32 GB, 1.1 TB free, Metal 3 | Dataset curation, eval, inference testing |
-| Windows Desktop | RTX 3090 24 GB VRAM, CUDA 12 | QLoRA training via Unsloth (~30 min per run) |
-| Cloud (fallback) | Vast.ai RTX 3090 $0.20/hr | If local GPU unavailable |
-
-## Research sources
-
-- k8sgpt analyzer architecture (Apache 2.0, 7.4K stars)
-- Masri et al. (Jan 2026): Qwen3-4B 95.64% log classification with RAG
-- ollama-rs (v0.3.4, MIT, 988 stars)
-- llmfit-core (v0.7.7, MIT, docs.rs verified)
-- Cisco Talos / Trend Micro: Ollama security (CVE-2024-37032)
-- Stanford "Lost in the Middle" (Liu et al. 2023)
-- Unsloth Studio docs (unsloth.ai/docs/new/studio)
-- HuggingFace datasets: mcipriano/stackoverflow-kubernetes-questions (CC-BY-SA-4.0)
-- HuggingFace datasets: ComponentSoft/k8s-kubectl-35k
-- kubernetes/website (Apache 2.0, official K8s docs)
-- k8sgpt-ai/k8sgpt (Apache 2.0, analyzer patterns)
