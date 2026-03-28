@@ -309,29 +309,17 @@ function DashboardContent() {
         return;
       }
 
-      const { tabs: allTabs, setActiveTab } = useTabsStore.getState();
-      const existingTab = allTabs.find(
+      const result = useTabsStore.getState().openOrActivateTab(
+        "pod-logs",
+        `Logs: ${favorite.name} (${favorite.namespace})`,
+        { namespace: favorite.namespace, podName: favorite.name },
         (tab) => tab.type === "pod-logs" &&
           tab.metadata?.podName === favorite.name &&
-          tab.metadata?.namespace === favorite.namespace
+          tab.metadata?.namespace === favorite.namespace,
       );
-      if (existingTab) {
-        setActiveTab(existingTab.id);
-        return;
-      }
-
-      if (allTabs.length >= 10) {
-        toast.warning(t("tabs.limitToast"));
-        return;
-      }
-
-      openTab("pod-logs", `Logs: ${favorite.name} (${favorite.namespace})`, {
-        newTab: true,
-        metadata: { namespace: favorite.namespace, podName: favorite.name },
-      });
+      if (result === null) toast.warning(t("tabs.limitToast"));
     },
     [
-      openTab,
       removeMissingFavorite,
       setActiveResource,
       setCurrentNamespace,

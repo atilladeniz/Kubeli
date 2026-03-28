@@ -27,8 +27,7 @@ export function DeploymentsView() {
     refreshInterval: 30000,
   });
   const { openResourceDetail, handleDeleteFromContext, handleScaleFromContext } = useResourceDetail();
-  const openTabStore = useTabsStore((s) => s.openTab);
-  const tabCount = useTabsStore((s) => s.tabs.length);
+  const openOrActivateTab = useTabsStore((s) => s.openOrActivateTab);
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const { currentCluster } = useClusterStore();
@@ -50,24 +49,15 @@ export function DeploymentsView() {
       label: t("logs.viewLogs"),
       icon: <FileText className="size-4" />,
       onClick: () => {
-        const { tabs, setActiveTab } = useTabsStore.getState();
-        const existing = tabs.find(
+        const result = openOrActivateTab(
+          "deployment-logs",
+          `Logs: ${dep.name} (${dep.namespace})`,
+          { namespace: dep.namespace, deploymentName: dep.name },
           (tab) => tab.type === "deployment-logs" &&
             tab.metadata?.deploymentName === dep.name &&
-            tab.metadata?.namespace === dep.namespace
+            tab.metadata?.namespace === dep.namespace,
         );
-        if (existing) {
-          setActiveTab(existing.id);
-          return;
-        }
-        if (tabCount >= 10) {
-          toast.warning(t("tabs.limitToast"));
-          return;
-        }
-        openTabStore("deployment-logs", `Logs: ${dep.name} (${dep.namespace})`, {
-          newTab: true,
-          metadata: { namespace: dep.namespace, deploymentName: dep.name },
-        });
+        if (result === null) toast.warning(t("tabs.limitToast"));
       },
     },
     {

@@ -64,8 +64,7 @@ export function ResourceDetail({
   const resourceType = isCustomResourceType(rawResourceType)
     ? rawResourceType
     : rawResourceType.replace(/s$/, "");
-  const openTab = useTabsStore((s) => s.openTab);
-  const tabCount = useTabsStore((s) => s.tabs.length);
+  const openOrActivateTab = useTabsStore((s) => s.openOrActivateTab);
   const displayResourceType = isCustomResourceType(rawResourceType)
     ? resource?.kind?.toLowerCase() || "custom resource"
     : resourceType;
@@ -169,51 +168,37 @@ export function ResourceDetail({
 
   const handleOpenDeploymentLogsTab = useCallback((isCurrentlyStreaming: boolean) => {
     if (!resource?.namespace) return;
-    const { tabs, setActiveTab } = useTabsStore.getState();
-    // Dedup: activate existing tab instead of creating a duplicate
-    const existing = tabs.find(
+    const result = openOrActivateTab(
+      "deployment-logs",
+      `Logs: ${resource.name} (${resource.namespace})`,
+      { namespace: resource.namespace, deploymentName: resource.name, autoStream: isCurrentlyStreaming },
       (tab) => tab.type === "deployment-logs" &&
         tab.metadata?.deploymentName === resource.name &&
-        tab.metadata?.namespace === resource.namespace
+        tab.metadata?.namespace === resource.namespace,
     );
-    if (existing) {
-      setActiveTab(existing.id);
-    } else {
-      if (tabCount >= 10) {
-        toast.warning(t("tabs.limitToast"));
-        return;
-      }
-      openTab("deployment-logs", `Logs: ${resource.name} (${resource.namespace})`, {
-        newTab: true,
-        metadata: { namespace: resource.namespace, deploymentName: resource.name, autoStream: isCurrentlyStreaming },
-      });
+    if (result === null) {
+      toast.warning(t("tabs.limitToast"));
+      return;
     }
-    // Close side panel to stop its stream — only one viewer per deployment
     onClose();
-  }, [openTab, resource?.name, resource?.namespace, tabCount, t, onClose]);
+  }, [openOrActivateTab, resource?.name, resource?.namespace, t, onClose]);
 
   const handleOpenPodLogsTab = useCallback(() => {
     if (!resource?.namespace) return;
-    const { tabs, setActiveTab } = useTabsStore.getState();
-    const existing = tabs.find(
+    const result = openOrActivateTab(
+      "pod-logs",
+      `Logs: ${resource.name} (${resource.namespace})`,
+      { namespace: resource.namespace, podName: resource.name },
       (tab) => tab.type === "pod-logs" &&
         tab.metadata?.podName === resource.name &&
-        tab.metadata?.namespace === resource.namespace
+        tab.metadata?.namespace === resource.namespace,
     );
-    if (existing) {
-      setActiveTab(existing.id);
-    } else {
-      if (tabCount >= 10) {
-        toast.warning(t("tabs.limitToast"));
-        return;
-      }
-      openTab("pod-logs", `Logs: ${resource.name} (${resource.namespace})`, {
-        newTab: true,
-        metadata: { namespace: resource.namespace, podName: resource.name },
-      });
+    if (result === null) {
+      toast.warning(t("tabs.limitToast"));
+      return;
     }
     onClose();
-  }, [openTab, resource?.name, resource?.namespace, tabCount, t, onClose]);
+  }, [openOrActivateTab, resource?.name, resource?.namespace, t, onClose]);
 
   const handleClose = () => {
     if (hasChanges) {

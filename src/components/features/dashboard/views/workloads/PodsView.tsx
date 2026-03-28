@@ -70,29 +70,19 @@ export function PodsView() {
   const { forwards, requestForward, stopForward } = usePortForward();
   const { addTab } = useTerminalTabs();
   const { openResourceDetail, handleDeleteFromContext, closeResourceDetail } = useResourceDetail();
-  const openTabStore = useTabsStore((s) => s.openTab);
-  const tabCount = useTabsStore((s) => s.tabs.length);
+  const openOrActivateTab = useTabsStore((s) => s.openOrActivateTab);
   const pendingLogsHandled = useRef<{ namespace: string; podName: string } | null>(null);
 
   const openLogsTab = (podName: string, namespace: string) => {
-    const { tabs, setActiveTab } = useTabsStore.getState();
-    const existing = tabs.find(
+    const result = openOrActivateTab(
+      "pod-logs",
+      `Logs: ${podName} (${namespace})`,
+      { namespace, podName },
       (tab) => tab.type === "pod-logs" &&
         tab.metadata?.podName === podName &&
-        tab.metadata?.namespace === namespace
+        tab.metadata?.namespace === namespace,
     );
-    if (existing) {
-      setActiveTab(existing.id);
-      return;
-    }
-    if (tabCount >= 10) {
-      toast.warning(t("tabs.limitToast"));
-      return;
-    }
-    openTabStore("pod-logs", `Logs: ${podName} (${namespace})`, {
-      newTab: true,
-      metadata: { namespace, podName },
-    });
+    if (result === null) toast.warning(t("tabs.limitToast"));
   };
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
