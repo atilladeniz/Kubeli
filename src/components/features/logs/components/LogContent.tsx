@@ -159,7 +159,7 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
           className="flex-1 overflow-auto outline-none"
           data-allow-context-menu
         >
-          <pre className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-all" : ""}`}>
+          <pre className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-words" : ""}`}>
             {logs.map((log, index) => (
               <LogLine
                 key={`${log.timestamp}-${index}`}
