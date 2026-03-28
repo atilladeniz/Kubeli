@@ -8,6 +8,8 @@ import { getLogLevel, formatTimestamp, escapeRegExp } from "../lib";
 interface LogLineProps {
   log: LogEntry;
   showTimestamp: boolean;
+  timestampLocal?: boolean;
+  logColoring?: boolean;
   searchQuery: string;
   useRegex: boolean;
   searchRegex: RegExp | null;
@@ -24,6 +26,8 @@ interface LogLineProps {
 export const LogLine = memo(function LogLine({
   log,
   showTimestamp,
+  timestampLocal,
+  logColoring = true,
   searchQuery,
   useRegex,
   searchRegex,
@@ -42,14 +46,18 @@ export const LogLine = memo(function LogLine({
     return highlightWithString(log.message, searchQuery);
   }, [log.message, searchQuery, useRegex, searchRegex]);
 
+  const colorClass = logColoring
+    ? LOG_LEVEL_COLORS[logLevel] || LOG_LEVEL_COLORS.default
+    : "text-foreground";
+
   return (
     <>
       {showTimestamp && log.timestamp && (
         <span className="mr-2 text-muted-foreground/60">
-          {formatTimestamp(log.timestamp)}
+          {formatTimestamp(log.timestamp, timestampLocal)}
         </span>
       )}
-      <span className={LOG_LEVEL_COLORS[logLevel] || LOG_LEVEL_COLORS.default}>
+      <span className={colorClass}>
         {highlightedMessage}
       </span>
       {"\n"}

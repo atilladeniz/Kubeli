@@ -1,19 +1,20 @@
 "use client";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { DownloadFormat, LogLevelLabels } from "../types";
+import type { DownloadFormat, LogLevelLabels, TimestampMode } from "../types";
+import type { DisplayOptionsLabels } from "./toolbar/DisplayOptionsPopover";
 import {
   SearchInput,
   LogLevelFilter,
   StreamButton,
   ToggleCheckbox,
+  DisplayOptionsPopover,
   FetchButton,
   DownloadButton,
+  CopyAllButton,
   AIButton,
   ClearButton,
 } from "./toolbar";
-
-// Grouped prop interfaces for better organization
 
 export interface SearchProps {
   query: string;
@@ -30,14 +31,21 @@ export interface FilterProps {
   logLevel: string;
   onLogLevelChange: (level: string) => void;
   logLevelLabels: LogLevelLabels;
-  showTimestamps: boolean;
-  onTimestampsToggle: (checked: boolean) => void;
-  timestampsLabel: string;
   showPreviousLogs: boolean;
   onPreviousLogsToggle: (checked: boolean) => void;
   previousLogsLabel: string;
   isStreaming?: boolean;
   hidePreviousLogs?: boolean;
+}
+
+export interface DisplayOptionsProps {
+  lineWrap: boolean;
+  onLineWrapChange: (checked: boolean) => void;
+  logColoring: boolean;
+  onLogColoringChange: (checked: boolean) => void;
+  timestampMode: TimestampMode;
+  onTimestampModeChange: (mode: TimestampMode) => void;
+  labels: DisplayOptionsLabels;
 }
 
 export interface StreamProps {
@@ -56,6 +64,12 @@ export interface DownloadProps {
   isDownloading: boolean;
   logsCount: number;
   onDownload: (format: DownloadFormat) => void;
+  tooltip: string;
+}
+
+export interface CopyAllProps {
+  onCopy: () => Promise<void>;
+  tooltip: string;
 }
 
 export interface AIProps {
@@ -68,8 +82,10 @@ export interface AIProps {
 interface LogToolbarProps {
   search: SearchProps;
   filter: FilterProps;
+  displayOptions: DisplayOptionsProps;
   stream: StreamProps;
   download: DownloadProps;
+  copyAll: CopyAllProps;
   ai: AIProps;
   onClear: () => void;
   clearLabel: string;
@@ -85,8 +101,10 @@ interface LogToolbarProps {
 export function LogToolbar({
   search,
   filter,
+  displayOptions,
   stream,
   download,
+  copyAll,
   ai,
   onClear,
   clearLabel,
@@ -110,14 +128,6 @@ export function LogToolbar({
 
       {/* Log level filter */}
       <LogLevelFilter value={filter.logLevel} onChange={filter.onLogLevelChange} labels={filter.logLevelLabels} />
-
-      {/* Timestamp toggle */}
-      <ToggleCheckbox
-        id="timestamps"
-        checked={filter.showTimestamps}
-        onCheckedChange={filter.onTimestampsToggle}
-        label={filter.timestampsLabel}
-      />
 
       {/* Previous logs toggle (disabled during streaming) */}
       {!filter.hidePreviousLogs && (
@@ -159,8 +169,25 @@ export function LogToolbar({
               isDownloading={download.isDownloading}
               disabled={download.logsCount === 0}
               onDownload={download.onDownload}
+              tooltip={download.tooltip}
             />
           )}
+
+          <CopyAllButton
+            disabled={download.logsCount === 0}
+            onCopy={copyAll.onCopy}
+            tooltip={copyAll.tooltip}
+          />
+
+          <DisplayOptionsPopover
+            lineWrap={displayOptions.lineWrap}
+            onLineWrapChange={displayOptions.onLineWrapChange}
+            logColoring={displayOptions.logColoring}
+            onLogColoringChange={displayOptions.onLogColoringChange}
+            timestampMode={displayOptions.timestampMode}
+            onTimestampModeChange={displayOptions.onTimestampModeChange}
+            labels={displayOptions.labels}
+          />
 
           {!hideAI && (
             <AIButton

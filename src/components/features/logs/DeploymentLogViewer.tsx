@@ -8,7 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { AlertCircle, Layers, Loader2, Copy, Check } from "lucide-react";
+import { AlertCircle, Layers, Loader2, Copy, Check, SearchX } from "lucide-react";
 import { useDeploymentLogs, type PodColorEntry } from "@/lib/hooks/useDeploymentLogs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -18,6 +18,7 @@ import { LogToolbar, LogFooter } from "./components";
 import { DeploymentLogLine } from "./components/DeploymentLogLine";
 import { useLogFilter, useAutoScroll } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
+import type { TimestampMode } from "./types";
 import type { LogEntry } from "@/lib/types";
 
 interface DeploymentLogViewerProps {
@@ -50,7 +51,13 @@ export function DeploymentLogViewer({
     clearLogs,
   } = useDeploymentLogs(deploymentName, namespace);
 
-  const [showTimestamps, setShowTimestamps] = useState(true);
+  // Display options state
+  const [lineWrap, setLineWrap] = useState(true);
+  const [logColoring, setLogColoring] = useState(true);
+  const [timestampMode, setTimestampMode] = useState<TimestampMode>("local");
+
+  const showTimestamps = timestampMode !== "off";
+  const timestampLocal = timestampMode === "local";
 
   // Apply pod filter before other filters
   const podFilteredLogs = useMemo(() => {
@@ -75,6 +82,15 @@ export function DeploymentLogViewer({
   useEffect(() => {
     resetFilters();
   }, [namespace, deploymentName, resetFilters]);
+
+  const copyAllLogs = useCallback(async () => {
+    try {
+      const text = filteredLogs.map((l) => l.message).join("\n");
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard write may fail in some environments
+    }
+  }, [filteredLogs]);
 
   const { containerRef, endRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
     dependencies: [logs],
@@ -173,14 +189,29 @@ export function DeploymentLogViewer({
             info: t("logs.levelInfo"),
             debug: t("logs.levelDebug"),
           },
-          showTimestamps,
-          onTimestampsToggle: setShowTimestamps,
-          timestampsLabel: t("logs.timestamps"),
           showPreviousLogs: false,
           onPreviousLogsToggle: () => {},
           previousLogsLabel: "",
           isStreaming,
           hidePreviousLogs: true,
+        }}
+        displayOptions={{
+          lineWrap,
+          onLineWrapChange: setLineWrap,
+          logColoring,
+          onLogColoringChange: setLogColoring,
+          timestampMode,
+          onTimestampModeChange: setTimestampMode,
+          labels: {
+            tooltip: t("logs.displayOptions"),
+            displayOptions: t("logs.displayOptions"),
+            lineWrap: t("logs.lineWrap"),
+            logColoring: t("logs.logColoring"),
+            timestamp: t("logs.timestampSection"),
+            timestampOff: t("logs.timestampOff"),
+            timestampUtc: t("logs.timestampUtc"),
+            timestampLocal: t("logs.timestampLocal"),
+          },
         }}
         stream={{
           isStreaming,
@@ -197,6 +228,11 @@ export function DeploymentLogViewer({
           isDownloading: false,
           logsCount: logs.length,
           onDownload: async () => {},
+          tooltip: t("logs.download"),
+        }}
+        copyAll={{
+          onCopy: copyAllLogs,
+          tooltip: t("logs.copyAll"),
         }}
         ai={{
           isAvailable: false,
@@ -229,12 +265,15 @@ export function DeploymentLogViewer({
         onStartStream={() => startStream()}
         endRef={endRef}
         showTimestamps={showTimestamps}
+        timestampLocal={timestampLocal}
+        lineWrap={lineWrap}
+        logColoring={logColoring}
         searchQuery={searchQuery}
         useRegex={useRegex}
         searchRegex={searchRegex}
         podColorMap={podColorMap}
         loadingText={t("common.loading")}
-        searchingText={t("logs.searching")}
+        searchingText={t("logs.noMatchesFound", { query: searchQuery.length > LOG_DEFAULTS.MAX_SEARCH_DISPLAY_LENGTH ? searchQuery.slice(0, LOG_DEFAULTS.MAX_SEARCH_DISPLAY_LENGTH) + "..." : searchQuery })}
         noLogsText={pods.length === 0 ? t("logs.noPodsFound") : t("logs.noLogs")}
         followText={t("logs.follow")}
         copyLabel={t("common.copy")}
@@ -263,6 +302,9 @@ interface DeploymentLogContentProps {
   onStartStream: () => void;
   endRef?: React.RefObject<HTMLDivElement | null>;
   showTimestamps: boolean;
+  timestampLocal?: boolean;
+  lineWrap?: boolean;
+  logColoring?: boolean;
   searchQuery: string;
   useRegex: boolean;
   searchRegex: RegExp | null;
@@ -285,6 +327,9 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
       onStartStream,
       endRef,
       showTimestamps,
+      timestampLocal,
+      lineWrap,
+      logColoring,
       searchQuery,
       useRegex,
       searchRegex,
@@ -355,7 +400,10 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
                 <p>{loadingText}</p>
               </>
             ) : searchQuery ? (
-              <p>{searchingText}</p>
+              <>
+                <SearchX className="size-8" />
+                <p className="px-4 text-center">{searchingText}</p>
+              </>
             ) : (
               <>
                 <p>{noLogsText}</p>
@@ -375,16 +423,20 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
       <>
         <div
           ref={ref}
+          tabIndex={0}
           onScroll={onScroll}
           onContextMenu={handleContextMenu}
-          className="flex-1 overflow-auto"
+          className="flex-1 overflow-auto outline-none"
+          data-allow-context-menu
         >
-          <pre className="m-0 p-2 font-mono text-sm leading-5" data-allow-context-menu>
+          <pre className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-words" : ""}`}>
             {logs.map((log, index) => (
               <DeploymentLogLine
                 key={`${log.pod}-${log.timestamp}-${index}`}
                 log={log}
                 showTimestamp={showTimestamps}
+                timestampLocal={timestampLocal}
+                logColoring={logColoring}
                 searchQuery={searchQuery}
                 useRegex={useRegex}
                 searchRegex={searchRegex}

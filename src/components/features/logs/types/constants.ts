@@ -36,12 +36,19 @@ export const LOG_DEFAULTS = {
   AI_ANALYSIS_MAX_LINES: 100,
   /** Scroll threshold for auto-scroll detection */
   SCROLL_THRESHOLD: 50,
+  /** Max characters to display for search query in empty state */
+  MAX_SEARCH_DISPLAY_LENGTH: 40,
 } as const;
 
 /**
  * Download format options.
  */
 export type DownloadFormat = "text" | "json" | "timestamps";
+
+/**
+ * Timestamp display mode.
+ */
+export type TimestampMode = "off" | "utc" | "local";
 
 export const DOWNLOAD_FORMATS: Array<{
   format: DownloadFormat;

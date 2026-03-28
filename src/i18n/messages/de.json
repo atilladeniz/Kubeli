@@ -347,7 +347,7 @@
     "clear": "Leeren",
     "wrap": "Zeilenumbruch",
     "autoScroll": "Auto-Scroll",
-    "searching": "Suche...",
+    "noMatchesFound": "Keine Treffer gefunden für \"{query}\"",
     "noLogs": "Keine Logs verfügbar",
     "lines": "{count} Zeilen",
     "streamingActive": "Streaming aktiv",
@@ -372,7 +372,15 @@
     "sendToAI": "An KI senden",
     "aiSelectionPrompt": "Analysiere die folgenden ausgewählten Log-Zeilen vom Pod {namespace}/{podName}:",
     "podLegend": "Pods",
-    "noPodsFound": "Keine laufenden Pods für dieses Deployment gefunden"
+    "noPodsFound": "Keine laufenden Pods für dieses Deployment gefunden",
+    "copyAll": "Alles kopieren",
+    "displayOptions": "Anzeigeoptionen",
+    "lineWrap": "Zeilenumbruch",
+    "logColoring": "Log-Einfärbung",
+    "timestampSection": "Zeitstempel",
+    "timestampOff": "Aus",
+    "timestampUtc": "UTC",
+    "timestampLocal": "Lokal"
   },
   "terminal": {
     "title": "Terminal",

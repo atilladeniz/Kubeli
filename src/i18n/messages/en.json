@@ -347,7 +347,7 @@
     "clear": "Clear",
     "wrap": "Wrap Lines",
     "autoScroll": "Auto Scroll",
-    "searching": "Searching...",
+    "noMatchesFound": "No matches found for \"{query}\"",
     "noLogs": "No logs available",
     "lines": "{count} lines",
     "streamingActive": "Streaming active",
@@ -372,7 +372,15 @@
     "sendToAI": "Send to AI",
     "aiSelectionPrompt": "Analyze the following selected log lines from pod {namespace}/{podName}:",
     "podLegend": "Pods",
-    "noPodsFound": "No running pods found for this deployment"
+    "noPodsFound": "No running pods found for this deployment",
+    "copyAll": "Copy all",
+    "displayOptions": "Display Options",
+    "lineWrap": "Line Wrap",
+    "logColoring": "Log Coloring",
+    "timestampSection": "Timestamp",
+    "timestampOff": "Off",
+    "timestampUtc": "UTC",
+    "timestampLocal": "Local"
   },
   "terminal": {
     "title": "Terminal",

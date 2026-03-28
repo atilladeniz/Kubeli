@@ -98,24 +98,35 @@ export default function Home() {
   }, []);
 
   // Prevent app-wide Select All; keep Cmd/Ctrl+A only for editable targets.
+  // For [data-allow-context-menu] containers (e.g. logs), scope selection to
+  // that container only so multiple log panels don't cross-select.
   useEffect(() => {
-    const isEditableTarget = (target: EventTarget | null): boolean => {
-      if (!(target instanceof HTMLElement)) return false;
-      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
-        return true;
-      if (
-        target.isContentEditable ||
-        target.closest('[contenteditable="true"]')
-      )
-        return true;
-      if (target.closest('[role="textbox"]')) return true;
-      return false;
-    };
-
     const handleSelectAll = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
       if (e.altKey) return;
-      if (isEditableTarget(e.target)) return;
+
+      const target = e.target as HTMLElement | null;
+      if (!target) { e.preventDefault(); return; }
+
+      // Allow default for native editable elements
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+      if (target.isContentEditable || target.closest('[contenteditable="true"]')) return;
+      if (target.closest('[role="textbox"]')) return;
+
+      // Scope selection to the closest [data-allow-context-menu] container
+      const container = target.closest('[data-allow-context-menu]');
+      if (container) {
+        e.preventDefault();
+        const selection = window.getSelection();
+        if (selection) {
+          const range = document.createRange();
+          range.selectNodeContents(container);
+          selection.removeAllRanges();
+          selection.addRange(range);
+        }
+        return;
+      }
+
       e.preventDefault();
     };
 
