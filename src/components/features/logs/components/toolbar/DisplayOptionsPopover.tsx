@@ -90,8 +90,11 @@ export function DisplayOptionsPopover({
           </div>
         </div>
 
+        {/* Divider */}
+        <div className="my-3 h-px bg-border" />
+
         {/* Timestamp */}
-        <div className="mt-4">
+        <div>
           <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
             {labels.timestamp}
           </p>
