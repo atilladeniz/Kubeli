@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.66] - 2026-03-28
+
+- Added fullscreen view for aggregated Deployment logs
+- Added display options, copy-all, scoped select-all, and search empty state to logs
+
 ## [0.3.65] - 2026-03-25
 
 - Fixed long custom resource names in sidebar being truncated with tooltip on overflow
