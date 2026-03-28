@@ -347,7 +347,7 @@
     "clear": "Leeren",
     "wrap": "Zeilenumbruch",
     "autoScroll": "Auto-Scroll",
-    "noMatchesFound": "Keine Treffer zu \"{query}\" gefunden",
+    "noMatchesFound": "Keine Treffer gefunden für \"{query}\"",
     "noLogs": "Keine Logs verfügbar",
     "lines": "{count} Zeilen",
     "streamingActive": "Streaming aktiv",
