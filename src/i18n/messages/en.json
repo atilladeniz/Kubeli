@@ -380,7 +380,9 @@
     "timestampSection": "Timestamp",
     "timestampOff": "Off",
     "timestampUtc": "UTC",
-    "timestampLocal": "Local"
+    "timestampLocal": "Local",
+    "openInTab": "Open in fullscreen tab",
+    "viewLogs": "View Logs"
   },
   "terminal": {
     "title": "Terminal",
@@ -1119,6 +1121,7 @@
     "fluxkustomizations": "No Flux kustomizations found",
     "customResources": "No {kind} resources found",
     "noPodSelected": "No pod selected",
+    "noDeploymentSelected": "No deployment selected",
     "podNotFound": "Pod not found",
     "podNotFoundDescription": "The pod \"{podName}\" in namespace \"{namespace}\" no longer exists.",
     "goToPods": "Go to Pods"

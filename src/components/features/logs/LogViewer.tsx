@@ -21,13 +21,14 @@ interface LogViewerProps {
   initialContainer?: string;
   logTabId?: string;
   onClose?: () => void;
+  onOpenInTab?: () => void;
 }
 
 /**
  * Log viewer component for Kubernetes pods.
  * Supports streaming, filtering, searching, and AI analysis.
  */
-export function LogViewer({ namespace, podName, initialContainer, logTabId }: LogViewerProps) {
+export function LogViewer({ namespace, podName, initialContainer, logTabId, onOpenInTab }: LogViewerProps) {
   const t = useTranslations();
 
   // Core log state from hook
@@ -178,6 +179,8 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         selectedContainer={selectedContainer}
         onContainerChange={setSelectedContainer}
         containerPlaceholder={t("terminal.selectContainer")}
+        onOpenInTab={onOpenInTab}
+        openInTabTooltip={t("logs.openInTab")}
       />
 
       <LogToolbar

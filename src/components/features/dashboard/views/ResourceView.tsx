@@ -12,6 +12,7 @@ import { WorkloadsOverview } from "./WorkloadsOverview";
 // Utility views
 import { PortForwardsView } from "./PortForwardsView";
 import { PodLogsView } from "./PodLogsView";
+import { DeploymentLogsView } from "./DeploymentLogsView";
 
 // Cluster views
 import {
@@ -213,6 +214,8 @@ export function ResourceView({ activeResource }: ResourceViewProps) {
     // Special views
     case "pod-logs":
       return <PodLogsView />;
+    case "deployment-logs":
+      return <DeploymentLogsView />;
 
     default:
       return <ComingSoon resource={activeResource} />;

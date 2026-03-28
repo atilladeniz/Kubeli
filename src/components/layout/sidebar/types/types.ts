@@ -58,7 +58,8 @@ export type KnownResourceType =
   | "mutating-webhooks"
   | "validating-webhooks"
   // Special views
-  | "pod-logs";
+  | "pod-logs"
+  | "deployment-logs";
 
 export type ResourceType = KnownResourceType | CustomResourceType;
 

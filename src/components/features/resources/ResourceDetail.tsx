@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { LogViewer } from "../logs/LogViewer";
 import { DeploymentLogViewer } from "../logs/DeploymentLogViewer";
+import { useTabsStore } from "@/lib/stores/tabs-store";
 import { OverviewTab } from "./components/OverviewTab";
 import { YamlTab, type YamlTabHandle } from "./components/YamlTab";
 import { ConditionsTab } from "./components/ConditionsTab";
@@ -63,6 +64,7 @@ export function ResourceDetail({
   const resourceType = isCustomResourceType(rawResourceType)
     ? rawResourceType
     : rawResourceType.replace(/s$/, "");
+  const openOrActivateTab = useTabsStore((s) => s.openOrActivateTab);
   const displayResourceType = isCustomResourceType(rawResourceType)
     ? resource?.kind?.toLowerCase() || "custom resource"
     : resourceType;
@@ -163,6 +165,40 @@ export function ResourceDetail({
     toast.success(t("messages.copySuccess"));
     setTimeout(() => setCopied(false), 2000);
   };
+
+  const handleOpenDeploymentLogsTab = useCallback((isCurrentlyStreaming: boolean) => {
+    if (!resource?.namespace) return;
+    const result = openOrActivateTab(
+      "deployment-logs",
+      `Logs: ${resource.name} (${resource.namespace})`,
+      { namespace: resource.namespace, deploymentName: resource.name, autoStream: isCurrentlyStreaming },
+      (tab) => tab.type === "deployment-logs" &&
+        tab.metadata?.deploymentName === resource.name &&
+        tab.metadata?.namespace === resource.namespace,
+    );
+    if (result === null) {
+      toast.warning(t("tabs.limitToast"));
+      return;
+    }
+    onClose();
+  }, [openOrActivateTab, resource?.name, resource?.namespace, t, onClose]);
+
+  const handleOpenPodLogsTab = useCallback(() => {
+    if (!resource?.namespace) return;
+    const result = openOrActivateTab(
+      "pod-logs",
+      `Logs: ${resource.name} (${resource.namespace})`,
+      { namespace: resource.namespace, podName: resource.name },
+      (tab) => tab.type === "pod-logs" &&
+        tab.metadata?.podName === resource.name &&
+        tab.metadata?.namespace === resource.namespace,
+    );
+    if (result === null) {
+      toast.warning(t("tabs.limitToast"));
+      return;
+    }
+    onClose();
+  }, [openOrActivateTab, resource?.name, resource?.namespace, t, onClose]);
 
   const handleClose = () => {
     if (hasChanges) {
@@ -334,6 +370,7 @@ export function ResourceDetail({
               namespace={resource.namespace}
               podName={resource.name}
               logTabId={`detail-${resource.namespace}-${resource.name}`}
+              onOpenInTab={handleOpenPodLogsTab}
             />
           </TabsContent>
         )}
@@ -343,6 +380,7 @@ export function ResourceDetail({
             <DeploymentLogViewer
               deploymentName={resource.name}
               namespace={resource.namespace}
+              onOpenInTab={handleOpenDeploymentLogsTab}
             />
           </TabsContent>
         )}
