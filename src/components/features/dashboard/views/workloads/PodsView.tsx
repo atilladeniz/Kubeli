@@ -75,6 +75,16 @@ export function PodsView() {
   const pendingLogsHandled = useRef<{ namespace: string; podName: string } | null>(null);
 
   const openLogsTab = (podName: string, namespace: string) => {
+    const { tabs, setActiveTab } = useTabsStore.getState();
+    const existing = tabs.find(
+      (tab) => tab.type === "pod-logs" &&
+        tab.metadata?.podName === podName &&
+        tab.metadata?.namespace === namespace
+    );
+    if (existing) {
+      setActiveTab(existing.id);
+      return;
+    }
     if (tabCount >= 10) {
       toast.warning(t("tabs.limitToast"));
       return;

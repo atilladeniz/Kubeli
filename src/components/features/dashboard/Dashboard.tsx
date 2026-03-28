@@ -147,6 +147,20 @@ function DashboardContent() {
       );
     }
 
+    if (activeResource === "deployment-logs") {
+      const deploymentName = activeTab?.metadata?.deploymentName;
+      const namespace = activeTab?.metadata?.namespace;
+      if (!deploymentName || !namespace) return null;
+      return (
+        favorites.find(
+          (f) =>
+            f.resourceType === "deployments" &&
+            f.name === deploymentName &&
+            f.namespace === namespace
+        )?.id ?? null
+      );
+    }
+
     if (!selectedResource) return null;
     const favoriteType = toFavoriteResourceType(selectedResource.type);
     if (!favoriteType) return null;
@@ -295,7 +309,18 @@ function DashboardContent() {
         return;
       }
 
-      if (resourceTabs.length >= 10) {
+      const { tabs: allTabs, setActiveTab } = useTabsStore.getState();
+      const existingTab = allTabs.find(
+        (tab) => tab.type === "pod-logs" &&
+          tab.metadata?.podName === favorite.name &&
+          tab.metadata?.namespace === favorite.namespace
+      );
+      if (existingTab) {
+        setActiveTab(existingTab.id);
+        return;
+      }
+
+      if (allTabs.length >= 10) {
         toast.warning(t("tabs.limitToast"));
         return;
       }
@@ -308,7 +333,6 @@ function DashboardContent() {
     [
       openTab,
       removeMissingFavorite,
-      resourceTabs.length,
       setActiveResource,
       setCurrentNamespace,
       t,
