@@ -153,9 +153,11 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
       <>
         <div
           ref={ref}
+          tabIndex={0}
           onScroll={onScroll}
           onContextMenu={handleContextMenu}
-          className="flex-1 overflow-auto"
+          className="flex-1 overflow-auto outline-none"
+          data-allow-context-menu
         >
           <pre
             className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-all" : ""}`}
