@@ -84,8 +84,12 @@ export function DeploymentLogViewer({
   }, [namespace, deploymentName, resetFilters]);
 
   const copyAllLogs = useCallback(async () => {
-    const text = filteredLogs.map((l) => l.message).join("\n");
-    await navigator.clipboard.writeText(text);
+    try {
+      const text = filteredLogs.map((l) => l.message).join("\n");
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard write may fail in some environments
+    }
   }, [filteredLogs]);
 
   const { containerRef, endRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
@@ -225,8 +229,10 @@ export function DeploymentLogViewer({
           logsCount: logs.length,
           onDownload: async () => {},
           tooltip: t("logs.download"),
-          onCopyAll: copyAllLogs,
-          copyAllTooltip: t("logs.copyAll"),
+        }}
+        copyAll={{
+          onCopy: copyAllLogs,
+          tooltip: t("logs.copyAll"),
         }}
         ai={{
           isAvailable: false,
@@ -267,7 +273,7 @@ export function DeploymentLogViewer({
         searchRegex={searchRegex}
         podColorMap={podColorMap}
         loadingText={t("common.loading")}
-        searchingText={t("logs.noMatchesFound", { query: searchQuery.length > 40 ? searchQuery.slice(0, 40) + "..." : searchQuery })}
+        searchingText={t("logs.noMatchesFound", { query: searchQuery.length > LOG_DEFAULTS.MAX_SEARCH_DISPLAY_LENGTH ? searchQuery.slice(0, LOG_DEFAULTS.MAX_SEARCH_DISPLAY_LENGTH) + "..." : searchQuery })}
         noLogsText={pods.length === 0 ? t("logs.noPodsFound") : t("logs.noLogs")}
         followText={t("logs.follow")}
         copyLabel={t("common.copy")}
@@ -423,10 +429,7 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
           className="flex-1 overflow-auto outline-none"
           data-allow-context-menu
         >
-          <pre
-            className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-all" : ""}`}
-            data-allow-context-menu
-          >
+          <pre className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-all" : ""}`}>
             {logs.map((log, index) => (
               <DeploymentLogLine
                 key={`${log.pod}-${log.timestamp}-${index}`}

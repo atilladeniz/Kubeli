@@ -142,8 +142,12 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
 
   // Copy all logs to clipboard
   const copyAllLogs = useCallback(async () => {
-    const text = filteredLogs.map((l) => l.message).join("\n");
-    await navigator.clipboard.writeText(text);
+    try {
+      const text = filteredLogs.map((l) => l.message).join("\n");
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard write may fail in some environments
+    }
   }, [filteredLogs]);
 
   // Download hook
@@ -236,8 +240,10 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
           logsCount: logs.length,
           onDownload: downloadLogs,
           tooltip: t("logs.download"),
-          onCopyAll: copyAllLogs,
-          copyAllTooltip: t("logs.copyAll"),
+        }}
+        copyAll={{
+          onCopy: copyAllLogs,
+          tooltip: t("logs.copyAll"),
         }}
         ai={{
           isAvailable: isAICliAvailable,
@@ -287,7 +293,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         streamDisabled={showPreviousLogs}
         endRef={endRef}
         loadingText={t("common.loading")}
-        searchingText={t("logs.noMatchesFound", { query: searchQuery.length > 40 ? searchQuery.slice(0, 40) + "..." : searchQuery })}
+        searchingText={t("logs.noMatchesFound", { query: searchQuery.length > LOG_DEFAULTS.MAX_SEARCH_DISPLAY_LENGTH ? searchQuery.slice(0, LOG_DEFAULTS.MAX_SEARCH_DISPLAY_LENGTH) + "..." : searchQuery })}
         noLogsText={t("logs.noLogs")}
         followText={t("logs.follow")}
         copyLabel={t("common.copy")}

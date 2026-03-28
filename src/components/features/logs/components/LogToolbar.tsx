@@ -65,8 +65,11 @@ export interface DownloadProps {
   logsCount: number;
   onDownload: (format: DownloadFormat) => void;
   tooltip: string;
-  onCopyAll: () => Promise<void>;
-  copyAllTooltip: string;
+}
+
+export interface CopyAllProps {
+  onCopy: () => Promise<void>;
+  tooltip: string;
 }
 
 export interface AIProps {
@@ -82,6 +85,7 @@ interface LogToolbarProps {
   displayOptions: DisplayOptionsProps;
   stream: StreamProps;
   download: DownloadProps;
+  copyAll: CopyAllProps;
   ai: AIProps;
   onClear: () => void;
   clearLabel: string;
@@ -100,6 +104,7 @@ export function LogToolbar({
   displayOptions,
   stream,
   download,
+  copyAll,
   ai,
   onClear,
   clearLabel,
@@ -160,21 +165,19 @@ export function LogToolbar({
           />
 
           {!hideDownload && (
-            <>
-              <DownloadButton
-                isDownloading={download.isDownloading}
-                disabled={download.logsCount === 0}
-                onDownload={download.onDownload}
-                tooltip={download.tooltip}
-              />
-
-              <CopyAllButton
-                disabled={download.logsCount === 0}
-                onCopy={download.onCopyAll}
-                tooltip={download.copyAllTooltip}
-              />
-            </>
+            <DownloadButton
+              isDownloading={download.isDownloading}
+              disabled={download.logsCount === 0}
+              onDownload={download.onDownload}
+              tooltip={download.tooltip}
+            />
           )}
+
+          <CopyAllButton
+            disabled={download.logsCount === 0}
+            onCopy={copyAll.onCopy}
+            tooltip={copyAll.tooltip}
+          />
 
           <DisplayOptionsPopover
             lineWrap={displayOptions.lineWrap}
