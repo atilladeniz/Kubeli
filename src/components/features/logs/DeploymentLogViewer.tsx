@@ -260,7 +260,7 @@ export function DeploymentLogViewer({
         searchRegex={searchRegex}
         podColorMap={podColorMap}
         loadingText={t("common.loading")}
-        searchingText={t("logs.noMatchesFound", { query: searchQuery })}
+        searchingText={t("logs.noMatchesFound", { query: searchQuery.length > 40 ? searchQuery.slice(0, 40) + "..." : searchQuery })}
         noLogsText={pods.length === 0 ? t("logs.noPodsFound") : t("logs.noLogs")}
         followText={t("logs.follow")}
         copyLabel={t("common.copy")}
@@ -389,7 +389,7 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
             ) : searchQuery ? (
               <>
                 <SearchX className="size-8" />
-                <p className="max-w-md truncate px-4">{searchingText}</p>
+                <p className="px-4 text-center">{searchingText}</p>
               </>
             ) : (
               <>

@@ -132,7 +132,7 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
             ) : searchQuery ? (
               <>
                 <SearchX className="size-8" />
-                <p className="max-w-md truncate px-4">{searchingText}</p>
+                <p className="px-4 text-center">{searchingText}</p>
               </>
             ) : (
               <>

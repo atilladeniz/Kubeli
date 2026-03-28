@@ -279,7 +279,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         streamDisabled={showPreviousLogs}
         endRef={endRef}
         loadingText={t("common.loading")}
-        searchingText={t("logs.noMatchesFound", { query: searchQuery })}
+        searchingText={t("logs.noMatchesFound", { query: searchQuery.length > 40 ? searchQuery.slice(0, 40) + "..." : searchQuery })}
         noLogsText={t("logs.noLogs")}
         followText={t("logs.follow")}
         copyLabel={t("common.copy")}
