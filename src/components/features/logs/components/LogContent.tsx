@@ -11,6 +11,9 @@ interface LogContentProps {
   isLoading: boolean;
   searchQuery: string;
   showTimestamps: boolean;
+  timestampLocal?: boolean;
+  lineWrap?: boolean;
+  logColoring?: boolean;
   useRegex: boolean;
   searchRegex: RegExp | null;
   onScroll: () => void;
@@ -45,6 +48,9 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
       isLoading,
       searchQuery,
       showTimestamps,
+      timestampLocal,
+      lineWrap,
+      logColoring,
       useRegex,
       searchRegex,
       onScroll,
@@ -148,12 +154,17 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
           onContextMenu={handleContextMenu}
           className="flex-1 overflow-auto"
         >
-          <pre className="m-0 p-2 font-mono text-sm leading-5" data-allow-context-menu>
+          <pre
+            className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-all" : ""}`}
+            data-allow-context-menu
+          >
             {logs.map((log, index) => (
               <LogLine
                 key={`${log.timestamp}-${index}`}
                 log={log}
                 showTimestamp={showTimestamps}
+                timestampLocal={timestampLocal}
+                logColoring={logColoring}
                 searchQuery={searchQuery}
                 useRegex={useRegex}
                 searchRegex={searchRegex}

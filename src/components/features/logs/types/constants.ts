@@ -43,6 +43,11 @@ export const LOG_DEFAULTS = {
  */
 export type DownloadFormat = "text" | "json" | "timestamps";
 
+/**
+ * Timestamp display mode.
+ */
+export type TimestampMode = "off" | "utc" | "local";
+
 export const DOWNLOAD_FORMATS: Array<{
   format: DownloadFormat;
   label: string;

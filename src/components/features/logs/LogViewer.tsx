@@ -13,6 +13,7 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useLogFilter, useLogAnalysis, useLogDownload, useAutoScroll } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
+import type { TimestampMode } from "./types";
 
 interface LogViewerProps {
   namespace: string;
@@ -50,8 +51,15 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
   );
 
   // Local UI state
-  const [showTimestamps, setShowTimestamps] = useState(true);
   const [showPreviousLogs, setShowPreviousLogs] = useState(false);
+
+  // Display options state
+  const [lineWrap, setLineWrap] = useState(true);
+  const [logColoring, setLogColoring] = useState(true);
+  const [timestampMode, setTimestampMode] = useState<TimestampMode>("off");
+
+  const showTimestamps = timestampMode !== "off";
+  const timestampLocal = timestampMode === "local";
 
   // Stop streaming when switching to previous logs (previous logs are static)
   useEffect(() => {
@@ -183,13 +191,25 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
             info: t("logs.levelInfo"),
             debug: t("logs.levelDebug"),
           },
-          showTimestamps,
-          onTimestampsToggle: setShowTimestamps,
-          timestampsLabel: t("logs.timestamps"),
           showPreviousLogs,
           onPreviousLogsToggle: setShowPreviousLogs,
           previousLogsLabel: t("podDetail.previousLogs"),
           isStreaming,
+        }}
+        displayOptions={{
+          lineWrap,
+          onLineWrapChange: setLineWrap,
+          logColoring,
+          onLogColoringChange: setLogColoring,
+          timestampMode,
+          onTimestampModeChange: setTimestampMode,
+          displayOptionsLabel: t("logs.displayOptions"),
+          lineWrapLabel: t("logs.lineWrap"),
+          logColoringLabel: t("logs.logColoring"),
+          timestampLabel: t("logs.timestampSection"),
+          timestampOffLabel: t("logs.timestampOff"),
+          timestampUtcLabel: t("logs.timestampUtc"),
+          timestampLocalLabel: t("logs.timestampLocal"),
         }}
         stream={{
           isStreaming,
@@ -245,6 +265,9 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         isLoading={isLoading}
         searchQuery={searchQuery}
         showTimestamps={showTimestamps}
+        timestampLocal={timestampLocal}
+        lineWrap={lineWrap}
+        logColoring={logColoring}
         useRegex={useRegex}
         searchRegex={searchRegex}
         onScroll={handleScroll}

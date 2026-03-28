@@ -18,6 +18,7 @@ import { LogToolbar, LogFooter } from "./components";
 import { DeploymentLogLine } from "./components/DeploymentLogLine";
 import { useLogFilter, useAutoScroll } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
+import type { TimestampMode } from "./types";
 import type { LogEntry } from "@/lib/types";
 
 interface DeploymentLogViewerProps {
@@ -50,7 +51,13 @@ export function DeploymentLogViewer({
     clearLogs,
   } = useDeploymentLogs(deploymentName, namespace);
 
-  const [showTimestamps, setShowTimestamps] = useState(true);
+  // Display options state
+  const [lineWrap, setLineWrap] = useState(true);
+  const [logColoring, setLogColoring] = useState(true);
+  const [timestampMode, setTimestampMode] = useState<TimestampMode>("off");
+
+  const showTimestamps = timestampMode !== "off";
+  const timestampLocal = timestampMode === "local";
 
   // Apply pod filter before other filters
   const podFilteredLogs = useMemo(() => {
@@ -173,14 +180,26 @@ export function DeploymentLogViewer({
             info: t("logs.levelInfo"),
             debug: t("logs.levelDebug"),
           },
-          showTimestamps,
-          onTimestampsToggle: setShowTimestamps,
-          timestampsLabel: t("logs.timestamps"),
           showPreviousLogs: false,
           onPreviousLogsToggle: () => {},
           previousLogsLabel: "",
           isStreaming,
           hidePreviousLogs: true,
+        }}
+        displayOptions={{
+          lineWrap,
+          onLineWrapChange: setLineWrap,
+          logColoring,
+          onLogColoringChange: setLogColoring,
+          timestampMode,
+          onTimestampModeChange: setTimestampMode,
+          displayOptionsLabel: t("logs.displayOptions"),
+          lineWrapLabel: t("logs.lineWrap"),
+          logColoringLabel: t("logs.logColoring"),
+          timestampLabel: t("logs.timestampSection"),
+          timestampOffLabel: t("logs.timestampOff"),
+          timestampUtcLabel: t("logs.timestampUtc"),
+          timestampLocalLabel: t("logs.timestampLocal"),
         }}
         stream={{
           isStreaming,
@@ -229,6 +248,9 @@ export function DeploymentLogViewer({
         onStartStream={() => startStream()}
         endRef={endRef}
         showTimestamps={showTimestamps}
+        timestampLocal={timestampLocal}
+        lineWrap={lineWrap}
+        logColoring={logColoring}
         searchQuery={searchQuery}
         useRegex={useRegex}
         searchRegex={searchRegex}
@@ -263,6 +285,9 @@ interface DeploymentLogContentProps {
   onStartStream: () => void;
   endRef?: React.RefObject<HTMLDivElement | null>;
   showTimestamps: boolean;
+  timestampLocal?: boolean;
+  lineWrap?: boolean;
+  logColoring?: boolean;
   searchQuery: string;
   useRegex: boolean;
   searchRegex: RegExp | null;
@@ -285,6 +310,9 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
       onStartStream,
       endRef,
       showTimestamps,
+      timestampLocal,
+      lineWrap,
+      logColoring,
       searchQuery,
       useRegex,
       searchRegex,
@@ -379,12 +407,17 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
           onContextMenu={handleContextMenu}
           className="flex-1 overflow-auto"
         >
-          <pre className="m-0 p-2 font-mono text-sm leading-5" data-allow-context-menu>
+          <pre
+            className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-all" : ""}`}
+            data-allow-context-menu
+          >
             {logs.map((log, index) => (
               <DeploymentLogLine
                 key={`${log.pod}-${log.timestamp}-${index}`}
                 log={log}
                 showTimestamp={showTimestamps}
+                timestampLocal={timestampLocal}
+                logColoring={logColoring}
                 searchQuery={searchQuery}
                 useRegex={useRegex}
                 searchRegex={searchRegex}

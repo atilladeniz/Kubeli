@@ -1,12 +1,13 @@
 "use client";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
-import type { DownloadFormat, LogLevelLabels } from "../types";
+import type { DownloadFormat, LogLevelLabels, TimestampMode } from "../types";
 import {
   SearchInput,
   LogLevelFilter,
   StreamButton,
   ToggleCheckbox,
+  DisplayOptionsPopover,
   FetchButton,
   DownloadButton,
   AIButton,
@@ -30,14 +31,27 @@ export interface FilterProps {
   logLevel: string;
   onLogLevelChange: (level: string) => void;
   logLevelLabels: LogLevelLabels;
-  showTimestamps: boolean;
-  onTimestampsToggle: (checked: boolean) => void;
-  timestampsLabel: string;
   showPreviousLogs: boolean;
   onPreviousLogsToggle: (checked: boolean) => void;
   previousLogsLabel: string;
   isStreaming?: boolean;
   hidePreviousLogs?: boolean;
+}
+
+export interface DisplayOptionsProps {
+  lineWrap: boolean;
+  onLineWrapChange: (checked: boolean) => void;
+  logColoring: boolean;
+  onLogColoringChange: (checked: boolean) => void;
+  timestampMode: TimestampMode;
+  onTimestampModeChange: (mode: TimestampMode) => void;
+  displayOptionsLabel: string;
+  lineWrapLabel: string;
+  logColoringLabel: string;
+  timestampLabel: string;
+  timestampOffLabel: string;
+  timestampUtcLabel: string;
+  timestampLocalLabel: string;
 }
 
 export interface StreamProps {
@@ -68,6 +82,7 @@ export interface AIProps {
 interface LogToolbarProps {
   search: SearchProps;
   filter: FilterProps;
+  displayOptions: DisplayOptionsProps;
   stream: StreamProps;
   download: DownloadProps;
   ai: AIProps;
@@ -85,6 +100,7 @@ interface LogToolbarProps {
 export function LogToolbar({
   search,
   filter,
+  displayOptions,
   stream,
   download,
   ai,
@@ -110,14 +126,6 @@ export function LogToolbar({
 
       {/* Log level filter */}
       <LogLevelFilter value={filter.logLevel} onChange={filter.onLogLevelChange} labels={filter.logLevelLabels} />
-
-      {/* Timestamp toggle */}
-      <ToggleCheckbox
-        id="timestamps"
-        checked={filter.showTimestamps}
-        onCheckedChange={filter.onTimestampsToggle}
-        label={filter.timestampsLabel}
-      />
 
       {/* Previous logs toggle (disabled during streaming) */}
       {!filter.hidePreviousLogs && (
@@ -174,6 +182,23 @@ export function LogToolbar({
 
           <ClearButton disabled={download.logsCount === 0 || !!hideClear} onClick={onClear} tooltip={clearLabel} />
         </TooltipProvider>
+
+        {/* Display options popover */}
+        <DisplayOptionsPopover
+          lineWrap={displayOptions.lineWrap}
+          onLineWrapChange={displayOptions.onLineWrapChange}
+          logColoring={displayOptions.logColoring}
+          onLogColoringChange={displayOptions.onLogColoringChange}
+          timestampMode={displayOptions.timestampMode}
+          onTimestampModeChange={displayOptions.onTimestampModeChange}
+          displayOptionsLabel={displayOptions.displayOptionsLabel}
+          lineWrapLabel={displayOptions.lineWrapLabel}
+          logColoringLabel={displayOptions.logColoringLabel}
+          timestampLabel={displayOptions.timestampLabel}
+          timestampOffLabel={displayOptions.timestampOffLabel}
+          timestampUtcLabel={displayOptions.timestampUtcLabel}
+          timestampLocalLabel={displayOptions.timestampLocalLabel}
+        />
       </div>
     </div>
   );
