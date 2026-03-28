@@ -50,20 +50,26 @@ interface DownloadButtonProps {
   isDownloading: boolean;
   disabled: boolean;
   onDownload: (format: DownloadFormat) => void;
+  tooltip: string;
 }
 
-export function DownloadButton({ isDownloading, disabled, onDownload }: DownloadButtonProps) {
+export function DownloadButton({ isDownloading, disabled, onDownload, tooltip }: DownloadButtonProps) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" disabled={isDownloading || disabled} className="size-7">
-          {isDownloading ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Download className="size-3.5" />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" disabled={isDownloading || disabled} className="size-7">
+              {isDownloading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Download className="size-3.5" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         {DOWNLOAD_FORMATS.map(({ format, label }) => (
           <DropdownMenuItem key={format} onClick={() => onDownload(format)}>

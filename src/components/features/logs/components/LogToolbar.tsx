@@ -2,6 +2,7 @@
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import type { DownloadFormat, LogLevelLabels, TimestampMode } from "../types";
+import type { DisplayOptionsLabels } from "./toolbar/DisplayOptionsPopover";
 import {
   SearchInput,
   LogLevelFilter,
@@ -13,8 +14,6 @@ import {
   AIButton,
   ClearButton,
 } from "./toolbar";
-
-// Grouped prop interfaces for better organization
 
 export interface SearchProps {
   query: string;
@@ -45,13 +44,7 @@ export interface DisplayOptionsProps {
   onLogColoringChange: (checked: boolean) => void;
   timestampMode: TimestampMode;
   onTimestampModeChange: (mode: TimestampMode) => void;
-  displayOptionsLabel: string;
-  lineWrapLabel: string;
-  logColoringLabel: string;
-  timestampLabel: string;
-  timestampOffLabel: string;
-  timestampUtcLabel: string;
-  timestampLocalLabel: string;
+  labels: DisplayOptionsLabels;
 }
 
 export interface StreamProps {
@@ -70,6 +63,7 @@ export interface DownloadProps {
   isDownloading: boolean;
   logsCount: number;
   onDownload: (format: DownloadFormat) => void;
+  tooltip: string;
 }
 
 export interface AIProps {
@@ -167,8 +161,19 @@ export function LogToolbar({
               isDownloading={download.isDownloading}
               disabled={download.logsCount === 0}
               onDownload={download.onDownload}
+              tooltip={download.tooltip}
             />
           )}
+
+          <DisplayOptionsPopover
+            lineWrap={displayOptions.lineWrap}
+            onLineWrapChange={displayOptions.onLineWrapChange}
+            logColoring={displayOptions.logColoring}
+            onLogColoringChange={displayOptions.onLogColoringChange}
+            timestampMode={displayOptions.timestampMode}
+            onTimestampModeChange={displayOptions.onTimestampModeChange}
+            labels={displayOptions.labels}
+          />
 
           {!hideAI && (
             <AIButton
@@ -182,23 +187,6 @@ export function LogToolbar({
 
           <ClearButton disabled={download.logsCount === 0 || !!hideClear} onClick={onClear} tooltip={clearLabel} />
         </TooltipProvider>
-
-        {/* Display options popover */}
-        <DisplayOptionsPopover
-          lineWrap={displayOptions.lineWrap}
-          onLineWrapChange={displayOptions.onLineWrapChange}
-          logColoring={displayOptions.logColoring}
-          onLogColoringChange={displayOptions.onLogColoringChange}
-          timestampMode={displayOptions.timestampMode}
-          onTimestampModeChange={displayOptions.onTimestampModeChange}
-          displayOptionsLabel={displayOptions.displayOptionsLabel}
-          lineWrapLabel={displayOptions.lineWrapLabel}
-          logColoringLabel={displayOptions.logColoringLabel}
-          timestampLabel={displayOptions.timestampLabel}
-          timestampOffLabel={displayOptions.timestampOffLabel}
-          timestampUtcLabel={displayOptions.timestampUtcLabel}
-          timestampLocalLabel={displayOptions.timestampLocalLabel}
-        />
       </div>
     </div>
   );

@@ -56,7 +56,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
   // Display options state
   const [lineWrap, setLineWrap] = useState(true);
   const [logColoring, setLogColoring] = useState(true);
-  const [timestampMode, setTimestampMode] = useState<TimestampMode>("off");
+  const [timestampMode, setTimestampMode] = useState<TimestampMode>("local");
 
   const showTimestamps = timestampMode !== "off";
   const timestampLocal = timestampMode === "local";
@@ -203,13 +203,16 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
           onLogColoringChange: setLogColoring,
           timestampMode,
           onTimestampModeChange: setTimestampMode,
-          displayOptionsLabel: t("logs.displayOptions"),
-          lineWrapLabel: t("logs.lineWrap"),
-          logColoringLabel: t("logs.logColoring"),
-          timestampLabel: t("logs.timestampSection"),
-          timestampOffLabel: t("logs.timestampOff"),
-          timestampUtcLabel: t("logs.timestampUtc"),
-          timestampLocalLabel: t("logs.timestampLocal"),
+          labels: {
+            tooltip: t("logs.displayOptions"),
+            displayOptions: t("logs.displayOptions"),
+            lineWrap: t("logs.lineWrap"),
+            logColoring: t("logs.logColoring"),
+            timestamp: t("logs.timestampSection"),
+            timestampOff: t("logs.timestampOff"),
+            timestampUtc: t("logs.timestampUtc"),
+            timestampLocal: t("logs.timestampLocal"),
+          },
         }}
         stream={{
           isStreaming,
@@ -226,6 +229,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
           isDownloading,
           logsCount: logs.length,
           onDownload: downloadLogs,
+          tooltip: t("logs.download"),
         }}
         ai={{
           isAvailable: isAICliAvailable,
