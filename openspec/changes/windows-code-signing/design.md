@@ -41,7 +41,8 @@ The current `publish.yml` workflow builds Windows on `windows-latest` via `tauri
 
 **Approach:** The Windows build job will:
 1. Build the NSIS installer via `tauri-apps/tauri-action@v0`
-2. Submit the unsigned `.exe` to SignPath for signing via `signpath/github-action-submit-signing-request`
+2. Upload the unsigned `.exe` via `actions/upload-artifact@v7`
+3. Submit the unsigned `.exe` to SignPath for signing via `signpath/github-action-submit-signing-request@v2`
 3. Replace the unsigned artifact with the signed one
 4. Upload the signed artifact to the GitHub Release
 
@@ -49,7 +50,7 @@ The current `publish.yml` workflow builds Windows on `windows-latest` via `tauri
 
 ### 3. Use SignPath's GitHub Actions integration
 
-**Choice:** `signpath/github-action-submit-signing-request@v1`
+**Choice:** `signpath/github-action-submit-signing-request@v2`
 
 **How it works:**
 - SignPath verifies the build origin (must come from the configured GitHub repository and branch)
@@ -59,8 +60,9 @@ The current `publish.yml` workflow builds Windows on `windows-latest` via `tauri
 **Required GitHub Secrets:**
 - `SIGNPATH_API_TOKEN` — API token for the SignPath organization
 - `SIGNPATH_ORGANIZATION_ID` — SignPath organization UUID
-- `SIGNPATH_PROJECT_SLUG` — Project identifier in SignPath (e.g., "kubeli")
-- `SIGNPATH_SIGNING_POLICY_SLUG` — Signing policy (e.g., "release-signing")
+
+
+**Note:** Project slug (`kubeli`) and signing policy slug (`release-signing`) are hardcoded in the workflow, not stored as secrets.
 
 ### 4. Code signing policy page on kubeli.dev
 

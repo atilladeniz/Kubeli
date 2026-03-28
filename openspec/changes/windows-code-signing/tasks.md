@@ -9,17 +9,18 @@
 
 - [ ] 2.1 Add `SIGNPATH_API_TOKEN` secret to the GitHub repository
 - [ ] 2.2 Add `SIGNPATH_ORGANIZATION_ID` secret to the GitHub repository
-- [ ] 2.3 Add `SIGNPATH_PROJECT_SLUG` secret (value: "kubeli") to the GitHub repository
-- [ ] 2.4 Add `SIGNPATH_SIGNING_POLICY_SLUG` secret (value: "release-signing") to the GitHub repository
+- [ ] 2.3 Install the [SignPath GitHub App](https://github.com/apps/signpath) and grant access to `atilladeniz/Kubeli`
+- [ ] 2.4 Link the predefined Trusted Build System "GitHub.com" to the organization and project in SignPath
 
 ## 3. CI/CD Pipeline Integration
 
-- [ ] 3.1 Update `.github/workflows/publish.yml`: add a `sign-windows` step after the Windows build in the `build` job
-- [ ] 3.2 Use `signpath/github-action-submit-signing-request@v2` action to submit the unsigned NSIS `.exe` to SignPath
-- [ ] 3.3 Configure the action with `wait-for-completion: true` and appropriate timeout (10 minutes)
-- [ ] 3.4 Replace the unsigned `.exe` artifact with the signed version before upload to GitHub Release
-- [ ] 3.5 Ensure the Tauri updater `.sig` file is generated from the unsigned binary (before Authenticode signing) to maintain updater compatibility
-- [ ] 3.6 Add conditional logic: only run signing step when `SIGNPATH_API_TOKEN` secret is available (graceful degradation)
+- [ ] 3.1 Update `.github/workflows/publish.yml`: add a `sign-windows` job after the Windows build
+- [ ] 3.2 Upload unsigned `.exe` via `actions/upload-artifact@v7` before signing
+- [ ] 3.3 Use `signpath/github-action-submit-signing-request@v2` action to submit the unsigned NSIS `.exe` to SignPath
+- [ ] 3.4 Configure the action with `wait-for-completion: true` and appropriate timeout (10 minutes)
+- [ ] 3.5 Replace the unsigned `.exe` artifact with the signed version before upload to GitHub Release
+- [ ] 3.6 Ensure the Tauri updater `.sig` file is generated from the unsigned binary (before Authenticode signing) to maintain updater compatibility
+- [ ] 3.7 Add conditional logic: only run signing step when `SIGNPATH_API_TOKEN` secret is available (graceful degradation)
 
 ## 4. Code Signing Policy Page
 
