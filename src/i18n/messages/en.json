@@ -347,7 +347,7 @@
     "clear": "Clear",
     "wrap": "Wrap Lines",
     "autoScroll": "Auto Scroll",
-    "searching": "No matches found",
+    "noMatchesFound": "No matches found for \"{query}\"",
     "noLogs": "No logs available",
     "lines": "{count} lines",
     "streamingActive": "Streaming active",

@@ -260,7 +260,7 @@ export function DeploymentLogViewer({
         searchRegex={searchRegex}
         podColorMap={podColorMap}
         loadingText={t("common.loading")}
-        searchingText={t("logs.searching")}
+        searchingText={t("logs.noMatchesFound", { query: searchQuery })}
         noLogsText={pods.length === 0 ? t("logs.noPodsFound") : t("logs.noLogs")}
         followText={t("logs.follow")}
         copyLabel={t("common.copy")}
