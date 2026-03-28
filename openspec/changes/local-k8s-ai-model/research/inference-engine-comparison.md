@@ -267,6 +267,9 @@ v1.0 — Ship with llama-server sidecar
 v2.0 — Optimize
 ├── Smart routing: lite model for simple, full model for complex
 ├── CUDA binary download for NVIDIA users
+├── TurboQuant KV cache compression (3.5-4.9x, beats q8_0 quality)
+│   → Enables 128K context on RTX 3090, 32K+ on 16GB machines
+│   → See research/turboquant-kv-cache.md
 ├── Nemotron-3-Nano-4B evaluation (1M context advantage)
 ├── Qwen3.5-4B when Ollama/llama.cpp fully supports it
 └── GRPO training for better JSON output

@@ -251,6 +251,7 @@ Scripts in `.dev/kubi-1/cloud/` when/if that fallback is added.
 | **Training UI** | CLI scripts | **Unsloth Studio + CLI** | No-code option |
 | **Data Pipeline** | Custom scripts only | **Scripts + Data Recipes eval** | Best of both |
 | **GGUF Export** | Q4_K_M + Q5_K_M | **+ Unsloth Dynamic UD-Q4_K_XL** | Better quality |
+| **KV Cache** | Not specified | **TurboQuant eval on RTX 3090** | 3.5x compression, 128K context, beats q8_0 quality |
 | **Training Focus** | Not specified | **Local RTX 3090 first** | Zero cost, fastest iteration |
 | **Connection** | SSH tunnel suggestion | **Tailscale** | Already installed, stable |
 | **Cloud GPU** | Not planned | **Vast.ai as fallback** | $0.10/run if needed |
