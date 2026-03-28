@@ -1,7 +1,7 @@
 ## 1. SignPath Foundation Application
 
-- [ ] 1.1 Submit the completed OSSRequestForm-v4.xlsx to SignPath Foundation via their application process
-- [ ] 1.2 Wait for approval and receive SignPath organization credentials (API token, organization ID)
+- [x] 1.1 Submit the completed OSSRequestForm-v4.xlsx to SignPath Foundation via their application process
+- [x] 1.2 Wait for approval and receive SignPath organization credentials (API token, organization ID)
 - [ ] 1.3 Configure the SignPath project: create project slug "kubeli", set up artifact configuration for NSIS `.exe` files
 - [ ] 1.4 Create a signing policy "release-signing" in SignPath with manual approval for production releases
 
@@ -15,7 +15,7 @@
 ## 3. CI/CD Pipeline Integration
 
 - [ ] 3.1 Update `.github/workflows/publish.yml`: add a `sign-windows` step after the Windows build in the `build` job
-- [ ] 3.2 Use `signpath/github-action-submit-signing-request@v1` action to submit the unsigned NSIS `.exe` to SignPath
+- [ ] 3.2 Use `signpath/github-action-submit-signing-request@v2` action to submit the unsigned NSIS `.exe` to SignPath
 - [ ] 3.3 Configure the action with `wait-for-completion: true` and appropriate timeout (10 minutes)
 - [ ] 3.4 Replace the unsigned `.exe` artifact with the signed version before upload to GitHub Release
 - [ ] 3.5 Ensure the Tauri updater `.sig` file is generated from the unsigned binary (before Authenticode signing) to maintain updater compatibility
