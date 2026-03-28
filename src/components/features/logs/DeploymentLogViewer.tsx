@@ -389,7 +389,7 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
             ) : searchQuery ? (
               <>
                 <SearchX className="size-8" />
-                <p>{searchingText}</p>
+                <p className="max-w-md truncate px-4">{searchingText}</p>
               </>
             ) : (
               <>
