@@ -1,5 +1,6 @@
 "use client";
 
+import { useMemo } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTranslations } from "next-intl";
@@ -27,10 +28,20 @@ export function EventsTab({ events }: EventsTabProps) {
   const t = useTranslations();
   const locale = useLocale();
 
+  const sortedEvents = useMemo(
+    () =>
+      [...events].sort((a, b) => {
+        const timeA = a.lastTimestamp ?? "";
+        const timeB = b.lastTimestamp ?? "";
+        return timeB.localeCompare(timeA);
+      }),
+    [events]
+  );
+
   return (
     <div className="h-full overflow-y-auto">
       <div className="p-4 space-y-3">
-        {events.map((event, idx) => (
+        {sortedEvents.map((event, idx) => (
           <div
             key={idx}
             className={cn(
