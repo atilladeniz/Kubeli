@@ -5,6 +5,8 @@ import { useLogStore } from "./log-store";
 export interface TabMetadata {
   namespace?: string;
   podName?: string;
+  deploymentName?: string;
+  autoStream?: boolean;
 }
 
 export interface Tab {
@@ -129,7 +131,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
       persistTabs(newTabs, newActiveId);
       syncActiveTabId(newActiveId);
 
-      if (closedTab?.type === "pod-logs") {
+      if (closedTab?.type === "pod-logs" || closedTab?.type === "deployment-logs") {
         useLogStore.getState().cleanupLogTab(id);
       }
     },
@@ -148,7 +150,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
       syncActiveTabId(id);
 
       for (const t of removedTabs) {
-        if (t.type === "pod-logs") {
+        if (t.type === "pod-logs" || t.type === "deployment-logs") {
           useLogStore.getState().cleanupLogTab(t.id);
         }
       }
@@ -174,7 +176,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
       syncActiveTabId(newActiveId);
 
       for (const t of removedTabs) {
-        if (t.type === "pod-logs") {
+        if (t.type === "pod-logs" || t.type === "deployment-logs") {
           useLogStore.getState().cleanupLogTab(t.id);
         }
       }
@@ -248,7 +250,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
       }
 
       for (const t of tabs) {
-        if (t.type === "pod-logs") {
+        if (t.type === "pod-logs" || t.type === "deployment-logs") {
           useLogStore.getState().cleanupLogTab(t.id);
         }
       }

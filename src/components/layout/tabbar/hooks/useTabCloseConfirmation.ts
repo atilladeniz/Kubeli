@@ -43,7 +43,7 @@ export function useTabCloseConfirmation({
         confirmation !== "never" &&
         tabIds.some((id) => {
           const tab = tabs.find((currentTab) => currentTab.id === id);
-          return tab?.type === "pod-logs" && isPodGoneWithLogs(id);
+          return (tab?.type === "pod-logs" || tab?.type === "deployment-logs") && isPodGoneWithLogs(id);
         });
 
       if (needsConfirmation) {
