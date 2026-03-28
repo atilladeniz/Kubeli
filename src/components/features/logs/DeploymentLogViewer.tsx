@@ -8,7 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { AlertCircle, Layers, Loader2, Copy, Check } from "lucide-react";
+import { AlertCircle, Layers, Loader2, Copy, Check, SearchX } from "lucide-react";
 import { useDeploymentLogs, type PodColorEntry } from "@/lib/hooks/useDeploymentLogs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -387,7 +387,10 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
                 <p>{loadingText}</p>
               </>
             ) : searchQuery ? (
-              <p>{searchingText}</p>
+              <>
+                <SearchX className="size-8" />
+                <p>{searchingText}</p>
+              </>
             ) : (
               <>
                 <p>{noLogsText}</p>

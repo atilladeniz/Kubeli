@@ -347,7 +347,7 @@
     "clear": "Leeren",
     "wrap": "Zeilenumbruch",
     "autoScroll": "Auto-Scroll",
-    "searching": "Suche...",
+    "searching": "Keine Treffer gefunden",
     "noLogs": "Keine Logs verfügbar",
     "lines": "{count} Zeilen",
     "streamingActive": "Streaming aktiv",

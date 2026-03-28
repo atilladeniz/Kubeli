@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useState, useCallback, useRef, useEffect } from "react";
-import { Loader2, Copy, Check, Sparkles } from "lucide-react";
+import { Loader2, Copy, Check, Sparkles, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LogEntry } from "@/lib/types";
 import { LogLine } from "./LogLine";
@@ -130,7 +130,10 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
                 <p>{loadingText}</p>
               </>
             ) : searchQuery ? (
-              <p>{searchingText}</p>
+              <>
+                <SearchX className="size-8" />
+                <p>{searchingText}</p>
+              </>
             ) : (
               <>
                 <p>{noLogsText}</p>
