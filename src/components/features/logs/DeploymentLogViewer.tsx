@@ -8,7 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
-import { AlertCircle, Layers, Loader2, Copy, Check, SearchX } from "lucide-react";
+import { AlertCircle, Layers, Loader2, Copy, Check, SearchX, Maximize2 } from "lucide-react";
 import { useDeploymentLogs, type PodColorEntry } from "@/lib/hooks/useDeploymentLogs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -21,9 +21,13 @@ import { LOG_DEFAULTS } from "./types";
 import type { TimestampMode } from "./types";
 import type { LogEntry } from "@/lib/types";
 
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+
 interface DeploymentLogViewerProps {
   deploymentName: string;
   namespace: string;
+  onOpenInTab?: (isCurrentlyStreaming: boolean) => void;
+  autoStream?: boolean;
 }
 
 /**
@@ -33,6 +37,8 @@ interface DeploymentLogViewerProps {
 export function DeploymentLogViewer({
   deploymentName,
   namespace,
+  onOpenInTab,
+  autoStream,
 }: DeploymentLogViewerProps) {
   const t = useTranslations();
 
@@ -83,6 +89,15 @@ export function DeploymentLogViewer({
     resetFilters();
   }, [namespace, deploymentName, resetFilters]);
 
+  // Auto-start streaming when opened from side panel with active stream
+  const autoStreamTriggered = useRef(false);
+  useEffect(() => {
+    if (autoStream && !autoStreamTriggered.current && pods.length > 0 && !isStreaming) {
+      autoStreamTriggered.current = true;
+      startStream();
+    }
+  }, [autoStream, pods.length, isStreaming, startStream]);
+
   const copyAllLogs = useCallback(async () => {
     try {
       const text = filteredLogs.map((l) => l.message).join("\n");
@@ -120,6 +135,18 @@ export function DeploymentLogViewer({
           <Badge variant="outline" className="gap-1">
             {pods.length} {pods.length === 1 ? "Pod" : "Pods"}
           </Badge>
+          {onOpenInTab && (
+            <TooltipProvider delayDuration={300}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button variant="ghost" size="icon" className="size-7" onClick={() => onOpenInTab(isStreaming)}>
+                    <Maximize2 className="size-3.5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{t("logs.openInTab")}</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
         </div>
       </div>
 

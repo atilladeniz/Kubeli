@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Copy, Trash2, Eye, Scale, RefreshCw, Star } from "lucide-react";
+import { Copy, Trash2, Eye, Scale, RefreshCw, Star, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useDeployments } from "@/lib/hooks/useK8sResources";
@@ -17,6 +17,7 @@ import {
   type ContextMenuItemDef,
 } from "../../../resources/columns";
 import { useResourceDetail } from "../../context";
+import { useTabsStore } from "@/lib/stores/tabs-store";
 import type { DeploymentInfo } from "@/lib/types";
 
 export function DeploymentsView() {
@@ -26,6 +27,8 @@ export function DeploymentsView() {
     refreshInterval: 30000,
   });
   const { openResourceDetail, handleDeleteFromContext, handleScaleFromContext } = useResourceDetail();
+  const openTabStore = useTabsStore((s) => s.openTab);
+  const tabCount = useTabsStore((s) => s.tabs.length);
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const { currentCluster } = useClusterStore();
@@ -42,6 +45,30 @@ export function DeploymentsView() {
       label: t("common.viewDetails"),
       icon: <Eye className="size-4" />,
       onClick: () => openResourceDetail("deployment", dep.name, dep.namespace),
+    },
+    {
+      label: t("logs.viewLogs"),
+      icon: <FileText className="size-4" />,
+      onClick: () => {
+        const { tabs, setActiveTab } = useTabsStore.getState();
+        const existing = tabs.find(
+          (tab) => tab.type === "deployment-logs" &&
+            tab.metadata?.deploymentName === dep.name &&
+            tab.metadata?.namespace === dep.namespace
+        );
+        if (existing) {
+          setActiveTab(existing.id);
+          return;
+        }
+        if (tabCount >= 10) {
+          toast.warning(t("tabs.limitToast"));
+          return;
+        }
+        openTabStore("deployment-logs", `Logs: ${dep.name} (${dep.namespace})`, {
+          newTab: true,
+          metadata: { namespace: dep.namespace, deploymentName: dep.name },
+        });
+      },
     },
     {
       label: "Scale",
