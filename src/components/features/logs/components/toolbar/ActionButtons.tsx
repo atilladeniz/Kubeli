@@ -1,6 +1,7 @@
 "use client";
 
-import { Trash2, Download, Loader2, ArrowDown, FileText, FileJson, Sparkles } from "lucide-react";
+import { useState, useCallback } from "react";
+import { Trash2, Download, Loader2, ArrowDown, FileText, FileJson, Sparkles, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -83,6 +84,44 @@ export function DownloadButton({ isDownloading, disabled, onDownload, tooltip }:
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+// Copy All Button
+interface CopyAllButtonProps {
+  disabled: boolean;
+  onCopy: () => Promise<void>;
+  tooltip: string;
+}
+
+export function CopyAllButton({ disabled, onCopy, tooltip }: CopyAllButtonProps) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = useCallback(async () => {
+    await onCopy();
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  }, [onCopy]);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleCopy}
+          disabled={disabled}
+          className="size-7"
+        >
+          {copied ? (
+            <Check className="size-3.5 text-green-500" />
+          ) : (
+            <Copy className="size-3.5" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 

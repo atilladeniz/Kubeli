@@ -83,6 +83,11 @@ export function DeploymentLogViewer({
     resetFilters();
   }, [namespace, deploymentName, resetFilters]);
 
+  const copyAllLogs = useCallback(async () => {
+    const text = filteredLogs.map((l) => l.message).join("\n");
+    await navigator.clipboard.writeText(text);
+  }, [filteredLogs]);
+
   const { containerRef, endRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
     dependencies: [logs],
     initialAutoScroll: true,
@@ -220,6 +225,8 @@ export function DeploymentLogViewer({
           logsCount: logs.length,
           onDownload: async () => {},
           tooltip: t("logs.download"),
+          onCopyAll: copyAllLogs,
+          copyAllTooltip: t("logs.copyAll"),
         }}
         ai={{
           isAvailable: false,

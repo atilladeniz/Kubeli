@@ -99,7 +99,7 @@ export default function Home() {
 
   // Prevent app-wide Select All; keep Cmd/Ctrl+A only for editable targets.
   useEffect(() => {
-    const isEditableTarget = (target: EventTarget | null): boolean => {
+    const isSelectableTarget = (target: EventTarget | null): boolean => {
       if (!(target instanceof HTMLElement)) return false;
       if (target.tagName === "INPUT" || target.tagName === "TEXTAREA")
         return true;
@@ -109,13 +109,14 @@ export default function Home() {
       )
         return true;
       if (target.closest('[role="textbox"]')) return true;
+      if (target.closest('[data-allow-context-menu]')) return true;
       return false;
     };
 
     const handleSelectAll = (e: KeyboardEvent) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "a") return;
       if (e.altKey) return;
-      if (isEditableTarget(e.target)) return;
+      if (isSelectableTarget(e.target)) return;
       e.preventDefault();
     };
 

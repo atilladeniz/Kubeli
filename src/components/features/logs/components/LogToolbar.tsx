@@ -11,6 +11,7 @@ import {
   DisplayOptionsPopover,
   FetchButton,
   DownloadButton,
+  CopyAllButton,
   AIButton,
   ClearButton,
 } from "./toolbar";
@@ -64,6 +65,8 @@ export interface DownloadProps {
   logsCount: number;
   onDownload: (format: DownloadFormat) => void;
   tooltip: string;
+  onCopyAll: () => Promise<void>;
+  copyAllTooltip: string;
 }
 
 export interface AIProps {
@@ -157,12 +160,20 @@ export function LogToolbar({
           />
 
           {!hideDownload && (
-            <DownloadButton
-              isDownloading={download.isDownloading}
-              disabled={download.logsCount === 0}
-              onDownload={download.onDownload}
-              tooltip={download.tooltip}
-            />
+            <>
+              <DownloadButton
+                isDownloading={download.isDownloading}
+                disabled={download.logsCount === 0}
+                onDownload={download.onDownload}
+                tooltip={download.tooltip}
+              />
+
+              <CopyAllButton
+                disabled={download.logsCount === 0}
+                onCopy={download.onCopyAll}
+                tooltip={download.copyAllTooltip}
+              />
+            </>
           )}
 
           <DisplayOptionsPopover

@@ -140,6 +140,12 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
     [isAICliAvailable, currentCluster, currentNamespace, namespace, podName, setPendingAnalysis, setAIAssistantOpen, t]
   );
 
+  // Copy all logs to clipboard
+  const copyAllLogs = useCallback(async () => {
+    const text = filteredLogs.map((l) => l.message).join("\n");
+    await navigator.clipboard.writeText(text);
+  }, [filteredLogs]);
+
   // Download hook
   const { isDownloading, downloadLogs } = useLogDownload({
     podName,
@@ -230,6 +236,8 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
           logsCount: logs.length,
           onDownload: downloadLogs,
           tooltip: t("logs.download"),
+          onCopyAll: copyAllLogs,
+          copyAllTooltip: t("logs.copyAll"),
         }}
         ai={{
           isAvailable: isAICliAvailable,

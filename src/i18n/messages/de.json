@@ -373,6 +373,7 @@
     "aiSelectionPrompt": "Analysiere die folgenden ausgewählten Log-Zeilen vom Pod {namespace}/{podName}:",
     "podLegend": "Pods",
     "noPodsFound": "Keine laufenden Pods für dieses Deployment gefunden",
+    "copyAll": "Alles kopieren",
     "displayOptions": "Anzeigeoptionen",
     "lineWrap": "Zeilenumbruch",
     "logColoring": "Log-Einfärbung",
