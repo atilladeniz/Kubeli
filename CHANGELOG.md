@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.67] - 2026-03-29
+
+- Added Windows code signing via SignPath Foundation
+
 ## [0.3.66] - 2026-03-28
 
 - Added fullscreen view for aggregated Deployment logs
