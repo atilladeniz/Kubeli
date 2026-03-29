@@ -12,6 +12,8 @@ on:
 
 permissions:
   contents: write
+  actions: read
+  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -194,9 +196,69 @@ jobs:
           retryAttempts: 3
           args: ${{ matrix.args }}
 
+  sign-windows:
+    name: Sign Windows Installers
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download unsigned Windows artifacts from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          mkdir -p unsigned
+          gh release download "$RELEASE_TAG" --dir unsigned --pattern "*.exe" --pattern "*.msi"
+          echo "Downloaded unsigned artifacts:"
+          ls -la unsigned/
+
+      - name: Upload unsigned artifacts for SignPath
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned
+          path: |
+            unsigned/Kubeli_*_x64-setup.exe
+            unsigned/Kubeli_*_x64_en-US.msi
+
+      - name: Submit signing request to SignPath
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+          organization-id: '${{ secrets.SIGNPATH_ORGANIZATION_ID }}'
+          project-slug: 'Kubeli'
+          signing-policy-slug: 'test-signing'
+          github-artifact-id: '${{ steps.upload-unsigned.outputs.artifact-id }}'
+          wait-for-completion: true
+          output-artifact-directory: './signed'
+          parameters: ''
+
+      - name: Replace unsigned with signed artifacts in release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          echo "Signed artifacts:"
+          ls -la signed/
+
+          # Upload signed artifacts, replacing the unsigned ones
+          for f in signed/Kubeli_*_x64-setup.exe signed/Kubeli_*_x64_en-US.msi; do
+            if [ -f "$f" ]; then
+              BASENAME=$(basename "$f")
+              echo "Replacing $BASENAME with signed version..."
+              gh release upload "$RELEASE_TAG" "$f" --clobber
+            fi
+          done
+          echo "Signed Windows artifacts uploaded to release"
+
   finalize:
     name: Finalize Release
-    needs: [create-release, build]
+    needs: [create-release, build, sign-windows]
     runs-on: ubuntu-latest
     environment: production
     steps:
