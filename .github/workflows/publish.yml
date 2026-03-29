@@ -12,6 +12,8 @@ on:
 
 permissions:
   contents: write
+  actions: read
+  id-token: write
 
 env:
   CARGO_TERM_COLOR: always
@@ -194,9 +196,63 @@ jobs:
           retryAttempts: 3
           args: ${{ matrix.args }}
 
+  sign-windows:
+    name: Sign Windows Installers
+    needs: [create-release, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download unsigned Windows artifacts from release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+        run: |
+          mkdir -p unsigned
+          gh release download "$RELEASE_TAG" --dir unsigned --pattern "*.exe" --pattern "*.msi"
+          echo "Downloaded unsigned artifacts:"
+          ls -la unsigned/
+
+      - name: Prepare artifacts for signing
+        run: |
+          # Flatten to root level — SignPath artifact config expects files at ZIP root
+          mkdir -p to-sign
+          cp unsigned/Kubeli_*_x64-setup.exe to-sign/
+          cp unsigned/Kubeli_*_x64_en-US.msi to-sign/
+          echo "Prepared artifacts for signing:"
+          ls -la to-sign/
+
+      - name: Upload unsigned artifacts for SignPath
+        id: upload-unsigned
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-unsigned
+          path: to-sign/
+
+      - name: Submit signing request to SignPath
+        uses: signpath/github-action-submit-signing-request@v1
+        with:
+          api-token: '${{ secrets.SIGNPATH_API_TOKEN }}'
+          organization-id: '${{ secrets.SIGNPATH_ORGANIZATION_ID }}'
+          project-slug: 'Kubeli'
+          signing-policy-slug: 'test-signing'
+          github-artifact-id: '${{ steps.upload-unsigned.outputs.artifact-id }}'
+          wait-for-completion: true
+          output-artifact-directory: './signed'
+
+      - name: Upload signed artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-signed
+          path: signed/
+
   finalize:
     name: Finalize Release
-    needs: [create-release, build]
+    needs: [create-release, build, sign-windows]
     runs-on: ubuntu-latest
     environment: production
     steps:
@@ -229,6 +285,32 @@ jobs:
           gh release download "$RELEASE_TAG" --dir artifacts
           echo "Downloaded artifacts:"
           ls -la artifacts/
+
+      - name: Download signed Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-signed
+          path: signed/
+        continue-on-error: true
+
+      - name: Upload signed installers to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if [ -d "signed" ] && ls signed/*.exe signed/*.msi 2>/dev/null | head -1 > /dev/null; then
+            echo "Uploading signed Windows installers to release..."
+            for f in signed/Kubeli_*_x64-setup.exe signed/Kubeli_*_x64_en-US.msi; do
+              if [ -f "$f" ]; then
+                BASENAME=$(basename "$f")
+                echo "Replacing $BASENAME with signed version..."
+                gh release upload "$RELEASE_TAG" "$f" --clobber
+              fi
+            done
+            echo "Signed Windows installers uploaded to release"
+          else
+            echo "No signed artifacts found, keeping unsigned versions"
+          fi
 
       - name: Build FTP latest.json
         env:
@@ -396,8 +478,9 @@ jobs:
               "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/Kubeli_latest.dmg" --ftp-create-dirs
           fi
 
-          # Windows EXE
-          EXE=$(ls artifacts/*x64-setup.exe 2>/dev/null | head -1)
+          # Windows EXE — prefer signed version for direct downloads
+          EXE=$(ls signed/Kubeli_*_x64-setup.exe 2>/dev/null | head -1)
+          EXE=${EXE:-$(ls artifacts/*x64-setup.exe 2>/dev/null | head -1)}
           EXE=${EXE:-$(ls artifacts/*x64_setup.exe 2>/dev/null | head -1)}
           if [ -n "$EXE" ]; then
             BASENAME=$(basename "$EXE")
