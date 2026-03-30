@@ -2,6 +2,15 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.68] - 2026-03-30
+
+- Added Cmd+S / Ctrl+S save shortcut to YAML editor
+- Fixed npm security vulnerabilities
+- Fixed landing page deploy environment gate
+- Updated Vite to v8 and @vitejs/plugin-react to v6
+- Updated lucide-react to v1.7.0
+- Updated CI actions (upload-artifact v7, download-artifact v8, SignPath v2)
+
 ## [0.3.67] - 2026-03-29
 
 - Added Windows code signing via SignPath Foundation
