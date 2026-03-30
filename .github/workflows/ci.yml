@@ -67,7 +67,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-web]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: production
     steps:
       - name: Download build artifact
         uses: actions/download-artifact@v8
