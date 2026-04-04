@@ -15,13 +15,24 @@ The existing OpenSpec plan (Qwen3-4B + llama-server sidecar + Unsloth QLoRA) is 
 4. **Local-first training**: RTX 3090 is the primary training machine. Mac connects via SSH/Tailscale. Cloud (Vast.ai) is fallback only.
 5. **Grephuboverflow** can be extended as a K8s doc harvester, or use standalone script.
 
-### Recommendation: Dual Approach
+### Recommendation: Tiered Approach (Updated April 4, 2026)
 
 | Phase | Model | Reason |
 |-------|-------|--------|
 | **v1 (now)** | `kubi-1` on Qwen3-4B via llama-server | Stable default, zero-install inside Kubeli |
-| **v2 (fine-tune)** | Qwen3.5-4B via Unsloth | Better, 256K context, evaluate as next-gen base |
-| **Fallback** | `qwen3:8b` or `qwen3-30b-a3b` (MoE) | As planned, updated fallback |
+| **v2 (fine-tune)** | Qwen3.5-4B OR Gemma 4 E4B via Unsloth | Head-to-head eval needed. E4B: dense, 128K, vision. Qwen3.5: 256K, proven. |
+| **v2 (ultra)** | Gemma 4 26B-A4B (MoE, 3.8B active) | 82.6% MMLU Pro, thinking mode, 256K context. For 32GB+ users. |
+| **v2 (infra)** | TurboQuant turbo3 KV cache | Confirmed flags, Metal support, 4.6x compression. Ship as default for v2. |
+| **Fallback** | `qwen3:8b` or `qwen3-30b-a3b` (MoE) | As planned |
+
+#### April 2026 Key Developments
+
+1. **Gemma 4** released: 26B-A4B MoE (3.8B active) and E4B (dense 4B) — both Apache 2.0, GGUF via Unsloth available, llama.cpp compatible. Quality tier significantly above Qwen3-4B.
+2. **TurboQuant Metal confirmed**: PR #22 merged (M3/M4 support). Exact llama-server flags confirmed via Atomic Chat production: `--cache-type-k turbo3 --cache-type-v turbo3`.
+3. **TurboQuant Weight Compression**: PR #45 — TQ4_1S reduces model size by 28-37% on Qwen, Metal-only for now.
+4. **TurboQuant + Gemma 4 MoE**: PR #52 active — Metal support for Gemma 4 with TQ weights.
+5. **llama-server `--fit` flag**: Auto-adjusts context size to device memory. Simplifies hardware detection — we don't need to manually calculate context size per tier.
+6. **Atomic Chat** (Jan fork + TurboQuant) ships turbo3 as default KV cache. Validates production readiness.
 
 ---
 

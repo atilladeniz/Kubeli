@@ -105,15 +105,17 @@ Add flags to sidecar startup:
 
 ```rust
 // LlamaManager start args — add TurboQuant KV cache config
+// Flags confirmed from Atomic Chat's production settings (settings.json)
 .args([
     "--model", model_path.to_str().unwrap(),
     "--port", &port.to_string(),
     "--host", "127.0.0.1",
-    "--ctx-size", "32768",          // Can now afford larger context
-    "--cache-type-k", "turboquant", // TurboQuant KV cache (exact flag TBD)
-    "--cache-type-v", "turboquant",
-    "--flash-attn",
-    "--cont-batching",
+    "--ctx-size", "32768",        // Can now afford larger context
+    "--cache-type-k", "turbo3",   // TurboQuant KV cache (turbo3 = 4.6x compression)
+    "--cache-type-v", "turbo3",   // Also supports: turbo4 (higher compression, less tested)
+    "--flash-attn",               // "auto" in Atomic Chat, we use explicit on
+    "--parallel", "1",            // Single-request serving, enables -kvu optimization
+    "--defrag-thold", "0.1",      // KV cache defragmentation threshold
 ])
 ```
 
@@ -155,16 +157,79 @@ macOS users (our primary audience) would not benefit until Metal support lands.
 
 ---
 
-## Recommendation
+## Update: April 4, 2026 — Major Progress Since Initial Research
+
+TheTom's fork has seen significant development since our initial evaluation. Key developments:
+
+### Metal (macOS) Support Confirmed
+
+PR #22 (closed/merged): **M3 Ultra (Apple9) support** — fixes crashes, adds MUL_MAT kernels, optimizes dequant.
+
+Benchmarks on M3 Ultra 256GB (Qwen3-32B Q4_K_M, FA=1):
+
+| KV type | pp512 (t/s) | tg128 (t/s) | KV memory |
+|---------|-------------|-------------|-----------|
+| f16     | 341.94      | 30.42       | 128 MiB   |
+| q8_0    | 337.89      | 29.05       | 64 MiB    |
+| turbo3  | 333.67      | 21.27       | 28 MiB (4.6x) |
+
+Decode speed on Metal is ~70% of f16 (21.27 vs 30.42 t/s). KV memory savings are excellent (4.6x). This is a tradeoff — on CUDA the decode penalty is much smaller (~97.5%).
+
+### Gemma 4 MoE Compatibility (PR #51, #52)
+
+Active work to support **Gemma 4 MoE** models with TurboQuant:
+- PR #51 (closed): Initial Gemma 4 Metal fixes for TQ weight quantization
+- PR #52 (open): Comprehensive fix — Gemma 4 TQ4_1S weight quantization now produces valid outputs on Apple Metal. Fixes degenerate/repetitive generations. Model runs correctly with TurboQuant KV cache settings (e.g. `-ctk q8_0 -ctv turbo4`).
+
+This is directly relevant if we evaluate Gemma 4 26B-A4B as a Kubi model candidate.
+
+### TQ Weight Compression — Not Just KV Cache (PR #45)
+
+TurboQuant has expanded beyond KV cache to **weight compression**:
+- TQ3_1S (3-bit, 4.0 BPW) and TQ4_1S (4-bit, 5.0 BPW)
+- Post-training quantization — no retraining needed
+- Uses WHT rotation + Lloyd-Max centroids
+
+Results on Qwen models:
+
+| Model | Config | Size Reduction | PPL Delta | Decode Speed |
+|-------|--------|---------------|-----------|-------------|
+| Qwen2.5-1.5B | Config I | -27% | +1.9% | 96% |
+| Qwen3.5-27B | Config I | -28% | +1.3% | 99% |
+| Qwen3.5-35B MoE | Config I | -37% | +1.4% | 102% |
+
+Qwen architecture works particularly well. Metal-only kernels for now — CUDA port pending.
+
+### CUDA Flash Attention Optimization (PR #53)
+
++7% decode throughput on RTX 5090 (236.6 → 253.2 t/s). Uses automated kernel optimization framework (59 experiments, 11 improvements kept). Zero PPL regression on recommended asymmetric config.
+
+### Active Experimental Branches
+
+TheTom's fork has 20 branches exploring different directions:
+- `experiment/asymmetric-kv` — different KV types for K and V
+- `experiment/moe-aware-gating` — MoE-specific optimizations
+- `experiment/layer-adaptive` — per-layer quantization decisions
+- `experiment/decode-speed-parity` — closing Metal decode speed gap
+- `pr/tq4-weight-compression` — weight quantization alongside KV cache
+
+### AtomicBot-ai Fork Assessment
+
+`AtomicBot-ai/atomic-llama-cpp-turboquant` is a fork of TheTom's fork. Last commit: March 26, 2026 (9 days behind TheTom). No unique features identified. **Not recommended** — use TheTom's fork directly.
+
+---
+
+## Updated Recommendation
 
 | Phase | Action |
 |-------|--------|
-| **Now** | Add to research tracking. Test on RTX 3090 with Qwen3.5-4B during eval. |
+| **Now** | Metal support confirmed. Test turbo3 KV cache on M-series Mac with Kubi-1. |
 | **v1** | Ship standard llama-server (proven, stable). No TurboQuant. |
-| **v2** | If upstream merges TurboQuant or Metal support confirmed: adopt. |
-| **v2 alt** | If fork stays separate: build custom CUDA binary for Windows/Linux NVIDIA users. |
+| **v2** | Adopt TurboQuant KV cache for both Metal and CUDA builds. |
+| **v2+** | Evaluate TQ weight compression for smaller model files (Qwen results excellent). |
+| **Gemma 4** | If Gemma 4 26B-A4B becomes a Kubi candidate, TurboQuant fork already has MoE support. |
 
-The most impactful near-term use is on our RTX 3090 eval machine — we can test models at 128K context without upgrading hardware.
+Key change from initial assessment: **Metal support is no longer a blocker.** macOS users (our primary audience) can benefit from TurboQuant KV cache compression, though with a larger decode speed tradeoff (~30% on Metal vs ~2.5% on CUDA).
 
 ---
 
@@ -176,3 +241,7 @@ The most impactful near-term use is on our RTX 3090 eval machine — we can test
 | 2 | TurboQuant Original (TheTom) | https://github.com/TheTom/llama-cpp-turboquant | 2026-03-28 |
 | 3 | Author's benchmark tweet | Twitter @spiritbuun, 2026-03-27 | 2026-03-28 |
 | 4 | Kubeli inference engine comparison | ./inference-engine-comparison.md | 2026-03-28 |
+| 5 | PR #22: Metal M3 Ultra support | https://github.com/TheTom/llama-cpp-turboquant/pull/22 | 2026-04-04 |
+| 6 | PR #45: TQ4_1S weight compression | https://github.com/TheTom/llama-cpp-turboquant/pull/45 | 2026-04-04 |
+| 7 | PR #51/#52: Gemma 4 Metal fixes | https://github.com/TheTom/llama-cpp-turboquant/pull/52 | 2026-04-04 |
+| 8 | PR #53: CUDA FA +7% decode | https://github.com/TheTom/llama-cpp-turboquant/pull/53 | 2026-04-04 |

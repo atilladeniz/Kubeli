@@ -42,7 +42,14 @@
 - [ ] Register `Arc::new(LlamaManager::new())` in `src-tauri/src/app/state.rs`
 - [ ] `start()` — launch llama-server sidecar via `app.shell().sidecar("llama-server")`
   - Bind to `127.0.0.1` on a random free port (security: local only)
-  - Pass model path, context size (8192), thread count, `--flash-attn`, `--cont-batching`
+  - Pass model path, context size, thread count
+  - Default flags (validated from Atomic Chat production config):
+    - `--flash-attn` (auto-detect Metal/CUDA)
+    - `--parallel 1` (single-request serving, enables -kvu optimization)
+    - `--defrag-thold 0.1` (KV cache defragmentation)
+    - `--fit` with `--fit-target 1024` (auto-adjust to device memory, reserve 1GB margin)
+  - v2 TurboQuant flags (when TQ backend adopted):
+    - `--cache-type-k turbo3 --cache-type-v turbo3` (4.6x KV compression)
   - Health check loop: `GET /health` every 1s, timeout after 30s
 - [ ] `stop()` — kill sidecar child process
 - [ ] `chat()` — `POST /v1/chat/completions` with streaming
@@ -117,8 +124,10 @@
 - [ ] `recommend_model()` → pick from curated Kubi-1 list:
   - `ram < 12GB` → Kubi-1 Nano (Qwen3-1.7B, ~1.2GB)
   - `ram < 24GB` → Kubi-1 (Qwen3-4B, ~2.5GB)
-  - `ram >= 24GB` → Kubi-1 Pro (Qwen3-8B, ~5GB)
-- [ ] Keep research candidates (`Qwen3.5-4B`, `Qwen3-30B-A3B`, `Nemotron-3-Nano-4B`) out of default recommendations until eval is complete
+  - `ram >= 24GB && ram < 48GB` → Kubi-1 Pro (Qwen3-8B, ~5GB)
+  - `ram >= 48GB` → Kubi-1 Ultra (Gemma 4 26B-A4B, ~17GB) — v2 only
+- [ ] Note: with `--fit` flag, llama-server auto-adjusts context size to available memory. Hardware detection primarily drives model recommendation, not context size.
+- [ ] Keep research candidates (`Qwen3.5-4B`, `Gemma 4 E4B`) out of default recommendations until eval is complete
 - [ ] Reserve 2-4 GB for OS + Kubeli on Apple Silicon
 - [ ] `benchmark_model()` → 50-token generation, return actual tok/s
 - [ ] Fallback if llmfit fails: basic RAM-based rules via `sysinfo` crate
@@ -231,6 +240,15 @@
 - [ ] When checked: show host input field (default `http://127.0.0.1:11434`)
 - [ ] Test connection button
 - [ ] This is for power users who run Ollama with custom models
+
+### Task 3.5b: Settings UI — Advanced inference settings (v2)
+- [ ] KV Cache Type: dropdown (auto / f16 / q8_0 / turbo3 / turbo4) — default "auto"
+  - "auto" = f16 for v1, turbo3 when TurboQuant backend ships
+- [ ] Context Length: dropdown (auto / 4K / 8K / 16K / 32K / 64K / 128K) — default "auto"
+  - "auto" uses `--fit` to let llama-server decide based on available memory
+- [ ] Flash Attention: dropdown (auto / on / off) — default "auto"
+- [ ] mlock toggle: "Keep model in RAM (prevent swapping)" — default off
+- [ ] Inspired by Atomic Chat's settings, but simplified for Kubeli's single-purpose use case
 
 ### Task 3.6: Store changes
 - [ ] Extend `src/lib/stores/ui-store.ts`:
@@ -433,9 +451,17 @@
 - [ ] Target: >95% correct behavior
 
 ### Task 7.6: Candidate model bake-off
-- [ ] Evaluate `Qwen3.5-4B` as the leading future fine-tune base
+- [ ] Evaluate `Qwen3.5-4B` as the leading future fine-tune base for Kubi-1 Standard
+- [ ] Evaluate `Gemma 4 E4B` (dense 4B, 128K context, vision) as alternative to Qwen3.5-4B
+  - Head-to-head on K8s eval set: error diagnosis, kubectl gen, YAML debugging
+  - Compare Unsloth fine-tuning ease: Gemma 4 E4B is dense (no MoE issues)
+  - Compare GGUF size and inference speed on M-series Mac
+- [ ] Evaluate `Gemma 4 26B-A4B` (MoE, 3.8B active, 256K context) as Kubi-1 Ultra candidate
+  - Test with `unsloth/gemma-4-26B-A4B-it-GGUF` UD-IQ4_XS (13.4 GB) on 32GB Mac
+  - Evaluate thinking mode (`<|think|>`) for complex root-cause analysis
+  - Test with TurboQuant KV cache (TheTom PR #52 when merged)
+  - Note: MoE QLoRA not recommended by Unsloth — Ultra may ship without fine-tuning
 - [ ] Evaluate `Qwen3-30B-A3B` as MoE fallback candidate
-- [ ] Evaluate `Nemotron-3-Nano-4B` only if stable GGUF export/runtime support is confirmed
 - [ ] Write decision note: keep current shipped family or promote a new base in v2
 
 ---
@@ -608,11 +634,20 @@ eval/test_cases/*.jsonl              (to write)
 
 ## Model sizes
 
-| Name | Base | Params | GGUF Q4_K_M | RAM needed | Context |
-|------|------|--------|-------------|-----------|---------|
-| Kubi-1 Nano | Qwen3-1.7B | 1.7B | ~1.2 GB | 8 GB+ | 32K |
-| Kubi-1 | Qwen3-4B | 4B | ~2.5 GB | 16 GB+ | 32K |
-| Kubi-1 Pro | Qwen3-8B | 8B | ~5 GB | 32 GB+ | 32K |
+| Name | Base | Params (active) | GGUF Q4_K_M | RAM needed | Context | Status |
+|------|------|-----------------|-------------|-----------|---------|--------|
+| Kubi-1 Nano | Qwen3-1.7B | 1.7B | ~1.2 GB | 8 GB+ | 32K | v1 ship |
+| Kubi-1 | Qwen3-4B | 4B | ~2.5 GB | 16 GB+ | 32K | v1 ship |
+| Kubi-1 Pro | Qwen3-8B | 8B | ~5 GB | 32 GB+ | 32K | v1 ship |
+| Kubi-1 Ultra | Gemma 4 26B-A4B | 3.8B (MoE) | ~17 GB | 32 GB+ | 256K | v2 eval |
+
+### v2 evaluation candidates (not shipped in v1)
+
+| Candidate | Role | Why evaluate | Blocker |
+|-----------|------|-------------|---------|
+| Qwen3.5-4B | Replace Kubi-1 Standard | 256K context, better tool calling | Need K8s benchmark |
+| Gemma 4 E4B | Replace Kubi-1 Standard | Dense 4B, 128K, vision, Apache 2.0 | Need K8s benchmark, GGUF availability |
+| Gemma 4 26B-A4B | New "Ultra" tier | 82.6% MMLU Pro, thinking mode, tool calling | MoE QLoRA not recommended, 17GB download |
 
 ## Rust dependencies
 
