@@ -46,7 +46,21 @@
 - [ ] `start()` — launch llama-server sidecar via `app.shell().sidecar("llama-server")`
   - Bind to `127.0.0.1` on a random free port (security: local only)
   - Pass model path, context size, thread count
-  - Final validated flag set (deep research April 2026, Issues #20222/#20345/#20225):
+  - **Dual-model architecture** (see Model Architecture section):
+    - Default: Qwen3-4B with thinking ON + grammar (multi-turn, tool calling)
+    - Deep Analysis: Qwen3.5-4B without thinking, no grammar (single-shot, vision, long context)
+    - Use llama-server Router Mode or swap models via API `"model"` field
+  - Qwen3-4B (default) flag set:
+    ```
+    llama-server \
+      --model Qwen3-4B-Q4_K_M.gguf \
+      --fit on --fit-ctx 8192 --fit-target 1024 \
+      -fa on --mlock --parallel 1 \
+      --defrag-thold 0.1 \
+      --jinja --no-warmup \
+      --chat-template-kwargs '{"enable_thinking":true}'
+    ```
+  - Qwen3.5-4B (deep analysis) flag set:
     ```
     llama-server \
       --model Qwen3.5-4B-UD-Q4_K_M.gguf \
@@ -55,16 +69,17 @@
       --defrag-thold 0.1 \
       --jinja --no-warmup
     ```
-  - **--fit-ctx 4096** (not 8192): Qwen3.5 DeltaNet forces full prompt reprocessing every turn (Issues #20225, #19794, #20003). Lower context = faster turns (~2-4s at 4K vs ~8-16s at 8K on M3/M4). Implement client-side context windowing to keep prompts short.
-  - **--jinja**: Required for Qwen3.5 tool-calling chat template
-  - **--no-warmup**: Skip warmup for faster cold start
-  - **DO NOT USE --reasoning-format deepseek**: Grammar + thinking mode are mutually exclusive (Issue #20345). JSON Schema is silently inactive when thinking is ON. Qwen3.5-4B has thinking OFF by default — do not enable it.
-  - v2 TurboQuant flags (when TQ fork adopted):
-    - Add: `--cache-type-k q8_0 --cache-type-v turbo3` (asymmetric: q8_0 K preserves tool-calling, turbo3 V gives 4.6x compression)
-    - WARNING: symmetric turbo3/turbo3 degrades tool calling. Always use asymmetric.
-    - Note: TheTom fork uses `turbo3`; upstream PRs use `tbq3_0`. Abstract type name in config layer.
-  - v2 Plan B (if TurboQuant fork becomes unmaintainable):
-    - Use upstream `--cache-type-k q8_0 --cache-type-v q4_0` + ggerganov's rotation (PR #21038 when merged). Less compression but zero fork dependency.
+  - **Qwen3-4B gets --fit-ctx 8192**: Standard transformer, KV cache reused between turns, no reprocessing penalty. Can afford larger context.
+  - **Qwen3.5-4B gets --fit-ctx 4096**: DeltaNet reprocesses full context every turn. 4K keeps latency at ~2-4s on M3/M4.
+  - **Qwen3-4B gets thinking ON**: Thinking + grammar work together on standard transformers. This is the key advantage: MATH-500 jumps from 43.6% → 95.2%.
+  - **Qwen3.5-4B keeps thinking OFF**: Grammar + thinking mutually exclusive (Issue #20345). Small models have thinking OFF by default.
+  - **--jinja**: Required for both models' tool-calling chat templates
+  - **DO NOT USE --reasoning-format deepseek on Qwen3.5**: Breaks grammar enforcement.
+  - v2 TurboQuant flags (primarily benefits Qwen3-4B):
+    - Add: `--cache-type-k q8_0 --cache-type-v turbo3` (asymmetric: preserves tool-calling)
+    - TurboQuant benefits Qwen3-4B 100% (all layers) vs Qwen3.5-4B ~25% (only attention layers)
+    - Abstract type name in config: fork `turbo3` ≠ upstream `tbq3_0`
+  - v2 Plan B: upstream `-ctk q8_0 -ctv q4_0` + ggerganov's rotation (PR #21038)
   - Health check loop: `GET /health` every 1s, timeout after 30s
 - [ ] `stop()` — kill sidecar child process
 - [ ] `chat()` — `POST /v1/chat/completions` with streaming
@@ -516,19 +531,25 @@
 - [ ] Test 50 K8s questions → model should answer normally
 - [ ] Target: >95% correct behavior
 
-### Task 7.6: Candidate model bake-off
-- [ ] Evaluate `Qwen3.5-4B` as the leading future fine-tune base for Kubi-1 Standard
-- [ ] Evaluate `Gemma 4 E4B` (dense 4B, 128K context, vision) as alternative to Qwen3.5-4B
-  - Head-to-head on K8s eval set: error diagnosis, kubectl gen, YAML debugging
-  - Compare Unsloth fine-tuning ease: Gemma 4 E4B is dense (no MoE issues)
-  - Compare GGUF size and inference speed on M-series Mac
-- [ ] Evaluate `Gemma 4 26B-A4B` (MoE, 3.8B active, 256K context) as Kubi-1 Ultra candidate
+### Task 7.6: Dual-model validation
+- [ ] **Qwen3-4B vs Qwen3.5-4B head-to-head** on K8s eval set:
+  - Qwen3-4B WITH thinking + grammar vs Qwen3.5-4B WITHOUT thinking + grammar
+  - Confirm hypothesis: Qwen3-4B + thinking wins on structured reasoning (diagnosis, YAML debugging)
+  - Confirm hypothesis: Qwen3.5-4B wins on long-context single-shot (full log analysis)
+  - Measure actual multi-turn latency: Qwen3-4B (instant) vs Qwen3.5-4B (reprocessing)
+  - Test Router Mode switching: latency of model swap on M3/M4
+- [ ] **Qwen3.5-4B thinking mode verification** (if Issue #20345 fix confirmed):
+  - Test grammar + thinking combined on latest llama.cpp build
+  - If working: Qwen3.5-4B becomes viable for ALL modes → may simplify to single-model
+  - If still broken: dual-model architecture confirmed as necessary
+- [ ] Evaluate `Gemma 4 26B-A4B` as Kubi-1 Ultra candidate
   - Test with `unsloth/gemma-4-26B-A4B-it-GGUF` UD-IQ4_XS (13.4 GB) on 32GB Mac
-  - Evaluate thinking mode (`<|think|>`) for complex root-cause analysis
   - Test with TurboQuant KV cache (TheTom PR #52 when merged)
-  - Note: MoE QLoRA not recommended by Unsloth — Ultra may ship without fine-tuning
-- [ ] Evaluate `Qwen3-30B-A3B` as MoE fallback candidate
-- [ ] Write decision note: keep current shipped family or promote a new base in v2
+  - Note: MoE QLoRA not recommended — Ultra may ship without fine-tuning
+- [ ] Evaluate `Gemma 4 E4B` as potential Kubi-1 Deep replacement
+  - Dense 4B, no DeltaNet reprocessing, 128K context, vision
+  - If it matches Qwen3.5-4B quality: simpler architecture, no reprocessing
+- [ ] Write decision note: confirm dual-model vs. single-model for v2
 
 ---
 
@@ -698,22 +719,56 @@ eval/test_cases/*.jsonl              (to write)
 
 ---
 
-## Model sizes
+## Model architecture: Dual-Model with Router Mode
 
-| Name | Base | Params (active) | GGUF Q4_K_M | RAM needed | Context | Status |
-|------|------|-----------------|-------------|-----------|---------|--------|
-| Kubi-1 Nano | Qwen3-1.7B | 1.7B | ~1.2 GB | 8 GB+ | 32K | v1 ship |
-| Kubi-1 | Qwen3-4B | 4B | ~2.5 GB | 16 GB+ | 32K | v1 ship |
-| Kubi-1 Pro | Qwen3-8B | 8B | ~5 GB | 32 GB+ | 32K | v1 ship |
-| Kubi-1 Ultra | Gemma 4 26B-A4B | 3.8B (MoE) | ~17 GB | 32 GB+ | 256K | v2 eval |
+> **Key insight**: Qwen3-4B + Thinking + Grammar beats Qwen3.5-4B without Thinking
+> on K8s reasoning tasks. Both models ship together in a dual-model architecture.
 
-### v2 evaluation candidates (not shipped in v1)
+### Shipped models (v1)
 
-| Candidate | Role | Why evaluate | Blocker |
-|-----------|------|-------------|---------|
-| Qwen3.5-4B | Replace Kubi-1 Standard | 256K context, better tool calling | Need K8s benchmark |
-| Gemma 4 E4B | Replace Kubi-1 Standard | Dense 4B, 128K, vision, Apache 2.0 | Need K8s benchmark, GGUF availability |
-| Gemma 4 26B-A4B | New "Ultra" tier | 82.6% MMLU Pro, thinking mode, tool calling | MoE QLoRA not recommended, 17GB download |
+| Name | Base | Architecture | GGUF | RAM | Mode | Role |
+|------|------|-------------|------|-----|------|------|
+| Kubi-1 Nano | Qwen3-1.7B | Transformer | ~1.2 GB | 8 GB+ | Thinking + Grammar | Minimal tier |
+| **Kubi-1** | **Qwen3-4B** | **Transformer** | **~2.5 GB** | **16 GB+** | **Thinking + Grammar** | **Default: multi-turn chat, tool calling** |
+| Kubi-1 Deep | Qwen3.5-4B | DeltaNet Hybrid | ~2.86 GB | 16 GB+ | No thinking, no grammar | Single-shot analysis, vision, long context |
+| Kubi-1 Pro | Qwen3-8B | Transformer | ~5 GB | 32 GB+ | Thinking + Grammar | Quality upgrade |
+
+**Default download**: Kubi-1 (2.5 GB) + Kubi-1 Deep (2.86 GB) = **5.36 GB total**
+
+### Why dual-model (not Qwen3.5-4B only)
+
+| Factor | Qwen3-4B (default) | Qwen3.5-4B (deep) |
+|--------|--------------------|--------------------|
+| Thinking + Grammar | **Both combined** | Mutually exclusive (Issue #20345) |
+| MATH-500 (with thinking) | **95.2%** | ~40-50% (thinking off, estimated) |
+| MMLU-Pro (with thinking) | **74.0%** | ~68-72% (thinking off, estimated) |
+| Multi-turn latency | **Zero reprocessing** | 4-8s/turn at 4K (DeltaNet) |
+| TurboQuant benefit | **100% of layers** | ~25% (only attention layers) |
+| Tool calling (TAU2) | Not published | **79.9%** |
+| Context | 32K | **262K** |
+| Vision | No | **Yes** |
+| Fine-tuning | **QLoRA (~6-8GB VRAM)** | bf16 LoRA (~10GB VRAM) |
+
+### Router Mode switching logic
+
+```
+User query → classify:
+  - Tool call (kubectl, JSON output) → Qwen3-4B + thinking + grammar
+  - Quick K8s question (multi-turn) → Qwen3-4B + thinking + grammar
+  - Long log analysis (>4K tokens) → Qwen3.5-4B single-shot
+  - Screenshot/image analysis → Qwen3.5-4B (vision)
+  - User clicks "Deep Analysis" → Qwen3.5-4B explicitly
+```
+
+Both models can be loaded simultaneously (~6.5 GB unified memory on Apple Silicon).
+Model swap time: ~1-3 seconds cold start if only one loaded at a time.
+
+### v2 additional tiers
+
+| Candidate | Role | Status |
+|-----------|------|--------|
+| Gemma 4 26B-A4B | "Ultra" tier for 32GB+ users | v2 eval — 82.6% MMLU Pro, 17GB download |
+| Gemma 4 E4B | Potential Kubi-1 Deep replacement | v2 eval — dense 4B, 128K, vision |
 
 ## Rust dependencies
 

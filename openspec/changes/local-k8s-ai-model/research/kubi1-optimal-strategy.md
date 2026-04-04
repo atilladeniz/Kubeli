@@ -15,24 +15,38 @@ The existing OpenSpec plan (Qwen3-4B + llama-server sidecar + Unsloth QLoRA) is 
 4. **Local-first training**: RTX 3090 is the primary training machine. Mac connects via SSH/Tailscale. Cloud (Vast.ai) is fallback only.
 5. **Grephuboverflow** can be extended as a K8s doc harvester, or use standalone script.
 
-### Recommendation: Tiered Approach (Updated April 4, 2026)
+### Recommendation: Dual-Model Architecture (Updated April 4, 2026 — Final)
 
-| Phase | Model | Reason |
-|-------|-------|--------|
-| **v1 (now)** | `kubi-1` on Qwen3-4B via llama-server | Stable default, zero-install inside Kubeli |
-| **v2 (fine-tune)** | Qwen3.5-4B OR Gemma 4 E4B via Unsloth | Head-to-head eval needed. E4B: dense, 128K, vision. Qwen3.5: 256K, proven. |
-| **v2 (ultra)** | Gemma 4 26B-A4B (MoE, 3.8B active) | 82.6% MMLU Pro, thinking mode, 256K context. For 32GB+ users. |
-| **v2 (infra)** | TurboQuant turbo3 KV cache | Confirmed flags, Metal support, 4.6x compression. Ship as default for v2. |
-| **Fallback** | `qwen3:8b` or `qwen3-30b-a3b` (MoE) | As planned |
+> **Strategy shift**: Qwen3.5-4B does NOT replace Qwen3-4B. Both models ship together.
+> Qwen3-4B + Thinking + Grammar beats Qwen3.5-4B without Thinking on K8s reasoning tasks.
+
+| Tier | Model | Mode | Role | GGUF Size |
+|------|-------|------|------|-----------|
+| **Standard (default)** | Qwen3-4B | Thinking ON + Grammar | Multi-turn K8s chat, tool calling, kubectl | 2.5 GB |
+| **Deep Analysis** | Qwen3.5-4B | Thinking OFF, no grammar | Single-shot log analysis, long context, vision | 2.86 GB |
+| **Ultra** | Gemma 4 26B-A4B | MoE, 3.8B active | Deep reasoning for 32GB+ users | ~17 GB |
+| **Nano** | Qwen3-1.7B | Thinking ON + Grammar | 8GB RAM minimum tier | ~1.2 GB |
+
+**Total download for Standard + Deep Analysis: 5.36 GB** (comparable to a medium Docker image).
+
+#### Why dual-model, not Qwen3.5-4B only
+
+1. **Thinking + Grammar**: Qwen3-4B can combine both. Qwen3.5-4B cannot (Issue #20345). On MATH-500: Qwen3-4B thinking=95.2% vs non-thinking=43.6%. Qwen3.5-4B must run without thinking when grammar is active → estimated ~40-50% on MATH-500.
+2. **Zero reprocessing**: Qwen3-4B (standard transformer) reuses KV cache between turns. Qwen3.5-4B (DeltaNet) reprocesses full context every turn (~4-8s at 4K on M3).
+3. **TurboQuant benefits Qwen3-4B more**: DeltaNet's recurrent state is fixed-size regardless of context. Only 25% of Qwen3.5 layers benefit from KV-cache compression. Qwen3-4B benefits 100%.
+4. **QLoRA works**: Qwen3-4B is a standard transformer — QLoRA fine-tuning is proven and cheaper (~6-8GB VRAM). Qwen3.5-4B requires bf16 LoRA (~10GB).
+5. **Ollama supports both**: Corrected — `qwen3.5:4b` is in Ollama library (4.7M pulls).
 
 #### April 2026 Key Developments
 
-1. **Gemma 4** released: 26B-A4B MoE (3.8B active) and E4B (dense 4B) — both Apache 2.0, GGUF via Unsloth available, llama.cpp compatible. Quality tier significantly above Qwen3-4B.
-2. **TurboQuant Metal confirmed**: PR #22 merged (M3/M4 support). Exact llama-server flags confirmed via Atomic Chat production: `--cache-type-k turbo3 --cache-type-v turbo3`.
-3. **TurboQuant Weight Compression**: PR #45 — TQ4_1S reduces model size by 28-37% on Qwen, Metal-only for now.
-4. **TurboQuant + Gemma 4 MoE**: PR #52 active — Metal support for Gemma 4 with TQ weights.
-5. **llama-server `--fit` flag**: Auto-adjusts context size to device memory. Simplifies hardware detection — we don't need to manually calculate context size per tier.
-6. **Atomic Chat** (Jan fork + TurboQuant) ships turbo3 as default KV cache. Validates production readiness.
+1. **Dual-model architecture confirmed** as optimal via deep research. Qwen3-4B (fast chat + tool calling) + Qwen3.5-4B (deep analysis + vision). Router Mode in llama-server enables dynamic model switching.
+2. **Thinking mode is transformative at 4B**: +51.6 pts on MATH-500, +46.7 pts on AIME 2024 (EvalScope benchmarks). Not a minor enhancement — it's the difference between 43% and 95% accuracy on structured reasoning.
+3. **Gemma 4** released: 26B-A4B MoE (3.8B active) — Ultra tier candidate. Apache 2.0, GGUF via Unsloth.
+4. **TurboQuant Metal confirmed**: PR #22 merged (M3/M4 support). Asymmetric `-ctk q8_0 -ctv turbo3` preserves tool-calling quality.
+5. **TurboQuant NOT merging upstream before Q4 2026**: ggerganov pursuing simpler rotation (PR #21038). Bundle TheTom fork for v2.
+6. **DeltaNet reprocessing unfixed**: 8+ open issues, no fix expected soon. Architectural limitation of DeltaNet, not a llama.cpp bug.
+7. **Grammar + Thinking mutual exclusion** (Issue #20345): CLOSED but fix unverified. Qwen3.5-4B must run without thinking when grammar active.
+8. **--fit flag**: Auto-adjusts context size to device memory. Works correctly on Apple Silicon.
 
 ---
 
