@@ -86,8 +86,14 @@
   - Parse SSE stream, emit `AIEvent::Token`, `AIEvent::Done`, `AIEvent::Error`
   - Reuse existing `AIEvent` tagged enum so frontend needs zero changes
 - [ ] `is_running()` — check if sidecar process is alive + health endpoint responds
-- [ ] Lazy start: only launch sidecar on first AI request, not on app startup
-- [ ] Auto-stop after 5 min idle (configurable, save resources)
+- [ ] **RAM-schonender Betrieb**:
+  - Lazy start: only launch sidecar on first AI request, not on app startup
+  - Auto-stop after 5 min idle (configurable in Settings: 2/5/10/30 min or "never")
+  - Only load ONE model at a time (Qwen3-4B OR Qwen3.5-4B, never both)
+  - Model swap: stop current → unload → load new (~1-3s on Apple Silicon)
+  - **RAM Budget**: App ~200MB + llama-server idle ~50MB + Model loaded ~2.5-3GB = ~3GB active, ~200MB when AI off
+  - Settings toggle: "Keep AI model loaded" (default OFF) — for users who want instant response but accept 3GB RAM usage
+  - Show RAM usage indicator in AI panel footer: "Kubi-1 aktiv (2.5 GB)" or "AI nicht geladen"
 - [ ] Restart on crash: detect sidecar exit, show error, offer restart
 - [ ] All errors return `Result<T, KubeliError>` with suggestions
 
@@ -351,14 +357,17 @@
 - [ ] Test connection button
 - [ ] This is for power users who run Ollama with custom models
 
-### Task 3.5b: Settings UI — Advanced inference settings (v2)
-- [ ] KV Cache Type: dropdown (auto / f16 / q8_0 / turbo3 / turbo4) — default "auto"
-  - "auto" = f16 for v1, turbo3 when TurboQuant backend ships
-- [ ] Context Length: dropdown (auto / 4K / 8K / 16K / 32K / 64K / 128K) — default "auto"
-  - "auto" uses `--fit` to let llama-server decide based on available memory
+### Task 3.5b: Settings UI — AI Resource Management
+- [ ] **Auto-unload timer**: dropdown (2 min / 5 min / 10 min / 30 min / Never) — default 5 min
+  - "Never" = keep model loaded for instant response (power users, 32GB+ RAM)
+- [ ] **Keep AI loaded**: toggle (default OFF)
+  - OFF: Model unloads after idle timer → App uses ~200MB
+  - ON: Model stays in RAM → App uses ~3GB but instant AI response
+- [ ] KV Cache Type: dropdown (auto / f16 / q8_0 / turbo3) — default "auto" (v2)
+- [ ] Context Length: dropdown (auto / 4K / 8K / 16K / 32K) — default "auto"
 - [ ] Flash Attention: dropdown (auto / on / off) — default "auto"
 - [ ] mlock toggle: "Keep model in RAM (prevent swapping)" — default off
-- [ ] Inspired by Atomic Chat's settings, but simplified for Kubeli's single-purpose use case
+- [ ] **RAM usage display** in settings: "Aktuell: Kubeli 180MB + Kubi-1 nicht geladen"
 
 ### Task 3.6: Store changes
 - [ ] Extend `src/lib/stores/ui-store.ts`:
