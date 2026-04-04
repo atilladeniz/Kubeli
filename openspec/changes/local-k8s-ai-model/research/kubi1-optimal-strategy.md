@@ -107,25 +107,31 @@ Works with external OpenAI-compatible APIs — can use local llama.cpp server.
 
 ### 2.3 Training Best Practices
 
-**QLoRA remains the right choice** for 4B on RTX 3090:
+> **UPDATE April 4, 2026**: QLoRA 4-bit is **no longer recommended** for Qwen3.5 and Gemma 4 models. Unsloth explicitly warns against QLoRA for Qwen3.5-4B due to "higher than normal quantization differences" from the DeltaNet/hybrid architecture. Gemma 4 E4B also recommends bf16 LoRA over 4-bit. **Use bf16 LoRA instead.**
 
-| Setting | Current Plan | 2026 Recommendation |
-|---------|-------------|-------------------|
+**bf16 LoRA for 4B on RTX 3090:**
+
+| Setting | Previous Plan (QLoRA) | April 2026 Recommendation (bf16 LoRA) |
+|---------|----------------------|--------------------------------------|
+| Precision | 4-bit QLoRA | **bf16 LoRA** |
 | LoRA Rank | r=16 | r=16 (good) or **r=32** for more capacity |
 | Target Modules | all linear | ✅ correct |
-| Batch Size | 4 | **8** (RTX 3090 has headroom) |
-| Grad Accum | 4 | 4 (effective batch=32) |
+| Batch Size | 8 | **4** (bf16 uses more VRAM) |
+| Grad Accum | 4 | **8** (effective batch=32, same as before) |
 | Epochs | 3 | **2** (50K samples is enough for 2) |
-| LR | 2e-4 | ✅ standard for QLoRA |
+| LR | 2e-4 | ✅ standard for LoRA |
 | Seq Length | 8192 | ✅ matches context budget |
 
-**VRAM budget on RTX 3090 (24GB):**
-- Model (4-bit): ~3GB
-- LoRA adapters: ~0.5GB
-- Optimizer states: ~1.5GB
+**VRAM budget on RTX 3090 (24GB) with bf16 LoRA:**
+- Model (bf16): ~8GB
+- LoRA adapters: ~1GB
+- Optimizer states: ~2GB
 - Activations + gradients: ~6-8GB
-- KV-cache: ~2-4GB
-- **Total: ~13-17GB** → plenty of room, batch can go to 8
+- **Total: ~17-19GB** → fits but tighter. Batch=4 recommended.
+
+**Exception**: Qwen3-8B (Pro) at bf16 is ~16GB model alone. Options:
+- QLoRA is acceptable for 8B (standard Qwen3 architecture, not DeltaNet)
+- Or bf16 LoRA with batch=1, grad_accum=16
 
 ### 2.4 GRPO (Reinforcement Learning)
 

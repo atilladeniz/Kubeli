@@ -18,8 +18,11 @@
 
 ### Task 1.1: Fetch and bundle llama-server binaries
 - [ ] Create `scripts/fetch-llama-server.sh`
-- [ ] Download pre-built llama-server from llama.cpp releases (pin version, currently b8530)
+- [ ] Download pre-built llama-server from llama.cpp releases (pin version, currently b8660)
+- [ ] For v2/TurboQuant: build from TheTom/llama-cpp-turboquant fork instead of upstream
 - [ ] Document v1 binary strategy: ship default CPU/Metal-compatible targets first, keep CUDA/Vulkan packaging as follow-up
+- [ ] Build flags for Metal: `-DGGML_METAL=ON -DGGML_AMX=ON` (AMX enables Apple Matrix instructions on M4)
+- [ ] Build flags for CUDA: `-DGGML_CUDA=ON -DGGML_CUDA_FA=ON -DGGML_CUDA_FA_ALL_QUANTS=ON`
 - [ ] Rename per Tauri target triple convention:
   - `llama-server-aarch64-apple-darwin` (macOS ARM, includes Metal)
   - `llama-server-x86_64-apple-darwin` (macOS Intel)
@@ -43,13 +46,15 @@
 - [ ] `start()` — launch llama-server sidecar via `app.shell().sidecar("llama-server")`
   - Bind to `127.0.0.1` on a random free port (security: local only)
   - Pass model path, context size, thread count
-  - Default flags (validated from Atomic Chat production config):
-    - `--flash-attn` (auto-detect Metal/CUDA)
+  - Default flags (validated from Atomic Chat production + deep research April 2026):
+    - `--fit on --fit-ctx 8192 --fit-target 1024` (auto-adjust to device memory, min 8K context)
+    - `-fa on` (flash attention, auto-detect Metal/CUDA)
     - `--parallel 1` (single-request serving, enables -kvu optimization)
     - `--defrag-thold 0.1` (KV cache defragmentation)
-    - `--fit` with `--fit-target 1024` (auto-adjust to device memory, reserve 1GB margin)
+    - `--mlock` (prevent model paging during K8s operations)
   - v2 TurboQuant flags (when TQ backend adopted):
-    - `--cache-type-k turbo3 --cache-type-v turbo3` (4.6x KV compression)
+    - `--cache-type-k q8_0 --cache-type-v turbo3` (asymmetric: preserves tool-calling quality on K, 4.6x compression on V)
+    - WARNING: symmetric turbo3/turbo3 degrades tool calling. Use asymmetric q8_0/turbo3.
   - Health check loop: `GET /health` every 1s, timeout after 30s
 - [ ] `stop()` — kill sidecar child process
 - [ ] `chat()` — `POST /v1/chat/completions` with streaming
@@ -174,7 +179,22 @@
 - [ ] `run_all_analyzers(namespace)` → aggregate, cap at ≤800 tokens
 - [ ] Unit tests per analyzer with mock K8s objects
 
-### Task 2.5: System prompt + context builder
+### Task 2.5: Structured output — JSON schema + lazy grammars
+- [ ] Create `src-tauri/src/ai/grammar.rs`
+- [ ] Define JSON schemas for kubectl tool-call responses:
+  ```json
+  { "action": "get|describe|logs|apply|delete", "resource": "...", "namespace": "...", "args": [...] }
+  ```
+- [ ] Use llama-server's `--json-schema` for structured responses (auto-converted to GBNF internally)
+- [ ] Implement **lazy grammar** triggering: model generates freely until tool-call trigger, then grammar constrains output
+  - llama.cpp supports trigger types: TOKEN, WORD, PATTERN, PATTERN_FULL (since ~b4800+)
+  - This enables natural reasoning → constrained tool output in one response
+- [ ] Use `--reasoning-format deepseek` to extract thinking into `reasoning_content` field (separate from structured output)
+- [ ] No kubectl GBNF grammars exist publicly — build custom schemas for Kubeli's tool-call format
+- [ ] Key insight: Grammar constraints guarantee 100% structural validity; fine-tuning provides semantic quality. **Combine both** — hybrid approach outperforms either alone (SLOT paper: 99.5% schema accuracy + 94.0% content similarity)
+- [ ] WARNING: Extreme KV quantization (-ctk q4_0) degrades tool calling. Use q8_0 for keys.
+
+### Task 2.6: System prompt + context builder (was 2.5)
 - [ ] Create `src-tauri/src/ai/local_context_builder.rs`
 - [ ] System prompt under 500 tokens (see design.md template)
 - [ ] `build_local_context(cluster, namespace, findings, logs) -> Vec<ChatMessage>`
@@ -184,7 +204,7 @@
   - Structured JSON → non-thinking mode (temp 0.7, top_p 0.8)
 - [ ] Context budget: system 500 + analyzers 800 + logs 4,652 + output reserve 2,048 = 8,000
 
-### Task 2.6: Provider routing
+### Task 2.7: Provider routing (was 2.6)
 - [ ] Update `ai_send_message` to check provider and delegate:
   - `AiProvider::Local` → LlamaManager
   - `AiProvider::Claude` / `AiProvider::Codex` → existing AgentManager
@@ -275,10 +295,20 @@
   - `settings.ai.advanced.*` (Ollama fallback)
   - `ai.localModelUnavailable`, `ai.downloadingModel`, `ai.analyzingChunk`
 
-### Task 3.9: First-launch experience
-- [ ] If no model installed and user opens AI panel → show inline prompt:
-  "Download Kubi-1 (2.5 GB) to analyze logs locally, no internet needed."
-  [Download] [Use Cloud AI Instead]
+### Task 3.9: First-launch experience (with compatibility scoring)
+- [ ] Implement **Msty-style Model Compatibility Score** before download:
+  - Run `llama-fit-params` or `--fit` estimation logic to calculate fit
+  - Display percentage: "98% compatible — runs great on your hardware"
+  - Hover/expand: show RAM available, model size, estimated speed, context window
+  - Color: green (>80%), yellow (50-80%), red (<50%)
+- [ ] **Jan-style guided onboarding** with single recommended model:
+  - Auto-detect hardware → recommend best Kubi tier (Nano/Standard/Pro)
+  - "Download Kubi-1 (2.7 GB) to analyze logs locally, no internet needed."
+  - Show compatibility score + estimated tok/s
+  - [Download] [Use Cloud AI Instead]
+- [ ] **LM Studio-style hardware details** in Settings > AI > Advanced:
+  - GPU name, available VRAM/RAM, Metal/CUDA status
+  - For power users who want to override auto-detection
 - [ ] After download: "Kubi-1 is ready. Your cluster data stays on this device."
 - [ ] If update available: subtle banner in AI panel header
 
@@ -354,23 +384,31 @@
 - [ ] Upload CPT corpus to Windows: `rsync -avz data/final/cpt_corpus.jsonl kubi-train:~/kubi-training/data/`
 - [ ] Write `training/train_cpt.py`:
   - Load `unsloth/Qwen3-4B-Base` (BASE model, not Instruct)
+  - **bf16 LoRA** (NOT QLoRA 4-bit — Qwen3.5/DeltaNet has "higher than normal quantization differences", Unsloth explicitly warns against QLoRA for these architectures)
   - LoRA rank 128, target all linear layers + `lm_head` + `embed_tokens`
   - rsLoRA enabled, alpha=32
   - `learning_rate=5e-5`, `embedding_learning_rate=5e-6` (10x smaller)
   - 1 epoch over CPT corpus
   - Gradient checkpointing "unsloth"
   - Save adapter: `kubi1-cpt-adapter/`
+- [ ] VRAM budget (bf16 LoRA on RTX 3090 24GB):
+  - Model bf16: ~8GB, LoRA adapters: ~1GB, Optimizer: ~2GB, Activations: ~6-8GB
+  - Total: ~17-19GB — fits on RTX 3090 but tighter than QLoRA. Reduce batch to 4 if needed.
 - [ ] Run CPT: `ssh kubi-train "cd ~/kubi-training/training && python train_cpt.py"`
 - [ ] Monitor loss curve — should decrease steadily
 - [ ] Estimated time: ~2-4 hours on RTX 3090
 
 ### Task 5.2: CPT on Qwen3-1.7B-Base (Nano)
 - [ ] Same pipeline with `unsloth/Qwen3-1.7B-Base`
+- [ ] bf16 LoRA fits easily (~5GB model)
 - [ ] Save adapter: `kubi1-nano-cpt-adapter/`
 
 ### Task 5.3: CPT on Qwen3-8B-Base (Pro)
 - [ ] Same pipeline with `unsloth/Qwen3-8B-Base`
-- [ ] May need reduced batch size (8B is bigger)
+- [ ] bf16 LoRA: ~16GB model — **tight fit on RTX 3090**. Options:
+  - Reduce batch to 1, grad_accum=16
+  - Or use gradient checkpointing aggressive mode
+  - Or fallback to QLoRA for 8B only (standard transformer, not DeltaNet)
 - [ ] Save adapter: `kubi1-pro-cpt-adapter/`
 
 ---
@@ -381,26 +419,30 @@
 - [ ] Upload SFT dataset: `rsync -avz data/final/kubeli-k8s-train.jsonl kubi-train:~/kubi-training/data/`
 - [ ] Update `training/train_kubi1.py`:
   - Load from CPT adapter (`kubi1-cpt-adapter/`), not raw Qwen3 base
-  - LoRA rank 16 (lower than CPT — refining, not shifting)
+  - **bf16 LoRA** rank 16 (lower than CPT — refining, not shifting)
   - Standard target modules (no lm_head/embed_tokens needed for SFT)
-  - batch=8, grad_accum=4, epochs=2, lr=2e-4
+  - batch=4, grad_accum=8, epochs=2, lr=2e-4 (batch reduced from 8 due to bf16)
   - seq_length=8192
 - [ ] Run SFT
 - [ ] Save merged model: `kubi1-sft/`
 
 ### Task 6.2: SFT on Kubi-1 Nano (1.7B)
 - [ ] Same pipeline from `kubi1-nano-cpt-adapter/`
+- [ ] bf16 LoRA, batch=8 (plenty of room at 1.7B)
 - [ ] May need 3 epochs (smaller model, needs more passes)
 
 ### Task 6.3: SFT on Kubi-1 Pro (8B)
 - [ ] Same pipeline from `kubi1-pro-cpt-adapter/`
-- [ ] 2 epochs, batch=4 (more VRAM usage)
+- [ ] 2 epochs, batch=1, grad_accum=16 (bf16 LoRA tight on 8B)
+- [ ] QLoRA acceptable fallback for 8B (standard Qwen3 arch, not DeltaNet)
 
 ### Task 6.4: Export all models to GGUF
-- [ ] Export Kubi-1 (4B): Q4_K_M + Q5_K_M
-- [ ] Export Kubi-1 Nano (1.7B): Q4_K_M + Q8_0 (small enough for Q8)
-- [ ] Export Kubi-1 Pro (8B): Q4_K_M + Q5_K_M
-- [ ] Optionally export Unsloth Dynamic (`UD-Q4_K_XL`) for quality comparison on the main model
+- [ ] Export Kubi-1 (4B): **Unsloth Dynamic 2.0 UD-Q4_K_M** (default, best quality/size)
+- [ ] Export Kubi-1 Nano (1.7B): UD-Q4_K_M + Q8_0 (small enough for Q8)
+- [ ] Export Kubi-1 Pro (8B): UD-Q4_K_M + UD-Q5_K_M
+- [ ] Dynamic 2.0 is the new standard — per-layer calibrated quantization on 1.5M+ tokens, includes ARM/Apple Silicon optimized formats (Q4_NL, Q5.1)
+- [ ] If fine-tuned: export via Unsloth (which applies Dynamic 2.0 automatically)
+- [ ] If shipping base Qwen3.5-4B without fine-tuning: use pre-quantized `unsloth/Qwen3.5-4B-GGUF` directly
 - [ ] Create optional Ollama Modelfile for each with baked-in system prompt (compatibility path only)
 - [ ] Record checksums, sizes, and artifact metadata for `registry.json`
 - [ ] Pull GGUFs to Mac: `rsync -avz kubi-train:~/kubi-training/training/*.gguf models/`
