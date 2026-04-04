@@ -164,6 +164,68 @@ const features = [
       v{version} · macOS 10.15+ · Windows 10/11 · Linux (x64)
     </p>
 
+    <!-- Starred by -->
+    <div class="mt-10 w-full max-w-4xl">
+      <p class="text-center text-sm text-neutral-400 mb-6">
+        Starred on GitHub by engineers at
+      </p>
+      <div class="flex flex-wrap items-center justify-center gap-x-6 gap-y-4 sm:gap-x-8 grayscale opacity-[0.35]">
+        <span class="logo-tip" data-tip="Microsoft"><img src="/logos/microsoft.svg" alt="Microsoft" style="height:21px" /></span>
+        <span class="logo-tip" data-tip="Red Hat"><img src="/logos/redhat.svg" alt="Red Hat" style="height:24px" /></span>
+        <span class="logo-tip" data-tip="LEGO"><img src="/logos/lego.svg" alt="LEGO" style="height:28px" /></span>
+        <span class="logo-tip" data-tip="Bank of America"><img src="/logos/bank-of-america.svg" alt="Bank of America" style="height:11px" /></span>
+        <span class="logo-tip" data-tip="Deutsche Telekom"><img src="/logos/deutsche-telekom.svg" alt="Deutsche Telekom" style="height:32px" /></span>
+        <span class="logo-tip" data-tip="Twilio"><img src="/logos/twilio.svg" alt="Twilio" style="height:26px" /></span>
+        <span class="logo-tip" data-tip="Orange"><img src="/logos/orange.svg" alt="Orange" style="height:28px" /></span>
+        <span class="logo-tip" data-tip="Tanium"><img src="/logos/tanium.svg" alt="Tanium" style="height:16px" /></span>
+        <span class="logo-tip" data-tip="Freepik"><img src="/logos/freepik.svg" alt="Freepik" style="height:14px" /></span>
+        <span class="logo-tip" data-tip="US General Services Administration"><img src="/logos/gsa.svg" alt="US General Services Administration" style="height:32px" /></span>
+        <span class="logo-tip" data-tip="AfterShip"><img src="/logos/aftership.svg" alt="AfterShip" style="height:18px" /></span>
+        <span class="logo-tip" data-tip="Kotak Mahindra Bank"><img src="/logos/kotak.svg" alt="Kotak" style="height:24px" /></span>
+        <span class="logo-tip" data-tip="Digitec Galaxus"><img src="/logos/digitec.svg" alt="Digitec Galaxus" style="height:16px" /></span>
+        <span class="logo-tip" data-tip="t3n Magazin"><img src="/logos/t3n.svg" alt="t3n" style="height:28px" /></span>
+        <span class="logo-tip" data-tip="Viettel"><img src="/logos/viettel.svg" alt="Viettel" style="height:26px" /></span>
+        <span class="logo-tip" data-tip="Telavox"><img src="/logos/telavox.svg" alt="Telavox" style="height:30px" /></span>
+        <span class="logo-tip" data-tip="Liip AG"><img src="/logos/liip.svg" alt="Liip" style="height:32px" /></span>
+        <span class="logo-tip" data-tip="Westfalen AG"><img src="/logos/westfalen.svg" alt="Westfalen" style="height:22px" /></span>
+        <span class="logo-tip" data-tip="kloia"><img src="/logos/kloia.svg" alt="kloia" style="height:24px" /></span>
+        <span class="logo-tip" data-tip="ETECTURE"><img src="/logos/etecture.svg" alt="ETECTURE" style="height:30px" /></span>
+        <span class="logo-tip" data-tip="Acun Medya Holding"><img src="/logos/acunmedya.svg" alt="Acun Medya" style="height:28px" /></span>
+      </div>
+    </div>
+
+    <style>
+      .logo-tip {
+        position: relative;
+        display: inline-flex;
+        cursor: default;
+      }
+      .logo-tip::after {
+        content: attr(data-tip);
+        position: absolute;
+        bottom: calc(100% + 8px);
+        left: 50%;
+        transform: translateX(-50%) scale(0.95);
+        padding: 4px 10px;
+        border-radius: 6px;
+        background: #000;
+        color: #fff;
+        font-size: 12px;
+        font-weight: 500;
+        line-height: 1.4;
+        border: 1px solid rgba(255,255,255,0.15);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        transition: opacity 0.15s, transform 0.15s;
+      }
+      .logo-tip:hover::after {
+        opacity: 1;
+        transform: translateX(-50%) scale(1);
+      }
+    </style>
+
     <!-- Hero Screenshot -->
     <div class="mt-12 w-full max-w-4xl">
       <img
