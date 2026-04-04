@@ -46,15 +46,25 @@
 - [ ] `start()` — launch llama-server sidecar via `app.shell().sidecar("llama-server")`
   - Bind to `127.0.0.1` on a random free port (security: local only)
   - Pass model path, context size, thread count
-  - Default flags (validated from Atomic Chat production + deep research April 2026):
-    - `--fit on --fit-ctx 8192 --fit-target 1024` (auto-adjust to device memory, min 8K context)
-    - `-fa on` (flash attention, auto-detect Metal/CUDA)
-    - `--parallel 1` (single-request serving, enables -kvu optimization)
-    - `--defrag-thold 0.1` (KV cache defragmentation)
-    - `--mlock` (prevent model paging during K8s operations)
-  - v2 TurboQuant flags (when TQ backend adopted):
-    - `--cache-type-k q8_0 --cache-type-v turbo3` (asymmetric: preserves tool-calling quality on K, 4.6x compression on V)
-    - WARNING: symmetric turbo3/turbo3 degrades tool calling. Use asymmetric q8_0/turbo3.
+  - Final validated flag set (deep research April 2026, Issues #20222/#20345/#20225):
+    ```
+    llama-server \
+      --model Qwen3.5-4B-UD-Q4_K_M.gguf \
+      --fit on --fit-ctx 4096 --fit-target 1024 \
+      -fa on --mlock --parallel 1 \
+      --defrag-thold 0.1 \
+      --jinja --no-warmup
+    ```
+  - **--fit-ctx 4096** (not 8192): Qwen3.5 DeltaNet forces full prompt reprocessing every turn (Issues #20225, #19794, #20003). Lower context = faster turns (~2-4s at 4K vs ~8-16s at 8K on M3/M4). Implement client-side context windowing to keep prompts short.
+  - **--jinja**: Required for Qwen3.5 tool-calling chat template
+  - **--no-warmup**: Skip warmup for faster cold start
+  - **DO NOT USE --reasoning-format deepseek**: Grammar + thinking mode are mutually exclusive (Issue #20345). JSON Schema is silently inactive when thinking is ON. Qwen3.5-4B has thinking OFF by default — do not enable it.
+  - v2 TurboQuant flags (when TQ fork adopted):
+    - Add: `--cache-type-k q8_0 --cache-type-v turbo3` (asymmetric: q8_0 K preserves tool-calling, turbo3 V gives 4.6x compression)
+    - WARNING: symmetric turbo3/turbo3 degrades tool calling. Always use asymmetric.
+    - Note: TheTom fork uses `turbo3`; upstream PRs use `tbq3_0`. Abstract type name in config layer.
+  - v2 Plan B (if TurboQuant fork becomes unmaintainable):
+    - Use upstream `--cache-type-k q8_0 --cache-type-v q4_0` + ggerganov's rotation (PR #21038 when merged). Less compression but zero fork dependency.
   - Health check loop: `GET /health` every 1s, timeout after 30s
 - [ ] `stop()` — kill sidecar child process
 - [ ] `chat()` — `POST /v1/chat/completions` with streaming
@@ -189,8 +199,14 @@
 - [ ] Implement **lazy grammar** triggering: model generates freely until tool-call trigger, then grammar constrains output
   - llama.cpp supports trigger types: TOKEN, WORD, PATTERN, PATTERN_FULL (since ~b4800+)
   - This enables natural reasoning → constrained tool output in one response
-- [ ] Use `--reasoning-format deepseek` to extract thinking into `reasoning_content` field (separate from structured output)
+- [ ] **CRITICAL: Do NOT use `--reasoning-format deepseek` with JSON Schema** (Issue #20345)
+  - Grammar enforcement is silently inactive when thinking is ON
+  - Qwen3.5 wraps JSON in markdown fences when thinking → PEG parser rejects with 500 error
+  - Qwen3.5-4B has thinking OFF by default → grammar works correctly without any special flags
+  - If thinking mode is needed for complex analysis: use a separate request WITHOUT grammar, then parse the free-text response
 - [ ] No kubectl GBNF grammars exist publicly — build custom schemas for Kubeli's tool-call format
+  - Keep schemas shallow (avoid nested $ref) to minimize parsing edge cases
+  - Model should produce JSON, convert to YAML in Kubeli's TypeScript layer (models perform worse with YAML output)
 - [ ] Key insight: Grammar constraints guarantee 100% structural validity; fine-tuning provides semantic quality. **Combine both** — hybrid approach outperforms either alone (SLOT paper: 99.5% schema accuracy + 94.0% content similarity)
 - [ ] WARNING: Extreme KV quantization (-ctk q4_0) degrades tool calling. Use q8_0 for keys.
 
@@ -200,9 +216,17 @@
 - [ ] `build_local_context(cluster, namespace, findings, logs) -> Vec<ChatMessage>`
 - [ ] Grounding: inject real pod/service/namespace names in CONTEXT
 - [ ] Mode routing:
-  - Root cause analysis → thinking mode (temp 0.6, top_p 0.95)
-  - Structured JSON → non-thinking mode (temp 0.7, top_p 0.8)
-- [ ] Context budget: system 500 + analyzers 800 + logs 4,652 + output reserve 2,048 = 8,000
+  - Tool calls (kubectl, JSON output) → grammar-constrained, thinking OFF (temp 0.7, top_p 0.8)
+  - Root cause analysis → free-text, thinking OFF (temp 0.6, top_p 0.95)
+  - **Do NOT enable thinking mode** — breaks grammar enforcement (Issue #20345)
+- [ ] Context budget: system 500 + analyzers 800 + logs 2,500 + output reserve 1,096 = **4,096**
+  - Reduced from 8K to 4K because Qwen3.5 DeltaNet reprocesses full context every turn
+  - At 4K: ~2-4s per turn on M3/M4, ~1-2s on M4 Pro (tolerable)
+  - At 8K: ~8-16s per turn on M3/M4 (too slow for interactive use)
+- [ ] **Client-side context windowing**: For multi-turn conversations:
+  - Keep system prompt + current K8s context + last 2 assistant responses
+  - Summarize/drop older turns to stay within 4K budget
+  - This is critical for DeltaNet's full-reprocessing behavior
 
 ### Task 2.7: Provider routing (was 2.6)
 - [ ] Update `ai_send_message` to check provider and delegate:

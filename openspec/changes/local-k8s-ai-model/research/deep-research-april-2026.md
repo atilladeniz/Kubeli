@@ -87,6 +87,89 @@
 
 ---
 
+## Round 2 Findings (Sidecar Readiness Deep-Dive)
+
+### 11. CRITICAL: Grammar + Thinking mode mutual exclusion (Issue #20345)
+
+- When `response_format` (JSON Schema) is used with `enable_thinking: true`, grammar enforcement is **silently inactive**
+- Qwen3.5 wraps JSON in markdown fences when thinking is ON → PEG parser rejects with 500 error
+- **Saving grace**: Qwen3.5-4B has thinking OFF by default (Unsloth explicitly: "Small models disable thinking by default")
+- **Action**: Remove `--reasoning-format deepseek` from all sidecar flags. Never enable thinking for tool-calling requests.
+
+### 12. CRITICAL: DeltaNet multi-turn full prompt reprocessing (Issues #20225, #19794, #20003)
+
+- Every conversation turn forces full prompt re-evaluation due to DeltaNet recurrent state
+- `llama_memory_seq_rm()` cannot partially truncate hybrid recurrent state, always returns `false`
+- PRs #19924 and #20087 partially improved but did NOT fix it
+- **Impact at 8K context**: ~8-16 seconds per turn on M3/M4 Apple Silicon (too slow)
+- **Impact at 4K context**: ~2-4 seconds per turn (tolerable for K8s assistant)
+- **Action**: Reduce `--fit-ctx` from 8192 → 4096. Implement client-side context windowing.
+
+### 13. TurboQuant will NOT merge upstream before Q4 2026
+
+- Issue #20977: bare feature request, **no maintainer comments**
+- ggerganov's own PR #21038: simpler rotation approach, explicitly stated to "raise the baseline before the incoming flood of vibe-generated TurboQuant PRs"
+- PR #21089 (most complete TurboQuant upstream attempt): ggerganov called it "pure slop"
+- Two PRs (#21062, #21010) **closed for violating AI-generated code policy**
+- **Conclusion**: Full TurboQuant types land incrementally starting Q4 2026 at earliest, multi-backend parity in H1 2027
+- **Action**: Bundle TheTom's fork for v2. Abstract type names (`turbo3` vs future `tbq3_0`).
+
+### 14. Plan B: ggerganov's rotation approach (PR #21038)
+
+- Hadamard rotation on Q/K/V activations that works with ALL existing quant types
+- On Llama-3.2-1B with q4_0 KV: PPL 6.6148 → 6.5962 (q4_0 already close to f16's 6.5788)
+- If this merges upstream, `--cache-type-k q8_0 --cache-type-v q4_0` + rotation could be a viable alternative to TurboQuant with zero fork dependency
+- **Action**: Monitor PR #21038. Test when merged.
+
+### 15. TheTom fork maintenance assessment
+
+- 478 stars, 111 forks, syncs with upstream every 6 hours
+- Delta concentrated in KV cache code paths and kernels, not entire codebase
+- Single-maintainer risk: TheTom currently very active
+- Estimated maintenance: ~2-4 hours/month quiet, ~8-16 hours during upstream KV changes
+- **Naming mismatch**: Fork `turbo3`/`turbo4` ≠ upstream PRs `tbq3_0`/`tbq4_0`
+
+### 16. Qwen3.5-4B single-slot stability: CONFIRMED SAFE
+
+- Issue #20222 crash: only --parallel 3+, single-slot explicitly stable in reproduction matrix
+- Fix landed in PR #20232 (merged March 10, 2026)
+- Issue #19879 loading failures: only affected 35B MoE variants, not 4B
+- Pin to build >= 8212 (post-PR #20232)
+- Tool calling verified as working on Qwen3.5-4B Q4_K_M in independent benchmark
+
+### 17. Apple Silicon performance estimates (Qwen3.5-4B Q4_K_M)
+
+- M3 Pro 36GB: ~40 tok/s decode, ~4.8s TTFT cold, 50K safe context (WillItRunAI)
+- M3/M4 base: estimated ~35-50 tok/s decode, ~500-1000 tok/s prefill at 8K
+- M4 Pro: estimated ~70-100 tok/s decode (273 GB/s bandwidth)
+- Model size (2.74 GB) fits entirely in unified memory on any M3/M4
+
+### 18. Data Recipes: pilot only, not full replacement
+
+- No published quality benchmarks vs manual pipelines
+- No built-in kubectl/K8s YAML validators (only Python/SQL/JS)
+- Custom validators possible via NeMo DataDesigner Python API (`LOCAL_CALLABLE`) but not in Studio UI
+- At 0.13 rec/sec with local 7B: ~21 hours for 10K instruction pairs
+- Beta software (launched March 17, 2026)
+- **Action**: Run pilot on 1K token subset. Evaluate LLM Judge block as standalone quality gate. Keep production pipeline in Python scripts.
+
+### 19. Final validated sidecar configuration
+
+```bash
+llama-server \
+  --model Qwen3.5-4B-UD-Q4_K_M.gguf \
+  --fit on --fit-ctx 4096 --fit-target 1024 \
+  -fa on --mlock --parallel 1 \
+  --defrag-thold 0.1 \
+  --jinja --no-warmup \
+  # v2 TurboQuant (TheTom fork only):
+  # -ctk q8_0 -ctv turbo3
+```
+
+DO NOT ADD: `--reasoning-format deepseek` (breaks grammar), `--parallel >1` (DeltaNet crashes)
+
+---
+
 ## Sources (confirmed)
 
 | Topic | Key URLs |
@@ -102,3 +185,11 @@
 | LM Studio | lmstudio.ai |
 | Unsloth Dynamic 2.0 | unsloth.ai/blog/dynamic-v2 |
 | Unsloth Studio | unsloth.ai/docs/new/studio |
+| Issue #20345 (grammar+thinking) | github.com/ggml-org/llama.cpp/issues/20345 |
+| Issues #20225/#19794 (DeltaNet reprocessing) | github.com/ggml-org/llama.cpp/issues/20225 |
+| Issue #20977 (TurboQuant upstream) | github.com/ggml-org/llama.cpp/issues/20977 |
+| PR #21038 (ggerganov rotation) | github.com/ggml-org/llama.cpp/pull/21038 |
+| PR #21089 (TurboQuant upstream attempt) | github.com/ggml-org/llama.cpp/pull/21089 |
+| PR #20232 (parallel-slot fix) | github.com/ggml-org/llama.cpp/pull/20232 |
+| WillItRunAI (M3 Pro benchmarks) | willitrunai.com |
+| NeMo DataDesigner | nvidia-nemo.github.io/DataDesigner |
