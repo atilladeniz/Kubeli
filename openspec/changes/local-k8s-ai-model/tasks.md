@@ -179,29 +179,44 @@
 - [ ] Configurable patterns via settings (enterprise users add custom regexes)
 - [ ] Unit tests for each pattern type
 
-### Task 2.3: Log preprocessor
+### Task 2.3: Log preprocessor (4-stage pipeline)
 - [ ] Create `src-tauri/src/ai/log_preprocessor.rs`
-- [ ] Step 1 — **Filter**: regex for ERROR/WARN/FATAL + ±3 context lines (80-95% reduction)
-- [ ] Step 2 — **Deduplicate**: group identical patterns, emit one line + count
-- [ ] Step 3 — **Sanitize**: pipe through Task 2.2
-- [ ] Step 4 — **Chunk**: if exceeds token budget (4,652 tokens), split for map-reduce (max 5 chunks)
+- [ ] **Stage 1 — ripgrep pre-filter** (`grep-regex` 0.1.11 crate, ripgrep's core as library):
+  - Filter ERROR/WARN/OOMKill + ±3 context lines
+  - 95% reduction, <1ms for 10K lines
+- [ ] **Stage 2 — Dedup + time-window**: group identical patterns, focus last 5 min → ~100 lines
+- [ ] **Stage 3 — BM25 ranking** (`tantivy` 0.25.0): rank remaining lines against user query → top 15
+  - BM25 wins over semantic search for keyword-rich K8s logs (confirmed by research)
+  - Semantic search (fastembed) only if users report recall problems later
+- [ ] **Stage 4 — Context assembly**: sanitize (Task 2.2) → ~800 tokens for logs
 - [ ] Critical errors at START of output (U-shaped recall in small models)
 - [ ] Token counting: approximate char/4 or use `tiktoken-rs`
-- [ ] `rayon` for parallel processing on large log sets
-- [ ] `preprocess(logs: &str, max_tokens: usize) -> PreprocessedLogs`
+- [ ] For large logs (>100MB): use `memmap2` 0.9.9 + `memchr` for SIMD newline finding
+- [ ] `preprocess(logs: &str, query: &str, max_tokens: usize) -> PreprocessedLogs`
 
-### Task 2.4: K8s analyzers (k8sgpt pattern)
+### Task 2.4: K8s analyzers — deterministic decision trees (highest priority)
 - [ ] Create `src-tauri/src/ai/analyzers/mod.rs` — trait + aggregator
-- [ ] `pod_analyzer.rs` — CrashLoopBackOff, ImagePullBackOff, OOMKilled, Pending, Evicted
-- [ ] `event_analyzer.rs` — Warning events from last 30 min (FailedScheduling, FailedMount, Unhealthy)
-- [ ] `service_analyzer.rs` — No endpoints, selector mismatches
-- [ ] `node_analyzer.rs` — NotReady, DiskPressure, MemoryPressure, PIDPressure
-- [ ] `deployment_analyzer.rs` — Unavailable replicas, rollout stuck, image mismatch
-- [ ] `pvc_analyzer.rs` — Pending binding, capacity issues
-- [ ] `job_analyzer.rs` — Failed completions, backoff limit reached
-- [ ] `ingress_analyzer.rs` — Missing backend service, TLS cert issues
-- [ ] Each returns `Vec<AnalyzerFinding>` with severity, resource, message
-- [ ] `run_all_analyzers(namespace)` → aggregate, cap at ≤800 tokens
+- [ ] **Error classifier** using `aho-corasick` 1.1.4 (SIMD-accelerated multi-pattern matching):
+  - Load ~150-250 K8s event reason strings (from kubelet, scheduler, controller-manager)
+  - Single-pass classification of any text against all patterns
+  - Then regex for parameter extraction (exit codes, image names)
+- [ ] **12 decision trees covering ~86% of common K8s errors:**
+  - `pod_analyzer.rs` — CrashLoopBackOff (→exit code→OOM→image→config), ImagePullBackOff, OOMKilled, Pending/FailedScheduling, Evicted, CreateContainerConfigError
+  - `event_analyzer.rs` — Warning events scored by: recency ×3, severity ×5, keyword match ×4
+  - `service_analyzer.rs` — No endpoints, selector mismatches
+  - `node_analyzer.rs` — NotReady, DiskPressure, MemoryPressure, PIDPressure
+  - `deployment_analyzer.rs` — Unavailable replicas, rollout stuck, image mismatch
+  - `pvc_analyzer.rs` — Pending binding, capacity issues
+  - `job_analyzer.rs` — Failed completions, backoff limit reached
+  - `ingress_analyzer.rs` — Missing backend service, TLS cert issues
+  - `hpa_analyzer.rs` — Misconfiguration, unable to scale
+  - `probe_analyzer.rs` — Liveness/readiness failures
+  - `dns_analyzer.rs` — Resolution failures
+  - `volume_analyzer.rs` — Mount failures
+- [ ] Each returns `Vec<AnalyzerFinding>` with severity, resource, message, **suggested_action**
+- [ ] `run_all_analyzers(namespace)` — parallel via `tokio::try_join!` (3-4x faster than sequential)
+- [ ] Cap at ≤800 tokens for LLM context
+- [ ] **Key insight**: These are the core differentiator vs k8sgpt. k8sgpt is non-deterministic (different recommendations per run) and slow (Pod: 5.66s, Service: 38.58s). Our Rust analyzers: deterministic, consistent, <50ms.
 - [ ] Unit tests per analyzer with mock K8s objects
 
 ### Task 2.5: Structured output — JSON schema + lazy grammars
@@ -227,21 +242,57 @@
 
 ### Task 2.6: System prompt + context builder (was 2.5)
 - [ ] Create `src-tauri/src/ai/local_context_builder.rs`
-- [ ] System prompt under 500 tokens (see design.md template)
+- [ ] **Grounding is the #1 hallucination reduction technique** (research confirmed):
+  - Pattern: "Here are the facts: [Analyzer-Output]. Explain to the user why pod X is in CrashLoopBackOff."
+  - Suppresses model's internal knowledge in favor of provided context (ReDeEP paper)
+  - Error rates drop from 14% → 2% with proper grounding
+- [ ] System prompt under 300 tokens (tighter than before — every token counts)
 - [ ] `build_local_context(cluster, namespace, findings, logs) -> Vec<ChatMessage>`
-- [ ] Grounding: inject real pod/service/namespace names in CONTEXT
+- [ ] **Context compression** (saves 40-60% per resource):
+  - Strip: managedFields, uid, generation, enableServiceLinks, default dnsPolicy
+  - Keep: image, resources.requests/limits, containerStatuses[].state, restartCount, probes, volumeMounts
+- [ ] **Token budget (4K for Qwen3-4B default):**
+  - System prompt: 200-300
+  - Compressed pod spec: 300
+  - Top 3 scored events: 150
+  - Top 15 BM25-ranked log lines: 800
+  - User query: 200
+  - **Output reserve: 2,250-2,350** (enough for explanation + kubectl command)
+- [ ] **Token budget (8K for Qwen3-4B with thinking):**
+  - Same input + thinking budget ~500 tokens + output reserve ~3,000
 - [ ] Mode routing:
-  - Tool calls (kubectl, JSON output) → grammar-constrained, thinking OFF (temp 0.7, top_p 0.8)
-  - Root cause analysis → free-text, thinking OFF (temp 0.6, top_p 0.95)
-  - **Do NOT enable thinking mode** — breaks grammar enforcement (Issue #20345)
-- [ ] Context budget: system 500 + analyzers 800 + logs 2,500 + output reserve 1,096 = **4,096**
-  - Reduced from 8K to 4K because Qwen3.5 DeltaNet reprocesses full context every turn
-  - At 4K: ~2-4s per turn on M3/M4, ~1-2s on M4 Pro (tolerable)
-  - At 8K: ~8-16s per turn on M3/M4 (too slow for interactive use)
-- [ ] **Client-side context windowing**: For multi-turn conversations:
+  - Tool calls (kubectl, JSON output) → grammar-constrained, `/no_think` (temp 0.7, top_p 0.8)
+  - Root cause analysis → free-text, thinking ON with budget 128-256 tokens
+  - "Diagnose in 2-3 sentences, then provide the kubectl command"
+  - **Place reasoning fields BEFORE answer fields in JSON schema** (Park et al. NeurIPS 2024)
+- [ ] **Client-side context windowing** for multi-turn:
   - Keep system prompt + current K8s context + last 2 assistant responses
-  - Summarize/drop older turns to stay within 4K budget
-  - This is critical for DeltaNet's full-reprocessing behavior
+  - Summarize/drop older turns to stay within budget
+
+### Task 2.6b: Post-processing pipeline
+- [ ] Create `src-tauri/src/ai/post_processor.rs`
+- [ ] **Hallucination detection**: Cross-reference all LLM-mentioned resource names against kube-rs reflector stores (`HashSet<String>` indexes for pods, services, namespaces, deployments). O(1) lookup.
+  - If hallucinated name detected: warn user or auto-correct to closest match
+- [ ] **kubectl dry-run validation**: `kube-rs PostParams { dry_run: true }` or `tokio::process::Command("kubectl", "--dry-run=server")`
+  - If invalid: retry with error message appended to prompt (max 3 attempts)
+  - Escalation: generate → validate → retry with error → retry with resource list → escalate to cloud
+- [ ] **Confidence scoring** from logprobs API (`"logprobs": true` in /v1/chat/completions):
+  - `confidence = exp(mean(token_logprobs))`
+  - mean logprob < -2.0 → escalate to cloud LLM
+  - resource-name token logprob < -5.0 → likely hallucinated
+  - Show confidence indicator in UI: green/yellow/red
+
+### Task 2.6c: Precomputed cluster summary (kube-rs reflectors)
+- [ ] Create `src-tauri/src/ai/cluster_summary.rs`
+- [ ] Background tokio task: recompute cluster health on every kube-rs watch event
+  - Pure in-memory iteration over reflector stores — zero API calls
+  - "3 pods unhealthy, 2 PVCs pending, 1 Node NotReady"
+- [ ] Immediately available when user opens AI panel — no waiting
+- [ ] Use `moka` 0.12.10 for diagnosis caching (lock-free, per-entry TTL):
+  - CrashLoopBackOff diagnosis: TTL 30s
+  - Node condition: TTL 5min
+  - PVC status: TTL 10min
+  - Invalidate on matching watch event
 
 ### Task 2.7: Provider routing (was 2.6)
 - [ ] Update `ai_send_message` to check provider and delegate:
@@ -321,11 +372,18 @@
 - [ ] Extend `src/lib/stores/ai-store/types.ts`:
   - Add `activeProvider: AiProvider | null`
 
-### Task 3.7: Provider badge + AI panel
+### Task 3.7: Provider badge + AI panel (streaming UX)
 - [ ] Update `ProviderBadge.tsx`: add "Kubi-1" with blue badge
 - [ ] Update `useLogAnalysis` hook: check local AI availability alongside CLI
 - [ ] Route: preprocessor → sanitizer → context builder → LlamaManager
-- [ ] Map-reduce progress for large logs: "Analyzing chunk 2/4..."
+- [ ] **Streaming UX via Tauri Channels** (NOT Tauri Events — Events are not optimized for low latency):
+  - Use `tauri::ipc::Channel` for ordered, fast data delivery
+  - Phase 1 (<50ms): Deterministic analyzer results appear instantly
+  - Phase 2 (~200-500ms): LLM first token streams via SSE
+  - Phase 3: LLM tokens continue streaming
+  - User sees content within <1s even with 2-3s total generation time
+- [ ] Confidence indicator: green/yellow/red based on logprobs score
+- [ ] "Unsicher? Mit Claude analysieren" button when confidence is low
 
 ### Task 3.8: i18n
 - [ ] Add ~30 translation keys to EN and DE:
@@ -774,8 +832,25 @@ Model swap time: ~1-3 seconds cold start if only one loaded at a time.
 
 ```toml
 [dependencies]
+# AI & inference
 llmfit-core = "0.7"
 tauri-plugin-shell = "2"
+
+# K8s analyzers & log processing
+aho-corasick = "1.1"           # SIMD multi-pattern K8s error classification
+grep-regex = "0.1"             # Ripgrep core as library (log pre-filter)
+grep-searcher = "0.1"          # Ripgrep searcher
+tantivy = "0.25"               # BM25 log ranking
+
+# Caching
+moka = { version = "0.12", features = ["future"] }  # In-memory TTL cache (lock-free)
+redb = "3.1"                   # Persistent embedded DB (future: embeddings)
+
+# Performance
+memmap2 = "0.9"                # Memory-mapped large log files
+memchr = "2"                   # SIMD newline finding
+lasso = "0.7"                  # String interning for resource names
+
 # ollama-rs removed — replaced by direct HTTP to llama-server
 ```
 
