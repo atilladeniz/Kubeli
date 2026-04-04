@@ -422,16 +422,35 @@
 - [ ] Create versioned `.dev/kubi-1/data/test_setup.py` for CUDA + model-load verification
 - [ ] Run `.dev/kubi-1/data/test_setup.py` to verify CUDA + Unsloth
 
-### Task 4.2: Download HuggingFace datasets
-- [ ] Run `python load_hf_datasets.py --tier 1` (essential: CoT, tool calling, reasoning, SO)
-- [ ] Run `python load_hf_datasets.py --tier 2` (valuable: kubectl-35k, cosmopedia, configs)
+### Task 4.2: Download HuggingFace datasets (expanded from research)
+- [ ] **Tier 1 — Critical** (add to `load_hf_datasets.py`):
+  - `substratusai/the-stack-yaml-k8s` — 277K real-world K8s YAML files (~40M+ tokens for CPT)
+  - `ibm-research/ITBench-Trajectories` — 105 agent trajectories, fault-injected K8s scenarios
+  - `ibm-research/ITBench-Lite` — 50 SRE+FinOps scenarios with ground truth
+  - `MCP-1st-Birthday/smoltrace-kubernetes-tasks` — K8s agent tasks with ReAct traces
+  - `mcipriano/stackoverflow-kubernetes-questions` — ~30K real Q&A
+  - `ComponentSoft/k8s-kubectl-35k` — ~35K kubectl examples
+- [ ] **Tier 2 — Valuable**:
+  - `saidsef/tech-docs` — 251 K8s + 60 ArgoCD + 33 Istio + 33 Cilium docs
+  - `HuggingFaceTB/stackexchange_2025_md` — filter for kubernetes/helm/kubectl tags
+  - `Salesforce/xlam-function-calling-60k` — function-calling format reference
+  - `NousResearch/hermes-function-calling-v1` — Hermes tool-calling (Qwen3 native format)
+  - `Jofthomas/hermes-function-calling-thinking-V1` — thinking + tool-calling
 - [ ] Verify each dataset: check schema, count rows, spot-check quality
-- [ ] Document any license concerns for commercial use
+- [ ] Document license status for each
 
-### Task 4.3: Clone GitHub repos
+### Task 4.3: Clone GitHub repos (expanded)
 - [ ] Run `./clone_repos.sh --all`
-- [ ] Verify: kubernetes/website, k8sgpt, kubectl, practical-k8s, troubleshooting repos
-- [ ] Check total size, estimate token count
+- [ ] **New repos to add** (identified by research):
+  - `kubernetes/enhancements` (KEPs) — ~10M tokens, deep K8s design knowledge
+  - `bitnami/charts` — ~20M+ tokens, production Helm values.yaml
+  - `kubernetes/kubernetes` (selective: events/API/E2E tests) — ~5-10M tokens
+  - CKA/CKAD exercise repos (4+) — ~650K tokens, directly convertible to Q&A
+  - `IBM/ITBench` + `ITBench-Scenarios` — 94 fault-injection scenarios
+  - `learnk8s` organization — troubleshooting flowcharts
+  - `kubernetes-sigs/kwok` docs — cluster simulation examples
+- [ ] Existing: kubernetes/website, k8sgpt, kubectl, practical-k8s
+- [ ] Check total size — target: **70M+ raw CPT tokens** (up from 40M)
 
 ### Task 4.4: Harvest via GitHub API (smaller repos)
 - [ ] Generate GitHub personal access token
@@ -439,33 +458,77 @@
 - [ ] Run `GITHUB_TOKEN=ghp_xxx python harvest_k8s.py --tier 2`
 - [ ] Check rate limit usage
 
-### Task 4.5: Convert all data to instruction pairs
+### Task 4.5: Convert to instruction pairs (ChatML + Hermes format)
 - [ ] Run `python convert_docs.py`
-- [ ] Check output in `data/processed/`: k8s_docs.jsonl, k8sgpt_patterns.jsonl, so_cleaned.jsonl, hf_*.jsonl
+- [ ] **Format: ChatML with Hermes tool-calling** (Qwen3 native):
+  - System message with `<tools>` XML definitions
+  - Assistant with `<tool_call>{"name": "kubectl_get", "arguments": {...}}</tool_call>`
+  - Tool role with `<tool_response>` containing results
+- [ ] **Mix: ~60% multi-turn, ~40% single-turn**
+- [ ] **System prompt in ~90% of examples** (60% standard K8s, 30% with tool defs, 10% none)
+- [ ] Use `train_on_responses_only()` in Unsloth to mask user/system turns
 - [ ] Spot-check 20 random pairs per file for quality
+
+### Task 4.5b: DEITA quality scoring (highest ROI quality upgrade)
+- [ ] Install `distilabel` (Argilla) for DEITA pipeline
+- [ ] Score all instruction pairs with `hkust-nlp/deita-quality-scorer` + `deita-complexity-scorer`
+- [ ] Add K8s-specific correctness: YAML parsing, kubectl syntax check, API reference verification
+- [ ] Filter to top quality — **10K expert-curated > 100K unfiltered** (AlpaGasus, LIMA papers)
+- [ ] Target: 20K-30K highest-quality pairs (down from 55K raw)
+
+### Task 4.5c: Semantic dedup (replaces MD5)
+- [ ] Install `text-dedup` (ChenghaoMou/text-dedup) or `SemHash` (MinishLab/semhash)
+- [ ] Embed with `sentence-transformers/all-MiniLM-L6-v2`
+- [ ] Cluster → pairwise cosine → keep most unique per group
+- [ ] Expected: ~30-50% reduction with better diversity (SemDeDup paper, ICLR 2024)
+
+### Task 4.5d: Data contamination check
+- [ ] 13-gram overlap between train and eval sets
+- [ ] `SemHash` cross-dataset mode for semantic contamination
+- [ ] Run before every training — if contaminated, eval metrics are meaningless
 
 ### Task 4.6: Generate refusal training data
 - [ ] Run `python generate_refusals.py --count 5000`
 - [ ] Review sample: non-K8s questions get polite decline, K8s-adjacent get scoped help
 - [ ] Check output: `data/processed/refusals.jsonl`
 
-### Task 4.7: Generate synthetic YAML error pairs
-- [ ] Write `.dev/kubi-1/data/generate_synthetic.py`:
-  - Take valid K8s YAML → introduce common mistakes → generate diagnosis
-  - Mistake types: wrong apiVersion, missing labels, bad selectors, typos in resource names, wrong ports, missing required fields
-  - Output: ~3K error→fix pairs
-- [ ] Run and check output
+### Task 4.7: Synthetic data generation (expanded)
+- [ ] **YAML mutation engine** (10 mutation categories):
+  - Type errors, missing required fields, invalid enum values, indentation errors
+  - Selector/label mismatches, DNS name violations, duplicate port mappings
+  - Deprecated API versions, security issues (root), logical errors (probe timeout loops)
+  - **Multi-resource stacks**: Deploy+Service+Ingress+ConfigMap+Secret+HPA+PDB+NetworkPolicy
+  - Validate with `kubeconform` + `kube-score`
+  - Target: ~5K error→fix pairs (up from 3K)
+- [ ] **Evol-Instruct pipeline** (complexity evolution):
+  - "Create a Deployment" → "Create multi-container Deployment with init containers, resource limits, probes, and PDB, then troubleshoot Pending"
+  - 3-4 evolution rounds per seed instruction
+  - Target: ~10K evolved instructions
+- [ ] **Magpie generation** (seed-free from aligned LLM with K8s system prompt):
+  - Use Qwen3-8B as teacher (or Qwen3-235B-A22B if available via API)
+  - **Do NOT use Claude/GPT-4 as teacher** — violates ToS (Anthropic Feb 2026 enforcement)
+  - Target: ~10K diverse instructions
+- [ ] Quality filter all synthetic data with DEITA scorers + kubeconform
 
 ### Task 4.8: Merge, filter, split
 - [ ] Run `python merge_and_filter.py`
-- [ ] Check stats: total pairs, dedup count, per-source distribution, category balance
+- [ ] Pipeline: semantic dedup (4.5c) → DEITA quality scoring (4.5b) → contamination check (4.5d) → source balancing → split
 - [ ] Verify train/eval split (90/10)
 - [ ] Output: `data/final/kubeli-k8s-train.jsonl` + `kubeli-k8s-eval.jsonl`
-- [ ] Target: 55K+ training pairs, 5K+ eval pairs
+- [ ] Target: **20K-30K high-quality pairs** (quality > quantity — DEITA filtered)
 
-### Task 4.9: Prepare CPT corpus
+### Task 4.9: Prepare CPT corpus (CRITICAL: expand from 40M to 200M+ tokens)
 - [ ] Run `python prepare_cpt_corpus.py`
-- [ ] Check: raw text chunks (~40M tokens), K8s docs + YAML + Go code + SO answers
+- [ ] **40M tokens is dangerously insufficient** (0.01 tokens/param, need 0.4-4.3)
+- [ ] New target: **70M+ raw tokens** from expanded sources:
+  - `substratusai/the-stack-yaml-k8s` (~40M+ tokens)
+  - `kubernetes/enhancements` KEPs (~10M tokens)
+  - `bitnami/charts` (~20M+ tokens)
+  - Existing: kubernetes/website, k8sgpt, SO answers (~40M tokens)
+- [ ] **Data mix: 70-80% K8s + 20-30% general replay** (SlimPajama sample)
+  - General replay prevents catastrophic forgetting of language/reasoning
+  - Smaller models have lower Critical Mixture Ratio (arXiv:2407.17467)
+- [ ] **Multi-epoch: 5-10 epochs** over corpus = 350M-700M effective token exposure
 - [ ] Output: `data/final/cpt_corpus.jsonl`
 
 ### Task 4.10: Optional data tooling eval
@@ -485,15 +548,16 @@
   - LoRA rank 128, target all linear layers + `lm_head` + `embed_tokens`
   - rsLoRA enabled, alpha=32
   - `learning_rate=5e-5`, `embedding_learning_rate=5e-6` (10x smaller)
-  - 1 epoch over CPT corpus
+  - **5-10 epochs** over CPT corpus (multi-epoch compensates for QLoRA's lower knowledge absorption vs full FT, arXiv:2405.09673)
+  - **Data mix: 70-80% K8s + 20-30% general replay** (SlimPajama sample) to prevent catastrophic forgetting
   - Gradient checkpointing "unsloth"
   - Save adapter: `kubi1-cpt-adapter/`
 - [ ] VRAM budget (bf16 LoRA on RTX 3090 24GB):
   - Model bf16: ~8GB, LoRA adapters: ~1GB, Optimizer: ~2GB, Activations: ~6-8GB
-  - Total: ~17-19GB — fits on RTX 3090 but tighter than QLoRA. Reduce batch to 4 if needed.
+  - Total: ~17-19GB — fits on RTX 3090 but tighter than QLoRA. Reduce batch to 2 if needed.
 - [ ] Run CPT: `ssh kubi-train "cd ~/kubi-training/training && python train_cpt.py"`
 - [ ] Monitor loss curve — should decrease steadily
-- [ ] Estimated time: ~2-4 hours on RTX 3090
+- [ ] Estimated time: ~8-16 hours on RTX 3090 (5-10 epochs over 70M+ tokens, increased from 2-4h)
 
 ### Task 5.2: CPT on Qwen3-1.7B-Base (Nano)
 - [ ] Same pipeline with `unsloth/Qwen3-1.7B-Base`
@@ -515,11 +579,13 @@
 ### Task 6.1: SFT on Kubi-1 (4B)
 - [ ] Upload SFT dataset: `rsync -avz data/final/kubeli-k8s-train.jsonl kubi-train:~/kubi-training/data/`
 - [ ] Update `training/train_kubi1.py`:
-  - Load from CPT adapter (`kubi1-cpt-adapter/`), not raw Qwen3 base
-  - **bf16 LoRA** rank 16 (lower than CPT — refining, not shifting)
+  - Load from CPT adapter (`kubi1-cpt-adapter/`)
+  - **Do NOT call `get_peft_model()` again** — loads overlapping LoRA layers. Load saved adapter directly.
+  - QLoRA, **rank 32** (increased from 16 — more headroom for structured K8s JSON/YAML output)
   - Standard target modules (no lm_head/embed_tokens needed for SFT)
-  - batch=4, grad_accum=8, epochs=2, lr=2e-4 (batch reduced from 8 due to bf16)
-  - seq_length=8192
+  - batch=4, grad_accum=4, epochs=2, lr=2e-4, linear LR schedule, 5% warmup
+  - seq_length=4096 (matches inference context budget)
+  - `train_on_responses_only()` — mask user/system turns
 - [ ] Run SFT
 - [ ] Save merged model: `kubi1-sft/`
 
@@ -544,10 +610,19 @@
 - [ ] Record checksums, sizes, and artifact metadata for `registry.json`
 - [ ] Pull GGUFs to Mac: `rsync -avz kubi-train:~/kubi-training/training/*.gguf models/`
 
-### Task 6.5: Optional GRPO follow-up
-- [ ] If SFT JSON quality is still weak, prototype GRPO on the 4B model
-- [ ] Reward JSON validity, kubectl syntax correctness, and grounded resource references
-- [ ] Compare GRPO result against plain SFT before adopting it
+### Task 6.5: GRPO for tool-calling quality (recommended, not optional)
+- [ ] GRPO fits on RTX 3090: Unsloth reduces logit memory 8x (~9.8GB for 8 generations)
+- [ ] **K8s-specific reward functions** (rubric of verifiable rewards):
+  - JSON validity: `json.loads()` → 0/1
+  - YAML validity: `yaml.safe_load()` → 0/1
+  - kubectl syntax: regex against valid subcommands → 0/1
+  - K8s resource grounding: check resource type references → 0/1
+  - Format structure: `<think>`/`<tool_call>` tags present → 0/1
+- [ ] Config: QLoRA rank 16, lr=5e-6, linear schedule, 10% warmup
+  - `num_generations=4` (try 8 if VRAM allows)
+  - Minimum **500 steps** for convergence (Predibase recommendation)
+  - Curriculum: format-only rewards for ~200 steps, then add correctness checks
+- [ ] Compare GRPO result against plain SFT on eval set
 
 ---
 
