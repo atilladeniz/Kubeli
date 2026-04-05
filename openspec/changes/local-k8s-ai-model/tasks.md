@@ -423,13 +423,19 @@
 ## Phase 4: Training data collection
 
 ### Task 4.1: Setup training environment
-- [ ] Install Tailscale on Windows RTX 3090 machine
-- [ ] Install Tailscale in WSL2: `curl -fsSL https://tailscale.com/install.sh | sh && tailscale up`
-- [ ] Add SSH config entry on Mac: `Host kubi-train` → Tailscale IP
-- [ ] Verify: `ssh kubi-train "nvidia-smi"` works from Mac
-- [ ] Install Unsloth on Windows: `uv pip install "unsloth[cu121]"`
-- [ ] Create versioned `.dev/kubi-1/data/test_setup.py` for CUDA + model-load verification
-- [ ] Run `.dev/kubi-1/data/test_setup.py` to verify CUDA + Unsloth
+- [x] Install Tailscale on Windows desktop (2x RTX 3060)
+- [x] SSH from Mac via Tailscale: `ssh win` works (SSH config, key auth, Warp fix)
+- [x] Mullvad VPN coexistence: `AllowedIPs` excludes Tailscale + `fix-ts` script
+- [x] SMB mounts: `mount-win` mounts C: and E: under `~/win/`
+- [x] Cursor Remote SSH to WSL2 working
+- [x] WSL2 configured: Ubuntu 24.04, 28GB RAM, 8 cores
+- [x] nvidia-smi works in WSL2: 2x RTX 3060 12GB each, CUDA 12.1
+- [x] uv + Python 3.12 + PyTorch 2.5.1+cu121 installed
+- [x] E: partition prepared: `/mnt/e/kubi-training/` with models/data/scripts dirs
+- [ ] Install Unsloth on Windows: `source ~/ai/bin/activate && uv pip install "unsloth[cu121]"`
+- [ ] Install accelerate for multi-GPU: `uv pip install accelerate`
+- [ ] Create `.dev/kubi-1/data/test_setup.py` for CUDA + multi-GPU + model-load verification
+- [ ] Run test_setup.py to verify 2x RTX 3060 both accessible
 
 ### Task 4.2: Download HuggingFace datasets (expanded from research)
 - [ ] **Tier 1 — Critical** (add to `load_hf_datasets.py`):
@@ -561,12 +567,14 @@
   - **Data mix: 70-80% K8s + 20-30% general replay** (SlimPajama sample) to prevent catastrophic forgetting
   - Gradient checkpointing "unsloth"
   - Save adapter: `kubi1-cpt-adapter/`
-- [ ] VRAM budget (bf16 LoRA on RTX 3090 24GB):
-  - Model bf16: ~8GB, LoRA adapters: ~1GB, Optimizer: ~2GB, Activations: ~6-8GB
-  - Total: ~17-19GB — fits on RTX 3090 but tighter than QLoRA. Reduce batch to 2 if needed.
-- [ ] Run CPT: `ssh kubi-train "cd ~/kubi-training/training && python train_cpt.py"`
+- [ ] VRAM budget (bf16 LoRA on 2x RTX 3060, 12GB each):
+  - Model bf16: ~8GB split across 2 GPUs (~4GB each) via `device_map="auto"`
+  - LoRA adapters: ~1GB, Optimizer: ~2GB, Activations: ~4-6GB per GPU
+  - Total per GPU: ~9-11GB — fits on 12GB. Batch=2, grad_accum=16.
+  - Use `accelerate launch --multi_gpu train_cpt.py` for tensor parallelism
+- [ ] Run CPT: `ssh win "wsl -- bash -c 'cd ~/training/scripts && accelerate launch --multi_gpu train_cpt.py'"`
 - [ ] Monitor loss curve — should decrease steadily
-- [ ] Estimated time: ~8-16 hours on RTX 3090 (5-10 epochs over 70M+ tokens, increased from 2-4h)
+- [ ] Estimated time: ~16-24 hours on 2x RTX 3060 (5-10 epochs over 70M+ tokens)
 
 ### Task 5.2: CPT on Qwen3-1.7B-Base (Nano)
 - [ ] Same pipeline with `unsloth/Qwen3-1.7B-Base`
@@ -575,9 +583,9 @@
 
 ### Task 5.3: CPT on Qwen3-8B-Base (Pro)
 - [ ] Same pipeline with `unsloth/Qwen3-8B-Base`
-- [ ] bf16 LoRA: ~16GB model — **tight fit on RTX 3090**. Options:
-  - Reduce batch to 1, grad_accum=16
-  - Or use gradient checkpointing aggressive mode
+- [ ] bf16 LoRA: ~16GB model — split across 2x RTX 3060 (~8GB each). Options:
+  - `device_map="auto"` splits model across both GPUs
+  - Batch=1, grad_accum=32, gradient checkpointing aggressive
   - Or fallback to QLoRA for 8B only (standard transformer, not DeltaNet)
 - [ ] Save adapter: `kubi1-pro-cpt-adapter/`
 
@@ -620,7 +628,7 @@
 - [ ] Pull GGUFs to Mac: `rsync -avz kubi-train:~/kubi-training/training/*.gguf models/`
 
 ### Task 6.5: GRPO for tool-calling quality (recommended, not optional)
-- [ ] GRPO fits on RTX 3090: Unsloth reduces logit memory 8x (~9.8GB for 8 generations)
+- [ ] GRPO fits on 2x RTX 3060: Unsloth reduces logit memory 8x (~9.8GB total, split across GPUs)
 - [ ] **K8s-specific reward functions** (rubric of verifiable rewards):
   - JSON validity: `json.loads()` → 0/1
   - YAML validity: `yaml.safe_load()` → 0/1

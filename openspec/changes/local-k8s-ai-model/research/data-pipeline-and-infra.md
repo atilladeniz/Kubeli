@@ -12,7 +12,7 @@
 | Machine | Role | Specs |
 |---------|------|-------|
 | **MacBook Air M4** | Data prep, eval, inference testing | M4 10-core, 32GB unified, Metal 3 |
-| **Windows Desktop** | Training server | RTX 3090 24GB VRAM, CUDA 12 |
+| **Windows Desktop** | Training server | 2x RTX 3060 12GB VRAM each (24GB total), i7-6700K, 32GB RAM, CUDA 12.1, WSL2 Ubuntu 24.04 |
 
 ### Connection
 

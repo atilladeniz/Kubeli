@@ -232,7 +232,7 @@ Training assets live in `.dev/kubi-1/`.
 Current plan:
 - data pipeline for harvested docs + HF datasets + synthetic data
 - CPT corpus preparation
-- QLoRA / CPT training on the RTX 3090
+- bf16 LoRA / CPT training on 2x RTX 3060 (multi-GPU, `accelerate launch`)
 - GGUF export for llama-server
 - optional Ollama Modelfiles for compatibility testing
 - evaluation suite with baseline, fine-tuned variants, refusal behavior, and candidate bake-off

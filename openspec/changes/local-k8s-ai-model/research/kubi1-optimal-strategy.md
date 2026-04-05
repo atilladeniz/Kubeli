@@ -12,7 +12,7 @@ The existing OpenSpec plan (Qwen3-4B + llama-server sidecar + Unsloth QLoRA) is 
 1. **Qwen3.5 is out** (March 2, 2026) — new Small series with 0.8B, 2B, **4B**, 9B. 256K context, thinking/non-thinking, better tool calling. It is a strong future candidate for Kubeli's sidecar-based inference path.
 2. **Unsloth Studio** (March 17, 2026) — No-code UI for training + inference + Data Recipes. Game-changer for workflow.
 3. **Unsloth Data Recipes** — Transforms PDFs/CSVs/docs into synthetic training data automatically. Powered by NVIDIA NeMo Data Designer.
-4. **Local-first training**: RTX 3090 is the primary training machine. Mac connects via SSH/Tailscale. Cloud (Vast.ai) is fallback only.
+4. **Local-first training**: 2x RTX 3060 (24GB total) is the primary training machine. Mac connects via SSH/Tailscale (`ssh win`). Cloud (Vast.ai) is fallback only.
 5. **Grephuboverflow** can be extended as a K8s doc harvester, or use standalone script.
 
 ### Recommendation: Dual-Model Architecture (Updated April 4, 2026 — Final)
@@ -123,7 +123,7 @@ Works with external OpenAI-compatible APIs — can use local llama.cpp server.
 
 > **UPDATE April 4, 2026**: QLoRA 4-bit is **no longer recommended** for Qwen3.5 and Gemma 4 models. Unsloth explicitly warns against QLoRA for Qwen3.5-4B due to "higher than normal quantization differences" from the DeltaNet/hybrid architecture. Gemma 4 E4B also recommends bf16 LoRA over 4-bit. **Use bf16 LoRA instead.**
 
-**bf16 LoRA for 4B on RTX 3090:**
+**bf16 LoRA for 4B on 2x RTX 3060 (12GB each):**
 
 | Setting | Previous Plan (QLoRA) | April 2026 Recommendation (bf16 LoRA) |
 |---------|----------------------|--------------------------------------|
@@ -136,16 +136,29 @@ Works with external OpenAI-compatible APIs — can use local llama.cpp server.
 | LR | 2e-4 | ✅ standard for LoRA |
 | Seq Length | 8192 | ✅ matches context budget |
 
-**VRAM budget on RTX 3090 (24GB) with bf16 LoRA:**
-- Model (bf16): ~8GB
+**VRAM budget on 2x RTX 3060 (12GB each) with bf16 LoRA:**
+- Model (bf16): ~8GB → split across 2 GPUs (~4GB each) via `device_map="auto"`
 - LoRA adapters: ~1GB
 - Optimizer states: ~2GB
-- Activations + gradients: ~6-8GB
-- **Total: ~17-19GB** → fits but tighter. Batch=4 recommended.
+- Activations + gradients: ~4-6GB per GPU
+- **Total per GPU: ~9-11GB** → fits on 12GB with margin. Batch=2 recommended.
+- **Key**: Use `accelerate` with `device_map="auto"` for automatic tensor parallelism
 
-**Exception**: Qwen3-8B (Pro) at bf16 is ~16GB model alone. Options:
+**Training parameter adjustments (vs RTX 3090):**
+
+| Setting | RTX 3090 (old) | 2x RTX 3060 (new) | Reason |
+|---------|---------------|-------------------|--------|
+| Batch Size | 4 | **2** | 12GB per GPU limit |
+| Grad Accum | 8 | **16** | Keep effective batch=32 |
+| LoRA Rank (CPT) | 128 | **64** | Memory + stability |
+| LoRA Rank (SFT) | 32 | **32** | Fits fine |
+| Seq Length | 4096 | **4096** | OK with tensor parallel |
+| Multi-GPU | N/A | **`accelerate launch --multi_gpu`** | Required |
+
+**Exception**: Qwen3-8B (Pro) at bf16 is ~16GB model alone. With 2 GPUs:
+- Split model across both GPUs (~8GB each) + QLoRA for 8B
+- bf16 LoRA with batch=1, grad_accum=32, `device_map="auto"`
 - QLoRA is acceptable for 8B (standard Qwen3 architecture, not DeltaNet)
-- Or bf16 LoRA with batch=1, grad_accum=16
 
 ### 2.4 GRPO (Reinforcement Learning)
 
@@ -204,7 +217,7 @@ Phase 3: Filter (Mac)
 ├── merge_and_filter.py → dedup, quality, balance
 └── Output: final/kubeli-k8s-train.jsonl + eval.jsonl
 
-Phase 4: Train (Windows RTX 3090)
+Phase 4: Train (Windows 2x RTX 3060)
 ├── rsync data to Windows
 ├── python train_kubi1.py
 └── Export GGUF
@@ -223,9 +236,9 @@ Phase 5: Test (Mac)
 ### 4.1 Architecture
 
 ```
-MacBook Air M4 (32GB)              Windows Desktop (RTX 3090)
-──────────────────────              ──────────────────────────
-Data harvesting                     Unsloth training
+MacBook Air M4 (32GB)              Windows Desktop (2x RTX 3060)
+──────────────────────              ──────────────────────────────
+Data harvesting                     Unsloth training (multi-GPU)
 Data conversion                     GGUF export
 Dataset preparation                 Model testing
 Evaluation                    ←──── Trained model (GGUF)
@@ -267,7 +280,7 @@ ollama create kubeli-k8s:4b -f ../models/Modelfile
 
 ### 4.4 Cloud Fallback (Vast.ai)
 
-Only if Windows machine is unavailable. ~$0.10/training run on spot RTX 3090.
+Only if Windows machine is unavailable. ~$0.10/training run on spot GPU.
 Scripts in `.dev/kubi-1/cloud/` when/if that fallback is added.
 
 ---
@@ -282,11 +295,11 @@ Scripts in `.dev/kubi-1/cloud/` when/if that fallback is added.
 | **Training UI** | CLI scripts | **Unsloth Studio + CLI** | No-code option |
 | **Data Pipeline** | Custom scripts only | **Scripts + Data Recipes eval** | Best of both |
 | **GGUF Export** | Q4_K_M + Q5_K_M | **+ Unsloth Dynamic UD-Q4_K_XL** | Better quality |
-| **KV Cache** | Not specified | **TurboQuant eval on RTX 3090** | 3.5x compression, 128K context, beats q8_0 quality |
-| **Training Focus** | Not specified | **Local RTX 3090 first** | Zero cost, fastest iteration |
+| **KV Cache** | Not specified | **TurboQuant eval on 2x RTX 3060** | 3.5x compression, 128K context, beats q8_0 quality |
+| **Training Focus** | Not specified | **Local 2x RTX 3060 first** | Zero cost, fastest iteration |
 | **Connection** | SSH tunnel suggestion | **Tailscale** | Already installed, stable |
 | **Cloud GPU** | Not planned | **Vast.ai as fallback** | $0.10/run if needed |
-| **Batch Size** | 4 | **8** | RTX 3090 has room |
+| **Batch Size** | 4 | **2** (grad_accum=16) | 12GB per GPU limit, effective batch=32 via accumulation |
 | **Epochs** | 3 | **2** | 50K samples is enough |
 
 ---

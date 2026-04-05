@@ -284,7 +284,7 @@ Step 3: Instruction Dataset
 └── Output: data/final/kubeli-k8s-train.jsonl (~55K pairs)
                                    ↳ ~10% are refusal examples
 
-Step 4: Training (on RTX 3090)
+Step 4: Training (on 2x RTX 3060, multi-GPU)
 ├── train_cpt.py                  # Phase 1: Continued Pretraining  ← NEW
 ├── train_sft.py                  # Phase 2: SFT on instruction pairs
 └── train_kubi1.py                # Combined script (CPT → SFT)

@@ -28,7 +28,7 @@ Ship a local AI capability that:
 - Optional advanced mode: use external Ollama host instead of the built-in engine
 
 ### Phase 2 (v2, after v1 ships)
-- Fine-tune the Kubi-1 family on 50K+ K8s pairs via Unsloth QLoRA and CPT on the RTX 3090
+- Fine-tune the Kubi-1 family on 50K+ K8s pairs via Unsloth QLoRA and CPT on the 2x RTX 3060 (multi-GPU, 24GB total VRAM)
 - Evaluate Qwen3.5-4B, Qwen3-30B-A3B, and Nemotron-3-Nano-4B as future model upgrades
 - Publish GGUFs to HuggingFace and GitHub Releases, with optional Ollama registry packaging for compatibility users
 - Monthly retrain on updated docs and evaluation set
