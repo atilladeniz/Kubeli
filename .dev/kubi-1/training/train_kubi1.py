@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 """
-Kubi-1: QLoRA fine-tuning on Qwen3-4B for K8s troubleshooting.
-Run on Windows RTX 3090 (24GB VRAM) or cloud GPU.
+Kubi-1: SFT fine-tuning on Qwen3-4B for K8s troubleshooting.
+Phase 2: Run after CPT (train_cpt.py). Uses CPT adapter as base.
+Hardware: 2x RTX 3060 (12GB each)
 
 Usage:
   python train_kubi1.py
-  python train_kubi1.py --base-model unsloth/Qwen3-4B --epochs 2
-  python train_kubi1.py --resume  # Resume from last checkpoint
+  python train_kubi1.py --base-model /mnt/e/kubi-training/adapters/kubi1-cpt --epochs 2
+  python train_kubi1.py --resume
 """
 
 import argparse
@@ -16,26 +17,26 @@ from pathlib import Path
 
 def parse_args():
     p = argparse.ArgumentParser(description="Train Kubi-1 K8s model")
-    p.add_argument("--base-model", default="unsloth/Qwen3-4B",
-                    help="Base model (default: unsloth/Qwen3-4B)")
-    p.add_argument("--dataset", default="../data/final/kubeli-k8s-train.jsonl",
+    p.add_argument("--base-model", default="/mnt/e/kubi-training/adapters/kubi1-cpt",
+                    help="Base model or CPT adapter (default: CPT adapter)")
+    p.add_argument("--dataset", default="/mnt/e/kubi-training/scripts/final/kubeli-k8s-train.jsonl",
                     help="Training dataset JSONL")
-    p.add_argument("--max-seq-length", type=int, default=8192,
-                    help="Max sequence length (default: 8192)")
-    p.add_argument("--lora-rank", type=int, default=16,
-                    help="LoRA rank (default: 16)")
-    p.add_argument("--batch-size", type=int, default=8,
-                    help="Per-device batch size (default: 8)")
-    p.add_argument("--grad-accum", type=int, default=4,
-                    help="Gradient accumulation steps (default: 4)")
+    p.add_argument("--max-seq-length", type=int, default=4096,
+                    help="Max sequence length (default: 4096)")
+    p.add_argument("--lora-rank", type=int, default=32,
+                    help="LoRA rank (default: 32)")
+    p.add_argument("--batch-size", type=int, default=2,
+                    help="Per-device batch size (default: 2 for 12GB GPU)")
+    p.add_argument("--grad-accum", type=int, default=8,
+                    help="Gradient accumulation steps (default: 8)")
     p.add_argument("--epochs", type=int, default=2,
                     help="Training epochs (default: 2)")
     p.add_argument("--lr", type=float, default=2e-4,
                     help="Learning rate (default: 2e-4)")
-    p.add_argument("--output-dir", default="./checkpoints",
+    p.add_argument("--output-dir", default="/mnt/e/kubi-training/checkpoints/sft",
                     help="Checkpoint output directory")
-    p.add_argument("--export-name", default="kubeli-k8s-4b",
-                    help="GGUF export name")
+    p.add_argument("--export-name", default="/mnt/e/kubi-training/exports/kubeli-k8s-4b",
+                    help="GGUF export path")
     p.add_argument("--resume", action="store_true",
                     help="Resume from last checkpoint")
     p.add_argument("--skip-export", action="store_true",
@@ -86,8 +87,9 @@ def main():
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.base_model,
         max_seq_length=args.max_seq_length,
-        dtype=None,  # Auto-detect (bf16 on 3090)
+        dtype=None,
         load_in_4bit=True,
+        device_map="auto",  # Split across 2x RTX 3060
     )
 
     # --- Add LoRA ---

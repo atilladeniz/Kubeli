@@ -36,6 +36,8 @@ def collect_text_from_repos(repos_dir: Path) -> list[str]:
 
         # Markdown docs
         for f in repo_dir.rglob("*.md"):
+            if not f.is_file():
+                continue
             if any(skip in str(f) for skip in ["CHANGELOG", "LICENSE", "vendor/",
                                                  "node_modules/", ".github/"]):
                 continue
@@ -45,16 +47,22 @@ def collect_text_from_repos(repos_dir: Path) -> list[str]:
 
         # YAML manifests (K8s configs — the model needs to understand YAML deeply)
         for f in repo_dir.rglob("*.yaml"):
+            if not f.is_file():
+                continue
             text = f.read_text(errors="ignore")
             if len(text) > 100 and ("apiVersion" in text or "kind:" in text):
                 texts.append(text)
         for f in repo_dir.rglob("*.yml"):
+            if not f.is_file():
+                continue
             text = f.read_text(errors="ignore")
             if len(text) > 100 and ("apiVersion" in text or "kind:" in text):
                 texts.append(text)
 
         # Go code (analyzer patterns, kubectl internals)
         for f in repo_dir.rglob("*.go"):
+            if not f.is_file():
+                continue
             if "_test.go" in str(f) or "vendor/" in str(f):
                 continue
             text = f.read_text(errors="ignore")

@@ -117,7 +117,9 @@ def generate(count: int) -> list[dict]:
 
     # Hard refusals (non-K8s)
     target_refusals = int(count * 0.85)
-    while len(pairs) < target_refusals:
+    attempts = 0
+    while len(pairs) < target_refusals and attempts < count * 10:
+        attempts += 1
         template = random.choice(NON_K8S_TEMPLATES)
         question = fill_template(template)
         if question in seen:
@@ -141,8 +143,10 @@ def generate(count: int) -> list[dict]:
             "category": "adjacent",
         })
 
-    # Pad remaining with more refusals
-    while len(pairs) < count:
+    # Pad remaining with more refusals (with max attempts to avoid infinite loop)
+    attempts = 0
+    while len(pairs) < count and attempts < count * 10:
+        attempts += 1
         template = random.choice(NON_K8S_TEMPLATES)
         question = fill_template(template)
         if question not in seen:

@@ -28,6 +28,16 @@ REPOS[k8s-hard-way]="https://github.com/kelseyhightower/kubernetes-the-hard-way.
 REPOS[kubectl]="https://github.com/kubernetes/kubectl.git|master|docs pkg/cmd"
 REPOS[k8s-website-de]="https://github.com/kubernetes/website.git|main|content/de/docs"
 
+# Added April 2026 — research-identified repos for 70M+ token target
+REPOS[k8s-enhancements]="https://github.com/kubernetes/enhancements.git|master|keps"
+REPOS[bitnami-charts]="https://github.com/bitnami/charts.git|main|bitnami"
+REPOS[kwok-docs]="https://github.com/kubernetes-sigs/kwok.git|main|site/content"
+REPOS[itbench]="https://github.com/IBM/ITBench.git|main|."
+REPOS[itbench-scenarios]="https://github.com/IBM/ITBench-Scenarios.git|main|."
+REPOS[cka-exercises]="https://github.com/dgkanatsios/CKAD-exercises.git|main|."
+REPOS[cka-study]="https://github.com/kodekloudhub/certified-kubernetes-administrator-course.git|master|."
+REPOS[helm-docs]="https://github.com/helm/helm-www.git|main|content/en/docs"
+
 # ─── Functions ─────────────────────────────────────────────────────
 
 clone_repo() {

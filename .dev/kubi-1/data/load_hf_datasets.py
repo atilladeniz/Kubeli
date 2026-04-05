@@ -80,8 +80,60 @@ DATASETS = [
         notes="Reasoning traces for K8s problems. Perfect for thinking mode.",
     ),
 
+    # === TIER 1 (continued): Added April 2026 from research ===
+
+    HFDataset(
+        "substratusai/the-stack-yaml-k8s",
+        "stack_yaml_k8s",
+        "277K real-world K8s YAML files from The Stack",
+        "277K", "check", 1,
+        notes="LARGEST K8s dataset. ~40M+ tokens for CPT corpus. Critical.",
+    ),
+    HFDataset(
+        "ibm-research/ITBench-Trajectories",
+        "itbench_trajectories",
+        "Agent trajectories for fault-injected K8s scenarios",
+        "105", "check", 1,
+        notes="Real SRE debugging traces. High quality for reasoning training.",
+    ),
+    HFDataset(
+        "ibm-research/ITBench-Lite",
+        "itbench_lite",
+        "SRE + FinOps scenarios with ground truth",
+        "50", "check", 1,
+        notes="Fault injection scenarios with verified solutions.",
+    ),
+
     # === TIER 2: Valuable — good quality, broader coverage ===
 
+    HFDataset(
+        "saidsef/tech-docs",
+        "tech_docs",
+        "K8s + ArgoCD + Istio + Cilium docs",
+        "375", "check", 2,
+        notes="251 K8s + 60 ArgoCD + 33 Istio + 33 Cilium. Curated.",
+    ),
+    HFDataset(
+        "Salesforce/xlam-function-calling-60k",
+        "xlam_function_calling",
+        "Function calling format reference",
+        "60K", "CC-BY-4.0", 2,
+        notes="Function-calling format reference for tool use training.",
+    ),
+    HFDataset(
+        "NousResearch/hermes-function-calling-v1",
+        "hermes_function_calling",
+        "Hermes tool-calling dataset",
+        "varies", "check", 2,
+        notes="Hermes tool-calling — Qwen3 native format.",
+    ),
+    HFDataset(
+        "Jofthomas/hermes-function-calling-thinking-V1",
+        "hermes_thinking_fc",
+        "Thinking + tool-calling combined",
+        "varies", "check", 2,
+        notes="Thinking + tool-calling. Perfect for Qwen3 thinking mode.",
+    ),
     HFDataset(
         "ComponentSoft/k8s-kubectl-35k",
         "kubectl_35k",

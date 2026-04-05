@@ -114,7 +114,8 @@ def convert_markdown_files():
             if False else []  # Avoid circular import
         skip_patterns = ["kubectl_", "so_k8s", "k8s_tool", "k8s_reason", "cosmopedia",
                          "k8s_cli", "k8s_config", "k8s_qa", "k8s_command", "k8s_task",
-                         "k8s_docs_", "k8s_security", "k8s_operator"]
+                         "k8s_docs_", "k8s_security", "k8s_operator", "stack_yaml",
+                         "hermes_", "tech_docs", "xlam_", "itbench_"]
         if any(p in jsonl_file.name for p in skip_patterns):
             continue
 
@@ -124,7 +125,7 @@ def convert_markdown_files():
         with open(jsonl_file) as f:
             for line in f:
                 doc = json.loads(line)
-                if not doc.get("content"):
+                if not doc.get("content") or not doc.get("path"):
                     continue
                 if not doc["path"].endswith(".md"):
                     continue
@@ -146,7 +147,7 @@ def convert_markdown_files():
             if not repo_dir.is_dir() or repo_dir.name.startswith("."):
                 continue
 
-            md_files = list(repo_dir.rglob("*.md"))
+            md_files = [f for f in repo_dir.rglob("*.md") if f.is_file()]
             # Skip test files, changelogs, etc.
             md_files = [f for f in md_files if not any(
                 s in str(f) for s in ["CHANGELOG", "LICENSE", "vendor/",
