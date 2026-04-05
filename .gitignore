@@ -84,3 +84,7 @@ docs/screenshots/
 # Temp files
 tmp/
 .tmp/
+
+# RunPod scripts with hardcoded tokens
+.dev/kubi-1/training/train_cpt_runpod.py
+.dev/kubi-1/training/runpod_setup.sh

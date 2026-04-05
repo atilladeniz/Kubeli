@@ -1,18 +1,15 @@
 #!/usr/bin/env python3
 """
 Kubi-1: Continued Pretraining (CPT) on K8s corpus.
-Phase 1 of the training pipeline — shifts model distribution toward K8s knowledge.
+Phase 1 — shifts model distribution toward K8s knowledge.
 
-Hardware: RTX 3060 12GB (single GPU, QLoRA 4-bit to fit in 12GB)
-Base: Qwen3-4B-Base (NOT Instruct)
-Note: Multi-GPU device_map="auto" fails with Xformers attention bias device mismatch.
+Supports local (RTX 3060/4090) and cloud (RunPod A40/A100) training.
+Reads HF_TOKEN from environment variable.
 
 Usage:
   python train_cpt.py
   python train_cpt.py --resume
-  python train_cpt.py --epochs 3 --batch-size 1
-
-After CPT, run train_sft.py for Phase 2.
+  python train_cpt.py --base-model unsloth/Qwen3-4B-Base-bnb-4bit
 """
 
 import argparse
@@ -23,32 +20,24 @@ from pathlib import Path
 
 def parse_args():
     p = argparse.ArgumentParser(description="Kubi-1 Continued Pretraining")
-    p.add_argument("--base-model", default="unsloth/Qwen3-4B-Base",
-                    help="Base model (default: unsloth/Qwen3-4B-Base)")
+    p.add_argument("--base-model", default="unsloth/Qwen3-4B-Base-bnb-4bit")
     p.add_argument("--dataset", default=None,
-                    help="CPT corpus JSONL (default: auto-detect)")
-    p.add_argument("--max-seq-length", type=int, default=4096,
-                    help="Max sequence length (default: 4096)")
-    p.add_argument("--lora-rank", type=int, default=64,
-                    help="LoRA rank for CPT (default: 64)")
-    p.add_argument("--batch-size", type=int, default=4,
-                    help="Per-device batch size (default: 4, QLoRA fits on 12GB)")
-    p.add_argument("--grad-accum", type=int, default=8,
-                    help="Gradient accumulation steps (default: 8, effective batch=32)")
-    p.add_argument("--epochs", type=int, default=1,
-                    help="Training epochs over CPT corpus (default: 1)")
-    p.add_argument("--lr", type=float, default=5e-5,
-                    help="Learning rate (default: 5e-5)")
-    p.add_argument("--embed-lr", type=float, default=5e-6,
-                    help="Embedding learning rate (default: 5e-6, 10x smaller)")
-    p.add_argument("--output-dir", default="/mnt/e/kubi-training/checkpoints/cpt",
-                    help="Checkpoint output directory")
-    p.add_argument("--adapter-dir", default="/mnt/e/kubi-training/adapters/kubi1-cpt",
-                    help="Final adapter output directory")
-    p.add_argument("--resume", action="store_true",
-                    help="Resume from last checkpoint")
-    p.add_argument("--save-steps", type=int, default=500,
-                    help="Save checkpoint every N steps")
+                    help="CPT corpus JSONL path or HF dataset ID")
+    p.add_argument("--max-seq-length", type=int, default=2048)
+    p.add_argument("--lora-rank", type=int, default=32)
+    p.add_argument("--batch-size", type=int, default=2)
+    p.add_argument("--grad-accum", type=int, default=8)
+    p.add_argument("--epochs", type=int, default=1)
+    p.add_argument("--lr", type=float, default=5e-5)
+    p.add_argument("--embed-lr", type=float, default=5e-6)
+    p.add_argument("--max-chunks", type=int, default=5000,
+                    help="Max chunks to use (0 = all)")
+    p.add_argument("--output-dir", default="./checkpoints/cpt")
+    p.add_argument("--adapter-dir", default="./adapters/kubi1-cpt")
+    p.add_argument("--hf-repo", default=None,
+                    help="HuggingFace repo to push adapter (optional)")
+    p.add_argument("--resume", action="store_true")
+    p.add_argument("--save-steps", type=int, default=200)
     return p.parse_args()
 
 
@@ -56,79 +45,75 @@ def find_dataset():
     """Auto-detect CPT corpus location."""
     candidates = [
         Path("/mnt/e/kubi-training/scripts/final/cpt_corpus.jsonl"),
-        Path("/mnt/e/kubi-training/data/final/cpt_corpus.jsonl"),
         Path("../data/final/cpt_corpus.jsonl"),
+        Path("./data/final/cpt_corpus.jsonl"),
     ]
     for c in candidates:
         if c.exists():
             return str(c.resolve())
-    raise FileNotFoundError(f"CPT corpus not found. Tried: {[str(c) for c in candidates]}")
+    return None
 
 
 def main():
     args = parse_args()
+    hf_token = os.environ.get("HF_TOKEN", "")
+
+    # Find dataset
     dataset_path = args.dataset or find_dataset()
-
-    num_gpus = torch.cuda.device_count()
+    use_hf_dataset = dataset_path is None
 
     print("=" * 60)
-    print("  Kubi-1 — Continued Pretraining (Phase 1)")
+    print("  Kubi-1 — Continued Pretraining (CPT)")
     print("=" * 60)
-    print(f"  Base model:    {args.base_model}")
-    print(f"  Dataset:       {dataset_path}")
-    print(f"  LoRA rank:     {args.lora_rank}")
-    print(f"  Batch:         {args.batch_size} × {args.grad_accum} = {args.batch_size * args.grad_accum} per GPU")
-    print(f"  Epochs:        {args.epochs}")
-    print(f"  Seq length:    {args.max_seq_length}")
-    print(f"  LR:            {args.lr} (embeddings: {args.embed_lr})")
-    print(f"  GPUs:          {num_gpus}")
-    for i in range(num_gpus):
-        name = torch.cuda.get_device_name(i)
-        vram = torch.cuda.get_device_properties(i).total_memory / 1024**3
-        print(f"    GPU {i}:       {name} — {vram:.0f} GB")
-    print(f"  Output:        {args.output_dir}")
-    print(f"  Adapter:       {args.adapter_dir}")
+    print(f"  Model:     {args.base_model}")
+    print(f"  Rank:      {args.lora_rank}")
+    print(f"  Batch:     {args.batch_size} x {args.grad_accum} = {args.batch_size * args.grad_accum}")
+    print(f"  Seq len:   {args.max_seq_length}")
+    print(f"  GPU:       {torch.cuda.get_device_name(0)}")
+    print(f"  VRAM:      {torch.cuda.get_device_properties(0).total_memory / 1024**3:.0f} GB")
     print("=" * 60)
 
-    # --- Load model ---
-    print("\nLoading model...")
     from unsloth import FastLanguageModel
 
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=args.base_model,
         max_seq_length=args.max_seq_length,
         dtype=None,
-        load_in_4bit=True,   # QLoRA to fit on single 12GB GPU
+        load_in_4bit=True,
+        token=hf_token or None,
     )
 
-    # --- Add LoRA for CPT ---
-    # Higher rank + train embeddings for distribution shift
     model = FastLanguageModel.get_peft_model(
-        model,
-        r=args.lora_rank,
+        model, r=args.lora_rank,
         target_modules=[
             "q_proj", "k_proj", "v_proj", "o_proj",
             "gate_proj", "up_proj", "down_proj",
-            "lm_head", "embed_tokens",  # Critical for CPT
+            "lm_head", "embed_tokens",
         ],
-        lora_alpha=32,
-        use_rslora=True,  # Rank-stabilized LoRA
+        lora_alpha=args.lora_rank,
+        use_rslora=True,
         lora_dropout=0,
         use_gradient_checkpointing="unsloth",
     )
 
-    # --- Load CPT dataset ---
+    # Load dataset
     from datasets import load_dataset
 
-    print(f"\nLoading CPT corpus: {dataset_path}")
-    dataset = load_dataset("json", data_files=dataset_path, split="train")
-    print(f"  {len(dataset)} chunks loaded")
+    if use_hf_dataset:
+        print("Loading from HuggingFace...")
+        dataset = load_dataset("atilladeniz/kubi1-cpt-corpus",
+                               data_files="cpt_corpus.jsonl",
+                               split="train", token=hf_token)
+    else:
+        print(f"Loading from: {dataset_path}")
+        dataset = load_dataset("json", data_files=dataset_path, split="train")
 
-    # CPT uses raw text — the "text" field from cpt_corpus.jsonl
-    # No instruction formatting needed
+    if args.max_chunks > 0:
+        dataset = dataset.select(range(min(args.max_chunks, len(dataset))))
+    print(f"  {len(dataset)} chunks")
 
-    # --- Train ---
-    from unsloth import UnslothTrainer, UnslothTrainingArguments
+    # Train
+    from unsloth import UnslothTrainer, UnslothTrainingArguments, unsloth_train
 
     os.makedirs(args.output_dir, exist_ok=True)
 
@@ -142,62 +127,59 @@ def main():
         bf16=torch.cuda.is_bf16_supported(),
         output_dir=args.output_dir,
         logging_steps=10,
-        logging_dir=os.path.join(args.output_dir, "logs"),
         save_strategy="steps",
         save_steps=args.save_steps,
-        save_total_limit=3,
+        save_total_limit=2,
         optim="adamw_8bit",
-        warmup_ratio=0.05,
+        lr_scheduler_type="cosine",
+        warmup_ratio=0.1,
         max_grad_norm=1.0,
         seed=42,
         report_to="none",
     )
 
     trainer = UnslothTrainer(
-        model=model,
-        tokenizer=tokenizer,
+        model=model, tokenizer=tokenizer,
         train_dataset=dataset,
         dataset_text_field="text",
         max_seq_length=args.max_seq_length,
         args=training_args,
     )
 
-    # Count parameters
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     total = sum(p.numel() for p in model.parameters())
-    print(f"\n  Parameters: {trainable:,} trainable / {total:,} total ({100*trainable/total:.1f}%)")
-
-    # Estimate training time
-    steps = len(dataset) // (args.batch_size * args.grad_accum * max(1, num_gpus)) * args.epochs
-    print(f"  Estimated steps: ~{steps}")
-    print(f"  Checkpoints every {args.save_steps} steps")
-
-    print("\n" + "=" * 60)
-    print("  Starting CPT training...")
-    print("  Stop with: Ctrl+C or 'pkill -f train_cpt'")
-    print("  Resume with: python train_cpt.py --resume")
-    print("=" * 60 + "\n")
+    print(f"  Params: {trainable:,} / {total:,} ({100*trainable/total:.1f}%)")
 
     if args.resume and Path(args.output_dir).exists():
-        checkpoints = sorted(Path(args.output_dir).glob("checkpoint-*"))
-        if checkpoints:
-            print(f"  Resuming from: {checkpoints[-1]}")
-            trainer.train(resume_from_checkpoint=True)
+        cps = sorted(Path(args.output_dir).glob("checkpoint-*"))
+        if cps:
+            print(f"  Resuming from: {cps[-1]}")
+            unsloth_train(trainer, resume_from_checkpoint=True)
         else:
-            print("  No checkpoints found, starting fresh")
-            trainer.train()
+            unsloth_train(trainer)
     else:
-        trainer.train()
+        unsloth_train(trainer)
 
-    print("\nCPT training complete!")
+    print("\nCPT complete!")
 
-    # --- Save adapter ---
-    print(f"\nSaving CPT adapter to: {args.adapter_dir}")
+    # Save adapter locally
     os.makedirs(args.adapter_dir, exist_ok=True)
     model.save_pretrained(args.adapter_dir)
     tokenizer.save_pretrained(args.adapter_dir)
-    print(f"  Adapter saved. Use this as base for SFT (Phase 2).")
-    print(f"\n  Next: python train_sft.py --base-model {args.adapter_dir}")
+    print(f"Adapter saved: {args.adapter_dir}")
+
+    # Push to HuggingFace (if token available)
+    if hf_token and args.hf_repo:
+        model.push_to_hub(args.hf_repo, token=hf_token, private=True)
+        tokenizer.push_to_hub(args.hf_repo, token=hf_token, private=True)
+        # Save merged model for SFT
+        merged_repo = args.hf_repo.replace("-adapter", "-merged")
+        model.push_to_hub_merged(merged_repo, tokenizer,
+                                  save_method="merged_16bit",
+                                  token=hf_token, private=True)
+        print(f"Pushed to: {args.hf_repo} + {merged_repo}")
+
+    print("Next: python train_kubi1.py --base-model ./adapters/kubi1-cpt")
 
 
 if __name__ == "__main__":
