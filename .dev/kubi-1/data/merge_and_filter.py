@@ -32,6 +32,21 @@ def load_all_pairs() -> list[dict]:
     return pairs
 
 
+def _ngrams(text: str, n: int = 13) -> set[str]:
+    """Extract character n-grams from text for similarity comparison."""
+    text = text.lower().strip()
+    if len(text) < n:
+        return {text}
+    return {text[i:i+n] for i in range(len(text) - n + 1)}
+
+
+def _jaccard(a: set, b: set) -> float:
+    """Jaccard similarity between two sets."""
+    if not a or not b:
+        return 0.0
+    return len(a & b) / len(a | b)
+
+
 def deduplicate(pairs: list[dict]) -> list[dict]:
     """Remove exact duplicates based on instruction+output hash."""
     seen = set()
@@ -44,8 +59,39 @@ def deduplicate(pairs: list[dict]) -> list[dict]:
             seen.add(key)
             unique.append(p)
     removed = len(pairs) - len(unique)
-    print(f"  Dedup: removed {removed} duplicates ({len(unique)} remaining)")
+    print(f"  Exact dedup: removed {removed} duplicates ({len(unique)} remaining)")
     return unique
+
+
+def semantic_dedup(pairs: list[dict], threshold: float = 0.6) -> list[dict]:
+    """Remove near-duplicates using 13-gram Jaccard similarity.
+
+    Compares output text only. O(n²) but practical for <100K pairs
+    with early-exit on short outputs.
+    """
+    # Pre-compute n-grams for outputs
+    ngrams_list = []
+    for p in pairs:
+        out = p.get("output", "")
+        ngrams_list.append(_ngrams(out) if len(out) > 50 else set())
+
+    keep = [True] * len(pairs)
+    removed = 0
+
+    for i in range(len(pairs)):
+        if not keep[i] or not ngrams_list[i]:
+            continue
+        for j in range(i + 1, len(pairs)):
+            if not keep[j] or not ngrams_list[j]:
+                continue
+            sim = _jaccard(ngrams_list[i], ngrams_list[j])
+            if sim >= threshold:
+                keep[j] = False
+                removed += 1
+
+    result = [p for p, k in zip(pairs, keep) if k]
+    print(f"  Semantic dedup: removed {removed} near-duplicates (threshold={threshold})")
+    return result
 
 
 def quality_filter(pairs: list[dict], min_tokens: int = 50, max_tokens: int = 2000) -> list[dict]:
@@ -102,44 +148,78 @@ def quality_filter(pairs: list[dict], min_tokens: int = 50, max_tokens: int = 20
 
 
 def quality_score(pair: dict) -> float:
-    """Simple DEITA-inspired quality score (0-1). Higher = better."""
+    """DEITA-inspired quality score (0-1). Higher = better.
+
+    Scores across three DEITA dimensions:
+    1. Complexity — is the instruction non-trivial?
+    2. Quality — is the response well-structured and accurate?
+    3. Diversity — does the pair add unique value? (handled by semantic dedup)
+    """
     output = pair.get("output", "")
     instruction = pair.get("instruction", "")
     score = 0.5  # baseline
 
     words = output.split()
     word_count = len(words)
+    inst_words = instruction.split()
 
-    # Optimal length (50-300 words is ideal for SFT)
-    if 50 <= word_count <= 300:
-        score += 0.15
-    elif word_count > 500:
-        score -= 0.1
-
-    # Has structure (numbered lists, bullet points, code blocks)
-    if any(output.startswith(f"{i}.") or f"\n{i}." in output for i in range(1, 6)):
+    # --- Dimension 1: Instruction Complexity ---
+    # Question format (requires reasoning, not just recall)
+    if any(instruction.lower().startswith(w) for w in ["how", "why", "when should", "what happens"]):
         score += 0.1
-    if "```" in output:
-        score += 0.1
-    if "- " in output or "* " in output:
+    elif any(instruction.lower().startswith(w) for w in ["what is", "what are", "explain", "describe"]):
         score += 0.05
-
-    # Has kubectl commands (very valuable)
-    if "kubectl" in output:
-        score += 0.15
-
-    # Instruction quality (question format better than "Explain:")
-    if any(instruction.lower().startswith(w) for w in ["how", "what", "why", "when", "can"]):
-        score += 0.1
+    # Multi-part instructions
+    if instruction.count("?") > 1 or " and " in instruction.lower():
+        score += 0.05
+    # Very short instructions are lower quality
+    if len(inst_words) < 5:
+        score -= 0.05
+    # Vague "Explain:" prefix
     if instruction.startswith("Explain:"):
         score -= 0.05
 
-    # Penalize repetitive content
-    sentences = output.split(". ")
+    # --- Dimension 2: Response Quality ---
+    # Optimal length (50-300 words is ideal for SFT)
+    if 50 <= word_count <= 300:
+        score += 0.1
+    elif word_count > 500:
+        score -= 0.1
+    elif word_count < 20:
+        score -= 0.15
+
+    # Has structure (numbered lists, bullet points, code blocks)
+    has_numbered = any(f"\n{i}." in output or output.startswith(f"{i}.") for i in range(1, 6))
+    has_bullets = "- " in output or "* " in output
+    has_code = "```" in output or "`kubectl" in output
+    has_headers = "##" in output or "**" in output
+
+    structure_signals = sum([has_numbered, has_bullets, has_code, has_headers])
+    score += min(0.15, structure_signals * 0.05)
+
+    # Has kubectl/K8s commands (domain-specific value)
+    if "kubectl" in output:
+        score += 0.1
+    if any(kw in output.lower() for kw in ["apiversion", "kind:", "metadata:", "spec:"]):
+        score += 0.05
+
+    # Actionable (has steps, commands, or examples)
+    if has_numbered and has_code:
+        score += 0.1  # best: structured steps with code
+
+    # Penalize repetitive content (key quality signal)
+    sentences = [s.strip() for s in output.split(". ") if len(s.strip()) > 10]
     if len(sentences) > 3:
-        unique_starts = len(set(s[:30] for s in sentences))
-        if unique_starts < len(sentences) * 0.5:
-            score -= 0.2
+        unique_starts = len(set(s[:40] for s in sentences))
+        repetition_ratio = unique_starts / len(sentences)
+        if repetition_ratio < 0.4:
+            score -= 0.25  # heavily repetitive
+        elif repetition_ratio < 0.6:
+            score -= 0.1
+
+    # Penalize outputs that look like raw docs (no synthesis)
+    if output.count("<!--") > 0 or output.count("{{") > 0:
+        score -= 0.3
 
     return max(0.0, min(1.0, score))
 
@@ -267,9 +347,11 @@ def main():
     pairs = load_all_pairs()
     print(f"  Total loaded: {len(pairs)}")
 
-    # Deduplicate
+    # Deduplicate (exact + semantic)
     print("\n🔍 Deduplicating:")
     pairs = deduplicate(pairs)
+    if len(pairs) < 50000:  # semantic dedup is O(n²), skip for very large sets
+        pairs = semantic_dedup(pairs, threshold=0.6)
 
     # Quality filter
     print("\n🧹 Quality filtering:")
@@ -294,6 +376,28 @@ def main():
     print("\n🆔 Injecting identity & refusal examples (train only):")
     train = inject_identity_and_refusals(train)
     random.shuffle(train)
+
+    # Contamination check: ensure no train examples leak into eval
+    print("\n🔬 Contamination check (13-gram overlap):")
+    train_ngrams = set()
+    for p in train:
+        out = p.get("output", "")
+        if len(out) > 50:
+            train_ngrams.update(_ngrams(out))
+
+    contaminated = 0
+    clean_eval = []
+    for p in eval_set:
+        out = p.get("output", "")
+        if len(out) > 50:
+            eval_ng = _ngrams(out)
+            overlap = _jaccard(eval_ng, train_ngrams)
+            if overlap > 0.5:
+                contaminated += 1
+                continue
+        clean_eval.append(p)
+    eval_set = clean_eval
+    print(f"  Removed {contaminated} contaminated eval examples")
 
     print(f"  Train: {len(train)}")
     print(f"  Eval:  {len(eval_set)}")
