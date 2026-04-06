@@ -36,6 +36,10 @@ def parse_args():
                     help="HuggingFace repo to push GGUF (optional)")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--skip-export", action="store_true")
+    p.add_argument("--train-on-responses-only",
+                    action=argparse.BooleanOptionalAction,
+                    default=True,
+                    help="Mask user turns so the loss only trains assistant responses.")
     return p.parse_args()
 
 
@@ -175,6 +179,16 @@ def main():
         max_seq_length=args.max_seq_length,
         args=training_args,
     )
+
+    if args.train_on_responses_only:
+        from unsloth.chat_templates import train_on_responses_only
+
+        trainer = train_on_responses_only(
+            trainer,
+            instruction_part="<|im_start|>user\n",
+            response_part="<|im_start|>assistant\n",
+        )
+        print("  Response-only loss masking enabled")
 
     print("  Training started...")
 
