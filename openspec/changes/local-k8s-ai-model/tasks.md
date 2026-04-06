@@ -607,12 +607,12 @@
 - [ ] Save merged model: `kubi1-sft/`
 
 ### Task 6.2: SFT on Kubi-1 Nano (1.7B)
-- [ ] Same pipeline from `kubi1-nano-cpt-adapter/`
+- [ ] Load **merged** CPT model (`kubi1-nano-cpt-merged/`), apply fresh LoRA
 - [ ] bf16 LoRA, batch=8 (plenty of room at 1.7B)
 - [ ] May need 3 epochs (smaller model, needs more passes)
 
 ### Task 6.3: SFT on Kubi-1 Pro (8B)
-- [ ] Same pipeline from `kubi1-pro-cpt-adapter/`
+- [ ] Load **merged** CPT model (`kubi1-pro-cpt-merged/`), apply fresh LoRA
 - [ ] 2 epochs, batch=1, grad_accum=16 (bf16 LoRA tight on 8B)
 - [ ] QLoRA acceptable fallback for 8B (standard Qwen3 arch, not DeltaNet)
 

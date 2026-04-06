@@ -179,23 +179,27 @@ def main():
 
     # Source 4: General Replay (20-30% of corpus to prevent catastrophic forgetting)
     # Uses HuggingFace's FineWeb subset for general English text
+    # Token-based targeting: measure K8s chars, add 25% worth of general text
     if not args.no_replay:
         try:
             from datasets import load_dataset
-            replay_target = int(len(all_texts) * 0.25)  # 25% general text
-            print(f"\n  Loading general replay ({replay_target} docs, 25% of corpus)...")
+            k8s_chars = sum(len(t) for t in all_texts)
+            replay_target_chars = int(k8s_chars * 0.25)  # 25% by token volume
+            print(f"\n  Loading general replay (~{replay_target_chars // 4000:.0f}K tokens, 25% of {k8s_chars // 4000:.0f}K K8s tokens)...")
             replay_ds = load_dataset("HuggingFaceFW/fineweb-edu",
                                      name="sample-10BT", split="train",
                                      streaming=True)
+            replay_chars = 0
             replay_count = 0
             for row in replay_ds:
                 text = row.get("text", "")
                 if len(text) > 200:
                     all_texts.append(text)
+                    replay_chars += len(text)
                     replay_count += 1
-                if replay_count >= replay_target:
+                if replay_chars >= replay_target_chars:
                     break
-            print(f"  General replay: {replay_count} documents added")
+            print(f"  General replay: {replay_count} docs, ~{replay_chars // 4000:.0f}K tokens added")
         except Exception as e:
             print(f"  General replay skipped: {e}")
 

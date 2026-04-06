@@ -75,7 +75,7 @@ python "${ROOT_DIR}/.dev/kubi-1/training/train_cpt.py" \
   --output-dir "${CPT_OUTPUT_DIR}" \
   --adapter-dir "${CPT_ADAPTER_DIR}" \
   --hf-repo "${CPT_HF_REPO}" \
-  ${CPT_NO_4BIT:+--no-4bit}
+  $([ "${CPT_NO_4BIT:-1}" = "1" ] && echo "--no-4bit")
 
 echo
 echo "[3/3] Supervised fine-tuning + GGUF export"
