@@ -377,13 +377,15 @@ def main():
     train = inject_identity_and_refusals(train)
     random.shuffle(train)
 
-    # Contamination check: ensure no train examples leak into eval
-    print("\n🔬 Contamination check (13-gram overlap):")
-    train_ngrams = set()
+    # Contamination check: compare each eval example against individual
+    # train examples to detect actual leakage (not against global union).
+    print("\n🔬 Contamination check (per-example 13-gram overlap):")
+    # Pre-compute train n-grams per example (only outputs >50 chars)
+    train_per_example = []
     for p in train:
         out = p.get("output", "")
         if len(out) > 50:
-            train_ngrams.update(_ngrams(out))
+            train_per_example.append(_ngrams(out))
 
     contaminated = 0
     clean_eval = []
@@ -391,8 +393,12 @@ def main():
         out = p.get("output", "")
         if len(out) > 50:
             eval_ng = _ngrams(out)
-            overlap = _jaccard(eval_ng, train_ngrams)
-            if overlap > 0.5:
+            is_leaked = False
+            for train_ng in train_per_example:
+                if _jaccard(eval_ng, train_ng) > 0.5:
+                    is_leaked = True
+                    break
+            if is_leaked:
                 contaminated += 1
                 continue
         clean_eval.append(p)
