@@ -226,16 +226,18 @@ def main():
     print(f"\n⚖️  Balancing sources (max {args.max_per_source:.0%} per source):")
     pairs = balance_sources(pairs, args.max_per_source)
 
-    # Inject identity & refusals
-    print("\n🆔 Injecting identity & refusal examples:")
-    pairs = inject_identity_and_refusals(pairs)
-
     # Shuffle
     random.shuffle(pairs)
 
-    # Split
+    # Split (before identity injection to keep eval clean)
     print(f"\n✂️  Splitting (eval ratio: {args.eval_ratio:.0%}):")
     train, eval_set = split_train_eval(pairs, args.eval_ratio)
+
+    # Inject identity & refusals into train only
+    print("\n🆔 Injecting identity & refusal examples (train only):")
+    train = inject_identity_and_refusals(train)
+    random.shuffle(train)
+
     print(f"  Train: {len(train)}")
     print(f"  Eval:  {len(eval_set)}")
 

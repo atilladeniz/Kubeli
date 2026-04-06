@@ -113,6 +113,10 @@ def main():
 
     from unsloth import FastLanguageModel
 
+    # Strategy: load MERGED CPT model, apply fresh LoRA for SFT.
+    # This is Unsloth's recommended approach over adapter-continue,
+    # because it avoids double-LoRA issues and allows independent
+    # rank/target tuning for SFT vs CPT.
     model, tokenizer = FastLanguageModel.from_pretrained(
         model_name=base_model,
         max_seq_length=args.max_seq_length,

@@ -38,6 +38,8 @@ def parse_args():
                     help="HuggingFace repo to push adapter (optional)")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--save-steps", type=int, default=200)
+    p.add_argument("--no-4bit", action="store_true",
+                    help="Use bf16 LoRA instead of QLoRA 4-bit (needs more VRAM)")
     return p.parse_args()
 
 
@@ -75,11 +77,20 @@ def main():
 
     from unsloth import FastLanguageModel
 
+    use_4bit = not args.no_4bit
+    if not use_4bit:
+        # bf16 LoRA: better quality but needs ~24GB+ VRAM for 4B model
+        base = args.base_model.replace("-bnb-4bit", "")
+        print(f"  Mode:      bf16 LoRA (full quality)")
+    else:
+        base = args.base_model
+        print(f"  Mode:      QLoRA 4-bit")
+
     model, tokenizer = FastLanguageModel.from_pretrained(
-        model_name=args.base_model,
+        model_name=base,
         max_seq_length=args.max_seq_length,
         dtype=None,
-        load_in_4bit=True,
+        load_in_4bit=use_4bit,
         token=hf_token or None,
     )
 
