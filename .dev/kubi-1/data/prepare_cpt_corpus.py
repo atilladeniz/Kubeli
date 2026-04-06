@@ -147,6 +147,8 @@ def main():
                         help="Target chunk size in tokens (default: 4096)")
     parser.add_argument("--min-length", type=int, default=200,
                         help="Minimum chunk length in chars (default: 200)")
+    parser.add_argument("--no-replay", action="store_true",
+                        help="Skip general replay text (not recommended)")
     args = parser.parse_args()
 
     print("=" * 60)
@@ -174,6 +176,28 @@ def main():
     if not all_texts:
         print("\n  No data found. Run clone_repos.sh and harvest_k8s.py first.")
         return
+
+    # Source 4: General Replay (20-30% of corpus to prevent catastrophic forgetting)
+    # Uses HuggingFace's FineWeb subset for general English text
+    if not args.no_replay:
+        try:
+            from datasets import load_dataset
+            replay_target = int(len(all_texts) * 0.25)  # 25% general text
+            print(f"\n  Loading general replay ({replay_target} docs, 25% of corpus)...")
+            replay_ds = load_dataset("HuggingFaceFW/fineweb-edu",
+                                     name="sample-10BT", split="train",
+                                     streaming=True)
+            replay_count = 0
+            for row in replay_ds:
+                text = row.get("text", "")
+                if len(text) > 200:
+                    all_texts.append(text)
+                    replay_count += 1
+                if replay_count >= replay_target:
+                    break
+            print(f"  General replay: {replay_count} documents added")
+        except Exception as e:
+            print(f"  General replay skipped: {e}")
 
     # Chunk
     print(f"\n  Total documents: {len(all_texts)}")

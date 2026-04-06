@@ -101,6 +101,59 @@ def quality_filter(pairs: list[dict], min_tokens: int = 50, max_tokens: int = 20
     return filtered
 
 
+def quality_score(pair: dict) -> float:
+    """Simple DEITA-inspired quality score (0-1). Higher = better."""
+    output = pair.get("output", "")
+    instruction = pair.get("instruction", "")
+    score = 0.5  # baseline
+
+    words = output.split()
+    word_count = len(words)
+
+    # Optimal length (50-300 words is ideal for SFT)
+    if 50 <= word_count <= 300:
+        score += 0.15
+    elif word_count > 500:
+        score -= 0.1
+
+    # Has structure (numbered lists, bullet points, code blocks)
+    if any(output.startswith(f"{i}.") or f"\n{i}." in output for i in range(1, 6)):
+        score += 0.1
+    if "```" in output:
+        score += 0.1
+    if "- " in output or "* " in output:
+        score += 0.05
+
+    # Has kubectl commands (very valuable)
+    if "kubectl" in output:
+        score += 0.15
+
+    # Instruction quality (question format better than "Explain:")
+    if any(instruction.lower().startswith(w) for w in ["how", "what", "why", "when", "can"]):
+        score += 0.1
+    if instruction.startswith("Explain:"):
+        score -= 0.05
+
+    # Penalize repetitive content
+    sentences = output.split(". ")
+    if len(sentences) > 3:
+        unique_starts = len(set(s[:30] for s in sentences))
+        if unique_starts < len(sentences) * 0.5:
+            score -= 0.2
+
+    return max(0.0, min(1.0, score))
+
+
+def apply_quality_scoring(pairs: list[dict], min_score: float = 0.3) -> list[dict]:
+    """Filter pairs below minimum quality score."""
+    scored = [(quality_score(p), p) for p in pairs]
+    filtered = [p for s, p in scored if s >= min_score]
+    avg_score = sum(s for s, _ in scored) / len(scored) if scored else 0
+    removed = len(pairs) - len(filtered)
+    print(f"  Quality scoring: avg={avg_score:.2f}, removed {removed} below {min_score}")
+    return filtered
+
+
 def balance_sources(pairs: list[dict], max_ratio: float = 0.3) -> list[dict]:
     """Ensure no single source dominates the dataset."""
     source_counts = Counter(p.get("source", "unknown").split("/")[0] for p in pairs)
@@ -221,6 +274,10 @@ def main():
     # Quality filter
     print("\n🧹 Quality filtering:")
     pairs = quality_filter(pairs)
+
+    # Quality scoring (DEITA-inspired)
+    print("\n📊 Quality scoring:")
+    pairs = apply_quality_scoring(pairs, min_score=0.3)
 
     # Balance
     print(f"\n⚖️  Balancing sources (max {args.max_per_source:.0%} per source):")
