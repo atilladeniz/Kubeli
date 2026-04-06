@@ -44,6 +44,7 @@ CPT_RANK="${CPT_RANK:-128}"
 CPT_BATCH_SIZE="${CPT_BATCH_SIZE:-2}"
 CPT_GRAD_ACCUM="${CPT_GRAD_ACCUM:-8}"
 CPT_EPOCHS="${CPT_EPOCHS:-5}"
+CPT_NO_4BIT="${CPT_NO_4BIT:-1}"  # bf16 by default for full run
 
 SFT_BASE_MODEL="${SFT_BASE_MODEL:-atilladeniz/kubi1-cpt-merged}"
 SFT_OUTPUT_DIR="${SFT_OUTPUT_DIR:-${WORK_DIR}/checkpoints/sft}"

@@ -596,8 +596,8 @@
 ### Task 6.1: SFT on Kubi-1 (4B)
 - [ ] Upload SFT dataset: `rsync -avz data/final/kubeli-k8s-train.jsonl kubi-train:~/kubi-training/data/`
 - [ ] Update `training/train_kubi1.py`:
-  - Load from CPT adapter (`kubi1-cpt-adapter/`)
-  - **Do NOT call `get_peft_model()` again** — loads overlapping LoRA layers. Load saved adapter directly.
+  - Load from **merged** CPT model (`kubi1-cpt-merged/`), not the raw adapter
+  - Apply fresh LoRA via `get_peft_model()` — Unsloth-recommended approach, avoids double-LoRA issues and allows independent rank/target tuning for SFT vs CPT.
   - QLoRA, **rank 32** (increased from 16 — more headroom for structured K8s JSON/YAML output)
   - Standard target modules (no lm_head/embed_tokens needed for SFT)
   - batch=4, grad_accum=4, epochs=2, lr=2e-4, linear LR schedule, 5% warmup
