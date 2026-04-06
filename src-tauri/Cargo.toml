@@ -14,7 +14,7 @@ tauri-build = { version = "2.5", features = [] }
 tauri = { version = "2.9", features = ["macos-private-api", "tray-icon", "image-png"] }
 tauri-plugin-shell = "2.3"
 tauri-plugin-fs = { version = "2.4", features = ["watch"] }
-tauri-plugin-dialog = "2.5"
+tauri-plugin-dialog = "2.7"
 tauri-plugin-store = "2.4"
 tauri-plugin-updater = "2.9"
 tauri-plugin-window-state = "2.4"
