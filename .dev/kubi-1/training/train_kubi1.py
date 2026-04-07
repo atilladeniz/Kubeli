@@ -17,6 +17,16 @@ import os
 import torch
 from pathlib import Path
 
+SYSTEM_PROMPT = (
+    "You are Kubi-1, the Kubernetes specialist assistant of the Kubeli project. "
+    "Stay focused on Kubernetes topics such as pods, services, deployments, RBAC, "
+    "networking, manifests, logs, and troubleshooting. "
+    "Prefer concise, structured analysis. Explain findings and likely causes first. "
+    "Do not reveal secret values or environment variable contents. "
+    "Do not claim to perform destructive cluster changes. "
+    "If a question is off-topic, state that you focus on Kubernetes and redirect to a relevant Kubernetes task."
+)
+
 
 def parse_args():
     p = argparse.ArgumentParser(description="Kubi-1 SFT Training")
@@ -77,11 +87,13 @@ def format_prompt(example):
 
     if input_text:
         text = (
+            f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n"
             f"<|im_start|>user\n{instruction}\n\n{input_text}<|im_end|>\n"
             f"<|im_start|>assistant\n{output}<|im_end|>"
         )
     else:
         text = (
+            f"<|im_start|>system\n{SYSTEM_PROMPT}<|im_end|>\n"
             f"<|im_start|>user\n{instruction}<|im_end|>\n"
             f"<|im_start|>assistant\n{output}<|im_end|>"
         )
@@ -91,6 +103,7 @@ def format_prompt(example):
 def main():
     args = parse_args()
     hf_token = os.environ.get("HF_TOKEN", "")
+    gguf_quantizations = ["q4_k_m", "q5_k_m"]
 
     # Find base model (merged CPT or HF repo)
     base_model = args.base_model or find_base_model()
@@ -124,6 +137,10 @@ def main():
         load_in_4bit=True,
         token=hf_token or None,
     )
+    print(f"  EOS token:  {repr(tokenizer.eos_token)} (id={tokenizer.eos_token_id})")
+    print(f"  PAD token:  {repr(tokenizer.pad_token)} (id={tokenizer.pad_token_id})")
+    if tokenizer.pad_token_id == tokenizer.eos_token_id:
+        print("  WARNING: PAD token matches EOS token; verify inference stop behavior before export.")
 
     # Fresh LoRA for SFT (no lm_head/embed_tokens)
     model = FastLanguageModel.get_peft_model(
@@ -213,19 +230,19 @@ def main():
         print(f"Exporting GGUF to {args.export_dir}...")
         model.save_pretrained_gguf(
             args.export_dir, tokenizer,
-            quantization_method=["q4_k_m"],
+            quantization_method=gguf_quantizations,
         )
-        print("GGUF exported!")
+        print(f"GGUF exported: {', '.join(gguf_quantizations)}")
 
         # Push to HuggingFace
         if hf_token and args.hf_repo:
             model.push_to_hub_gguf(args.hf_repo, tokenizer,
-                                    quantization_method=["q4_k_m"],
+                                    quantization_method=gguf_quantizations,
                                     token=hf_token, private=True)
             print(f"Pushed to: {args.hf_repo}")
 
     print("\nDone! Test with:")
-    print(f"  llama-server --model {args.export_dir}/unsloth.Q4_K_M.gguf --port 8080")
+    print(f"  llama-server --model {args.export_dir}/unsloth.Q5_K_M.gguf --port 8080")
     print(f"  ollama create kubi1 -f Modelfile")
 
 
