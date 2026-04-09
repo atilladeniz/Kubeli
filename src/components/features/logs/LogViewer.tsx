@@ -167,13 +167,14 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
     }
   }, [initialContainer, containers, setSelectedContainer]);
 
-  // Auto-follow: start streaming automatically when opened as a tab (not in detail pane)
+  // Auto-follow: start streaming automatically when log viewer mounts
+  // Detail pane is safe: TabsContent without forceMount only mounts when the Logs tab is active
   const hasAutoStarted = useRef(false);
   useEffect(() => {
-    if (logTabId || hasAutoStarted.current || isStreaming || isLoading || isPodNotFound || showPreviousLogs) return;
+    if (hasAutoStarted.current || isStreaming || isLoading || isPodNotFound || showPreviousLogs) return;
     hasAutoStarted.current = true;
     startStream();
-  }, [logTabId, isStreaming, isLoading, isPodNotFound, showPreviousLogs, startStream]);
+  }, [isStreaming, isLoading, isPodNotFound, showPreviousLogs, startStream]);
 
   return (
     <div className="relative flex h-full flex-col bg-background">
