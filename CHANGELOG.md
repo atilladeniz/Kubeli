@@ -2,11 +2,6 @@
 
 All notable changes to Kubeli will be documented in this file.
 
-## [0.3.69] - 2026-04-10
-
-- Added auto-follow for logs when opening the pod log viewer
-- Added starred-by section with company logos to the landing page
-
 ## [0.3.68] - 2026-03-30
 
 - Added Cmd+S / Ctrl+S save shortcut to YAML editor
