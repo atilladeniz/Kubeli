@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.70] - 2026-04-10
+
+- Fixed security vulnerabilities by updating Vite to 8.0.8
+- Updated Rust dependencies (tokio, hyper, tauri-plugin-deep-link, tauri-plugin-updater)
+
 ## [0.3.69] - 2026-04-10
 
 - Added auto-follow logs when opening pod log viewer
