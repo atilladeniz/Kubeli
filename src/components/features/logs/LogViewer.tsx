@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { AlertCircle, Info } from "lucide-react";
 import { useLogs } from "@/lib/hooks/useLogs";
 import { useLogStore } from "@/lib/stores/log-store";
@@ -166,6 +166,15 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
       setSelectedContainer(initialContainer);
     }
   }, [initialContainer, containers, setSelectedContainer]);
+
+  // Auto-follow: start streaming automatically when log viewer mounts
+  // Detail pane is safe: TabsContent without forceMount only mounts when the Logs tab is active
+  const hasAutoStarted = useRef(false);
+  useEffect(() => {
+    if (hasAutoStarted.current || isStreaming || isLoading || isPodNotFound || showPreviousLogs) return;
+    hasAutoStarted.current = true;
+    startStream();
+  }, [isStreaming, isLoading, isPodNotFound, showPreviousLogs, startStream]);
 
   return (
     <div className="relative flex h-full flex-col bg-background">
