@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.69] - 2026-04-10
+
+- Added auto-follow logs when opening pod log viewer
+- Added starred-by section with company logos to landing page
+- Fixed Tauri plugin NPM packages to align with Rust crate versions
+
 ## [0.3.68] - 2026-03-30
 
 - Added Cmd+S / Ctrl+S save shortcut to YAML editor
