@@ -16,7 +16,7 @@ tauri-plugin-shell = "2.3"
 tauri-plugin-fs = { version = "2.4", features = ["watch"] }
 tauri-plugin-dialog = "2.5"
 tauri-plugin-store = "2.4"
-tauri-plugin-updater = "2.9"
+tauri-plugin-updater = "2.10"
 tauri-plugin-window-state = "2.4"
 tauri-plugin-deep-link = "2.4"
 tauri-plugin-log = "2.8"
