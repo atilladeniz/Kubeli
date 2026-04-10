@@ -32,7 +32,7 @@ jsonpath-rust = "1.0"
 dirs = "6.0"
 
 # Async Runtime
-tokio = { version = "1.49", features = ["full"] }
+tokio = { version = "1.51", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = "0.3"
 futures-util = "0.3"
