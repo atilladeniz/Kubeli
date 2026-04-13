@@ -240,6 +240,159 @@ create_same_user_files() {
         fi
     done
 
+    # Deploy distinct resources per cluster so they're visually distinguishable in Kubeli
+    log_info "Deploying sample resources..."
+
+    KUBECONFIG="$HOME/.kube/config" kubectl --context=kubeli-nonprod apply -f - <<'K8S' 2>/dev/null
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["sleep", "3600"]
+K8S
+    log_success "kubeli-nonprod: namespaces staging, dev + deployments"
+
+    KUBECONFIG="$HOME/.kube/config" kubectl --context=kubeli-production apply -f - <<'K8S' 2>/dev/null
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+K8S
+    log_success "kubeli-production: namespace production + deployments frontend, backend"
+
+    KUBECONFIG="$HOME/.kube/config" kubectl --context=kubeli-cicd apply -f - <<'K8S' 2>/dev/null
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: runners
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: ci
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runner-pool
+  namespace: runners
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: runner-pool
+  template:
+    metadata:
+      labels:
+        app: runner-pool
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["sleep", "3600"]
+K8S
+    log_success "kubeli-cicd: namespaces ci, runners + deployments jenkins, runner-pool"
+
     mkdir -p "$output_dir"
 
     # Export each profile's kubeconfig with user renamed to "admin"
