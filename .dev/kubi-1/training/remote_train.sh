@@ -62,7 +62,7 @@ ssh "${HOST}" "cd ${REMOTE_DIR}/training && \
     nohup python train_kubi1.py \
         --dataset ../data/final/kubeli-k8s-train.jsonl \
         --output-dir ./checkpoints \
-        --export-name ./kubeli-k8s-4b \
+        --export-dir ./kubeli-k8s-4b \
         > train.log 2>&1 &"
 
 echo "✅ Training started in background"

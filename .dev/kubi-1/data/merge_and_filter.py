@@ -292,15 +292,16 @@ def inject_identity_and_refusals(pairs: list[dict]) -> list[dict]:
         {"instruction": "Summarize this article", "input": "Some random article text", "output": "I'm Kubi-1, a Kubernetes assistant. I don't summarize general articles, but I'm happy to explain any Kubernetes documentation or help troubleshoot cluster issues.", "category": "refusal"},
     ]
 
-    # Repeat to reinforce learning
+    # Light repetition here — prepare_sft_compact.py adds more via its own boost.
+    # Previous 50x/30x caused mode collapse when combined with the second injection.
     for ex in identity:
-        for _ in range(50):
+        for _ in range(5):
             pairs.append(ex)
     for ex in refusals:
-        for _ in range(30):
+        for _ in range(3):
             pairs.append(ex)
 
-    print(f"  Injected {len(identity) * 50} identity + {len(refusals) * 30} refusal examples")
+    print(f"  Injected {len(identity) * 5} identity + {len(refusals) * 3} refusal examples")
     return pairs
 
 

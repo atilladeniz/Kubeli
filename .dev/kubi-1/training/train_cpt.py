@@ -94,6 +94,16 @@ def main():
         token=hf_token or None,
     )
 
+    # Fix Qwen3 EOS/PAD alignment (ChatML needs <|im_end|> as stop signal)
+    # See: https://github.com/QwenLM/Qwen3/issues/1064
+    tokenizer.eos_token = "<|im_end|>"
+    tokenizer.eos_token_id = 151645
+    tokenizer.pad_token = "<|endoftext|>"
+    tokenizer.pad_token_id = 151643
+    assert tokenizer.eos_token_id != tokenizer.pad_token_id, "FATAL: EOS == PAD"
+    print(f"  EOS: {repr(tokenizer.eos_token)} ({tokenizer.eos_token_id})")
+    print(f"  PAD: {repr(tokenizer.pad_token)} ({tokenizer.pad_token_id})")
+
     model = FastLanguageModel.get_peft_model(
         model, r=args.lora_rank,
         target_modules=[
