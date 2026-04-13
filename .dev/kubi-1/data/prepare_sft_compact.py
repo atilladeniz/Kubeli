@@ -25,7 +25,7 @@ from datasets import load_dataset
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Prepare compact Kubi-1 SFT dataset")
-    parser.add_argument("--dataset-id", default="atilladeniz/kubi1-data")
+    parser.add_argument("--dataset-id", default="atilladeniz/kubi-1-data")
     parser.add_argument("--train-file", default="kubeli-k8s-train.jsonl")
     parser.add_argument("--eval-file", default="kubeli-k8s-eval.jsonl")
     parser.add_argument(

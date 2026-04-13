@@ -122,7 +122,7 @@ def main():
 
     if use_hf_dataset:
         print("Loading from HuggingFace...")
-        dataset = load_dataset("atilladeniz/kubi1-data",
+        dataset = load_dataset("atilladeniz/kubi-1-data",
                                data_files="cpt_corpus.jsonl",
                                split="train", token=hf_token)
     else:

@@ -17,7 +17,7 @@
 #        bash /workspace/Kubeli/.dev/kubi-1/training/runpod_run.sh
 #
 #   Or if scripts are on HuggingFace:
-#        huggingface-cli download atilladeniz/kubi1-data training/runpod_run.sh \
+#        huggingface-cli download atilladeniz/kubi-1-data training/runpod_run.sh \
 #          --repo-type dataset --local-dir /workspace/kubi1-scripts
 #        bash /workspace/kubi1-scripts/training/runpod_run.sh
 #
@@ -42,9 +42,9 @@ LOG_DIR="${WORK_DIR}/logs"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # HuggingFace repos (consolidated structure)
-HF_DATA_REPO="atilladeniz/kubi1-data"
-HF_CHECKPOINTS_REPO="atilladeniz/kubi1-checkpoints"
-HF_MODEL_REPO="atilladeniz/kubi1"
+HF_DATA_REPO="atilladeniz/kubi-1-data"
+HF_CHECKPOINTS_REPO="atilladeniz/kubi-1-checkpoints"
+HF_MODEL_REPO="atilladeniz/kubi-1"
 
 # CPT config
 CPT_BASE_MODEL="${CPT_BASE_MODEL:-unsloth/Qwen3-4B-Base-bnb-4bit}"

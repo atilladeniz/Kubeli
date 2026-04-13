@@ -36,7 +36,7 @@ export UNSLOTH_STABLE_DOWNLOADS="${UNSLOTH_STABLE_DOWNLOADS:-1}"
 mkdir -p "${HF_HOME}"
 
 CPT_BASE_MODEL="${CPT_BASE_MODEL:-unsloth/Qwen3-4B-Base-bnb-4bit}"
-CPT_HF_REPO="${CPT_HF_REPO:-atilladeniz/kubi1-checkpoints}"
+CPT_HF_REPO="${CPT_HF_REPO:-atilladeniz/kubi-1-checkpoints}"
 CPT_OUTPUT_DIR="${CPT_OUTPUT_DIR:-${WORK_DIR}/checkpoints/cpt}"
 CPT_ADAPTER_DIR="${CPT_ADAPTER_DIR:-${WORK_DIR}/adapters/kubi1-cpt}"
 CPT_SEQ_LEN="${CPT_SEQ_LEN:-4096}"
@@ -46,11 +46,11 @@ CPT_GRAD_ACCUM="${CPT_GRAD_ACCUM:-8}"
 CPT_EPOCHS="${CPT_EPOCHS:-5}"
 CPT_NO_4BIT="${CPT_NO_4BIT:-1}"  # bf16 by default for full run
 
-SFT_BASE_MODEL="${SFT_BASE_MODEL:-atilladeniz/kubi1-checkpoints}"
+SFT_BASE_MODEL="${SFT_BASE_MODEL:-atilladeniz/kubi-1-checkpoints}"
 SFT_BASE_MODEL_REV="${SFT_BASE_MODEL_REV:-merged}"  # use merged branch from CPT
 SFT_OUTPUT_DIR="${SFT_OUTPUT_DIR:-${WORK_DIR}/checkpoints/sft}"
 SFT_EXPORT_DIR="${SFT_EXPORT_DIR:-${WORK_DIR}/exports/gguf}"
-SFT_HF_REPO="${SFT_HF_REPO:-atilladeniz/kubi1}"
+SFT_HF_REPO="${SFT_HF_REPO:-atilladeniz/kubi-1}"
 SFT_SEQ_LEN="${SFT_SEQ_LEN:-4096}"
 SFT_RANK="${SFT_RANK:-32}"
 SFT_BATCH_SIZE="${SFT_BATCH_SIZE:-4}"
@@ -60,7 +60,7 @@ SFT_EPOCHS="${SFT_EPOCHS:-2}"
 echo
 echo "[1/3] Dry-run Hugging Face artifact check"
 hf download "${CPT_HF_REPO}" --dry-run >/dev/null 2>&1 || echo "  (checkpoints repo will be created during training)"
-hf download atilladeniz/kubi1-data --repo-type dataset --dry-run >/dev/null
+hf download atilladeniz/kubi-1-data --repo-type dataset --dry-run >/dev/null
 
 echo
 echo "[2/3] Continued pretraining"

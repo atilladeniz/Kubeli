@@ -15,9 +15,9 @@ Fine-tuned LLM for Kubernetes troubleshooting that runs entirely on-device.
 
 | Repo | Type | Contents |
 |------|------|----------|
-| `atilladeniz/kubi1-data` | Dataset | CPT corpus + SFT train/eval JSONL |
-| `atilladeniz/kubi1-checkpoints` | Model | CPT adapter (main branch) + merged model (merged branch) |
-| `atilladeniz/kubi1` | Model | Final GGUF exports (Q4_K_M, Q5_K_M) |
+| `atilladeniz/kubi-1-data` | Dataset | CPT corpus + SFT train/eval JSONL |
+| `atilladeniz/kubi-1-checkpoints` | Model | CPT adapter (main branch) + merged model (merged branch) |
+| `atilladeniz/kubi-1` | Model | Final GGUF exports (Q4_K_M, Q5_K_M) |
 
 ## RunPod Training (One-Click)
 
@@ -50,7 +50,7 @@ That's it. The script handles everything:
 
 ```bash
 # Download the GGUF
-huggingface-cli download atilladeniz/kubi1
+huggingface-cli download atilladeniz/kubi-1
 
 # Test with llama.cpp
 llama-server --model unsloth.Q5_K_M.gguf --port 8080
@@ -86,7 +86,7 @@ python merge_and_filter.py
 python prepare_sft_compact.py
 
 # 7. Upload to HuggingFace
-huggingface-cli upload atilladeniz/kubi1-data final/ --repo-type dataset
+huggingface-cli upload atilladeniz/kubi-1-data final/ --repo-type dataset
 ```
 
 ## Directory Structure

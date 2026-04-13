@@ -16,10 +16,10 @@ import torch
 
 # --- Config ---
 BASE_MODEL = "unsloth/Qwen3-4B-Base"
-DATASET = "atilladeniz/kubi1-data"
+DATASET = "atilladeniz/kubi-1-data"
 DATASET_FILE = "cpt_corpus.jsonl"
 HF_TOKEN = os.environ.get("HF_TOKEN", "")
-ADAPTER_REPO = "atilladeniz/kubi1-checkpoints"
+ADAPTER_REPO = "atilladeniz/kubi-1-checkpoints"
 
 MAX_SEQ_LENGTH = 4096
 LORA_RANK = 128
