@@ -35,7 +35,7 @@ def parse_args():
     p.add_argument("--output-dir", default="./checkpoints/cpt")
     p.add_argument("--adapter-dir", default="./adapters/kubi1-cpt")
     p.add_argument("--hf-repo", default=None,
-                    help="HuggingFace repo to push adapter (optional)")
+                    help="HuggingFace repo for checkpoints (adapter on main, merged on 'merged' branch)")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--save-steps", type=int, default=200)
     p.add_argument("--no-4bit", action="store_true",
@@ -122,7 +122,7 @@ def main():
 
     if use_hf_dataset:
         print("Loading from HuggingFace...")
-        dataset = load_dataset("atilladeniz/kubi1-cpt-corpus",
+        dataset = load_dataset("atilladeniz/kubi1-data",
                                data_files="cpt_corpus.jsonl",
                                split="train", token=hf_token)
     else:
@@ -193,12 +193,12 @@ def main():
     if hf_token and args.hf_repo:
         model.push_to_hub(args.hf_repo, token=hf_token, private=True)
         tokenizer.push_to_hub(args.hf_repo, token=hf_token, private=True)
-        # Save merged model for SFT
-        merged_repo = args.hf_repo.replace("-adapter", "-merged")
-        model.push_to_hub_merged(merged_repo, tokenizer,
+        # Save merged model for SFT (same repo, "merged" branch)
+        model.push_to_hub_merged(args.hf_repo, tokenizer,
                                   save_method="merged_16bit",
-                                  token=hf_token, private=True)
-        print(f"Pushed to: {args.hf_repo} + {merged_repo}")
+                                  token=hf_token, private=True,
+                                  revision="merged")
+        print(f"Pushed to: {args.hf_repo} (adapter: main, merged: merged branch)")
 
     print("Next: python train_kubi1.py --base-model ./adapters/kubi1-cpt")
 

@@ -46,7 +46,7 @@ def parse_args():
     p.add_argument("--output-dir", default="./checkpoints/sft")
     p.add_argument("--export-dir", default="./exports/kubi1-gguf")
     p.add_argument("--hf-repo", default=None,
-                    help="HuggingFace repo to push GGUF (optional)")
+                    help="HuggingFace repo for final GGUF model (e.g. atilladeniz/kubi1)")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--skip-export", action="store_true")
     p.add_argument("--train-on-responses-only",
@@ -105,7 +105,7 @@ def main():
     # Find base model (merged CPT or HF repo)
     base_model = args.base_model or find_base_model()
     if not base_model:
-        base_model = "atilladeniz/kubi1-cpt-merged"  # fallback to HF
+        base_model = "atilladeniz/kubi1-checkpoints"  # fallback to HF (merged branch)
     use_hf_dataset = args.dataset is None and find_dataset() is None
 
     dataset_path = args.dataset or find_dataset()
@@ -167,7 +167,7 @@ def main():
     from datasets import load_dataset
 
     if use_hf_dataset:
-        dataset = load_dataset("atilladeniz/kubi1-sft-dataset",
+        dataset = load_dataset("atilladeniz/kubi1-data",
                                data_files="kubeli-k8s-train.jsonl",
                                split="train", token=hf_token)
     else:
