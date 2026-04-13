@@ -24,6 +24,7 @@ Commands:
   create-gke [name]     Create fake GKE context (default: kubeli-gke-demo)
   create-aks [name]     Create fake AKS context (default: kubeli-aks-demo)
   create-auth-error     Create context with invalid token for auth testing
+  create-same-user      Create 3 kubeconfig files with same user "admin" (#283)
   list                  List all kubeli-* contexts
   cleanup               Remove all kubeli-* simulated contexts
 
@@ -35,6 +36,7 @@ Examples:
   $SCRIPT_NAME create-eks
   $SCRIPT_NAME create-gke my-gke-cluster --source minikube
   $SCRIPT_NAME create-auth-error
+  $SCRIPT_NAME create-same-user
   $SCRIPT_NAME cleanup
 
 EOF
@@ -220,6 +222,97 @@ create_auth_error_context() {
     log_info "Switch with: kubectl config use-context $context_name"
 }
 
+create_same_user_files() {
+    local source_context
+    source_context=$(get_source_context "${SOURCE_CONTEXT:-minikube}")
+    local output_dir="$HOME/.kube/kubeli-same-user"
+
+    log_info "Creating same-user kubeconfig files for #283 testing..."
+
+    # Get minikube connection details
+    local source_cluster
+    local source_user
+    source_cluster=$(kubectl config view -o jsonpath="{.contexts[?(@.name=='$source_context')].context.cluster}")
+    source_user=$(kubectl config view -o jsonpath="{.contexts[?(@.name=='$source_context')].context.user}")
+    local server_url
+    server_url=$(kubectl config view -o jsonpath="{.clusters[?(@.name=='$source_cluster')].cluster.server}")
+
+    # Get CA - try embedded data first, then file path
+    local ca_data
+    ca_data=$(kubectl config view --raw -o jsonpath="{.clusters[?(@.name=='$source_cluster')].cluster.certificate-authority-data}" 2>/dev/null || true)
+    local ca_file
+    ca_file=$(kubectl config view --raw -o jsonpath="{.clusters[?(@.name=='$source_cluster')].cluster.certificate-authority}" 2>/dev/null || true)
+
+    # Get client cert - try embedded data first, then file path
+    local client_cert_data
+    client_cert_data=$(kubectl config view --raw -o jsonpath="{.users[?(@.name=='$source_user')].user.client-certificate-data}" 2>/dev/null || true)
+    local client_cert_file
+    client_cert_file=$(kubectl config view --raw -o jsonpath="{.users[?(@.name=='$source_user')].user.client-certificate}" 2>/dev/null || true)
+    local client_key_data
+    client_key_data=$(kubectl config view --raw -o jsonpath="{.users[?(@.name=='$source_user')].user.client-key-data}" 2>/dev/null || true)
+    local client_key_file
+    client_key_file=$(kubectl config view --raw -o jsonpath="{.users[?(@.name=='$source_user')].user.client-key}" 2>/dev/null || true)
+
+    if [[ -z "$server_url" ]]; then
+        log_error "Could not get server URL from context '$source_context'"
+        exit 1
+    fi
+
+    # Base64-encode file contents if we only have file paths
+    if [[ -z "$ca_data" && -n "$ca_file" && -f "$ca_file" ]]; then
+        ca_data=$(base64 < "$ca_file" | tr -d '\n')
+    fi
+    if [[ -z "$client_cert_data" && -n "$client_cert_file" && -f "$client_cert_file" ]]; then
+        client_cert_data=$(base64 < "$client_cert_file" | tr -d '\n')
+    fi
+    if [[ -z "$client_key_data" && -n "$client_key_file" && -f "$client_key_file" ]]; then
+        client_key_data=$(base64 < "$client_key_file" | tr -d '\n')
+    fi
+
+    if [[ -z "$client_cert_data" || -z "$client_key_data" ]]; then
+        log_error "Could not get client credentials from context '$source_context'"
+        log_info "This command requires a context with client certificate auth (e.g. minikube)"
+        exit 1
+    fi
+
+    mkdir -p "$output_dir"
+
+    # Generate 3 files, each with user "admin" but different context/cluster names
+    local contexts=("k8s-nonprod" "k8s-production" "k8s-cicd")
+    for ctx in "${contexts[@]}"; do
+        local file="$output_dir/$ctx.yaml"
+        cat > "$file" <<YAML
+apiVersion: v1
+kind: Config
+current-context: $ctx
+preferences: {}
+clusters:
+  - name: $ctx
+    cluster:
+      server: $server_url
+      certificate-authority-data: $ca_data
+contexts:
+  - name: $ctx
+    context:
+      cluster: $ctx
+      user: admin
+      namespace: default
+users:
+  - name: admin
+    user:
+      client-certificate-data: $client_cert_data
+      client-key-data: $client_key_data
+YAML
+        log_success "Created $file"
+    done
+
+    echo ""
+    log_success "3 kubeconfig files created in $output_dir"
+    log_info "Each file defines user 'admin' with valid minikube certs"
+    log_info "Add '$output_dir' as a folder source in Kubeli to test #283"
+    log_info "All 3 contexts should connect successfully"
+}
+
 list_contexts() {
     log_info "Kubeli simulated contexts:"
     kubectl config get-contexts | grep -E "(CURRENT|kubeli-)" || echo "  No kubeli-* contexts found"
@@ -304,6 +397,9 @@ case "$COMMAND" in
         ;;
     create-auth-error)
         create_auth_error_context
+        ;;
+    create-same-user)
+        create_same_user_files
         ;;
     list)
         list_contexts

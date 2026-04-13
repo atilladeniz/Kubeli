@@ -546,8 +546,12 @@ kubeconfig-fake-aks: ## Create fake AKS context pointing to local cluster
 kubeconfig-auth-error: ## Create context with invalid token for auth error testing
 	@./scripts/kubeconfig-sim.sh create-auth-error
 
-kubeconfig-cleanup: ## Remove all kubeli-* simulated contexts
+kubeconfig-same-user: ## Create 3 kubeconfig files with same "admin" user for #283 testing
+	@./scripts/kubeconfig-sim.sh create-same-user
+
+kubeconfig-cleanup: ## Remove all kubeli-* simulated contexts and same-user files
 	@./scripts/kubeconfig-sim.sh cleanup
+	@rm -rf ~/.kube/kubeli-same-user 2>/dev/null || true
 
 k8s-pods: ## List all pods across namespaces
 	kubectl get pods -A
