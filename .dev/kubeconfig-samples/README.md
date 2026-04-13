@@ -15,7 +15,7 @@ Sample kubeconfig files for testing multi-source kubeconfig loading and merging 
 
 ## Same User Name Testing (#283)
 
-Use `make kubeconfig-same-user` to generate 3 kubeconfig files with real minikube certs but same user name `admin`. See `scripts/kubeconfig-sim.sh create-same-user` for details. Cleanup with `make kubeconfig-cleanup`.
+`make kubeconfig-same-user` starts 3 separate minikube profiles (`kubeli-nonprod`, `kubeli-production`, `kubeli-cicd`), exports each profile's kubeconfig, and renames the user to `admin` in all files. This reproduces the exact bug scenario: different clusters with different certs but same user name. Output goes to `~/.kube/kubeli-same-user/`. Cleanup with `make kubeconfig-cleanup` (stops profiles and removes files).
 
 ## Incomplete Files
 

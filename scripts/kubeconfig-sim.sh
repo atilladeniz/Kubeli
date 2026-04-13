@@ -24,7 +24,7 @@ Commands:
   create-gke [name]     Create fake GKE context (default: kubeli-gke-demo)
   create-aks [name]     Create fake AKS context (default: kubeli-aks-demo)
   create-auth-error     Create context with invalid token for auth testing
-  create-same-user      Create 3 kubeconfig files with same user "admin" (#283)
+  create-same-user      Start 3 minikube profiles, export kubeconfigs with user "admin" (#283)
   list                  List all kubeli-* contexts
   cleanup               Remove all kubeli-* simulated contexts
 
@@ -223,97 +223,68 @@ create_auth_error_context() {
 }
 
 create_same_user_files() {
-    local source_context
-    source_context=$(get_source_context "${SOURCE_CONTEXT:-minikube}")
     local output_dir="$HOME/.kube/kubeli-same-user"
+    local profiles=("kubeli-nonprod" "kubeli-production" "kubeli-cicd")
 
-    log_info "Creating same-user kubeconfig files for #283 testing..."
+    log_info "Creating 3 minikube profiles with separate clusters for #283 testing..."
+    log_info "This starts real clusters - takes ~1-2 min per profile."
+    echo ""
 
-    # Get minikube connection details
-    local source_cluster
-    local source_user
-    source_cluster=$(kubectl config view -o jsonpath="{.contexts[?(@.name=='$source_context')].context.cluster}")
-    source_user=$(kubectl config view -o jsonpath="{.contexts[?(@.name=='$source_context')].context.user}")
-    local server_url
-    server_url=$(kubectl config view -o jsonpath="{.clusters[?(@.name=='$source_cluster')].cluster.server}")
-
-    # Get CA - try embedded data first, then file path
-    local ca_data
-    ca_data=$(kubectl config view --raw -o jsonpath="{.clusters[?(@.name=='$source_cluster')].cluster.certificate-authority-data}" 2>/dev/null || true)
-    local ca_file
-    ca_file=$(kubectl config view --raw -o jsonpath="{.clusters[?(@.name=='$source_cluster')].cluster.certificate-authority}" 2>/dev/null || true)
-
-    # Get client cert - try embedded data first, then file path
-    local client_cert_data
-    client_cert_data=$(kubectl config view --raw -o jsonpath="{.users[?(@.name=='$source_user')].user.client-certificate-data}" 2>/dev/null || true)
-    local client_cert_file
-    client_cert_file=$(kubectl config view --raw -o jsonpath="{.users[?(@.name=='$source_user')].user.client-certificate}" 2>/dev/null || true)
-    local client_key_data
-    client_key_data=$(kubectl config view --raw -o jsonpath="{.users[?(@.name=='$source_user')].user.client-key-data}" 2>/dev/null || true)
-    local client_key_file
-    client_key_file=$(kubectl config view --raw -o jsonpath="{.users[?(@.name=='$source_user')].user.client-key}" 2>/dev/null || true)
-
-    if [[ -z "$server_url" ]]; then
-        log_error "Could not get server URL from context '$source_context'"
-        exit 1
-    fi
-
-    # Base64-encode file contents if we only have file paths
-    if [[ -z "$ca_data" && -n "$ca_file" && -f "$ca_file" ]]; then
-        ca_data=$(base64 < "$ca_file" | tr -d '\n')
-    fi
-    if [[ -z "$client_cert_data" && -n "$client_cert_file" && -f "$client_cert_file" ]]; then
-        client_cert_data=$(base64 < "$client_cert_file" | tr -d '\n')
-    fi
-    if [[ -z "$client_key_data" && -n "$client_key_file" && -f "$client_key_file" ]]; then
-        client_key_data=$(base64 < "$client_key_file" | tr -d '\n')
-    fi
-
-    if [[ -z "$client_cert_data" || -z "$client_key_data" ]]; then
-        log_error "Could not get client credentials from context '$source_context'"
-        log_info "This command requires a context with client certificate auth (e.g. minikube)"
-        exit 1
-    fi
+    # Start each minikube profile
+    for profile in "${profiles[@]}"; do
+        if minikube status -p "$profile" &>/dev/null; then
+            log_info "Profile '$profile' already running, skipping start"
+        else
+            log_info "Starting minikube profile '$profile'..."
+            minikube start -p "$profile" --memory=1024 --cpus=1 --no-kubernetes=false 2>&1 | tail -1
+        fi
+    done
 
     mkdir -p "$output_dir"
 
-    # Generate 3 files, each with user "admin" but different context/cluster names
-    local contexts=("k8s-nonprod" "k8s-production" "k8s-cicd")
-    for ctx in "${contexts[@]}"; do
-        local file="$output_dir/$ctx.yaml"
-        cat > "$file" <<YAML
-apiVersion: v1
-kind: Config
-current-context: $ctx
-preferences: {}
-clusters:
-  - name: $ctx
-    cluster:
-      server: $server_url
-      certificate-authority-data: $ca_data
-contexts:
-  - name: $ctx
-    context:
-      cluster: $ctx
-      user: admin
-      namespace: default
-users:
-  - name: admin
-    user:
-      client-certificate-data: $client_cert_data
-      client-key-data: $client_key_data
-YAML
-        log_success "Created $file"
+    # Export each profile's kubeconfig with user renamed to "admin"
+    for profile in "${profiles[@]}"; do
+        local file="$output_dir/$profile.yaml"
+
+        # Export raw kubeconfig for this profile only
+        local raw
+        raw=$(kubectl config view --raw --minify --context="$profile" 2>/dev/null)
+
+        if [[ -z "$raw" ]]; then
+            log_error "Could not export kubeconfig for profile '$profile'"
+            continue
+        fi
+
+        # Write kubeconfig, renaming the user to "admin" to trigger name collision
+        echo "$raw" \
+            | sed "s/name: $profile\$/name: admin/" \
+            | sed "s/user: $profile\$/user: admin/" \
+            > "$file"
+
+        log_success "Created $file (user renamed to 'admin')"
     done
 
     echo ""
     log_success "3 kubeconfig files created in $output_dir"
-    log_info "Each file defines user 'admin' with valid minikube certs"
+    log_info "Each file has a different cluster with different certs, but same user 'admin'"
     log_info "Add '$output_dir' as a folder source in Kubeli to test #283"
-    log_info "All 3 contexts should connect successfully"
-    log_warn "Note: all files share the same creds, so even a broken merge would"
-    log_warn "appear to work. The unit test test_merge_same_user_name_causes_collision"
-    log_warn "covers the actual collision. This setup is for UI smoke testing only."
+    log_info "Without the fix: only the first cluster connects (wrong certs for others)"
+    log_info "With the fix: all 3 clusters connect successfully"
+}
+
+cleanup_same_user() {
+    local profiles=("kubeli-nonprod" "kubeli-production" "kubeli-cicd")
+
+    log_info "Stopping and deleting minikube profiles for #283 testing..."
+    for profile in "${profiles[@]}"; do
+        if minikube status -p "$profile" &>/dev/null; then
+            minikube delete -p "$profile" 2>/dev/null || true
+            log_success "Deleted profile '$profile'"
+        fi
+    done
+
+    rm -rf "$HOME/.kube/kubeli-same-user" 2>/dev/null || true
+    log_success "Removed kubeconfig files"
 }
 
 list_contexts() {
@@ -352,6 +323,9 @@ cleanup_contexts() {
     done
 
     log_success "Cleanup complete"
+
+    # Also clean up same-user profiles and files
+    cleanup_same_user
 }
 
 # Main
