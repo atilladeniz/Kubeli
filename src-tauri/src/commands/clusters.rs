@@ -254,7 +254,7 @@ pub async fn connect_cluster(
 ) -> Result<ConnectionStatus, KubeliError> {
     tracing::info!("Connecting to cluster with context: {}", context);
 
-    // Resolve source_file for this context before building the merged kubeconfig
+    // Resolve source_file for this context before building the kubeconfig
     let source_file = load_kubeconfig_from_sources(&app).await.and_then(|cfg| {
         cfg.contexts
             .iter()
@@ -262,8 +262,25 @@ pub async fn connect_cluster(
             .and_then(|c| c.source_file.clone())
     });
 
-    // Build merged kubeconfig from all configured sources
-    let kubeconfig = build_kubeconfig_for_connect(&app).await?;
+    // When we know the source file, load ONLY that file to avoid name collisions.
+    // Multiple kubeconfig files often define users/clusters with the same name (e.g. "admin")
+    // but different certificates. Merging all files causes the first file's entries to
+    // shadow subsequent ones, making only the first cluster's auth work.
+    let kubeconfig = if let Some(ref src) = source_file {
+        let path = std::path::PathBuf::from(src);
+        if path.exists() {
+            Kubeconfig::read_from(&path)
+                .map_err(|e| format!("Failed to read kubeconfig {:?}: {}", path, e))?
+        } else {
+            tracing::warn!(
+                "Source file {:?} not found, falling back to merged kubeconfig",
+                path
+            );
+            build_kubeconfig_for_connect(&app).await?
+        }
+    } else {
+        build_kubeconfig_for_connect(&app).await?
+    };
 
     match state
         .k8s
@@ -649,6 +666,84 @@ users:
             "cluster-a",
             "first file's cluster reference must win"
         );
+    }
+
+    /// Demonstrates the name collision bug (#283): when multiple kubeconfig files
+    /// define users/clusters with the same name (e.g. "admin"), merge keeps only
+    /// the first file's entry. The fix is to load only the source file for a context.
+    #[test]
+    fn test_merge_same_user_name_causes_collision() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let file1 = r#"
+apiVersion: v1
+kind: Config
+clusters:
+- name: cluster-1
+  cluster:
+    server: https://cluster-1:6443
+contexts:
+- name: ctx-1
+  context:
+    cluster: cluster-1
+    user: admin
+users:
+- name: admin
+  user:
+    token: token-for-cluster-1
+"#;
+        let file2 = r#"
+apiVersion: v1
+kind: Config
+clusters:
+- name: cluster-2
+  cluster:
+    server: https://cluster-2:6443
+contexts:
+- name: ctx-2
+  context:
+    cluster: cluster-2
+    user: admin
+users:
+- name: admin
+  user:
+    token: token-for-cluster-2
+"#;
+
+        let f1 = write_kubeconfig(dir.path(), "cluster-1.yaml", file1);
+        let f2 = write_kubeconfig(dir.path(), "cluster-2.yaml", file2);
+
+        // Merged config: both contexts exist, but only one "admin" user entry
+        let merged = merge_kubeconfig_files(&[f1.clone(), f2.clone()]).unwrap();
+        assert_eq!(merged.contexts.len(), 2, "both contexts should be present");
+
+        // The "admin" user from file1 shadows file2's "admin" - this is the bug.
+        // kube-rs merge deduplicates auth_infos by name, keeping the first.
+        let admin_count = merged
+            .auth_infos
+            .iter()
+            .filter(|a| a.name == "admin")
+            .count();
+        assert_eq!(
+            admin_count, 1,
+            "merge deduplicates by name - only one 'admin' survives"
+        );
+
+        // Similarly, cluster names can collide if both files use the same name
+        let cluster_count = merged
+            .clusters
+            .iter()
+            .filter(|c| c.name == "cluster-1" || c.name == "cluster-2")
+            .count();
+        assert_eq!(cluster_count, 2, "different cluster names are preserved");
+
+        // Fix: loading only the source file for a context avoids the collision.
+        // Each file has its own "admin" user with the correct credentials.
+        let single = Kubeconfig::read_from(&f2).unwrap();
+        assert_eq!(single.auth_infos.len(), 1);
+        assert_eq!(single.auth_infos[0].name, "admin");
+        assert_eq!(single.contexts.len(), 1);
+        assert_eq!(single.contexts[0].name, "ctx-2");
     }
 
     #[test]
