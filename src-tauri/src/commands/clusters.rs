@@ -245,6 +245,27 @@ fn merge_kubeconfig_files(files: &[std::path::PathBuf]) -> Result<Kubeconfig, St
     merged.ok_or_else(|| "No valid kubeconfig files could be parsed".to_string())
 }
 
+/// Check if a kubeconfig file is self-contained for a given context.
+/// Returns true if the file contains the context AND its referenced cluster and user.
+/// Returns false for cross-file references (merge_mode), where cluster or user
+/// are defined in a different file.
+fn is_self_contained(kubeconfig: &Kubeconfig, context_name: &str) -> bool {
+    kubeconfig
+        .contexts
+        .iter()
+        .find(|c| c.name == context_name)
+        .and_then(|c| c.context.as_ref())
+        .is_some_and(|ctx| {
+            let has_cluster =
+                ctx.cluster.is_empty() || kubeconfig.clusters.iter().any(|c| c.name == ctx.cluster);
+            let has_user = ctx
+                .user
+                .as_deref()
+                .is_none_or(|u| kubeconfig.auth_infos.iter().any(|a| a.name == u));
+            has_cluster && has_user
+        })
+}
+
 /// Connect to a cluster using a specific context
 #[command]
 pub async fn connect_cluster(
@@ -276,23 +297,7 @@ pub async fn connect_cluster(
             let single = Kubeconfig::read_from(&path)
                 .map_err(|e| format!("Failed to read kubeconfig {:?}: {}", path, e))?;
 
-            // Check if this file is self-contained for the target context
-            let is_complete = single
-                .contexts
-                .iter()
-                .find(|c| c.name == context)
-                .and_then(|c| c.context.as_ref())
-                .is_some_and(|ctx| {
-                    let has_cluster = ctx.cluster.is_empty()
-                        || single.clusters.iter().any(|c| c.name == ctx.cluster);
-                    let has_user = ctx
-                        .user
-                        .as_deref()
-                        .is_none_or(|u| single.auth_infos.iter().any(|a| a.name == u));
-                    has_cluster && has_user
-                });
-
-            if is_complete {
+            if is_self_contained(&single, &context) {
                 single
             } else {
                 tracing::info!(
@@ -829,6 +834,50 @@ users:
             ca.ends_with("ca.crt"),
             "resolved path must still point to ca.crt, got: {}",
             ca
+        );
+    }
+
+    #[test]
+    fn test_is_self_contained_complete_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = write_kubeconfig(dir.path(), "complete.yaml", KUBECONFIG_A);
+        let cfg = Kubeconfig::read_from(&f).unwrap();
+        assert!(
+            is_self_contained(&cfg, "ctx-a"),
+            "file with matching context, cluster, and user is self-contained"
+        );
+    }
+
+    #[test]
+    fn test_is_self_contained_missing_context() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = write_kubeconfig(dir.path(), "complete.yaml", KUBECONFIG_A);
+        let cfg = Kubeconfig::read_from(&f).unwrap();
+        assert!(
+            !is_self_contained(&cfg, "nonexistent"),
+            "unknown context is not self-contained"
+        );
+    }
+
+    #[test]
+    fn test_is_self_contained_cross_file_references() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Context references a cluster and user defined in OTHER files
+        let contexts_only = r#"
+apiVersion: v1
+kind: Config
+contexts:
+- name: cross-ctx
+  context:
+    cluster: external-cluster
+    user: external-user
+"#;
+        let f = write_kubeconfig(dir.path(), "contexts-only.yaml", contexts_only);
+        let cfg = Kubeconfig::read_from(&f).unwrap();
+        assert!(
+            !is_self_contained(&cfg, "cross-ctx"),
+            "context with cross-file cluster/user references is not self-contained"
         );
     }
 }
