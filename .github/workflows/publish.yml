@@ -91,7 +91,7 @@ jobs:
 
       - name: Create draft release
         id: create-release
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           TAG: ${{ steps.version.outputs.tag }}
           VERSION: ${{ steps.version.outputs.version }}
