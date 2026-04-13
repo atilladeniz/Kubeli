@@ -311,6 +311,9 @@ YAML
     log_info "Each file defines user 'admin' with valid minikube certs"
     log_info "Add '$output_dir' as a folder source in Kubeli to test #283"
     log_info "All 3 contexts should connect successfully"
+    log_warn "Note: all files share the same creds, so even a broken merge would"
+    log_warn "appear to work. The unit test test_merge_same_user_name_causes_collision"
+    log_warn "covers the actual collision. This setup is for UI smoke testing only."
 }
 
 list_contexts() {

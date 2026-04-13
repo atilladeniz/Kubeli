@@ -262,15 +262,45 @@ pub async fn connect_cluster(
             .and_then(|c| c.source_file.clone())
     });
 
-    // When we know the source file, load ONLY that file to avoid name collisions.
+    // When we know the source file, prefer loading ONLY that file to avoid name collisions.
     // Multiple kubeconfig files often define users/clusters with the same name (e.g. "admin")
     // but different certificates. Merging all files causes the first file's entries to
     // shadow subsequent ones, making only the first cluster's auth work.
+    //
+    // However, some setups intentionally split contexts, clusters, and users across files
+    // (merge_mode). If the single file doesn't contain the referenced cluster or user,
+    // fall back to the merged kubeconfig.
     let kubeconfig = if let Some(ref src) = source_file {
         let path = std::path::PathBuf::from(src);
         if path.exists() {
-            Kubeconfig::read_from(&path)
-                .map_err(|e| format!("Failed to read kubeconfig {:?}: {}", path, e))?
+            let single = Kubeconfig::read_from(&path)
+                .map_err(|e| format!("Failed to read kubeconfig {:?}: {}", path, e))?;
+
+            // Check if this file is self-contained for the target context
+            let is_complete = single
+                .contexts
+                .iter()
+                .find(|c| c.name == context)
+                .and_then(|c| c.context.as_ref())
+                .is_some_and(|ctx| {
+                    let has_cluster = ctx.cluster.is_empty()
+                        || single.clusters.iter().any(|c| c.name == ctx.cluster);
+                    let has_user = ctx
+                        .user
+                        .as_deref()
+                        .map_or(true, |u| single.auth_infos.iter().any(|a| a.name == u));
+                    has_cluster && has_user
+                });
+
+            if is_complete {
+                single
+            } else {
+                tracing::info!(
+                    "Source file {:?} has cross-file references, using merged kubeconfig",
+                    path
+                );
+                build_kubeconfig_for_connect(&app).await?
+            }
         } else {
             tracing::warn!(
                 "Source file {:?} not found, falling back to merged kubeconfig",
