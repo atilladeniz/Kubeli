@@ -236,7 +236,7 @@ create_same_user_files() {
             log_info "Profile '$profile' already running, skipping start"
         else
             log_info "Starting minikube profile '$profile'..."
-            minikube start -p "$profile" --memory=1024 --cpus=1 --no-kubernetes=false 2>&1 | tail -1
+            minikube start -p "$profile" --memory=2048 --cpus=2 2>&1 | tail -1
         fi
     done
 
