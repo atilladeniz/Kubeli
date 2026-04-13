@@ -288,7 +288,7 @@ pub async fn connect_cluster(
                     let has_user = ctx
                         .user
                         .as_deref()
-                        .map_or(true, |u| single.auth_infos.iter().any(|a| a.name == u));
+                        .is_none_or(|u| single.auth_infos.iter().any(|a| a.name == u));
                     has_cluster && has_user
                 });
 
