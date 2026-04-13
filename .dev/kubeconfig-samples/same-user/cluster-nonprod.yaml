@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Config
+current-context: k8s-nonprod
+preferences: {}
+clusters:
+  - name: k8s-nonprod
+    cluster:
+      server: https://k8s-nonprod.example.com:6443
+      certificate-authority-data: ZmFrZS1jYS1jZXJ0LWRhdGEtZm9yLW5vbnByb2Q=
+contexts:
+  - name: k8s-nonprod
+    context:
+      cluster: k8s-nonprod
+      user: admin
+      namespace: default
+users:
+  - name: admin
+    user:
+      client-certificate-data: ZmFrZS1jbGllbnQtY2VydC1kYXRhLWZvci1ub25wcm9k
+      client-key-data: ZmFrZS1jbGllbnQta2V5LWRhdGEtZm9yLW5vbnByb2Q=

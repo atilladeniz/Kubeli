@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Config
+current-context: k8s-cicd
+preferences: {}
+clusters:
+  - name: k8s-cicd
+    cluster:
+      server: https://k8s-cicd.example.com:6443
+      certificate-authority-data: ZmFrZS1jYS1jZXJ0LWRhdGEtZm9yLWNpY2Q=
+contexts:
+  - name: k8s-cicd
+    context:
+      cluster: k8s-cicd
+      user: admin
+      namespace: default
+users:
+  - name: admin
+    user:
+      client-certificate-data: ZmFrZS1jbGllbnQtY2VydC1kYXRhLWZvci1jaWNk
+      client-key-data: ZmFrZS1jbGllbnQta2V5LWRhdGEtZm9yLWNpY2Q=

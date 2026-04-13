@@ -512,10 +512,12 @@ minikube-clean-scale: ## Remove all scale-test pods
 kubeconfig-setup-samples: ## Copy sample kubeconfig files to ~/.kube/kubeli-samples/ for testing
 	@echo "$(CYAN)Setting up sample kubeconfig sources...$(RESET)"
 	@mkdir -p ~/.kube/kubeli-samples/incomplete
+	@mkdir -p ~/.kube/kubeli-samples/same-user
 	@cp .dev/kubeconfig-samples/config-minikube.yaml ~/.kube/kubeli-samples/
 	@cp .dev/kubeconfig-samples/config-cloud.yaml ~/.kube/kubeli-samples/
 	@cp .dev/kubeconfig-samples/config-azure.yaml ~/.kube/kubeli-samples/
 	@cp .dev/kubeconfig-samples/incomplete/*.yaml ~/.kube/kubeli-samples/incomplete/
+	@cp .dev/kubeconfig-samples/same-user/*.yaml ~/.kube/kubeli-samples/same-user/
 	@echo "$(GREEN)✓ Sample kubeconfigs copied to ~/.kube/kubeli-samples/$(RESET)"
 	@echo ""
 	@echo "$(CYAN)Files:$(RESET)"
@@ -523,6 +525,7 @@ kubeconfig-setup-samples: ## Copy sample kubeconfig files to ~/.kube/kubeli-samp
 	@echo "  ~/.kube/kubeli-samples/config-cloud.yaml     (2 contexts: aws-staging, aws-production)"
 	@echo "  ~/.kube/kubeli-samples/config-azure.yaml     (1 context: aks-dev)"
 	@echo "  ~/.kube/kubeli-samples/incomplete/            (3 files for merge mode testing)"
+	@echo "  ~/.kube/kubeli-samples/same-user/             (3 files with same 'admin' user name, #283)"
 	@echo ""
 	@echo "$(YELLOW)Add these as sources in Kubeli Settings > Kubeconfig tab$(RESET)"
 

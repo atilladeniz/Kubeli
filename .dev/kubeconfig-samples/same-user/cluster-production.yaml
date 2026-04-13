@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Config
+current-context: k8s-production
+preferences: {}
+clusters:
+  - name: k8s-production
+    cluster:
+      server: https://k8s-production.example.com:6443
+      certificate-authority-data: ZmFrZS1jYS1jZXJ0LWRhdGEtZm9yLXByb2R1Y3Rpb24=
+contexts:
+  - name: k8s-production
+    context:
+      cluster: k8s-production
+      user: admin
+      namespace: default
+users:
+  - name: admin
+    user:
+      client-certificate-data: ZmFrZS1jbGllbnQtY2VydC1kYXRhLWZvci1wcm9kdWN0aW9u
+      client-key-data: ZmFrZS1jbGllbnQta2V5LWRhdGEtZm9yLXByb2R1Y3Rpb24=
