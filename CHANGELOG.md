@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.71] - 2026-04-14
+
+- Fixed multi-kubeconfig file connection failure
+- Updated Rust dependencies (rustls, rand) and CI tooling
+
 ## [0.3.70] - 2026-04-10
 
 - Fixed security vulnerabilities by updating Vite to 8.0.8
