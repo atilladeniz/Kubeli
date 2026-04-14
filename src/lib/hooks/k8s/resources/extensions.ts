@@ -10,6 +10,7 @@ import {
   listValidatingWebhooks,
   listHelmReleases,
   listFluxKustomizations,
+  listArgoCDApplications,
 } from "../../../tauri/commands";
 import type {
   CRDInfo,
@@ -20,6 +21,7 @@ import type {
   ValidatingWebhookInfo,
   HelmReleaseInfo,
   FluxKustomizationInfo,
+  ArgoCDApplicationInfo,
 } from "../../../types";
 import { createClusterScopedHook, createOptionalNamespaceHook } from "../factory";
 import type { UseK8sResourcesOptions, UseK8sResourcesReturn } from "../types";
@@ -232,4 +234,12 @@ export const useHelmReleases = createOptionalNamespaceHook<HelmReleaseInfo>(
 export const useFluxKustomizations = createOptionalNamespaceHook<FluxKustomizationInfo>(
   "Flux Kustomizations",
   listFluxKustomizations
+);
+
+/**
+ * Hook for fetching ArgoCD Applications.
+ */
+export const useArgoCDApplications = createOptionalNamespaceHook<ArgoCDApplicationInfo>(
+  "ArgoCD Applications",
+  listArgoCDApplications
 );

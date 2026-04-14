@@ -16,10 +16,7 @@ pub fn configure(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::W
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init());
 
-    #[cfg(debug_assertions)]
-    {
-        builder = builder.plugin(tauri_plugin_deep_link::init());
-    }
+    builder = builder.plugin(tauri_plugin_deep_link::init());
 
     builder
 }

@@ -132,6 +132,7 @@
     "runtimeClasses": "Runtime Classes",
     "mutatingWebhooks": "Mutating Webhooks",
     "validatingWebhooks": "Validating Webhooks",
+    "applications": "Applications",
     "soon": "Soon"
   },
   "cluster": {
@@ -333,6 +334,35 @@
     "pendingUpgrade": "Pending Upgrade",
     "pendingRollback": "Pending Rollback",
     "uninstalled": "Uninstalled"
+  },
+  "argocd": {
+    "applications": "Applications",
+    "synced": "Synced",
+    "outOfSync": "Out of Sync",
+    "healthy": "Healthy",
+    "progressing": "Progressing",
+    "degraded": "Degraded",
+    "suspended": "Suspended",
+    "missing": "Missing",
+    "unknown": "Unknown",
+    "history": "History",
+    "noHistory": "No deployment history available",
+    "historyRevision": "Revision",
+    "historySource": "Source",
+    "historyPath": "Path",
+    "historyTargetRev": "Target Rev",
+    "historyDeployed": "Deployed",
+    "historyActions": "Actions",
+    "historyCurrent": "Current",
+    "rollback": "Rollback",
+    "rollbackSuccess": "Rollback to {revision} initiated",
+    "rollbackConfirmTitle": "Rollback Application?",
+    "rollbackConfirmDescription": "This will rollback \"{name}\" to revision {revision}. A new sync operation will be triggered with this revision.",
+    "compare": "Compare",
+    "compareSelected": "Compare ({count})",
+    "diffTitle": "Source Config Diff",
+    "diffOlder": "Older",
+    "diffNewer": "Newer"
   },
   "logs": {
     "title": "Logs",

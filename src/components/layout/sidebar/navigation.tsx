@@ -83,6 +83,12 @@ export function useNavigationSections(): NavSection[] {
         items: [{ id: "flux-kustomizations", label: "Kustomizations", icon: <GitBranch className={iconClass} /> }],
       },
       {
+        id: "argocd",
+        title: "ArgoCD",
+        icon: <GitBranch className="size-4" />,
+        items: [{ id: "argocd-applications", label: t("applications") }],
+      },
+      {
         id: "workloads",
         title: t("workloads"),
         icon: <Box className="size-4" />,

@@ -17,4 +17,4 @@ export { useServiceAccounts, useRoles, useRoleBindings, useClusterRoles, useClus
 export { useNodes, useNamespaces, useEvents, useLeases } from "./cluster";
 
 // Extensions
-export { useCRDs, useCustomResources, usePriorityClasses, useRuntimeClasses, useMutatingWebhooks, useValidatingWebhooks, useHelmReleases, useFluxKustomizations } from "./extensions";
+export { useCRDs, useCustomResources, usePriorityClasses, useRuntimeClasses, useMutatingWebhooks, useValidatingWebhooks, useHelmReleases, useFluxKustomizations, useArgoCDApplications } from "./extensions";

@@ -154,6 +154,76 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
     useResourceCacheStore.getState().clearCache();
     try {
       const status = await connectCluster(context);
+      if (status.oidc_auth_required) {
+        const { issuer_url, client_id, extra_scopes } = status.oidc_auth_required;
+        set({ isLoading: true });
+        
+        const { oidcStartAuth, oidcHandleCallback } = await import("../tauri/commands/oidc");
+        const authResult = await oidcStartAuth(issuer_url, client_id, extra_scopes);
+        
+        if (authResult.status === "authenticated") {
+          const retryStatus = await connectCluster(context);
+          if (retryStatus.connected) {
+            const clusters = get().clusters;
+            const currentCluster = clusters.find((c) => c.context === context) || null;
+            set({
+              isConnected: true,
+              currentCluster,
+              selectedNamespaces: [],
+              error: null,
+              isLoading: false,
+              latencyMs: retryStatus.latency_ms,
+              lastHealthCheck: new Date(),
+              isHealthy: true,
+              lastConnectedContext: context,
+              reconnectAttempts: 0,
+              lastConnectionErrorContext: null,
+              lastConnectionErrorMessage: null,
+            });
+            await get().fetchNamespaces();
+            if (get().namespaceSource === "auto") {
+              get().startNamespaceWatch();
+            }
+            get().startHealthMonitoring();
+            return retryStatus;
+          }
+          const retryError = retryStatus.error || "Connection failed after OIDC authentication";
+          set({
+            isConnected: false,
+            error: toKubeliError(retryError),
+            isLoading: false,
+            isHealthy: false,
+            lastConnectionErrorContext: context,
+            lastConnectionErrorMessage: retryError,
+          });
+          return retryStatus;
+        }
+        
+        if (authResult.status === "auth_pending") {
+          const OIDC_TIMEOUT_MS = 120_000;
+          const { listen } = await import("@tauri-apps/api/event");
+          const timeout = setTimeout(() => {
+            unlisten();
+            set({
+              error: toKubeliError("OIDC authentication timed out — no response from browser"),
+              isLoading: false,
+            });
+          }, OIDC_TIMEOUT_MS);
+          const unlisten = await listen<{ code: string; state: string }>("oidc-callback", async (event) => {
+            clearTimeout(timeout);
+            unlisten();
+            try {
+              const callbackResult = await oidcHandleCallback(event.payload.code, event.payload.state);
+              if (callbackResult.status === "authenticated") {
+                await get().connect(context);
+              }
+            } catch {
+              set({ error: toKubeliError("OIDC authentication failed"), isLoading: false });
+            }
+          });
+          return status;
+        }
+      }
       if (status.connected) {
         const clusters = get().clusters;
         const currentCluster = clusters.find((c) => c.context === context) || null;
@@ -201,7 +271,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         lastConnectionErrorContext: context,
         lastConnectionErrorMessage: errorMsg,
       });
-      return { connected: false, context, error: errorMsg, latency_ms: null };
+      return { connected: false, context, error: errorMsg, latency_ms: null, oidc_auth_required: null };
     }
   },
 

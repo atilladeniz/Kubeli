@@ -16,7 +16,7 @@ pub fn configure(app: &mut tauri::App) -> Result<(), Box<dyn std::error::Error>>
     #[cfg(target_os = "macos")]
     menu::setup_macos_menu(app)?;
 
-    #[cfg(all(desktop, debug_assertions))]
+    #[cfg(desktop)]
     deep_links::setup_deep_links(app);
 
     Ok(())

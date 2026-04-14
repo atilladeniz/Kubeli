@@ -7,6 +7,7 @@ export const RESOURCE_I18N_KEYS: Record<string, [string, string]> = {
   leases: ["cluster", "leases"],
   "helm-releases": ["helm", "releases"],
   "flux-kustomizations": ["flux", "kustomizations"],
+  "argocd-applications": ["argocd", "applications"],
   "workloads-overview": ["workloads", "overview"],
   deployments: ["workloads", "deployments"],
   pods: ["workloads", "pods"],

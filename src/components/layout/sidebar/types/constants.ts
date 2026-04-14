@@ -49,6 +49,7 @@ export const implementedViews: KnownResourceType[] = [
   "validating-webhooks",
   "helm-releases",
   "flux-kustomizations",
+  "argocd-applications",
 ];
 
 export function isImplementedView(resource: ResourceType): boolean {

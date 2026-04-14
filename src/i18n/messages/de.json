@@ -132,6 +132,7 @@
     "runtimeClasses": "Laufzeitklassen",
     "mutatingWebhooks": "Mutating Webhooks",
     "validatingWebhooks": "Validating Webhooks",
+    "applications": "Anwendungen",
     "soon": "Bald"
   },
   "cluster": {
@@ -333,6 +334,35 @@
     "pendingUpgrade": "Aktualisierung ausstehend",
     "pendingRollback": "Rollback ausstehend",
     "uninstalled": "Deinstalliert"
+  },
+  "argocd": {
+    "applications": "Anwendungen",
+    "synced": "Synchronisiert",
+    "outOfSync": "Nicht synchron",
+    "healthy": "Gesund",
+    "progressing": "In Bearbeitung",
+    "degraded": "Beeinträchtigt",
+    "suspended": "Pausiert",
+    "missing": "Fehlend",
+    "unknown": "Unbekannt",
+    "history": "Verlauf",
+    "noHistory": "Kein Deployment-Verlauf verfügbar",
+    "historyRevision": "Revision",
+    "historySource": "Quelle",
+    "historyPath": "Pfad",
+    "historyTargetRev": "Ziel-Rev",
+    "historyDeployed": "Bereitgestellt",
+    "historyActions": "Aktionen",
+    "historyCurrent": "Aktuell",
+    "rollback": "Rollback",
+    "rollbackSuccess": "Rollback auf {revision} gestartet",
+    "rollbackConfirmTitle": "Application zurücksetzen?",
+    "rollbackConfirmDescription": "Dies wird \"{name}\" auf Revision {revision} zurücksetzen. Eine neue Sync-Operation wird mit dieser Revision ausgelöst.",
+    "compare": "Vergleichen",
+    "compareSelected": "Vergleichen ({count})",
+    "diffTitle": "Source-Config Diff",
+    "diffOlder": "Älter",
+    "diffNewer": "Neuer"
   },
   "logs": {
     "title": "Logs",

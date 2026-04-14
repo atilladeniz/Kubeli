@@ -31,6 +31,7 @@ export interface ConnectionStatus {
   context: string | null;
   error: string | null;
   latency_ms: number | null;
+  oidc_auth_required: { issuer_url: string; client_id: string; extra_scopes: string[] } | null;
 }
 
 export interface HealthCheckResult {
@@ -1174,5 +1175,43 @@ export interface FluxKustomizationInfo {
   suspended: boolean;
   message: string | null;
   last_applied_revision: string | null;
+  created_at: string | null;
+}
+
+// ArgoCD Application types
+export type ArgoCDSyncStatus = "synced" | "outofsync" | "unknown";
+
+export type ArgoCDHealthStatus =
+  | "healthy"
+  | "progressing"
+  | "degraded"
+  | "suspended"
+  | "missing"
+  | "unknown";
+
+export interface ArgoCDHistoryEntry {
+  id: number;
+  revision: string;
+  deployed_at: string | null;
+  source_repo: string;
+  source_path: string;
+  source_target_revision: string;
+  source_raw: string;
+}
+
+export interface ArgoCDApplicationInfo {
+  name: string;
+  namespace: string;
+  project: string;
+  repo_url: string;
+  path: string;
+  target_revision: string;
+  dest_server: string;
+  dest_namespace: string;
+  sync_status: ArgoCDSyncStatus;
+  health_status: ArgoCDHealthStatus;
+  sync_policy: string;
+  message: string | null;
+  current_revision: string | null;
   created_at: string | null;
 }

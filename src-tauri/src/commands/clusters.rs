@@ -2,9 +2,12 @@
 
 use crate::error::KubeliError;
 use crate::k8s::{AppState, AuthType, KubeConfig, KubeconfigSourceType};
+use crate::oidc::commands::OidcState;
+use crate::oidc::config::detect_oidc_exec;
 use kube::config::Kubeconfig;
 use serde::{Deserialize, Serialize};
-use tauri::{command, AppHandle, State};
+use std::sync::Arc;
+use tauri::{command, AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
 
 use super::cluster_settings::ClusterSettings;
@@ -23,13 +26,20 @@ pub struct ClusterInfo {
     pub source_file: Option<String>,
 }
 
-/// Connection status
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OidcAuthInfo {
+    pub issuer_url: String,
+    pub client_id: String,
+    pub extra_scopes: Vec<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionStatus {
     pub connected: bool,
     pub context: Option<String>,
     pub error: Option<String>,
     pub latency_ms: Option<u64>,
+    pub oidc_auth_required: Option<OidcAuthInfo>,
 }
 
 /// Health check result
@@ -133,6 +143,7 @@ pub async fn get_connection_status(
         context,
         error: None,
         latency_ms: None,
+        oidc_auth_required: None,
     })
 }
 
@@ -262,8 +273,41 @@ pub async fn connect_cluster(
             .and_then(|c| c.source_file.clone())
     });
 
-    // Build merged kubeconfig from all configured sources
-    let kubeconfig = build_kubeconfig_for_connect(&app).await?;
+    let mut kubeconfig = build_kubeconfig_for_connect(&app).await?;
+
+    let user_name = kubeconfig
+        .contexts
+        .iter()
+        .find(|c| c.name == context)
+        .and_then(|c| c.context.as_ref())
+        .and_then(|ctx| ctx.user.clone());
+
+    if let Some(ref user) = user_name {
+        if let Some(oidc_config) = detect_oidc_exec(&kubeconfig, user) {
+            let oidc_state: State<'_, Arc<OidcState>> = app.state();
+
+            let token = resolve_oidc_token(&app, &oidc_state, &oidc_config).await;
+
+            match token {
+                Some(id_token) => {
+                    inject_oidc_token(&mut kubeconfig, user, &id_token);
+                }
+                None => {
+                    return Ok(ConnectionStatus {
+                        connected: false,
+                        context: Some(context),
+                        error: None,
+                        latency_ms: None,
+                        oidc_auth_required: Some(OidcAuthInfo {
+                            issuer_url: oidc_config.issuer_url,
+                            client_id: oidc_config.client_id,
+                            extra_scopes: oidc_config.extra_scopes,
+                        }),
+                    });
+                }
+            }
+        }
+    }
 
     match state
         .k8s
@@ -271,7 +315,6 @@ pub async fn connect_cluster(
         .await
     {
         Ok(_) => {
-            // Test the connection with latency measurement
             let start = std::time::Instant::now();
             match state.k8s.test_connection().await {
                 Ok(true) => {
@@ -286,6 +329,7 @@ pub async fn connect_cluster(
                         context: Some(context),
                         error: None,
                         latency_ms: Some(latency),
+                        oidc_auth_required: None,
                     })
                 }
                 Ok(false) => {
@@ -296,6 +340,7 @@ pub async fn connect_cluster(
                         context: Some(context),
                         error: Some("Connection test failed - unable to reach cluster".to_string()),
                         latency_ms: Some(latency),
+                        oidc_auth_required: None,
                     })
                 }
                 Err(e) => {
@@ -305,6 +350,7 @@ pub async fn connect_cluster(
                         context: Some(context),
                         error: Some(format!("Connection test failed: {}", e)),
                         latency_ms: None,
+                        oidc_auth_required: None,
                     })
                 }
             }
@@ -316,12 +362,12 @@ pub async fn connect_cluster(
                 context: Some(context),
                 error: Some(format!("Failed to connect: {}", e)),
                 latency_ms: None,
+                oidc_auth_required: None,
             })
         }
     }
 }
 
-/// Switch to a different context
 #[command]
 pub async fn switch_context(
     app: AppHandle,
@@ -442,6 +488,68 @@ pub async fn remove_cluster(context: String) -> Result<(), KubeliError> {
     // In a full implementation, we would modify the kubeconfig file
     // For now, this is a placeholder
     Err(KubeliError::unknown("Cluster removal not yet implemented"))
+}
+
+async fn resolve_oidc_token(
+    app: &AppHandle,
+    oidc_state: &OidcState,
+    config: &crate::oidc::config::OidcExecConfig,
+) -> Option<String> {
+    if let Some(token) = oidc_state
+        .token_store
+        .get_valid_token(&config.issuer_url, &config.client_id)
+    {
+        return Some(token);
+    }
+
+    let refresh_token = crate::oidc::store::OidcTokenStore::load_refresh_token(
+        &config.issuer_url,
+        &config.client_id,
+    );
+
+    if let Some(ref rt) = refresh_token {
+        match oidc_state.flow_manager.refresh_token(config, rt).await {
+            Ok(tokens) => {
+                oidc_state.token_store.store_tokens(
+                    &config.issuer_url,
+                    &config.client_id,
+                    tokens.clone(),
+                );
+                if let Some(ref new_rt) = tokens.refresh_token {
+                    crate::oidc::store::OidcTokenStore::save_refresh_token(
+                        &config.issuer_url,
+                        &config.client_id,
+                        new_rt,
+                    );
+                }
+                return Some(tokens.id_token);
+            }
+            Err(_) => {
+                oidc_state
+                    .token_store
+                    .clear(&config.issuer_url, &config.client_id);
+                crate::oidc::store::OidcTokenStore::delete_refresh_token(
+                    &config.issuer_url,
+                    &config.client_id,
+                );
+            }
+        }
+    }
+
+    None
+}
+
+fn inject_oidc_token(kubeconfig: &mut Kubeconfig, user_name: &str, token: &str) {
+    if let Some(auth_entry) = kubeconfig
+        .auth_infos
+        .iter_mut()
+        .find(|a| a.name == user_name)
+    {
+        if let Some(ref mut auth_info) = auth_entry.auth_info {
+            auth_info.exec = None;
+            auth_info.token = Some(secrecy::SecretString::from(token.to_string()));
+        }
+    }
 }
 
 /// Check if kubeconfig exists

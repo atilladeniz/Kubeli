@@ -11,6 +11,7 @@ import {
   FileText,
   ArrowRightLeft,
   ChevronLeft,
+  History,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -39,6 +40,7 @@ import {
   BreadcrumbPage,
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
+import { ArgoCDHistoryTab } from "./components/ArgoCDHistoryTab";
 
 export type { ResourceDetailProps, ResourceData } from "./types";
 import type { ResourceDetailProps } from "./types";
@@ -324,6 +326,12 @@ export function ResourceDetail({
                 {t("resourceDetail.events")}
               </TabsTrigger>
             )}
+            {resourceType === "application" && resource.namespace && (
+              <TabsTrigger value="history" className="gap-2">
+                <History className="size-4" />
+                {t("argocd.history")}
+              </TabsTrigger>
+            )}
             {onDelete && (
               <TabsTrigger
                 value="danger"
@@ -408,6 +416,12 @@ export function ResourceDetail({
         {resource.events && resource.events.length > 0 && (
           <TabsContent value="events" className="flex-1 overflow-hidden m-0">
             <EventsTab events={resource.events} />
+          </TabsContent>
+        )}
+
+        {resourceType === "application" && resource.namespace && (
+          <TabsContent value="history" className="flex-1 overflow-hidden m-0">
+            <ArgoCDHistoryTab name={resource.name} namespace={resource.namespace} />
           </TabsContent>
         )}
 

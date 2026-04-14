@@ -9,6 +9,8 @@ export * from "./commands/metrics";
 export * from "./commands/graph";
 export * from "./commands/helm";
 export * from "./commands/flux";
+export * from "./commands/argocd";
 export * from "./commands/network";
 export * from "./commands/ai";
 export * from "./commands/mcp";
+export * from "./commands/oidc";

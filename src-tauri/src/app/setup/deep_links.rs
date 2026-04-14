@@ -1,4 +1,4 @@
-#[cfg(all(desktop, debug_assertions))]
+#[cfg(desktop)]
 pub fn setup_deep_links(app: &mut tauri::App) {
     use percent_encoding::percent_decode_str;
     use tauri::Emitter;
@@ -18,6 +18,22 @@ pub fn setup_deep_links(app: &mut tauri::App) {
                 }
                 "connect" if !path.is_empty() => {
                     let _ = app_handle.emit("auto-connect", serde_json::json!({ "context": path }));
+                }
+                "oidc" if path == "callback" => {
+                    if let Some(query) = url.query() {
+                        let params: std::collections::HashMap<String, String> =
+                            url::form_urlencoded::parse(query.as_bytes())
+                                .map(|(k, v)| (k.to_string(), v.to_string()))
+                                .collect();
+                        let code = params.get("code").cloned().unwrap_or_default();
+                        let state = params.get("state").cloned().unwrap_or_default();
+                        if !code.is_empty() {
+                            let _ = app_handle.emit(
+                                "oidc-callback",
+                                serde_json::json!({ "code": code, "state": state }),
+                            );
+                        }
+                    }
                 }
                 _ => {}
             }
