@@ -245,6 +245,27 @@ fn merge_kubeconfig_files(files: &[std::path::PathBuf]) -> Result<Kubeconfig, St
     merged.ok_or_else(|| "No valid kubeconfig files could be parsed".to_string())
 }
 
+/// Check if a kubeconfig file is self-contained for a given context.
+/// Returns true if the file contains the context AND its referenced cluster and user.
+/// Returns false for cross-file references (merge_mode), where cluster or user
+/// are defined in a different file.
+fn is_self_contained(kubeconfig: &Kubeconfig, context_name: &str) -> bool {
+    kubeconfig
+        .contexts
+        .iter()
+        .find(|c| c.name == context_name)
+        .and_then(|c| c.context.as_ref())
+        .is_some_and(|ctx| {
+            let has_cluster =
+                ctx.cluster.is_empty() || kubeconfig.clusters.iter().any(|c| c.name == ctx.cluster);
+            let has_user = ctx
+                .user
+                .as_deref()
+                .is_none_or(|u| kubeconfig.auth_infos.iter().any(|a| a.name == u));
+            has_cluster && has_user
+        })
+}
+
 /// Connect to a cluster using a specific context
 #[command]
 pub async fn connect_cluster(
@@ -254,7 +275,7 @@ pub async fn connect_cluster(
 ) -> Result<ConnectionStatus, KubeliError> {
     tracing::info!("Connecting to cluster with context: {}", context);
 
-    // Resolve source_file for this context before building the merged kubeconfig
+    // Resolve source_file for this context before building the kubeconfig
     let source_file = load_kubeconfig_from_sources(&app).await.and_then(|cfg| {
         cfg.contexts
             .iter()
@@ -262,8 +283,39 @@ pub async fn connect_cluster(
             .and_then(|c| c.source_file.clone())
     });
 
-    // Build merged kubeconfig from all configured sources
-    let kubeconfig = build_kubeconfig_for_connect(&app).await?;
+    // When we know the source file, prefer loading ONLY that file to avoid name collisions.
+    // Multiple kubeconfig files often define users/clusters with the same name (e.g. "admin")
+    // but different certificates. Merging all files causes the first file's entries to
+    // shadow subsequent ones, making only the first cluster's auth work.
+    //
+    // However, some setups intentionally split contexts, clusters, and users across files
+    // (merge_mode). If the single file doesn't contain the referenced cluster or user,
+    // fall back to the merged kubeconfig.
+    let kubeconfig = if let Some(ref src) = source_file {
+        let path = std::path::PathBuf::from(src);
+        if path.exists() {
+            let single = Kubeconfig::read_from(&path)
+                .map_err(|e| format!("Failed to read kubeconfig {:?}: {}", path, e))?;
+
+            if is_self_contained(&single, &context) {
+                single
+            } else {
+                tracing::info!(
+                    "Source file {:?} has cross-file references, using merged kubeconfig",
+                    path
+                );
+                build_kubeconfig_for_connect(&app).await?
+            }
+        } else {
+            tracing::warn!(
+                "Source file {:?} not found, falling back to merged kubeconfig",
+                path
+            );
+            build_kubeconfig_for_connect(&app).await?
+        }
+    } else {
+        build_kubeconfig_for_connect(&app).await?
+    };
 
     match state
         .k8s
@@ -651,6 +703,84 @@ users:
         );
     }
 
+    /// Demonstrates the name collision bug (#283): when multiple kubeconfig files
+    /// define users/clusters with the same name (e.g. "admin"), merge keeps only
+    /// the first file's entry. The fix is to load only the source file for a context.
+    #[test]
+    fn test_merge_same_user_name_causes_collision() {
+        let dir = tempfile::tempdir().unwrap();
+
+        let file1 = r#"
+apiVersion: v1
+kind: Config
+clusters:
+- name: cluster-1
+  cluster:
+    server: https://cluster-1:6443
+contexts:
+- name: ctx-1
+  context:
+    cluster: cluster-1
+    user: admin
+users:
+- name: admin
+  user:
+    token: token-for-cluster-1
+"#;
+        let file2 = r#"
+apiVersion: v1
+kind: Config
+clusters:
+- name: cluster-2
+  cluster:
+    server: https://cluster-2:6443
+contexts:
+- name: ctx-2
+  context:
+    cluster: cluster-2
+    user: admin
+users:
+- name: admin
+  user:
+    token: token-for-cluster-2
+"#;
+
+        let f1 = write_kubeconfig(dir.path(), "cluster-1.yaml", file1);
+        let f2 = write_kubeconfig(dir.path(), "cluster-2.yaml", file2);
+
+        // Merged config: both contexts exist, but only one "admin" user entry
+        let merged = merge_kubeconfig_files(&[f1.clone(), f2.clone()]).unwrap();
+        assert_eq!(merged.contexts.len(), 2, "both contexts should be present");
+
+        // The "admin" user from file1 shadows file2's "admin" - this is the bug.
+        // kube-rs merge deduplicates auth_infos by name, keeping the first.
+        let admin_count = merged
+            .auth_infos
+            .iter()
+            .filter(|a| a.name == "admin")
+            .count();
+        assert_eq!(
+            admin_count, 1,
+            "merge deduplicates by name - only one 'admin' survives"
+        );
+
+        // Similarly, cluster names can collide if both files use the same name
+        let cluster_count = merged
+            .clusters
+            .iter()
+            .filter(|c| c.name == "cluster-1" || c.name == "cluster-2")
+            .count();
+        assert_eq!(cluster_count, 2, "different cluster names are preserved");
+
+        // Fix: loading only the source file for a context avoids the collision.
+        // Each file has its own "admin" user with the correct credentials.
+        let single = Kubeconfig::read_from(&f2).unwrap();
+        assert_eq!(single.auth_infos.len(), 1);
+        assert_eq!(single.auth_infos[0].name, "admin");
+        assert_eq!(single.contexts.len(), 1);
+        assert_eq!(single.contexts[0].name, "ctx-2");
+    }
+
     #[test]
     fn test_merge_resolves_relative_cert_paths() {
         let dir = tempfile::tempdir().unwrap();
@@ -704,6 +834,50 @@ users:
             ca.ends_with("ca.crt"),
             "resolved path must still point to ca.crt, got: {}",
             ca
+        );
+    }
+
+    #[test]
+    fn test_is_self_contained_complete_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = write_kubeconfig(dir.path(), "complete.yaml", KUBECONFIG_A);
+        let cfg = Kubeconfig::read_from(&f).unwrap();
+        assert!(
+            is_self_contained(&cfg, "ctx-a"),
+            "file with matching context, cluster, and user is self-contained"
+        );
+    }
+
+    #[test]
+    fn test_is_self_contained_missing_context() {
+        let dir = tempfile::tempdir().unwrap();
+        let f = write_kubeconfig(dir.path(), "complete.yaml", KUBECONFIG_A);
+        let cfg = Kubeconfig::read_from(&f).unwrap();
+        assert!(
+            !is_self_contained(&cfg, "nonexistent"),
+            "unknown context is not self-contained"
+        );
+    }
+
+    #[test]
+    fn test_is_self_contained_cross_file_references() {
+        let dir = tempfile::tempdir().unwrap();
+
+        // Context references a cluster and user defined in OTHER files
+        let contexts_only = r#"
+apiVersion: v1
+kind: Config
+contexts:
+- name: cross-ctx
+  context:
+    cluster: external-cluster
+    user: external-user
+"#;
+        let f = write_kubeconfig(dir.path(), "contexts-only.yaml", contexts_only);
+        let cfg = Kubeconfig::read_from(&f).unwrap();
+        assert!(
+            !is_self_contained(&cfg, "cross-ctx"),
+            "context with cross-file cluster/user references is not self-contained"
         );
     }
 }

@@ -24,6 +24,7 @@ Commands:
   create-gke [name]     Create fake GKE context (default: kubeli-gke-demo)
   create-aks [name]     Create fake AKS context (default: kubeli-aks-demo)
   create-auth-error     Create context with invalid token for auth testing
+  create-same-user      Start 3 minikube profiles, export kubeconfigs with user "admin" (#283)
   list                  List all kubeli-* contexts
   cleanup               Remove all kubeli-* simulated contexts
 
@@ -35,6 +36,7 @@ Examples:
   $SCRIPT_NAME create-eks
   $SCRIPT_NAME create-gke my-gke-cluster --source minikube
   $SCRIPT_NAME create-auth-error
+  $SCRIPT_NAME create-same-user
   $SCRIPT_NAME cleanup
 
 EOF
@@ -220,6 +222,224 @@ create_auth_error_context() {
     log_info "Switch with: kubectl config use-context $context_name"
 }
 
+create_same_user_files() {
+    local output_dir="$HOME/.kube/kubeli-same-user"
+    local profiles=("kubeli-nonprod" "kubeli-production" "kubeli-cicd")
+
+    log_info "Creating 3 minikube profiles with separate clusters for #283 testing..."
+    log_info "This starts real clusters - takes ~1-2 min per profile."
+    echo ""
+
+    # Start each minikube profile
+    for profile in "${profiles[@]}"; do
+        if minikube status -p "$profile" &>/dev/null; then
+            log_info "Profile '$profile' already running, skipping start"
+        else
+            log_info "Starting minikube profile '$profile'..."
+            minikube start -p "$profile" --memory=2048 --cpus=2 2>&1 | tail -1
+        fi
+    done
+
+    # Deploy distinct resources per cluster so they're visually distinguishable in Kubeli
+    log_info "Deploying sample resources..."
+
+    KUBECONFIG="$HOME/.kube/config" kubectl --context=kubeli-nonprod apply -f - <<'K8S' 2>/dev/null
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: staging
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dev
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: staging
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["sleep", "3600"]
+K8S
+    log_success "kubeli-nonprod: namespaces staging, dev + deployments"
+
+    KUBECONFIG="$HOME/.kube/config" kubectl --context=kubeli-production apply -f - <<'K8S' 2>/dev/null
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: production
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: production
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: production
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+K8S
+    log_success "kubeli-production: namespace production + deployments frontend, backend"
+
+    KUBECONFIG="$HOME/.kube/config" kubectl --context=kubeli-cicd apply -f - <<'K8S' 2>/dev/null
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ci
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: runners
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jenkins
+  namespace: ci
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jenkins
+  template:
+    metadata:
+      labels:
+        app: jenkins
+    spec:
+      containers:
+      - name: nginx
+        image: nginx:alpine
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: runner-pool
+  namespace: runners
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: runner-pool
+  template:
+    metadata:
+      labels:
+        app: runner-pool
+    spec:
+      containers:
+      - name: busybox
+        image: busybox
+        command: ["sleep", "3600"]
+K8S
+    log_success "kubeli-cicd: namespaces ci, runners + deployments jenkins, runner-pool"
+
+    mkdir -p "$output_dir"
+
+    # Export each profile's kubeconfig with user renamed to "admin"
+    for profile in "${profiles[@]}"; do
+        local file="$output_dir/$profile.yaml"
+
+        # Export raw kubeconfig for this profile only
+        local raw
+        raw=$(kubectl config view --raw --minify --context="$profile" 2>/dev/null)
+
+        if [[ -z "$raw" ]]; then
+            log_error "Could not export kubeconfig for profile '$profile'"
+            continue
+        fi
+
+        # Write kubeconfig, renaming the user to "admin" to trigger name collision
+        echo "$raw" \
+            | sed "s/name: $profile\$/name: admin/" \
+            | sed "s/user: $profile\$/user: admin/" \
+            > "$file"
+
+        log_success "Created $file (user renamed to 'admin')"
+    done
+
+    echo ""
+    log_success "3 kubeconfig files created in $output_dir"
+    log_info "Each file has a different cluster with different certs, but same user 'admin'"
+    log_info "Add '$output_dir' as a folder source in Kubeli to test #283"
+    log_info "Without the fix: only the first cluster connects (wrong certs for others)"
+    log_info "With the fix: all 3 clusters connect successfully"
+}
+
+cleanup_same_user() {
+    local profiles=("kubeli-nonprod" "kubeli-production" "kubeli-cicd")
+
+    log_info "Stopping and deleting minikube profiles for #283 testing..."
+    for profile in "${profiles[@]}"; do
+        if minikube status -p "$profile" &>/dev/null; then
+            minikube delete -p "$profile" 2>/dev/null || true
+            log_success "Deleted profile '$profile'"
+        fi
+    done
+
+    rm -rf "$HOME/.kube/kubeli-same-user" 2>/dev/null || true
+    log_success "Removed kubeconfig files"
+}
+
 list_contexts() {
     log_info "Kubeli simulated contexts:"
     kubectl config get-contexts | grep -E "(CURRENT|kubeli-)" || echo "  No kubeli-* contexts found"
@@ -256,6 +476,9 @@ cleanup_contexts() {
     done
 
     log_success "Cleanup complete"
+
+    # Also clean up same-user profiles and files
+    cleanup_same_user
 }
 
 # Main
@@ -304,6 +527,9 @@ case "$COMMAND" in
         ;;
     create-auth-error)
         create_auth_error_context
+        ;;
+    create-same-user)
+        create_same_user_files
         ;;
     list)
         list_contexts
