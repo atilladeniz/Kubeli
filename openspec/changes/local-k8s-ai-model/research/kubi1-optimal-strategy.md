@@ -1,0 +1,324 @@
+# Kubi-1: Optimal Model, Training & Infrastructure Strategy
+
+> **Research Brief — March 26, 2026**
+> Validates and refines the existing OpenSpec plan against current state.
+
+---
+
+## Executive Summary
+
+The existing OpenSpec plan (Qwen3-4B + llama-server sidecar + Unsloth QLoRA) is **fundamentally solid**, but several significant developments have occurred:
+
+1. **Qwen3.5 is out** (March 2, 2026) — new Small series with 0.8B, 2B, **4B**, 9B. 256K context, thinking/non-thinking, better tool calling. It is a strong future candidate for Kubeli's sidecar-based inference path.
+2. **Unsloth Studio** (March 17, 2026) — No-code UI for training + inference + Data Recipes. Game-changer for workflow.
+3. **Unsloth Data Recipes** — Transforms PDFs/CSVs/docs into synthetic training data automatically. Powered by NVIDIA NeMo Data Designer.
+4. **Local-first training**: 2x RTX 3060 (24GB total) is the primary training machine. Mac connects via SSH/Tailscale (`ssh win`). Cloud (Vast.ai) is fallback only.
+5. **Grephuboverflow** can be extended as a K8s doc harvester, or use standalone script.
+
+### Recommendation: Dual-Model Architecture (Updated April 4, 2026 — Final)
+
+> **Strategy shift**: Qwen3.5-4B does NOT replace Qwen3-4B. Both models ship together.
+> Qwen3-4B + Thinking + Grammar beats Qwen3.5-4B without Thinking on K8s reasoning tasks.
+
+| Tier | Model | Mode | Role | GGUF Size |
+|------|-------|------|------|-----------|
+| **Standard (default)** | Qwen3-4B | Thinking ON + Grammar | Multi-turn K8s chat, tool calling, kubectl | 2.5 GB |
+| **Deep Analysis** | Qwen3.5-4B | Thinking OFF, no grammar | Single-shot log analysis, long context, vision | 2.86 GB |
+| **Ultra** | Gemma 4 26B-A4B | MoE, 3.8B active | Deep reasoning for 32GB+ users | ~17 GB |
+| **Nano** | Qwen3-1.7B | Thinking ON + Grammar | 8GB RAM minimum tier | ~1.2 GB |
+
+**Total download for Standard + Deep Analysis: 5.36 GB** (comparable to a medium Docker image).
+
+#### Why dual-model, not Qwen3.5-4B only
+
+1. **Thinking + Grammar**: Qwen3-4B can combine both. Qwen3.5-4B cannot (Issue #20345). On MATH-500: Qwen3-4B thinking=95.2% vs non-thinking=43.6%. Qwen3.5-4B must run without thinking when grammar is active → estimated ~40-50% on MATH-500.
+2. **Zero reprocessing**: Qwen3-4B (standard transformer) reuses KV cache between turns. Qwen3.5-4B (DeltaNet) reprocesses full context every turn (~4-8s at 4K on M3).
+3. **TurboQuant benefits Qwen3-4B more**: DeltaNet's recurrent state is fixed-size regardless of context. Only 25% of Qwen3.5 layers benefit from KV-cache compression. Qwen3-4B benefits 100%.
+4. **QLoRA works**: Qwen3-4B is a standard transformer — QLoRA fine-tuning is proven and cheaper (~6-8GB VRAM). Qwen3.5-4B requires bf16 LoRA (~10GB).
+5. **Ollama supports both**: Corrected — `qwen3.5:4b` is in Ollama library (4.7M pulls).
+
+#### April 2026 Key Developments
+
+1. **Dual-model architecture confirmed** as optimal via deep research. Qwen3-4B (fast chat + tool calling) + Qwen3.5-4B (deep analysis + vision). Router Mode in llama-server enables dynamic model switching.
+2. **Thinking mode is transformative at 4B**: +51.6 pts on MATH-500, +46.7 pts on AIME 2024 (EvalScope benchmarks). Not a minor enhancement — it's the difference between 43% and 95% accuracy on structured reasoning.
+3. **Gemma 4** released: 26B-A4B MoE (3.8B active) — Ultra tier candidate. Apache 2.0, GGUF via Unsloth.
+4. **TurboQuant Metal confirmed**: PR #22 merged (M3/M4 support). Asymmetric `-ctk q8_0 -ctv turbo3` preserves tool-calling quality.
+5. **TurboQuant NOT merging upstream before Q4 2026**: ggerganov pursuing simpler rotation (PR #21038). Bundle TheTom fork for v2.
+6. **DeltaNet reprocessing unfixed**: 8+ open issues, no fix expected soon. Architectural limitation of DeltaNet, not a llama.cpp bug.
+7. **Grammar + Thinking mutual exclusion** (Issue #20345): CLOSED but fix unverified. Qwen3.5-4B must run without thinking when grammar active.
+8. **--fit flag**: Auto-adjusts context size to device memory. Works correctly on Apple Silicon.
+
+---
+
+## 1. Model Landscape (March 2026)
+
+### 1.1 Qwen3.5 — New Top Candidate
+
+Released March 2, 2026. Small series (0.8B, 2B, 4B, 9B) is especially relevant:
+
+| Feature | Qwen3-4B (current plan) | Qwen3.5-4B (NEW) |
+|---------|------------------------|-------------------|
+| Context | 32K | **256K** (extendable to 1M via YaRN) |
+| Thinking Mode | ✅ | ✅ (OFF by default for Small) |
+| Tool Calling | 0.880 | **Improved** (Unsloth fixed chat template bugs) |
+| Vision | ❌ | ✅ (multimodal) |
+| Languages | many | **201 languages** |
+| Kubeli sidecar path | ✅ | ✅ |
+| llama.cpp | ✅ | ✅ (recommended) |
+| Unsloth Fine-tune | ✅ | ✅ |
+| License | Apache 2.0 | Apache 2.0 |
+
+### 1.2 Updated Model Rankings
+
+| Priority | Model | Params (active) | RAM Q4 | Context | Ollama | Role |
+|----------|-------|----------------|--------|---------|--------|------|
+| 1 | **Qwen3-4B-Instruct-2507** | 4B | ~3GB | 32K | ✅ | **v1 Default** |
+| 2 | **Qwen3.5-4B** | 4B | ~3GB | 256K | ❌ | **v2 Fine-tune base** |
+| 3 | **Qwen3-30B-A3B** | ~3B active | ~4GB | 32K | ✅ | MoE fallback (replaces Granite) |
+| 4 | Qwen3.5-9B | 9B | ~6GB | 256K | ❌ | Quality pick ≥16GB |
+| 5 | Qwen3-8B | 8B | ~5GB | 32K | ✅ | Quality pick via Ollama |
+
+**New finding: Qwen3-30B-A3B** is a MoE model with 30B total but only ~3B active params. Replaces `granite3.1-moe:3b` — significantly better at similar RAM usage.
+
+### 1.3 Other Models
+
+- **Llama 4**: Scout is 109B MoE — far too large for desktop. No small model released.
+- **Gemma 3n**: Released July 2025, Unsloth supports fine-tuning. But 2B is too small, 9B competes with Qwen3.5-9B which benchmarks better.
+- **Phi-4-mini**: Solid MIT alternative at 3.8B, but Qwen3-4B wins on tool calling benchmarks.
+
+---
+
+## 2. Unsloth Ecosystem (March 2026)
+
+### 2.1 Unsloth Studio (NEW — March 17, 2026)
+
+Open-source, no-code web UI:
+
+- **Run**: GGUF + safetensor models locally (Mac, Windows, Linux)
+- **Train**: 500+ models, 2x faster, 70% less VRAM
+- **Data Recipes**: Docs → synthetic datasets (PDFs, CSVs, JSON, YAML)
+- **Export**: Direct to GGUF, Ollama, vLLM, LM Studio
+- **Model Arena**: Compare 2 models side-by-side (base vs fine-tuned)
+- **Privacy**: 100% offline, no telemetry
+
+**Training platform support:**
+- ✅ NVIDIA RTX 30/40/50, Blackwell, DGX
+- ✅ Intel GPUs
+- ⏳ Apple MLX — "coming very soon"
+- ✅ CPU — Chat + Data Recipes only (no training)
+
+### 2.2 Data Recipes (NVIDIA NeMo Data Designer)
+
+**Best path for our K8s training data.** Instead of scripting everything manually:
+
+1. Upload K8s docs as PDF/MD, SO data as CSV/JSONL as Seed
+2. Build workflow: Seed → LLM Generation → Validation → Output
+3. Blocks: Seed, LLM+Models, Expression, Validators, Samplers
+4. Built-in linters for Python, SQL, JS/TS (need custom for kubectl/YAML)
+5. Preview → Full Run → Dataset ready for fine-tuning
+
+Works with external OpenAI-compatible APIs — can use local llama.cpp server.
+
+### 2.3 Training Best Practices
+
+> **UPDATE April 4, 2026**: QLoRA 4-bit is **no longer recommended** for Qwen3.5 and Gemma 4 models. Unsloth explicitly warns against QLoRA for Qwen3.5-4B due to "higher than normal quantization differences" from the DeltaNet/hybrid architecture. Gemma 4 E4B also recommends bf16 LoRA over 4-bit. **Use bf16 LoRA instead.**
+
+**bf16 LoRA for 4B on 2x RTX 3060 (12GB each):**
+
+| Setting | Previous Plan (QLoRA) | April 2026 Recommendation (bf16 LoRA) |
+|---------|----------------------|--------------------------------------|
+| Precision | 4-bit QLoRA | **bf16 LoRA** |
+| LoRA Rank | r=16 | r=16 (good) or **r=32** for more capacity |
+| Target Modules | all linear | ✅ correct |
+| Batch Size | 8 | **4** (bf16 uses more VRAM) |
+| Grad Accum | 4 | **8** (effective batch=32, same as before) |
+| Epochs | 3 | **2** (50K samples is enough for 2) |
+| LR | 2e-4 | ✅ standard for LoRA |
+| Seq Length | 8192 | ✅ matches context budget |
+
+**VRAM budget on 2x RTX 3060 (12GB each) with bf16 LoRA:**
+- Model (bf16): ~8GB → split across 2 GPUs (~4GB each) via `device_map="auto"`
+- LoRA adapters: ~1GB
+- Optimizer states: ~2GB
+- Activations + gradients: ~4-6GB per GPU
+- **Total per GPU: ~9-11GB** → fits on 12GB with margin. Batch=2 recommended.
+- **Key**: Use `accelerate` with `device_map="auto"` for automatic tensor parallelism
+
+**Training parameter adjustments (vs RTX 3090):**
+
+| Setting | RTX 3090 (old) | 2x RTX 3060 (new) | Reason |
+|---------|---------------|-------------------|--------|
+| Batch Size | 4 | **2** | 12GB per GPU limit |
+| Grad Accum | 8 | **16** | Keep effective batch=32 |
+| LoRA Rank (CPT) | 128 | **64** | Memory + stability |
+| LoRA Rank (SFT) | 32 | **32** | Fits fine |
+| Seq Length | 4096 | **4096** | OK with tensor parallel |
+| Multi-GPU | N/A | **`accelerate launch --multi_gpu`** | Required |
+
+**Exception**: Qwen3-8B (Pro) at bf16 is ~16GB model alone. With 2 GPUs:
+- Split model across both GPUs (~8GB each) + QLoRA for 8B
+- bf16 LoRA with batch=1, grad_accum=32, `device_map="auto"`
+- QLoRA is acceptable for 8B (standard Qwen3 architecture, not DeltaNet)
+
+### 2.4 GRPO (Reinforcement Learning)
+
+Unsloth supports **GRPO with 7x longer context**. Relevant for phase 3:
+- On 24GB VRAM: Qwen3-4B QLoRA with 20K+ context for GRPO
+- Could use to train for **better JSON structuring**
+- Needs reward function (e.g. "is JSON valid? Is kubectl command correct?")
+
+**Recommendation:** SFT first (QLoRA), then optionally GRPO for JSON quality.
+
+### 2.5 Unsloth Dynamic 2.0 GGUF
+
+New quantization method from Unsloth:
+- Important layers upcasted to 8 or 16-bit, rest stays 4-bit
+- **Better quality than standard Q4_K_M** at similar size
+- Format: `UD-Q4_K_XL`, `UD-Q3_K_XL`
+
+**Recommendation:** Export after fine-tuning as Unsloth Dynamic instead of standard GGUF.
+
+---
+
+## 3. Training Data & Scraping Strategy
+
+### 3.1 Available Datasets
+
+| Dataset | Size | License | Quality | Status |
+|---------|------|---------|---------|--------|
+| `mcipriano/stackoverflow-kubernetes-questions` | ~30K | CC-BY-SA-4.0 | ⭐⭐⭐ Real Q&A | ✅ Available |
+| `ComponentSoft/k8s-kubectl-35k` | ~35K | Unspecified | ⭐⭐ kubectl examples | ⚠️ Check license |
+| `kubernetes/website` (GitHub) | ~15K sections | Apache 2.0 | ⭐⭐⭐⭐ Official docs | Must scrape |
+| `k8sgpt-ai/k8sgpt` analyzers | ~30+ patterns | Apache 2.0 | ⭐⭐⭐⭐⭐ Error→Diagnosis | Must extract |
+
+### 3.2 Scraping: harvest_k8s.py
+
+Standalone Python script at `.dev/kubi-1/data/harvest_k8s.py`:
+- Uses GitHub Trees API (1 API call per repo tree)
+- Fetches individual file blobs
+- Rate limiting built in
+- Needs `GITHUB_TOKEN` env var
+- Can also extend Grephuboverflow later if needed
+
+### 3.3 Data Pipeline
+
+```
+Phase 1: Harvest (Mac)
+├── harvest_k8s.py → GitHub repos → JSONL per repo
+├── load_hf_datasets.py → HuggingFace → JSONL
+└── (future) SO API for latest questions
+
+Phase 2: Convert (Mac)
+├── convert_docs.py → MD sections → instruction-response pairs
+├── k8sgpt patterns → error→diagnosis pairs
+└── (future) YAML mutation → error/fix pairs
+
+Phase 3: Filter (Mac)
+├── merge_and_filter.py → dedup, quality, balance
+└── Output: final/kubeli-k8s-train.jsonl + eval.jsonl
+
+Phase 4: Train (Windows 2x RTX 3060)
+├── rsync data to Windows
+├── python train_kubi1.py
+└── Export GGUF
+
+Phase 5: Test (Mac)
+├── rsync GGUF back to Mac
+├── llama-server --model ./models/kubeli-k8s-4b-Q4_K_M.gguf --port 8080
+├── optional: ollama create kubeli-k8s:4b
+└── Run eval.py
+```
+
+---
+
+## 4. Local Training Infrastructure
+
+### 4.1 Architecture
+
+```
+MacBook Air M4 (32GB)              Windows Desktop (2x RTX 3060)
+──────────────────────              ──────────────────────────────
+Data harvesting                     Unsloth training (multi-GPU)
+Data conversion                     GGUF export
+Dataset preparation                 Model testing
+Evaluation                    ←──── Trained model (GGUF)
+Inference testing (llama-server, optional Ollama compatibility)
+
+        ╔═══════════════╗
+        ║  Connection   ║
+        ║  Tailscale    ║
+        ║  or SSH/LAN   ║
+        ╚═══════════════╝
+```
+
+### 4.2 Connection: Tailscale (Recommended)
+
+Already installed on Mac (`/opt/homebrew/bin/tailscale`). Free, zero-config, works everywhere.
+
+See `.dev/kubi-1/SETUP-CONNECTION.md` for full setup.
+
+### 4.3 Workflow
+
+```bash
+# Mac: prepare data
+cd .dev/kubi-1/data
+GITHUB_TOKEN=ghp_xxx python harvest_k8s.py
+python load_hf_datasets.py
+python convert_docs.py
+python merge_and_filter.py
+
+# Mac: upload + start training on Windows
+cd ../training
+./remote_train.sh --monitor
+
+# Mac: pull model back + test
+rsync -avz kubi-train:~/kubi-training/training/kubeli-k8s-4b/*.gguf ../models/
+llama-server --model ../models/kubeli-k8s-4b-Q4_K_M.gguf --port 8080
+# optional compatibility path
+ollama create kubeli-k8s:4b -f ../models/Modelfile
+```
+
+### 4.4 Cloud Fallback (Vast.ai)
+
+Only if Windows machine is unavailable. ~$0.10/training run on spot GPU.
+Scripts in `.dev/kubi-1/cloud/` when/if that fallback is added.
+
+---
+
+## 5. Delta from Existing OpenSpec Plan
+
+| Aspect | Current Plan | Change | Reason |
+|--------|-------------|--------|--------|
+| **v1 Model** | Qwen3-4B | ✅ Keep | Stable default for shipped Kubi-1 |
+| **v2 Model** | Qwen3:4b fine-tuned | **Qwen3.5-4B fine-tuned** | 256K context, better |
+| **MoE Fallback** | granite3.1-moe:3b | **Qwen3-30B-A3B** (~3B active) | Much better |
+| **Training UI** | CLI scripts | **Unsloth Studio + CLI** | No-code option |
+| **Data Pipeline** | Custom scripts only | **Scripts + Data Recipes eval** | Best of both |
+| **GGUF Export** | Q4_K_M + Q5_K_M | **+ Unsloth Dynamic UD-Q4_K_XL** | Better quality |
+| **KV Cache** | Not specified | **TurboQuant eval on 2x RTX 3060** | 3.5x compression, 128K context, beats q8_0 quality |
+| **Training Focus** | Not specified | **Local 2x RTX 3060 first** | Zero cost, fastest iteration |
+| **Connection** | SSH tunnel suggestion | **Tailscale** | Already installed, stable |
+| **Cloud GPU** | Not planned | **Vast.ai as fallback** | $0.10/run if needed |
+| **Batch Size** | 4 | **2** (grad_accum=16) | 12GB per GPU limit, effective batch=32 via accumulation |
+| **Epochs** | 3 | **2** | 50K samples is enough |
+
+---
+
+## Sources
+
+| # | Source | URL | Retrieved |
+|---|--------|-----|-----------|
+| 1 | Qwen3 HuggingFace Collection | https://huggingface.co/collections/Qwen/qwen3-67dd247413f0e2e4f653967f | 2026-03-26 |
+| 2 | Unsloth Blog | https://unsloth.ai/blog | 2026-03-26 |
+| 3 | Unsloth Studio Docs | https://unsloth.ai/docs/new/studio | 2026-03-26 |
+| 4 | Qwen3.5 Unsloth Guide | https://unsloth.ai/docs/models/qwen3.5 | 2026-03-26 |
+| 5 | Unsloth GRPO Long Context | https://docs.unsloth.ai/new/grpo-long-context | 2026-03-26 |
+| 6 | Unsloth Data Recipes | https://docs.unsloth.ai/new/studio/data-recipe | 2026-03-26 |
+| 7 | Unsloth Docker | https://docs.unsloth.ai/new/how-to-train-llms-with-unsloth-and-docker | 2026-03-26 |
+| 8 | RunPod Pricing | https://www.runpod.io/pricing | 2026-03-26 |
+| 9 | Vast.ai Pricing | https://vast.ai/pricing | 2026-03-26 |
+| 10 | k8sgpt GitHub | https://github.com/k8sgpt-ai/k8sgpt | 2026-03-26 |
+| 11 | SO K8s Dataset (HF) | https://huggingface.co/datasets/mcipriano/stackoverflow-kubernetes-questions | 2026-03-26 |
+| 12 | kubectl-35k Dataset (HF) | https://huggingface.co/datasets/ComponentSoft/k8s-kubectl-35k | 2026-03-26 |
+| 13 | Kubeli OpenSpec | ./openspec/changes/local-k8s-ai-model/ | 2026-03-26 |
+| 14 | Grephuboverflow | /Users/atilla/Github/Grephuboverflow/ | 2026-03-26 |
