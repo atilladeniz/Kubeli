@@ -810,10 +810,8 @@ impl AgentManager {
                     }
                 }
             }
-            ClaudeStreamMessage::Result { is_error, .. } => {
-                if is_error.unwrap_or(false) {
-                    tracing::warn!("Claude returned error result");
-                }
+            ClaudeStreamMessage::Result { is_error, .. } if is_error.unwrap_or(false) => {
+                tracing::warn!("Claude returned error result");
             }
             ClaudeStreamMessage::System { subtype, .. } => {
                 tracing::debug!("Claude system message: {}", subtype);

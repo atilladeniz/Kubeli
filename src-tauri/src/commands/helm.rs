@@ -536,7 +536,7 @@ pub async fn get_helm_release_history(
     }
 
     // Sort by revision descending
-    history.sort_by(|a, b| b.revision.cmp(&a.revision));
+    history.sort_by_key(|h| std::cmp::Reverse(h.revision));
 
     Ok(history)
 }

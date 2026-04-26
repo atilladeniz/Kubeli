@@ -603,11 +603,11 @@ pub async fn get_cluster_metrics_summary(
                 .collect();
 
             // Sort by CPU and get top 5
-            all_pods.sort_by(|a, b| b.total_cpu_nano_cores.cmp(&a.total_cpu_nano_cores));
+            all_pods.sort_by_key(|p| std::cmp::Reverse(p.total_cpu_nano_cores));
             top_cpu_pods = all_pods.iter().take(5).cloned().collect();
 
             // Sort by memory and get top 5
-            all_pods.sort_by(|a, b| b.total_memory_bytes.cmp(&a.total_memory_bytes));
+            all_pods.sort_by_key(|p| std::cmp::Reverse(p.total_memory_bytes));
             top_memory_pods = all_pods.iter().take(5).cloned().collect();
         }
     }
