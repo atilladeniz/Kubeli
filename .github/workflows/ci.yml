@@ -44,6 +44,14 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - name: Setup Node.js
+        # Astro >=6 requires Node >=22.12. Bun does not override the runtime
+        # of the astro CLI's `#!/usr/bin/env node` shebang, so we still need
+        # a matching system node alongside bun.
+        uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
 
