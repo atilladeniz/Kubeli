@@ -16,6 +16,22 @@ use tokio::sync::RwLock;
 
 use super::config::KubeConfig as ParsedKubeConfig;
 
+/// Apply timeout policy for the shared Kubernetes client.
+///
+/// `read_timeout` and `write_timeout` are intentionally left unset: in
+/// `kube-client` they are forwarded to `hyper-timeout`, which applies them
+/// per read/write on the underlying I/O. Any non-zero value tears down
+/// otherwise-healthy long-lived streams (`pods.log_stream`, `pods.exec`)
+/// the moment the peer goes idle for that long. See issue #292.
+///
+/// Per-request deadlines for non-streaming calls are layered on top with
+/// `tokio::time::timeout` (see `test_connection`).
+fn apply_shared_client_timeouts(config: &mut Config) {
+    config.connect_timeout = Some(Duration::from_secs(10));
+    config.read_timeout = None;
+    config.write_timeout = None;
+}
+
 /// Thread-safe Kubernetes client manager
 pub struct KubeClientManager {
     client: Arc<RwLock<Option<Client>>>,
@@ -104,16 +120,18 @@ impl KubeClientManager {
         }
     }
 
-    /// Initialize the client from the default kubeconfig
-    #[allow(dead_code)] // May be used in future features (e.g., Resource Detail Views)
+    /// Initialize the client from the default kubeconfig.
+    ///
+    /// Used by the MCP server (`mcp::server::McpServerState::connect_to_cluster`)
+    /// where there is no UI to pick a specific context.
     pub async fn init(&self) -> Result<()> {
         let parsed_config = ParsedKubeConfig::load().await?;
         let current_ctx = parsed_config.current_context.clone();
 
-        // Create kube-rs client
-        let config = Config::infer()
+        let mut config = Config::infer()
             .await
             .context("Failed to infer Kubernetes configuration")?;
+        apply_shared_client_timeouts(&mut config);
         let client = Client::try_from(config).context("Failed to create Kubernetes client")?;
 
         // Store everything
@@ -211,10 +229,7 @@ impl KubeClientManager {
         .await
         {
             Ok(mut config) => {
-                // Override default timeouts (kube-rs defaults: connect=30s, read=295s)
-                // read_timeout is per-read (between bytes), safe for streaming
-                config.connect_timeout = Some(Duration::from_secs(10));
-                config.read_timeout = Some(Duration::from_secs(30));
+                apply_shared_client_timeouts(&mut config);
                 steps.push("kube-rs config created successfully".into());
                 config
             }
@@ -414,5 +429,28 @@ mod tests {
         let hint = KubeClientManager::kubeconfig_path_hint(None);
         // Should return something (KUBECONFIG env or ~/.kube/config)
         assert!(hint.is_some(), "must return a default path");
+    }
+
+    /// Regression test for issue #292: log streams and exec sessions were
+    /// being killed after ~30s of inactivity because `read_timeout` was set
+    /// on the shared client and `hyper-timeout` applies it per-read.
+    #[test]
+    fn shared_client_has_no_read_timeout() {
+        let mut config = Config::new("https://example.com".parse().unwrap());
+        apply_shared_client_timeouts(&mut config);
+
+        assert_eq!(
+            config.connect_timeout,
+            Some(Duration::from_secs(10)),
+            "connect_timeout should stay tight for fast feedback on bad clusters"
+        );
+        assert!(
+            config.read_timeout.is_none(),
+            "read_timeout must be unset so idle log/exec streams are not torn down (issue #292)"
+        );
+        assert!(
+            config.write_timeout.is_none(),
+            "write_timeout must be unset so idle exec sessions are not torn down (issue #292)"
+        );
     }
 }
