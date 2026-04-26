@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.72] - 2026-04-26
+
+- Fixed log and exec streams being terminated prematurely
+- Updated dependencies to address security alerts (rustls-webpki, dompurify, astro)
+- Refactored cluster module structure for improved maintainability
+
 ## [0.3.71] - 2026-04-14
 
 - Fixed multi-kubeconfig file connection failure
