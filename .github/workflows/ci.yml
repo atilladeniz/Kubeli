@@ -185,7 +185,7 @@ jobs:
           components: clippy, rustfmt
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
@@ -227,7 +227,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Setup sccache
-        uses: mozilla-actions/sccache-action@v0.0.9
+        uses: mozilla-actions/sccache-action@v0.0.10
 
       - name: Cache Cargo
         uses: Swatinem/rust-cache@v2
