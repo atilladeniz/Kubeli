@@ -2,51 +2,64 @@ import { useState, useCallback, useEffect } from "react";
 import {
   aiCheckCliAvailable,
   aiCheckCodexCliAvailable,
+  aiCheckDroidCliAvailable,
+  aiCheckOpenCodeCliAvailable,
   type CliInfo,
   type CliStatus,
 } from "@/lib/tauri/commands";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { useUIStore, type AiCliProvider } from "@/lib/stores/ui-store";
+
+const errorInfo = (err: unknown): CliInfo => ({
+  status: "error" as CliStatus,
+  version: null,
+  cli_path: null,
+  error_message: String(err),
+});
 
 export function useAiCli(isOpen: boolean) {
   const { settings, updateSettings } = useUIStore();
   const [claudeCliInfo, setClaudeCliInfo] = useState<CliInfo | null>(null);
   const [codexCliInfo, setCodexCliInfo] = useState<CliInfo | null>(null);
+  const [opencodeCliInfo, setOpencodeCliInfo] = useState<CliInfo | null>(null);
+  const [droidCliInfo, setDroidCliInfo] = useState<CliInfo | null>(null);
   const [checking, setChecking] = useState(false);
 
   const checkClis = useCallback(async () => {
     setChecking(true);
     try {
-      const [claudeInfo, codexInfo] = await Promise.all([
-        aiCheckCliAvailable().catch((err) => ({
-          status: "error" as CliStatus,
-          version: null,
-          cli_path: null,
-          error_message: String(err),
-        })),
-        aiCheckCodexCliAvailable().catch((err) => ({
-          status: "error" as CliStatus,
-          version: null,
-          cli_path: null,
-          error_message: String(err),
-        })),
+      const [claudeInfo, codexInfo, opencodeInfo, droidInfo] = await Promise.all([
+        aiCheckCliAvailable().catch(errorInfo),
+        aiCheckCodexCliAvailable().catch(errorInfo),
+        aiCheckOpenCodeCliAvailable().catch(errorInfo),
+        aiCheckDroidCliAvailable().catch(errorInfo),
       ]);
       setClaudeCliInfo(claudeInfo);
       setCodexCliInfo(codexInfo);
+      setOpencodeCliInfo(opencodeInfo);
+      setDroidCliInfo(droidInfo);
 
-      const claudeAvailable = claudeInfo.status === "authenticated";
-      const codexAvailable = codexInfo.status === "authenticated";
-      const currentProvider = settings.aiCliProvider || "claude";
+      const availability: Record<AiCliProvider, boolean> = {
+        claude: claudeInfo.status === "authenticated",
+        codex: codexInfo.status === "authenticated",
+        opencode: opencodeInfo.status === "authenticated",
+        droid: droidInfo.status === "authenticated",
+      };
+      const currentProvider: AiCliProvider = settings.aiCliProvider || "claude";
 
-      if (currentProvider === "claude" && !claudeAvailable && codexAvailable) {
-        updateSettings({ aiCliProvider: "codex" });
-      } else if (currentProvider === "codex" && !codexAvailable && claudeAvailable) {
-        updateSettings({ aiCliProvider: "claude" });
-      } else if (!settings.aiCliProvider) {
-        if (claudeAvailable) {
-          updateSettings({ aiCliProvider: "claude" });
-        } else if (codexAvailable) {
-          updateSettings({ aiCliProvider: "codex" });
-        }
+      // If the persisted provider is unavailable but another one is, switch to
+      // the first available — preference order: claude, opencode, codex, droid.
+      const fallbackOrder: AiCliProvider[] = [
+        "claude",
+        "opencode",
+        "codex",
+        "droid",
+      ];
+      const firstAvailable = fallbackOrder.find((p) => availability[p]);
+
+      if (!availability[currentProvider] && firstAvailable) {
+        updateSettings({ aiCliProvider: firstAvailable });
+      } else if (!settings.aiCliProvider && firstAvailable) {
+        updateSettings({ aiCliProvider: firstAvailable });
       }
     } catch (err) {
       console.error("Failed to check AI CLIs:", err);
@@ -56,14 +69,31 @@ export function useAiCli(isOpen: boolean) {
   }, [settings.aiCliProvider, updateSettings]);
 
   useEffect(() => {
-    if (isOpen && !claudeCliInfo && !codexCliInfo && !checking) {
+    if (
+      isOpen &&
+      !claudeCliInfo &&
+      !codexCliInfo &&
+      !opencodeCliInfo &&
+      !droidCliInfo &&
+      !checking
+    ) {
       checkClis();
     }
-  }, [isOpen, claudeCliInfo, codexCliInfo, checking, checkClis]);
+  }, [
+    isOpen,
+    claudeCliInfo,
+    codexCliInfo,
+    opencodeCliInfo,
+    droidCliInfo,
+    checking,
+    checkClis,
+  ]);
 
   return {
     claudeCliInfo,
     codexCliInfo,
+    opencodeCliInfo,
+    droidCliInfo,
     checking,
     checkClis,
   };

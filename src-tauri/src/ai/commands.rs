@@ -1,5 +1,7 @@
 use super::agent_manager::{AgentManager, AiCliProvider};
-use super::cli_detector::{ClaudeCliInfo, CliDetector, CliStatus, CodexCliInfo};
+use super::cli_detector::{
+    ClaudeCliInfo, CliDetector, CliStatus, CodexCliInfo, DroidCliInfo, OpenCodeCliInfo,
+};
 use super::context_builder::{ClusterContext, ContextBuilder};
 use crate::k8s::AppState;
 use serde::{Deserialize, Serialize};
@@ -14,6 +16,10 @@ pub struct AIConfigState {
     claude_cli_info: RwLock<Option<ClaudeCliInfo>>,
     /// Cached Codex CLI info
     codex_cli_info: RwLock<Option<CodexCliInfo>>,
+    /// Cached OpenCode CLI info
+    opencode_cli_info: RwLock<Option<OpenCodeCliInfo>>,
+    /// Cached Droid CLI info
+    droid_cli_info: RwLock<Option<DroidCliInfo>>,
 }
 
 impl AIConfigState {
@@ -22,6 +28,8 @@ impl AIConfigState {
             api_key: RwLock::new(None),
             claude_cli_info: RwLock::new(None),
             codex_cli_info: RwLock::new(None),
+            opencode_cli_info: RwLock::new(None),
+            droid_cli_info: RwLock::new(None),
         }
     }
 
@@ -59,6 +67,26 @@ impl AIConfigState {
 
     pub fn set_cached_codex_cli_info(&self, info: CodexCliInfo) {
         if let Ok(mut cli_info) = self.codex_cli_info.write() {
+            *cli_info = Some(info);
+        }
+    }
+
+    pub fn get_cached_opencode_cli_info(&self) -> Option<OpenCodeCliInfo> {
+        self.opencode_cli_info.read().ok().and_then(|i| i.clone())
+    }
+
+    pub fn set_cached_opencode_cli_info(&self, info: OpenCodeCliInfo) {
+        if let Ok(mut cli_info) = self.opencode_cli_info.write() {
+            *cli_info = Some(info);
+        }
+    }
+
+    pub fn get_cached_droid_cli_info(&self) -> Option<DroidCliInfo> {
+        self.droid_cli_info.read().ok().and_then(|i| i.clone())
+    }
+
+    pub fn set_cached_droid_cli_info(&self, info: DroidCliInfo) {
+        if let Ok(mut cli_info) = self.droid_cli_info.write() {
             *cli_info = Some(info);
         }
     }
@@ -221,6 +249,146 @@ pub fn ai_get_codex_auth_status(
             cli_version: None,
             cli_path: None,
             error: Some("Codex CLI status not checked yet".to_string()),
+        }),
+    }
+}
+
+// ============================================================================
+// OpenCode CLI Commands
+// ============================================================================
+
+/// Check if OpenCode CLI is available
+#[tauri::command]
+pub async fn ai_check_opencode_cli_available(
+    ai_state: State<'_, AIConfigState>,
+) -> Result<OpenCodeCliInfo, String> {
+    let info = CliDetector::check_opencode_cli_available().await;
+    ai_state.set_cached_opencode_cli_info(info.clone());
+    Ok(info)
+}
+
+/// Verify OpenCode authentication status
+#[tauri::command]
+pub async fn ai_verify_opencode_authentication(
+    ai_state: State<'_, AIConfigState>,
+) -> Result<AIAuthStatus, String> {
+    let cli_info = CliDetector::check_opencode_cli_available().await;
+    ai_state.set_cached_opencode_cli_info(cli_info.clone());
+
+    let has_api_key = ai_state.get_api_key().is_some();
+
+    let cli_authenticated = if let Some(ref path) = cli_info.cli_path {
+        CliDetector::verify_opencode_authentication(path)
+            .await
+            .unwrap_or(false)
+    } else {
+        false
+    };
+
+    Ok(AIAuthStatus {
+        cli_available: cli_info.cli_path.is_some(),
+        cli_authenticated,
+        has_api_key,
+        cli_version: cli_info.version,
+        cli_path: cli_info.cli_path,
+        error: cli_info.error_message,
+    })
+}
+
+/// Get OpenCode authentication status from cache
+#[tauri::command]
+pub fn ai_get_opencode_auth_status(
+    ai_state: State<'_, AIConfigState>,
+) -> Result<AIAuthStatus, String> {
+    let cli_info = ai_state.get_cached_opencode_cli_info();
+    let has_api_key = ai_state.get_api_key().is_some();
+
+    match cli_info {
+        Some(info) => Ok(AIAuthStatus {
+            cli_available: info.cli_path.is_some(),
+            cli_authenticated: info.status == CliStatus::Authenticated,
+            has_api_key,
+            cli_version: info.version,
+            cli_path: info.cli_path,
+            error: info.error_message,
+        }),
+        None => Ok(AIAuthStatus {
+            cli_available: false,
+            cli_authenticated: false,
+            has_api_key,
+            cli_version: None,
+            cli_path: None,
+            error: Some("OpenCode CLI status not checked yet".to_string()),
+        }),
+    }
+}
+
+// ============================================================================
+// Droid CLI Commands (Factory.ai)
+// ============================================================================
+
+/// Check if Droid CLI is available
+#[tauri::command]
+pub async fn ai_check_droid_cli_available(
+    ai_state: State<'_, AIConfigState>,
+) -> Result<DroidCliInfo, String> {
+    let info = CliDetector::check_droid_cli_available().await;
+    ai_state.set_cached_droid_cli_info(info.clone());
+    Ok(info)
+}
+
+/// Verify Droid authentication status
+#[tauri::command]
+pub async fn ai_verify_droid_authentication(
+    ai_state: State<'_, AIConfigState>,
+) -> Result<AIAuthStatus, String> {
+    let cli_info = CliDetector::check_droid_cli_available().await;
+    ai_state.set_cached_droid_cli_info(cli_info.clone());
+
+    let has_api_key = ai_state.get_api_key().is_some();
+
+    let cli_authenticated = if let Some(ref path) = cli_info.cli_path {
+        CliDetector::verify_droid_authentication(path)
+            .await
+            .unwrap_or(false)
+    } else {
+        false
+    };
+
+    Ok(AIAuthStatus {
+        cli_available: cli_info.cli_path.is_some(),
+        cli_authenticated,
+        has_api_key,
+        cli_version: cli_info.version,
+        cli_path: cli_info.cli_path,
+        error: cli_info.error_message,
+    })
+}
+
+/// Get Droid authentication status from cache
+#[tauri::command]
+pub fn ai_get_droid_auth_status(
+    ai_state: State<'_, AIConfigState>,
+) -> Result<AIAuthStatus, String> {
+    let cli_info = ai_state.get_cached_droid_cli_info();
+    let has_api_key = ai_state.get_api_key().is_some();
+
+    match cli_info {
+        Some(info) => Ok(AIAuthStatus {
+            cli_available: info.cli_path.is_some(),
+            cli_authenticated: info.status == CliStatus::Authenticated,
+            has_api_key,
+            cli_version: info.version,
+            cli_path: info.cli_path,
+            error: info.error_message,
+        }),
+        None => Ok(AIAuthStatus {
+            cli_available: false,
+            cli_authenticated: false,
+            has_api_key,
+            cli_version: None,
+            cli_path: None,
+            error: Some("Droid CLI status not checked yet".to_string()),
         }),
     }
 }

@@ -1,25 +1,31 @@
 "use client";
 
 import { cn } from "@/lib/utils";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { useUIStore, type AiCliProvider } from "@/lib/stores/ui-store";
+
+const STYLES: Record<AiCliProvider, { className: string; label: string }> = {
+  claude: { className: "bg-orange-500/10 text-orange-500", label: "Claude" },
+  codex: { className: "bg-emerald-500/10 text-emerald-500", label: "Codex" },
+  opencode: { className: "bg-sky-500/10 text-sky-500", label: "OpenCode" },
+  droid: { className: "bg-violet-500/10 text-violet-500", label: "Droid" },
+};
 
 /**
- * Badge showing which AI CLI provider is being used (Claude or Codex).
+ * Badge showing which AI CLI provider is being used.
  */
 export function ProviderBadge() {
   const { settings } = useUIStore();
-  const provider = settings.aiCliProvider || "claude";
+  const provider: AiCliProvider = settings.aiCliProvider || "claude";
+  const style = STYLES[provider] ?? STYLES.claude;
 
   return (
     <span
       className={cn(
         "text-[9px] font-medium px-1.5 py-0.5 rounded-full",
-        provider === "claude"
-          ? "bg-orange-500/10 text-orange-500"
-          : "bg-emerald-500/10 text-emerald-500"
+        style.className
       )}
     >
-      {provider === "claude" ? "Claude" : "Codex"}
+      {style.label}
     </span>
   );
 }

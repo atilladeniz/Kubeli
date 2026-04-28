@@ -143,6 +143,20 @@ pub enum AiCliProvider {
     #[default]
     Claude,
     Codex,
+    #[serde(rename = "opencode")]
+    OpenCode,
+    Droid,
+}
+
+impl AiCliProvider {
+    fn display_name(self) -> &'static str {
+        match self {
+            Self::Claude => "Claude",
+            Self::Codex => "Codex",
+            Self::OpenCode => "OpenCode",
+            Self::Droid => "Droid",
+        }
+    }
 }
 
 /// Active agent session
@@ -167,6 +181,10 @@ pub struct AgentManager {
     claude_cli_path: RwLock<Option<String>>,
     /// Codex CLI path cache
     codex_cli_path: RwLock<Option<String>>,
+    /// OpenCode CLI path cache
+    opencode_cli_path: RwLock<Option<String>>,
+    /// Droid CLI path cache
+    droid_cli_path: RwLock<Option<String>>,
     /// Permission checker for tool executions
     permission_checker: SharedPermissionChecker,
 }
@@ -177,6 +195,8 @@ impl AgentManager {
             sessions: RwLock::new(HashMap::new()),
             claude_cli_path: RwLock::new(None),
             codex_cli_path: RwLock::new(None),
+            opencode_cli_path: RwLock::new(None),
+            droid_cli_path: RwLock::new(None),
             permission_checker: crate::ai::permissions::create_permission_checker(),
         }
     }
@@ -238,6 +258,8 @@ impl AgentManager {
         match provider {
             AiCliProvider::Claude => self.get_claude_cli_path().await,
             AiCliProvider::Codex => self.get_codex_cli_path().await,
+            AiCliProvider::OpenCode => self.get_opencode_cli_path().await,
+            AiCliProvider::Droid => self.get_droid_cli_path().await,
         }
     }
 
@@ -284,6 +306,48 @@ impl AgentManager {
             Err(info
                 .error_message
                 .unwrap_or_else(|| "Codex CLI not found".to_string()))
+        }
+    }
+
+    /// Get or detect OpenCode CLI path
+    async fn get_opencode_cli_path(&self) -> Result<String, String> {
+        {
+            let cached = self.opencode_cli_path.read().await;
+            if let Some(path) = cached.as_ref() {
+                return Ok(path.clone());
+            }
+        }
+
+        let info = super::cli_detector::CliDetector::check_opencode_cli_available().await;
+        if let Some(path) = info.cli_path {
+            let mut cache = self.opencode_cli_path.write().await;
+            *cache = Some(path.clone());
+            Ok(path)
+        } else {
+            Err(info
+                .error_message
+                .unwrap_or_else(|| "OpenCode CLI not found".to_string()))
+        }
+    }
+
+    /// Get or detect Droid CLI path
+    async fn get_droid_cli_path(&self) -> Result<String, String> {
+        {
+            let cached = self.droid_cli_path.read().await;
+            if let Some(path) = cached.as_ref() {
+                return Ok(path.clone());
+            }
+        }
+
+        let info = super::cli_detector::CliDetector::check_droid_cli_available().await;
+        if let Some(path) = info.cli_path {
+            let mut cache = self.droid_cli_path.write().await;
+            *cache = Some(path.clone());
+            Ok(path)
+        } else {
+            Err(info
+                .error_message
+                .unwrap_or_else(|| "Droid CLI not found".to_string()))
         }
     }
 
@@ -427,12 +491,51 @@ impl AgentManager {
                             args.push(full_message);
                             args
                         }
+                        AiCliProvider::OpenCode => {
+                            // OpenCode: `opencode run --format json --dangerously-skip-permissions <prompt>`
+                            // emits JSONL on stdout; system prompt is concatenated into the prompt
+                            // because `opencode run` has no dedicated --system-prompt flag.
+                            let mut args = vec![
+                                "run".to_string(),
+                                "--format".to_string(),
+                                "json".to_string(),
+                                "--dangerously-skip-permissions".to_string(),
+                            ];
+
+                            let full_message = if let Some(ref prompt) = system_prompt {
+                                format!("{}\n\nUser request: {}", prompt, user_message)
+                            } else {
+                                user_message.clone()
+                            };
+
+                            args.push(full_message);
+                            args
+                        }
+                        AiCliProvider::Droid => {
+                            // Droid (Factory.ai): `droid exec --output-format stream-json
+                            //   --auto high --skip-permissions-unsafe <prompt>`
+                            // emits Claude-Code-shaped JSONL events.
+                            let mut args = vec![
+                                "exec".to_string(),
+                                "--output-format".to_string(),
+                                "stream-json".to_string(),
+                                "--auto".to_string(),
+                                "high".to_string(),
+                                "--skip-permissions-unsafe".to_string(),
+                            ];
+
+                            let full_message = if let Some(ref prompt) = system_prompt {
+                                format!("{}\n\nUser request: {}", prompt, user_message)
+                            } else {
+                                user_message.clone()
+                            };
+
+                            args.push(full_message);
+                            args
+                        }
                     };
 
-                    let provider_name = match provider {
-                        AiCliProvider::Claude => "Claude",
-                        AiCliProvider::Codex => "Codex",
-                    };
+                    let provider_name = provider.display_name();
 
                     tracing::debug!("Spawning {} with args: {:?}", provider_name, args);
 
@@ -487,7 +590,25 @@ impl AgentManager {
                                                 &app,
                                                 &event_name,
                                                 stdout,
-                                                None, // stderr already captured above
+                                                None,
+                                            )
+                                            .await;
+                                        }
+                                        AiCliProvider::OpenCode => {
+                                            Self::process_opencode_output(
+                                                &app,
+                                                &event_name,
+                                                stdout,
+                                                None,
+                                            )
+                                            .await;
+                                        }
+                                        AiCliProvider::Droid => {
+                                            Self::process_droid_output(
+                                                &app,
+                                                &event_name,
+                                                stdout,
+                                                None,
                                             )
                                             .await;
                                         }
@@ -762,6 +883,274 @@ impl AgentManager {
         }
     }
 
+    /// Process stdout from OpenCode CLI (JSONL with `part`-wrapped events)
+    async fn process_opencode_output(
+        app: &AppHandle,
+        event_name: &str,
+        stdout: tokio::process::ChildStdout,
+        stderr: Option<tokio::process::ChildStderr>,
+    ) {
+        let mut stdout_reader = BufReader::new(stdout).lines();
+
+        if let Some(stderr) = stderr {
+            tokio::spawn(async move {
+                let mut stderr_reader = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = stderr_reader.next_line().await {
+                    if !line.trim().is_empty() {
+                        tracing::debug!("OpenCode stderr: {}", line);
+                    }
+                }
+            });
+        }
+
+        let mut thinking_cleared = false;
+
+        while let Ok(Some(line)) = stdout_reader.next_line().await {
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            tracing::debug!("OpenCode output: {}", line);
+
+            if !line.starts_with('{') {
+                if !thinking_cleared {
+                    let _ = app.emit(event_name, AIEvent::Thinking { active: false });
+                    thinking_cleared = true;
+                }
+                let _ = app.emit(
+                    event_name,
+                    AIEvent::MessageChunk {
+                        content: format!("{}\n", line),
+                        done: false,
+                    },
+                );
+                continue;
+            }
+
+            let Ok(json) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
+
+            let event_type = json.get("type").and_then(|v| v.as_str()).unwrap_or("");
+
+            // Clear thinking on the first event
+            if !thinking_cleared {
+                let _ = app.emit(event_name, AIEvent::Thinking { active: false });
+                thinking_cleared = true;
+            }
+
+            match event_type {
+                "step_start" | "step.start" => {
+                    // No-op: indicates a new reasoning/tool step
+                }
+                "text" => {
+                    // OpenCode emits the final text inside `part.text`.
+                    let text = json
+                        .get("part")
+                        .and_then(|p| p.get("text"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("");
+                    if !text.is_empty() {
+                        let _ = app.emit(
+                            event_name,
+                            AIEvent::MessageChunk {
+                                content: text.to_string(),
+                                done: false,
+                            },
+                        );
+                    }
+                }
+                "tool_use" | "tool.use" => {
+                    let tool_name = json
+                        .get("part")
+                        .and_then(|p| p.get("tool"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("tool")
+                        .to_string();
+
+                    let state = json.get("part").and_then(|p| p.get("state"));
+                    let status = state
+                        .and_then(|s| s.get("status"))
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("running");
+                    let normalized_status = match status {
+                        "completed" => "completed",
+                        "error" => "failed",
+                        _ => "running",
+                    };
+
+                    let output = state
+                        .and_then(|s| s.get("output"))
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+
+                    let _ = app.emit(
+                        event_name,
+                        AIEvent::ToolExecution {
+                            tool_name,
+                            status: normalized_status.to_string(),
+                            output,
+                        },
+                    );
+                }
+                "step_finish" | "step.finish" => {
+                    // Logged for debugging; UI signals "done" via the final MessageChunk.
+                    tracing::debug!("OpenCode step finished");
+                }
+                "error" | "session.error" => {
+                    let message = json
+                        .get("error")
+                        .and_then(|e| e.get("data"))
+                        .and_then(|d| d.get("message"))
+                        .and_then(|v| v.as_str())
+                        .or_else(|| json.get("message").and_then(|v| v.as_str()))
+                        .unwrap_or("Unknown OpenCode error")
+                        .to_string();
+                    let _ = app.emit(event_name, AIEvent::Error { message });
+                }
+                _ => {
+                    tracing::debug!("OpenCode event type: {}", event_type);
+                }
+            }
+        }
+    }
+
+    /// Process stdout from Droid CLI (Claude-Code-shaped JSONL)
+    async fn process_droid_output(
+        app: &AppHandle,
+        event_name: &str,
+        stdout: tokio::process::ChildStdout,
+        stderr: Option<tokio::process::ChildStderr>,
+    ) {
+        let mut stdout_reader = BufReader::new(stdout).lines();
+
+        if let Some(stderr) = stderr {
+            tokio::spawn(async move {
+                let mut stderr_reader = BufReader::new(stderr).lines();
+                while let Ok(Some(line)) = stderr_reader.next_line().await {
+                    if !line.trim().is_empty() {
+                        tracing::debug!("Droid stderr: {}", line);
+                    }
+                }
+            });
+        }
+
+        let mut thinking_cleared = false;
+
+        while let Ok(Some(line)) = stdout_reader.next_line().await {
+            if line.trim().is_empty() {
+                continue;
+            }
+
+            tracing::debug!("Droid output: {}", line);
+
+            if !line.starts_with('{') {
+                if !thinking_cleared {
+                    let _ = app.emit(event_name, AIEvent::Thinking { active: false });
+                    thinking_cleared = true;
+                }
+                let _ = app.emit(
+                    event_name,
+                    AIEvent::MessageChunk {
+                        content: format!("{}\n", line),
+                        done: false,
+                    },
+                );
+                continue;
+            }
+
+            let Ok(json) = serde_json::from_str::<Value>(&line) else {
+                continue;
+            };
+
+            let event_type = json.get("type").and_then(|v| v.as_str()).unwrap_or("");
+
+            if !thinking_cleared {
+                let _ = app.emit(event_name, AIEvent::Thinking { active: false });
+                thinking_cleared = true;
+            }
+
+            match event_type {
+                "system" => {
+                    let subtype = json.get("subtype").and_then(|v| v.as_str()).unwrap_or("");
+                    tracing::debug!("Droid system event: {}", subtype);
+                }
+                "message" => {
+                    let role = json.get("role").and_then(|v| v.as_str()).unwrap_or("");
+                    if role == "assistant" {
+                        let text = json.get("text").and_then(|v| v.as_str()).unwrap_or("");
+                        if !text.is_empty() {
+                            let _ = app.emit(
+                                event_name,
+                                AIEvent::MessageChunk {
+                                    content: text.to_string(),
+                                    done: false,
+                                },
+                            );
+                        }
+                    }
+                }
+                "tool_call" => {
+                    let tool_name = json
+                        .get("toolName")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("tool")
+                        .to_string();
+                    let _ = app.emit(
+                        event_name,
+                        AIEvent::ToolExecution {
+                            tool_name,
+                            status: "running".to_string(),
+                            output: None,
+                        },
+                    );
+                }
+                "tool_result" => {
+                    let is_error = json
+                        .get("isError")
+                        .and_then(|v| v.as_bool())
+                        .unwrap_or(false);
+                    let value = json
+                        .get("value")
+                        .and_then(|v| v.as_str())
+                        .map(|s| s.to_string());
+                    let _ = app.emit(
+                        event_name,
+                        AIEvent::ToolExecution {
+                            tool_name: "tool".to_string(),
+                            status: if is_error { "failed" } else { "completed" }.to_string(),
+                            output: value,
+                        },
+                    );
+                }
+                "completion" => {
+                    let final_text = json.get("finalText").and_then(|v| v.as_str()).unwrap_or("");
+                    if !final_text.is_empty() {
+                        // Emit any trailing text not already covered by `message` events.
+                        let _ = app.emit(
+                            event_name,
+                            AIEvent::MessageChunk {
+                                content: final_text.to_string(),
+                                done: false,
+                            },
+                        );
+                    }
+                }
+                "error" => {
+                    let message = json
+                        .get("message")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or("Unknown Droid error")
+                        .to_string();
+                    let _ = app.emit(event_name, AIEvent::Error { message });
+                }
+                _ => {
+                    tracing::debug!("Droid event type: {}", event_type);
+                }
+            }
+        }
+    }
+
     /// Handle a parsed streaming message from Claude
     async fn handle_stream_message(app: &AppHandle, event_name: &str, msg: ClaudeStreamMessage) {
         match msg {
@@ -948,5 +1337,103 @@ mod tests {
         assert!(!is_transient_error("Invalid API key"));
         assert!(!is_transient_error("Not found"));
         assert!(!is_transient_error(""));
+    }
+
+    #[test]
+    fn test_provider_serialization() {
+        // The frontend expects these exact lowercase tags on the wire.
+        assert_eq!(
+            serde_json::to_string(&AiCliProvider::Claude).unwrap(),
+            "\"claude\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AiCliProvider::Codex).unwrap(),
+            "\"codex\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AiCliProvider::OpenCode).unwrap(),
+            "\"opencode\""
+        );
+        assert_eq!(
+            serde_json::to_string(&AiCliProvider::Droid).unwrap(),
+            "\"droid\""
+        );
+    }
+
+    #[test]
+    fn test_provider_deserialization_roundtrip() {
+        for variant in [
+            AiCliProvider::Claude,
+            AiCliProvider::Codex,
+            AiCliProvider::OpenCode,
+            AiCliProvider::Droid,
+        ] {
+            let json = serde_json::to_string(&variant).unwrap();
+            let parsed: AiCliProvider = serde_json::from_str(&json).unwrap();
+            assert_eq!(parsed, variant);
+        }
+    }
+
+    /// Verify the field paths the OpenCode parser reads exist in a representative
+    /// JSONL line. Pinning the schema here means the parser will fail loud if
+    /// upstream changes the wire format, instead of silently dropping events.
+    #[test]
+    fn test_opencode_text_event_field_paths() {
+        let line = r#"{"type":"text","timestamp":1735000000123,"sessionID":"ses_abc","part":{"id":"prt_1","type":"text","text":"Hello world"}}"#;
+        let json: Value = serde_json::from_str(line).unwrap();
+        assert_eq!(json.get("type").and_then(|v| v.as_str()), Some("text"));
+        assert_eq!(
+            json.get("part")
+                .and_then(|p| p.get("text"))
+                .and_then(|v| v.as_str()),
+            Some("Hello world")
+        );
+    }
+
+    #[test]
+    fn test_opencode_tool_use_event_field_paths() {
+        let line = r#"{"type":"tool_use","sessionID":"ses_abc","part":{"callID":"call_1","tool":"bash","state":{"status":"completed","input":{"command":"ls"},"output":"file.txt\n"}}}"#;
+        let json: Value = serde_json::from_str(line).unwrap();
+        assert_eq!(
+            json.get("part")
+                .and_then(|p| p.get("tool"))
+                .and_then(|v| v.as_str()),
+            Some("bash")
+        );
+        let state = json.get("part").and_then(|p| p.get("state")).unwrap();
+        assert_eq!(
+            state.get("status").and_then(|v| v.as_str()),
+            Some("completed")
+        );
+        assert_eq!(
+            state.get("output").and_then(|v| v.as_str()),
+            Some("file.txt\n")
+        );
+    }
+
+    /// Same idea for Droid's Claude-Code-shaped JSONL.
+    #[test]
+    fn test_droid_message_event_field_paths() {
+        let line = r#"{"type":"message","role":"assistant","id":"m1","text":"Hi from Droid","timestamp":1735000001,"session_id":"uuid"}"#;
+        let json: Value = serde_json::from_str(line).unwrap();
+        assert_eq!(json.get("type").and_then(|v| v.as_str()), Some("message"));
+        assert_eq!(json.get("role").and_then(|v| v.as_str()), Some("assistant"));
+        assert_eq!(
+            json.get("text").and_then(|v| v.as_str()),
+            Some("Hi from Droid")
+        );
+    }
+
+    #[test]
+    fn test_droid_tool_call_and_result_field_paths() {
+        let call =
+            r#"{"type":"tool_call","id":"t1","toolName":"bash","parameters":{"command":"ls"}}"#;
+        let json: Value = serde_json::from_str(call).unwrap();
+        assert_eq!(json.get("toolName").and_then(|v| v.as_str()), Some("bash"));
+
+        let result = r#"{"type":"tool_result","id":"t1","isError":false,"value":"output"}"#;
+        let json: Value = serde_json::from_str(result).unwrap();
+        assert_eq!(json.get("isError").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(json.get("value").and_then(|v| v.as_str()), Some("output"));
     }
 }

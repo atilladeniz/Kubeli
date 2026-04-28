@@ -148,6 +148,8 @@ impl Default for CliInfo {
 /// Type aliases for specific CLI implementations
 pub type ClaudeCliInfo = CliInfo;
 pub type CodexCliInfo = CliInfo;
+pub type OpenCodeCliInfo = CliInfo;
+pub type DroidCliInfo = CliInfo;
 
 /// Detect AI CLI installations (Claude Code and Codex)
 pub struct CliDetector;
@@ -545,6 +547,247 @@ impl CliDetector {
 
         Ok(output.status.success())
     }
+
+    // ========================================================================
+    // OpenCode CLI Detection (sst/opencode)
+    // ========================================================================
+
+    /// Check if OpenCode CLI is available in PATH
+    pub async fn check_opencode_cli_available() -> OpenCodeCliInfo {
+        let cli_path = Self::find_opencode_cli_path().await;
+
+        let Some(path) = cli_path.clone() else {
+            return OpenCodeCliInfo {
+                status: CliStatus::NotInstalled,
+                version: None,
+                cli_path: None,
+                error_message: Some("OpenCode CLI not found in PATH".to_string()),
+            };
+        };
+
+        match Self::get_simple_cli_version(&path).await {
+            Ok(version) => OpenCodeCliInfo {
+                status: CliStatus::Authenticated,
+                version: Some(version),
+                cli_path,
+                error_message: None,
+            },
+            Err(e) => OpenCodeCliInfo {
+                status: CliStatus::NotAuthenticated,
+                version: None,
+                cli_path,
+                error_message: Some(e),
+            },
+        }
+    }
+
+    /// Find OpenCode CLI path
+    async fn find_opencode_cli_path() -> Option<String> {
+        let home = env::var("HOME").unwrap_or_default();
+
+        // Default install dirs published by sst/opencode
+        let opencode_default = format!("{}/.opencode/bin/opencode", home);
+        let local_bin = format!("{}/.local/bin/opencode", home);
+        let xdg_bin = format!("{}/bin/opencode", home);
+
+        let mut possible_paths = vec![
+            opencode_default,
+            local_bin,
+            xdg_bin,
+            "/opt/homebrew/bin/opencode".to_string(),
+            "/usr/local/bin/opencode".to_string(),
+        ];
+
+        // Honor explicit override if set
+        if let Ok(install_dir) = env::var("OPENCODE_INSTALL_DIR") {
+            possible_paths.insert(0, format!("{}/opencode", install_dir));
+        }
+        if let Ok(xdg_bin_dir) = env::var("XDG_BIN_DIR") {
+            possible_paths.insert(0, format!("{}/opencode", xdg_bin_dir));
+        }
+
+        // npm-based installs
+        possible_paths.push(format!("{}/.npm-global/bin/opencode", home));
+        if let Some(mise_bin) = find_mise_node(&home) {
+            possible_paths.push(format!("{}/opencode", mise_bin));
+        }
+        if let Some(nvm_bin) = find_nvm_node(&home) {
+            possible_paths.push(format!("{}/opencode", nvm_bin));
+        }
+        if let Some(asdf_bin) = find_asdf_node(&home) {
+            possible_paths.push(format!("{}/opencode", asdf_bin));
+        }
+        if let Some(fnm_bin) = find_fnm_node(&home) {
+            possible_paths.push(format!("{}/opencode", fnm_bin));
+        }
+        if let Some(volta_bin) = find_volta_node(&home) {
+            possible_paths.push(format!("{}/opencode", volta_bin));
+        }
+
+        for path in &possible_paths {
+            if std::path::Path::new(path).exists() {
+                return Some(path.clone());
+            }
+        }
+
+        // Fallback: which opencode
+        let extended_path = get_extended_path();
+        let output = Command::new("which")
+            .arg("opencode")
+            .env("PATH", &extended_path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+            .await;
+
+        if let Ok(output) = output {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path.is_empty() {
+                    return Some(path);
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Verify OpenCode authentication by running --help
+    pub async fn verify_opencode_authentication(cli_path: &str) -> Result<bool, String> {
+        Self::verify_simple_authentication(cli_path, "opencode").await
+    }
+
+    // ========================================================================
+    // Droid CLI Detection (Factory.ai)
+    // ========================================================================
+
+    /// Check if Droid CLI is available in PATH
+    pub async fn check_droid_cli_available() -> DroidCliInfo {
+        let cli_path = Self::find_droid_cli_path().await;
+
+        let Some(path) = cli_path.clone() else {
+            return DroidCliInfo {
+                status: CliStatus::NotInstalled,
+                version: None,
+                cli_path: None,
+                error_message: Some("Droid CLI not found in PATH".to_string()),
+            };
+        };
+
+        match Self::get_simple_cli_version(&path).await {
+            Ok(version) => DroidCliInfo {
+                status: CliStatus::Authenticated,
+                version: Some(version),
+                cli_path,
+                error_message: None,
+            },
+            Err(e) => DroidCliInfo {
+                status: CliStatus::NotAuthenticated,
+                version: None,
+                cli_path,
+                error_message: Some(e),
+            },
+        }
+    }
+
+    /// Find Droid CLI path
+    async fn find_droid_cli_path() -> Option<String> {
+        let home = env::var("HOME").unwrap_or_default();
+
+        let mut possible_paths = vec![
+            format!("{}/.local/bin/droid", home),
+            "/opt/homebrew/bin/droid".to_string(),
+            "/usr/local/bin/droid".to_string(),
+            format!("{}/.npm-global/bin/droid", home),
+            format!("{}/.factory/bin/droid", home),
+        ];
+
+        if let Some(mise_bin) = find_mise_node(&home) {
+            possible_paths.push(format!("{}/droid", mise_bin));
+        }
+        if let Some(nvm_bin) = find_nvm_node(&home) {
+            possible_paths.push(format!("{}/droid", nvm_bin));
+        }
+        if let Some(asdf_bin) = find_asdf_node(&home) {
+            possible_paths.push(format!("{}/droid", asdf_bin));
+        }
+        if let Some(fnm_bin) = find_fnm_node(&home) {
+            possible_paths.push(format!("{}/droid", fnm_bin));
+        }
+        if let Some(volta_bin) = find_volta_node(&home) {
+            possible_paths.push(format!("{}/droid", volta_bin));
+        }
+
+        for path in &possible_paths {
+            if std::path::Path::new(path).exists() {
+                return Some(path.clone());
+            }
+        }
+
+        let extended_path = get_extended_path();
+        let output = Command::new("which")
+            .arg("droid")
+            .env("PATH", &extended_path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .output()
+            .await;
+
+        if let Ok(output) = output {
+            if output.status.success() {
+                let path = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                if !path.is_empty() {
+                    return Some(path);
+                }
+            }
+        }
+
+        None
+    }
+
+    /// Verify Droid authentication by running --help
+    pub async fn verify_droid_authentication(cli_path: &str) -> Result<bool, String> {
+        Self::verify_simple_authentication(cli_path, "droid").await
+    }
+
+    // ========================================================================
+    // Shared helpers (work for any CLI that supports --version / --help)
+    // ========================================================================
+
+    async fn get_simple_cli_version(cli_path: &str) -> Result<String, String> {
+        let extended_path = get_extended_path();
+
+        let output = Command::new(cli_path)
+            .arg("--version")
+            .env("PATH", &extended_path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .map_err(|e| format!("Failed to execute CLI: {}", e))?;
+
+        if output.status.success() {
+            Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+        } else {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            Err(format!("CLI returned error: {}", stderr))
+        }
+    }
+
+    async fn verify_simple_authentication(cli_path: &str, name: &str) -> Result<bool, String> {
+        let extended_path = get_extended_path();
+
+        let output = Command::new(cli_path)
+            .arg("--help")
+            .env("PATH", &extended_path)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .map_err(|e| format!("Failed to execute {} CLI: {}", name, e))?;
+
+        Ok(output.status.success())
+    }
 }
 
 #[cfg(test)]
@@ -571,5 +814,19 @@ mod tests {
         let info = CliDetector::check_codex_cli_available().await;
         println!("Codex CLI Status: {:?}", info.status);
         println!("Codex CLI Path: {:?}", info.cli_path);
+    }
+
+    #[tokio::test]
+    async fn test_opencode_cli_detection() {
+        let info = CliDetector::check_opencode_cli_available().await;
+        println!("OpenCode CLI Status: {:?}", info.status);
+        println!("OpenCode CLI Path: {:?}", info.cli_path);
+    }
+
+    #[tokio::test]
+    async fn test_droid_cli_detection() {
+        let info = CliDetector::check_droid_cli_available().await;
+        println!("Droid CLI Status: {:?}", info.status);
+        println!("Droid CLI Path: {:?}", info.cli_path);
     }
 }

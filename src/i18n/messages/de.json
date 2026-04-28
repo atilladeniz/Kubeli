@@ -610,6 +610,8 @@
       "cliStatusDescription": "Status der verfügbaren KI-CLIs",
       "claudeCode": "Claude Code",
       "codex": "Codex (OpenAI)",
+      "opencode": "OpenCode",
+      "droid": "Droid (Factory)",
       "authenticated": "Authentifiziert",
       "notAuthenticated": "Nicht authentifiziert",
       "notInstalled": "Nicht installiert",
@@ -631,6 +633,14 @@
       "installCodexNpm": "Via npm (Empfohlen):",
       "installCodexBrew": "Oder via Homebrew:",
       "installCodexAuth": "Nach der Installation führen Sie codex aus, um sich mit Ihrem ChatGPT-Konto zu authentifizieren.",
+      "installOpencode": "OpenCode CLI installieren:",
+      "installOpencodeScript": "Schnellinstallation (Empfohlen):",
+      "installOpencodeBrew": "Oder via Homebrew:",
+      "installOpencodeNpm": "Via npm:",
+      "installOpencodeAuth": "Nach der Installation `opencode auth login` ausführen, um Ihr Anbieterkonto zu verbinden.",
+      "installDroid": "Droid CLI (Factory.ai) installieren:",
+      "installDroidScript": "Schnellinstallation:",
+      "installDroidAuth": "Nach der Installation einmal `droid` ausführen, um sich anzumelden, oder FACTORY_API_KEY als Umgebungsvariable setzen.",
       "active": "Aktiv"
     },
     "logs": {
