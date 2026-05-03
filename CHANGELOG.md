@@ -2,6 +2,10 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.73] - 2026-05-03
+
+- Added OpenCode and Droid as AI assistant providers
+
 ## [0.3.72] - 2026-04-26
 
 - Fixed log and exec streams being terminated prematurely
