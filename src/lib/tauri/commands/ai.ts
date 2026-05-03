@@ -20,6 +20,8 @@ export interface CliInfo {
 // Backward compatible alias
 export type ClaudeCliInfo = CliInfo;
 export type CodexCliInfo = CliInfo;
+export type OpenCodeCliInfo = CliInfo;
+export type DroidCliInfo = CliInfo;
 
 export interface AIAuthStatus {
   cli_available: boolean;
@@ -60,8 +62,34 @@ export async function aiGetCodexAuthStatus(): Promise<AIAuthStatus> {
   return invoke<AIAuthStatus>("ai_get_codex_auth_status");
 }
 
+// OpenCode CLI commands
+export async function aiCheckOpenCodeCliAvailable(): Promise<OpenCodeCliInfo> {
+  return invoke<OpenCodeCliInfo>("ai_check_opencode_cli_available");
+}
+
+export async function aiVerifyOpenCodeAuthentication(): Promise<AIAuthStatus> {
+  return invoke<AIAuthStatus>("ai_verify_opencode_authentication");
+}
+
+export async function aiGetOpenCodeAuthStatus(): Promise<AIAuthStatus> {
+  return invoke<AIAuthStatus>("ai_get_opencode_auth_status");
+}
+
+// Droid CLI commands (Factory.ai)
+export async function aiCheckDroidCliAvailable(): Promise<DroidCliInfo> {
+  return invoke<DroidCliInfo>("ai_check_droid_cli_available");
+}
+
+export async function aiVerifyDroidAuthentication(): Promise<AIAuthStatus> {
+  return invoke<AIAuthStatus>("ai_verify_droid_authentication");
+}
+
+export async function aiGetDroidAuthStatus(): Promise<AIAuthStatus> {
+  return invoke<AIAuthStatus>("ai_get_droid_auth_status");
+}
+
 // AI Session commands
-export type AiCliProvider = "claude" | "codex";
+export type AiCliProvider = "claude" | "codex" | "opencode" | "droid";
 
 export interface SessionInfo {
   session_id: string;
