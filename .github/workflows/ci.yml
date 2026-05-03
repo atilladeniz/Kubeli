@@ -98,6 +98,22 @@ jobs:
           done
           echo "Landing page deployed to production"
 
+  tauri-versions:
+    name: Tauri Version Sync
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.app == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      - name: Check tauri crate vs @tauri-apps/api versions
+        run: node scripts/check-tauri-versions.mjs
+
   lint-frontend:
     name: Frontend Lint & Type Check
     needs: [detect-changes]
