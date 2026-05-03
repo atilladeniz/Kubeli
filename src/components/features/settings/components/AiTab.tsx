@@ -12,6 +12,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useUIStore, type AiCliProvider } from "@/lib/stores/ui-store";
 import { usePlatform } from "@/lib/hooks/usePlatform";
+import type { CliInfo } from "@/lib/tauri/commands";
 import { SettingSection } from "./SettingSection";
 import { CliStatusCard } from "./CliStatusCard";
 import type { useAiCli } from "../hooks";
@@ -37,6 +38,11 @@ export function AiTab({ aiCli }: AiTabProps) {
     active: t("ai.active"),
   };
 
+  // A provider is selectable once we've confirmed the CLI is on disk.
+  // While checking (info === null) we keep options enabled to avoid flicker.
+  const isUnavailable = (info: CliInfo | null) =>
+    info !== null && info.status === "notinstalled";
+
   return (
     <div className="space-y-6">
       {/* AI CLI Provider Selector */}
@@ -54,10 +60,30 @@ export function AiTab({ aiCli }: AiTabProps) {
             <SelectValue placeholder={t("ai.claudeCode")} />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="claude">{t("ai.claudeCode")}</SelectItem>
-            <SelectItem value="codex">{t("ai.codex")}</SelectItem>
-            <SelectItem value="opencode">{t("ai.opencode")}</SelectItem>
-            <SelectItem value="droid">{t("ai.droid")}</SelectItem>
+            <SelectItem
+              value="claude"
+              disabled={isUnavailable(aiCli.claudeCliInfo)}
+            >
+              {t("ai.claudeCode")}
+            </SelectItem>
+            <SelectItem
+              value="codex"
+              disabled={isUnavailable(aiCli.codexCliInfo)}
+            >
+              {t("ai.codex")}
+            </SelectItem>
+            <SelectItem
+              value="opencode"
+              disabled={isUnavailable(aiCli.opencodeCliInfo)}
+            >
+              {t("ai.opencode")}
+            </SelectItem>
+            <SelectItem
+              value="droid"
+              disabled={isUnavailable(aiCli.droidCliInfo)}
+            >
+              {t("ai.droid")}
+            </SelectItem>
           </SelectContent>
         </Select>
       </SettingSection>
