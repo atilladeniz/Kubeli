@@ -7,7 +7,7 @@ edition = "2021"
 license = "MIT"
 
 [build-dependencies]
-tauri-build = { version = "2.5", features = [] }
+tauri-build = { version = "2.6", features = [] }
 
 [dependencies]
 # Tauri Core
