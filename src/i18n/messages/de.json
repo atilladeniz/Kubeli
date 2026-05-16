@@ -452,7 +452,13 @@
     "stoppedBadge": "{count} gestoppt",
     "clearStopped": "Gestoppte löschen",
     "stopConfirmTitle": "Weiterleitung stoppen?",
-    "stopConfirmDesc": "Möchten Sie die Port-Weiterleitung für {name} wirklich stoppen?"
+    "stopConfirmDesc": "Möchten Sie die Port-Weiterleitung für {name} wirklich stoppen?",
+    "stopFailed": "Port-Weiterleitung konnte nicht gestoppt werden",
+    "columnNamespace": "Namespace",
+    "columnKind": "Art",
+    "columnPorts": "Ports",
+    "deleteConfirmTitle": "Port-Weiterleitung löschen?",
+    "deleteConfirmDesc": "Möchten Sie die Port-Weiterleitung für {name} wirklich löschen? Diese Aktion kann nicht rückgängig gemacht werden."
   },
   "settings": {
     "title": "Einstellungen",

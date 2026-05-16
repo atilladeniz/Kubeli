@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { ArrowRightLeft, Play, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -35,8 +36,14 @@ type RowData =
 
 export function PortForwardsView() {
   const t = useTranslations("portForward");
+  const tc = useTranslations("common");
   const { forwards, stopForward } = usePortForward();
   const [stopDialog, setStopDialog] = useState<{ forwardId: string; name: string } | null>(null);
+  const [deleteDialog, setDeleteDialog] = useState<
+    | { kind: "active"; forwardId: string; name: string }
+    | { kind: "history"; itemId: string; name: string }
+    | null
+  >(null);
 
   const history = usePortForwardStore((s) => s.history);
   const removeHistoryItem = usePortForwardStore((s) => s.removeHistoryItem);
@@ -69,17 +76,23 @@ export function PortForwardsView() {
     return [...historyRows, ...orphanRows];
   }, [forwards, history, currentContext]);
 
-  const handleDeleteActive = async (forwardId: string) => {
-    const histItem = history.find((h) => h.forward_id === forwardId);
-    const stopped = await stopForward(forwardId);
-    if (stopped && histItem) removeHistoryItem(histItem.id);
+  const confirmDelete = async () => {
+    if (!deleteDialog) return;
+    if (deleteDialog.kind === "active") {
+      const histItem = history.find((h) => h.forward_id === deleteDialog.forwardId);
+      const stopped = await stopForward(deleteDialog.forwardId);
+      if (stopped && histItem) removeHistoryItem(histItem.id);
+    } else {
+      removeHistoryItem(deleteDialog.itemId);
+    }
+    setDeleteDialog(null);
   };
 
-  const confirmStop = () => {
-    if (stopDialog) {
-      stopForward(stopDialog.forwardId);
-      setStopDialog(null);
-    }
+  const confirmStop = async () => {
+    if (!stopDialog) return;
+    const stopped = await stopForward(stopDialog.forwardId);
+    setStopDialog(null);
+    if (!stopped) toast.error(t("stopFailed"));
   };
 
   const activeCount = rows.filter((r) => r.kind === "active").length;
@@ -123,12 +136,12 @@ export function PortForwardsView() {
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
-                <TableHead className="w-14 bg-background text-xs font-medium tracking-wider">Status</TableHead>
-                <TableHead className="bg-background text-xs font-medium tracking-wider">Name</TableHead>
-                <TableHead className="bg-background text-xs font-medium tracking-wider">Namespace</TableHead>
-                <TableHead className="bg-background text-xs font-medium tracking-wider">Kind</TableHead>
-                <TableHead className="bg-background text-xs font-medium tracking-wider">Ports</TableHead>
-                <TableHead className="bg-background text-xs font-medium tracking-wider text-right">Actions</TableHead>
+                <TableHead className="w-14 bg-background text-xs font-medium tracking-wider">{tc("status")}</TableHead>
+                <TableHead className="bg-background text-xs font-medium tracking-wider">{tc("name")}</TableHead>
+                <TableHead className="bg-background text-xs font-medium tracking-wider">{t("columnNamespace")}</TableHead>
+                <TableHead className="bg-background text-xs font-medium tracking-wider">{t("columnKind")}</TableHead>
+                <TableHead className="bg-background text-xs font-medium tracking-wider">{t("columnPorts")}</TableHead>
+                <TableHead className="bg-background text-xs font-medium tracking-wider text-right">{tc("actions")}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -138,14 +151,14 @@ export function PortForwardsView() {
                     key={row.forward.forward_id}
                     forward={row.forward}
                     onStop={() => setStopDialog({ forwardId: row.forward.forward_id, name: row.forward.name })}
-                    onDelete={() => handleDeleteActive(row.forward.forward_id)}
+                    onDelete={() => setDeleteDialog({ kind: "active", forwardId: row.forward.forward_id, name: row.forward.name })}
                   />
                 ) : (
                   <HistoryRow
                     key={row.item.id}
                     item={row.item}
                     onRestart={() => restartFromHistory(row.item)}
-                    onDelete={() => removeHistoryItem(row.item.id)}
+                    onDelete={() => setDeleteDialog({ kind: "history", itemId: row.item.id, name: row.item.name })}
                   />
                 )
               )}
@@ -163,12 +176,32 @@ export function PortForwardsView() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
             <AlertDialogAction
               onClick={confirmStop}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {t("stop")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!deleteDialog} onOpenChange={(open) => !open && setDeleteDialog(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("deleteConfirmTitle")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("deleteConfirmDesc", { name: deleteDialog?.name ?? "" })}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{tc("cancel")}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={confirmDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {tc("delete")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

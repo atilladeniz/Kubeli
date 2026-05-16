@@ -452,7 +452,13 @@
     "stoppedBadge": "{count} stopped",
     "clearStopped": "Clear Stopped",
     "stopConfirmTitle": "Stop Port Forward?",
-    "stopConfirmDesc": "Are you sure you want to stop the port forward for {name}?"
+    "stopConfirmDesc": "Are you sure you want to stop the port forward for {name}?",
+    "stopFailed": "Failed to stop port forward",
+    "columnNamespace": "Namespace",
+    "columnKind": "Kind",
+    "columnPorts": "Ports",
+    "deleteConfirmTitle": "Delete Port Forward?",
+    "deleteConfirmDesc": "Are you sure you want to delete the port forward for {name}? This action cannot be undone."
   },
   "settings": {
     "title": "Settings",
