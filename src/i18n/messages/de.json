@@ -439,7 +439,13 @@
     "forward": "Weiterleiten",
     "portNotAvailable": "Port {port} ist nicht verfügbar",
     "portOutOfRange": "Port muss zwischen 1024 und 65535 liegen",
-    "forwardFailed": "Port-Weiterleitung konnte nicht gestartet werden"
+    "forwardFailed": "Port-Weiterleitung konnte nicht gestartet werden",
+    "history": "Verlauf",
+    "noHistory": "Kein Verlauf für diesen Cluster",
+    "noHistoryHint": "Gestoppte und fehlgeschlagene Weiterleitungen erscheinen hier",
+    "startAgain": "Erneut starten",
+    "deleteFromHistory": "Aus Verlauf löschen",
+    "clearClusterHistory": "Verlauf für diesen Cluster löschen"
   },
   "settings": {
     "title": "Einstellungen",

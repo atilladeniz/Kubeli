@@ -2,7 +2,7 @@ import { act } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { usePortForwardStore, getReconnectStartTime } from "../portforward-store";
-import type { PortForwardInfo, PortForwardEvent } from "@/lib/types";
+import type { PortForwardInfo, PortForwardEvent, PortForwardHistoryItem } from "@/lib/types";
 
 // Mock Tauri commands
 const mockPortforwardStart = jest.fn();
@@ -45,6 +45,18 @@ jest.mock("../ui-store", () => ({
   },
 }));
 
+// Mock cluster-store
+jest.mock("../cluster-store", () => ({
+  useClusterStore: {
+    getState: jest.fn(() => ({
+      currentCluster: { context: "test-cluster" },
+    })),
+  },
+}));
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const mockClusterStore = require("../cluster-store").useClusterStore as { getState: jest.Mock };
+
 // Capture the listen callback so we can simulate events
 let listenCallback: ((event: { payload: PortForwardEvent }) => void) | null = null;
 const mockUnlisten = jest.fn();
@@ -73,8 +85,25 @@ const mockForward: PortForwardInfo = {
   pod_uid: "uid-123",
 };
 
+const mockHistoryItem: PortForwardHistoryItem = {
+  id: "hist-test-1",
+  signature: "test-cluster|default|service|test-svc|8080",
+  cluster_context: "test-cluster",
+  forward_id: mockForward.forward_id,
+  namespace: "default",
+  name: "test-svc",
+  target_type: "service",
+  requested_port: 8080,
+  target_port: 8080,
+  local_port: 41587,
+  status: "inactive",
+  started_at: 1000000,
+  updated_at: 1000000,
+};
+
 const defaultState = {
   forwards: [],
+  history: [],
   isLoading: false,
   error: null,
   listeners: new Map(),
@@ -920,6 +949,312 @@ describe("PortForwardStore", () => {
       });
 
       expect(usePortForwardStore.getState().pendingForwardRequest).toBeNull();
+    });
+  });
+
+  describe("history actions", () => {
+    describe("recordHistoryStarted", () => {
+      it("should add a history entry with current cluster context", () => {
+        act(() => {
+          usePortForwardStore.getState().recordHistoryStarted(mockForward);
+        });
+
+        const history = usePortForwardStore.getState().history;
+        expect(history).toHaveLength(1);
+        expect(history[0].cluster_context).toBe("test-cluster");
+        expect(history[0].namespace).toBe("default");
+        expect(history[0].name).toBe("test-svc");
+        expect(history[0].status).toBe("active");
+        expect(history[0].forward_id).toBe(mockForward.forward_id);
+        expect(history[0].started_at).toBeGreaterThan(0);
+      });
+
+      it("should skip recording if there is no current cluster context", () => {
+        mockClusterStore.getState.mockReturnValueOnce({ currentCluster: null });
+
+        act(() => {
+          usePortForwardStore.getState().recordHistoryStarted(mockForward);
+        });
+
+        expect(usePortForwardStore.getState().history).toHaveLength(0);
+      });
+
+      it("should upsert by signature — a second call for the same logical forward updates the row", () => {
+        act(() => {
+          usePortForwardStore.getState().recordHistoryStarted(mockForward);
+          usePortForwardStore.getState().recordHistoryStarted({
+            ...mockForward,
+            forward_id: "new-run-id",
+          });
+        });
+
+        const history = usePortForwardStore.getState().history;
+        expect(history).toHaveLength(1);
+        expect(history[0].forward_id).toBe("new-run-id");
+      });
+
+      it("should preserve original started_at when restarting a port forward", () => {
+        const originalStartedAt = Date.now() - 60000; // 1 minute ago
+
+        // First call: record initial start
+        act(() => {
+          usePortForwardStore.getState().recordHistoryStarted(mockForward);
+        });
+
+        const history1 = usePortForwardStore.getState().history;
+        const initialStartedAt = history1[0].started_at;
+
+        // Simulate waiting
+        const initialUpdatedAt = history1[0].updated_at;
+
+        // Mock time passing - in reality this would be seconds or minutes
+        // Second call: simulate restarting the same forward
+        act(() => {
+          usePortForwardStore.getState().recordHistoryStarted({
+            ...mockForward,
+            forward_id: "restarted-run-id",
+          });
+        });
+
+        const history2 = usePortForwardStore.getState().history;
+        expect(history2).toHaveLength(1);
+
+        // Key assertion: started_at should be preserved from the original start
+        expect(history2[0].started_at).toBe(initialStartedAt);
+
+        // But updated_at should reflect the restart
+        expect(history2[0].updated_at).toBeGreaterThanOrEqual(initialUpdatedAt);
+
+        // forward_id should be updated to the new run
+        expect(history2[0].forward_id).toBe("restarted-run-id");
+      });
+    });
+
+    describe("markHistoryInactive", () => {
+      it("should set status inactive and store stop reason and stopped_at", () => {
+        usePortForwardStore.setState({
+          history: [{ ...mockHistoryItem, status: "active" }],
+        });
+
+        act(() => {
+          usePortForwardStore.getState().markHistoryInactive(mockForward.forward_id, "user");
+        });
+
+        const item = usePortForwardStore.getState().history[0];
+        expect(item.status).toBe("inactive");
+        expect(item.stop_reason).toBe("user");
+        expect(item.stopped_at).toBeDefined();
+      });
+    });
+
+    describe("markHistoryError", () => {
+      it("should set status error, stop_reason error, and store error_message", () => {
+        usePortForwardStore.setState({
+          history: [{ ...mockHistoryItem, status: "active" }],
+        });
+
+        act(() => {
+          usePortForwardStore
+            .getState()
+            .markHistoryError(mockForward.forward_id, "Connection refused");
+        });
+
+        const item = usePortForwardStore.getState().history[0];
+        expect(item.status).toBe("error");
+        expect(item.stop_reason).toBe("error");
+        expect(item.error_message).toBe("Connection refused");
+        expect(item.stopped_at).toBeDefined();
+      });
+    });
+
+    describe("removeHistoryItem", () => {
+      it("should remove only the item matching the given id", () => {
+        const other = { ...mockHistoryItem, id: "hist-2", signature: "sig-2" };
+        usePortForwardStore.setState({ history: [{ ...mockHistoryItem }, other] });
+
+        act(() => {
+          usePortForwardStore.getState().removeHistoryItem("hist-test-1");
+        });
+
+        const history = usePortForwardStore.getState().history;
+        expect(history).toHaveLength(1);
+        expect(history[0].id).toBe("hist-2");
+      });
+    });
+
+    describe("clearHistoryForCurrentCluster", () => {
+      it("should remove entries for the current cluster only, leaving other clusters intact", () => {
+        const otherClusterItem = {
+          ...mockHistoryItem,
+          id: "hist-other",
+          cluster_context: "other-cluster",
+          signature: "other-cluster|default|service|test-svc|8080",
+        };
+        usePortForwardStore.setState({
+          history: [{ ...mockHistoryItem }, otherClusterItem],
+        });
+
+        act(() => {
+          usePortForwardStore.getState().clearHistoryForCurrentCluster();
+        });
+
+        const history = usePortForwardStore.getState().history;
+        expect(history).toHaveLength(1);
+        expect(history[0].cluster_context).toBe("other-cluster");
+      });
+    });
+
+    describe("restartFromHistory", () => {
+      it("should call startForward with saved values and reuse local port when available", async () => {
+        mockPortforwardStart.mockResolvedValue({ ...mockForward, local_port: 41587 });
+        mockPortforwardCheckPort.mockResolvedValue(true);
+
+        await act(async () => {
+          await usePortForwardStore.getState().restartFromHistory(mockHistoryItem);
+        });
+
+        expect(mockPortforwardCheckPort).toHaveBeenCalledWith(41587);
+        expect(mockPortforwardStart).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({
+            namespace: "default",
+            name: "test-svc",
+            target_type: "service",
+            target_port: 8080,
+            local_port: 41587,
+          })
+        );
+      });
+
+      it("should fall back to auto port selection when saved local port is unavailable", async () => {
+        mockPortforwardStart.mockResolvedValue({ ...mockForward, local_port: 55000 });
+        mockPortforwardCheckPort.mockResolvedValue(false);
+
+        await act(async () => {
+          await usePortForwardStore.getState().restartFromHistory(mockHistoryItem);
+        });
+
+        expect(mockPortforwardStart).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({ local_port: undefined })
+        );
+      });
+    });
+
+    describe("startForward records history", () => {
+      it("should add a history entry with both requested_port and resolved target_port", async () => {
+        mockPortforwardStart.mockResolvedValue({
+          ...mockForward,
+          target_port: 3000,
+          local_port: 55555,
+        });
+
+        await act(async () => {
+          await usePortForwardStore
+            .getState()
+            .startForward("default", "test-svc", "service", 8080, undefined, "http");
+        });
+
+        const history = usePortForwardStore.getState().history;
+        expect(history).toHaveLength(1);
+        expect(history[0].requested_port).toBe(8080);
+        expect(history[0].target_port).toBe(3000);
+        expect(history[0].port_name).toBe("http");
+        expect(history[0].status).toBe("active");
+      });
+    });
+  });
+
+  describe("event handling - history", () => {
+    beforeEach(async () => {
+      usePortForwardStore.setState({
+        ...defaultState,
+        forwards: [{ ...mockForward }],
+        history: [{ ...mockHistoryItem, status: "active" }],
+      });
+      await act(async () => {
+        await usePortForwardStore.getState().setupListener(mockForward.forward_id);
+      });
+    });
+
+    it("Stopped marks history inactive with stop_reason user and removes active forward", () => {
+      act(() => {
+        simulateEvent({
+          type: "Stopped",
+          data: { forward_id: mockForward.forward_id },
+        } as PortForwardEvent);
+      });
+
+      const state = usePortForwardStore.getState();
+      expect(state.forwards).toHaveLength(0);
+      expect(state.history[0].status).toBe("inactive");
+      expect(state.history[0].stop_reason).toBe("user");
+      expect(state.history[0].stopped_at).toBeDefined();
+    });
+
+    it("PodDied marks history inactive with stop_reason podDied", () => {
+      act(() => {
+        simulateEvent({
+          type: "PodDied",
+          data: { forward_id: mockForward.forward_id, pod_name: "test-pod-abc" },
+        } as PortForwardEvent);
+      });
+
+      const history = usePortForwardStore.getState().history;
+      expect(history[0].status).toBe("inactive");
+      expect(history[0].stop_reason).toBe("podDied");
+      expect(history[0].stopped_at).toBeDefined();
+    });
+
+    it("Error marks history status error with error_message", () => {
+      act(() => {
+        simulateEvent({
+          type: "Error",
+          data: { forward_id: mockForward.forward_id, message: "Connection refused" },
+        } as PortForwardEvent);
+      });
+
+      const history = usePortForwardStore.getState().history;
+      expect(history[0].status).toBe("error");
+      expect(history[0].error_message).toBe("Connection refused");
+    });
+
+    it("Reconnected updates history pod_name without duplicating the row", () => {
+      act(() => {
+        simulateEvent({
+          type: "Reconnected",
+          data: { forward_id: mockForward.forward_id, new_pod: "test-pod-xyz" },
+        } as PortForwardEvent);
+      });
+
+      const history = usePortForwardStore.getState().history;
+      expect(history).toHaveLength(1);
+      expect(history[0].pod_name).toBe("test-pod-xyz");
+    });
+
+    it("Connected clears stopped_at, error_message and sets status active", () => {
+      usePortForwardStore.setState({
+        history: [
+          {
+            ...mockHistoryItem,
+            status: "inactive",
+            stopped_at: 999999,
+            error_message: "old error",
+          },
+        ],
+      });
+
+      act(() => {
+        simulateEvent({
+          type: "Connected",
+          data: { forward_id: mockForward.forward_id },
+        } as PortForwardEvent);
+      });
+
+      const history = usePortForwardStore.getState().history;
+      expect(history[0].status).toBe("active");
+      expect(history[0].stopped_at).toBeUndefined();
+      expect(history[0].error_message).toBeUndefined();
     });
   });
 });

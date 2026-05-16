@@ -439,7 +439,13 @@
     "forward": "Forward",
     "portNotAvailable": "Port {port} is not available",
     "portOutOfRange": "Port must be between 1024 and 65535",
-    "forwardFailed": "Failed to start port forward"
+    "forwardFailed": "Failed to start port forward",
+    "history": "History",
+    "noHistory": "No history for this cluster",
+    "noHistoryHint": "Stopped and failed forwards will appear here",
+    "startAgain": "Start Again",
+    "deleteFromHistory": "Delete from History",
+    "clearClusterHistory": "Clear History for This Cluster"
   },
   "settings": {
     "title": "Settings",
