@@ -994,8 +994,6 @@ describe("PortForwardStore", () => {
       });
 
       it("should preserve original started_at when restarting a port forward", () => {
-        const originalStartedAt = Date.now() - 60000; // 1 minute ago
-
         // First call: record initial start
         act(() => {
           usePortForwardStore.getState().recordHistoryStarted(mockForward);
@@ -1138,6 +1136,65 @@ describe("PortForwardStore", () => {
           expect.any(String),
           expect.objectContaining({ local_port: undefined })
         );
+      });
+
+      it("should update history with the new forward_id before backend start resolves", async () => {
+        usePortForwardStore.setState({
+          history: [{ ...mockHistoryItem, status: "inactive", stop_reason: "user" }],
+        });
+        mockPortforwardCheckPort.mockResolvedValue(true);
+
+        let capturedForwardId = "";
+        let resolveStart: (value: PortForwardInfo) => void = () => {};
+        mockPortforwardStart.mockImplementation((forwardId: string) => {
+          capturedForwardId = forwardId;
+          return new Promise<PortForwardInfo>((resolve) => {
+            resolveStart = resolve;
+          });
+        });
+
+        let restartPromise!: Promise<PortForwardInfo | null>;
+        await act(async () => {
+          restartPromise = usePortForwardStore.getState().restartFromHistory(mockHistoryItem);
+          await Promise.resolve();
+        });
+
+        const stateDuringRestart = usePortForwardStore.getState();
+        expect(capturedForwardId).not.toBe("");
+        expect(stateDuringRestart.history[0].forward_id).toBe(capturedForwardId);
+        expect(stateDuringRestart.history[0].status).toBe("active");
+        expect(stateDuringRestart.history[0].stop_reason).toBeUndefined();
+        expect(stateDuringRestart.forwards[0].forward_id).toBe(capturedForwardId);
+
+        await act(async () => {
+          resolveStart({ ...mockForward, local_port: 41587 });
+          await restartPromise;
+        });
+      });
+
+      it("should roll back the pre-updated history row when restart fails", async () => {
+        usePortForwardStore.setState({
+          history: [
+            {
+              ...mockHistoryItem,
+              status: "inactive",
+              stop_reason: "user",
+              stopped_at: 12345,
+            },
+          ],
+        });
+        mockPortforwardCheckPort.mockResolvedValue(true);
+        mockPortforwardStart.mockRejectedValue(new Error("Port in use"));
+
+        await act(async () => {
+          await usePortForwardStore.getState().restartFromHistory(mockHistoryItem);
+        });
+
+        const history = usePortForwardStore.getState().history;
+        expect(history[0].forward_id).toBe(mockHistoryItem.forward_id);
+        expect(history[0].status).toBe("inactive");
+        expect(history[0].stop_reason).toBe("user");
+        expect(history[0].stopped_at).toBe(12345);
       });
     });
 

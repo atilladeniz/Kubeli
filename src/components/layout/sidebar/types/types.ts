@@ -133,7 +133,7 @@ export interface PortForwardsSectionProps {
   setIsPortForwardsSectionOpen: (open: boolean) => void;
   onResourceSelect: (resource: ResourceType) => void;
   onOpenForwardInBrowser: (port: number) => void | Promise<void>;
-  stopForward: (forwardId: string) => void | Promise<void>;
+  stopForward: (forwardId: string) => void | Promise<void> | Promise<boolean>;
 }
 
 export interface FavoritesSectionProps {

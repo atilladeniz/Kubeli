@@ -445,7 +445,14 @@
     "noHistoryHint": "Gestoppte und fehlgeschlagene Weiterleitungen erscheinen hier",
     "startAgain": "Erneut starten",
     "deleteFromHistory": "Aus Verlauf löschen",
-    "clearClusterHistory": "Verlauf für diesen Cluster löschen"
+    "clearClusterHistory": "Verlauf für diesen Cluster löschen",
+    "noForwards": "Keine Port-Weiterleitungen",
+    "noForwardsHint": "Starten Sie eine Weiterleitung über Services oder Pods",
+    "activeBadge": "{count} aktiv",
+    "stoppedBadge": "{count} gestoppt",
+    "clearStopped": "Gestoppte löschen",
+    "stopConfirmTitle": "Weiterleitung stoppen?",
+    "stopConfirmDesc": "Möchten Sie die Port-Weiterleitung für {name} wirklich stoppen?"
   },
   "settings": {
     "title": "Einstellungen",

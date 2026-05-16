@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useTranslations } from "next-intl";
 import { ArrowRightLeft, Play, Square, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +34,7 @@ type RowData =
   | { kind: "history"; item: PortForwardHistoryItem };
 
 export function PortForwardsView() {
+  const t = useTranslations("portForward");
   const { forwards, stopForward } = usePortForward();
   const [stopDialog, setStopDialog] = useState<{ forwardId: string; name: string } | null>(null);
 
@@ -44,11 +46,13 @@ export function PortForwardsView() {
 
   // Merge active forwards + stopped history, ordered by start time (oldest first).
   // Active forwards always take priority over their history counterpart.
+  // Forwards without any history entry (e.g. after refreshForwards) are appended at the end.
   const rows = useMemo((): RowData[] => {
     const forwardMap = new Map(forwards.map((f) => [f.forward_id, f]));
+    const clusterHistory = history.filter((h) => h.cluster_context === currentContext);
+    const historyForwardIds = new Set(clusterHistory.map((h) => h.forward_id));
 
-    return history
-      .filter((h) => h.cluster_context === currentContext)
+    const historyRows = clusterHistory
       .sort((a, b) => a.started_at - b.started_at)
       .flatMap((item): RowData[] => {
         const live = forwardMap.get(item.forward_id);
@@ -56,12 +60,19 @@ export function PortForwardsView() {
         if (item.status !== "active") return [{ kind: "history", item }];
         return []; // orphaned active history entry — skip
       });
+
+    // Forwards with no history entry (e.g. after refreshForwards without a recorded start)
+    const orphanRows: RowData[] = forwards
+      .filter((f) => !historyForwardIds.has(f.forward_id))
+      .map((forward) => ({ kind: "active", forward }));
+
+    return [...historyRows, ...orphanRows];
   }, [forwards, history, currentContext]);
 
   const handleDeleteActive = async (forwardId: string) => {
     const histItem = history.find((h) => h.forward_id === forwardId);
-    await stopForward(forwardId);
-    if (histItem) removeHistoryItem(histItem.id);
+    const stopped = await stopForward(forwardId);
+    if (stopped && histItem) removeHistoryItem(histItem.id);
   };
 
   const confirmStop = () => {
@@ -77,19 +88,24 @@ export function PortForwardsView() {
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="flex items-center gap-3">
-          <h1 className="text-lg font-semibold">Port Forwards</h1>
+        <div className="flex min-h-8 items-center gap-3">
+          <h1 className="text-lg font-semibold">{t("title")}</h1>
           {activeCount > 0 && (
-            <Badge variant="secondary">{activeCount} active</Badge>
+            <Badge variant="secondary">{t("activeBadge", { count: activeCount })}</Badge>
           )}
           {historyCount > 0 && (
-            <Badge variant="outline" className="text-muted-foreground">{historyCount} stopped</Badge>
+            <Badge variant="outline" className="text-muted-foreground">{t("stoppedBadge", { count: historyCount })}</Badge>
           )}
         </div>
         {historyCount > 0 && (
-          <Button variant="ghost" size="sm" onClick={clearHistoryForCurrentCluster} className="text-muted-foreground">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={clearHistoryForCurrentCluster}
+            className="h-8 text-xs text-muted-foreground"
+          >
             <Trash2 className="size-3.5" />
-            Clear Stopped
+            {t("clearStopped")}
           </Button>
         )}
       </div>
@@ -99,15 +115,15 @@ export function PortForwardsView() {
           <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
             <ArrowRightLeft className="size-12 stroke-1" />
             <div className="text-center">
-              <p className="font-medium">No port forwards</p>
-              <p className="text-sm">Start a port forward from Services or Pods view</p>
+              <p className="font-medium">{t("noForwards")}</p>
+              <p className="text-sm">{t("noForwardsHint")}</p>
             </div>
           </div>
         ) : (
           <Table>
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
-                <TableHead className="w-8 bg-background" />
+                <TableHead className="w-14 bg-background text-xs font-medium tracking-wider">Status</TableHead>
                 <TableHead className="bg-background text-xs font-medium tracking-wider">Name</TableHead>
                 <TableHead className="bg-background text-xs font-medium tracking-wider">Namespace</TableHead>
                 <TableHead className="bg-background text-xs font-medium tracking-wider">Kind</TableHead>
@@ -141,9 +157,9 @@ export function PortForwardsView() {
       <AlertDialog open={!!stopDialog} onOpenChange={(open) => !open && setStopDialog(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Stop Port Forward?</AlertDialogTitle>
+            <AlertDialogTitle>{t("stopConfirmTitle")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to stop the port forward for <strong>{stopDialog?.name}</strong>?
+              {t("stopConfirmDesc", { name: stopDialog?.name ?? "" })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -152,7 +168,7 @@ export function PortForwardsView() {
               onClick={confirmStop}
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
-              Stop
+              {t("stop")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -169,14 +185,6 @@ const statusDot: Record<string, string> = {
   disconnected: "bg-gray-400",
 };
 
-const statusTitle: Record<string, string> = {
-  connected: "Connected",
-  connecting: "Connecting...",
-  reconnecting: "Reconnecting...",
-  error: "Error",
-  disconnected: "Disconnected",
-};
-
 interface ActiveRowProps {
   forward: PortForwardInfo;
   onStop: () => void;
@@ -184,12 +192,23 @@ interface ActiveRowProps {
 }
 
 function ActiveRow({ forward, onStop, onDelete }: ActiveRowProps) {
+  const t = useTranslations("portForward");
+  const tc = useTranslations("common");
+
+  const statusTitles: Record<string, string> = {
+    connected: t("connected"),
+    connecting: t("connecting"),
+    reconnecting: t("reconnecting"),
+    error: tc("error"),
+    disconnected: t("disconnected"),
+  };
+
   return (
     <TableRow>
       <TableCell>
         <span
           className={cn("size-2.5 rounded-full block", statusDot[forward.status] ?? "bg-gray-400")}
-          title={statusTitle[forward.status] ?? forward.status}
+          title={statusTitles[forward.status] ?? forward.status}
         />
       </TableCell>
       <TableCell className="font-medium">{forward.name}</TableCell>
@@ -206,7 +225,7 @@ function ActiveRow({ forward, onStop, onDelete }: ActiveRowProps) {
             variant="ghost"
             size="icon-sm"
             onClick={onStop}
-            title="Stop"
+            title={t("stop")}
             className="text-orange-500 hover:text-orange-600 hover:bg-orange-500/10"
           >
             <Square className="size-3.5" />
@@ -215,8 +234,7 @@ function ActiveRow({ forward, onStop, onDelete }: ActiveRowProps) {
             variant="ghost"
             size="icon-sm"
             onClick={onDelete}
-            title="Delete"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            title={tc("delete")}
           >
             <Trash2 className="size-3.5" />
           </Button>
@@ -233,8 +251,10 @@ interface HistoryRowProps {
 }
 
 function HistoryRow({ item, onRestart, onDelete }: HistoryRowProps) {
+  const t = useTranslations("portForward");
+  const tc = useTranslations("common");
   const dot = item.status === "error" ? "bg-red-400" : "bg-gray-400";
-  const dotTitle = item.status === "error" ? "Error" : "Stopped";
+  const dotTitle = item.status === "error" ? tc("error") : t("disconnected");
 
   return (
     <TableRow className="opacity-60">
@@ -255,7 +275,7 @@ function HistoryRow({ item, onRestart, onDelete }: HistoryRowProps) {
             variant="ghost"
             size="icon-sm"
             onClick={onRestart}
-            title="Start again"
+            title={t("startAgain")}
             className="text-green-500 hover:text-green-600 hover:bg-green-500/10"
           >
             <Play className="size-3.5" />
@@ -264,8 +284,7 @@ function HistoryRow({ item, onRestart, onDelete }: HistoryRowProps) {
             variant="ghost"
             size="icon-sm"
             onClick={onDelete}
-            title="Delete"
-            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            title={t("deleteFromHistory")}
           >
             <Trash2 className="size-3.5" />
           </Button>

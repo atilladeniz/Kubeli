@@ -58,9 +58,10 @@ interface PortForwardState {
     targetType: PortForwardTargetType,
     targetPort: number,
     localPort?: number,
-    portName?: string
+    portName?: string,
+    forwardIdOverride?: string
   ) => Promise<PortForwardInfo | null>;
-  stopForward: (forwardId: string) => Promise<void>;
+  stopForward: (forwardId: string) => Promise<boolean>;
   stopAllForwards: () => Promise<void>;
   checkPort: (port: number) => Promise<boolean>;
   getForward: (forwardId: string) => PortForwardInfo | undefined;
@@ -188,7 +189,7 @@ export const usePortForwardStore = create<PortForwardState>()(
                   stop_reason: reason,
                   stopped_at: now,
                   updated_at: now,
-                  ...(message !== undefined ? { error_message: message } : {}),
+                  error_message: message,
                 }
               : h
           ),
@@ -238,7 +239,9 @@ export const usePortForwardStore = create<PortForwardState>()(
         const clusterContext = useClusterStore.getState().currentCluster?.context;
         if (!clusterContext) return;
         set((state) => ({
-          history: state.history.filter((h) => h.cluster_context !== clusterContext),
+          history: state.history.filter(
+            (h) => !(h.cluster_context === clusterContext && h.status !== "active")
+          ),
         }));
       },
 
@@ -255,23 +258,75 @@ export const usePortForwardStore = create<PortForwardState>()(
           const available = await checkPort(item.local_port);
           preferredLocalPort = available ? item.local_port : undefined;
         }
-        return startForward(
+        const targetPort = item.requested_port ?? item.target_port;
+        const forwardId = `${item.target_type}-${item.namespace}-${item.name}-${targetPort}-${Date.now()}`;
+        const previous = get().history.find((h) => h.id === item.id) ?? item;
+        const now = Date.now();
+
+        set((state) => ({
+          history: state.history.map((h) =>
+            h.id === item.id
+              ? {
+                  ...h,
+                  forward_id: forwardId,
+                  status: "active",
+                  stopped_at: undefined,
+                  stop_reason: undefined,
+                  error_message: undefined,
+                  updated_at: now,
+                }
+              : h
+          ),
+        }));
+
+        const result = await startForward(
           item.namespace,
           item.name,
           item.target_type,
-          item.requested_port ?? item.target_port,
+          targetPort,
           preferredLocalPort,
-          item.port_name
+          item.port_name,
+          forwardId
         );
+        if (!result) {
+          set((state) => ({
+            history: state.history.map((h) =>
+              h.id === item.id
+                ? {
+                    ...h,
+                    forward_id: previous.forward_id,
+                    status: previous.status,
+                    stopped_at: previous.stopped_at,
+                    stop_reason: previous.stop_reason,
+                    error_message: previous.error_message,
+                    updated_at: Date.now(),
+                  }
+                : h
+            ),
+          }));
+          toast.error("Failed to restart port forward", {
+            description: `Could not start forward for ${item.name}`,
+          });
+        }
+        return result;
       },
 
   initialize: async () => {
-    // Only initialize once
-    if (get().initialized) {
-      return;
-    }
+    if (get().initialized) return;
     set({ initialized: true });
     await get().refreshForwards();
+
+    // Reconcile: any history entry still "active" that has no corresponding running forward
+    // was orphaned by an app restart — mark it inactive.
+    const activeForwardIds = new Set(get().forwards.map((f) => f.forward_id));
+    const now = Date.now();
+    set((state) => ({
+      history: state.history.map((h) =>
+        h.status === "active" && !activeForwardIds.has(h.forward_id)
+          ? { ...h, status: "inactive" as const, stop_reason: "disconnected" as const, stopped_at: now, updated_at: now }
+          : h
+      ),
+    }));
   },
 
   refreshForwards: async () => {
@@ -462,11 +517,20 @@ export const usePortForwardStore = create<PortForwardState>()(
     }
   },
 
-  startForward: async (namespace, name, targetType, targetPort, localPort, portName) => {
+  startForward: async (
+    namespace,
+    name,
+    targetType,
+    targetPort,
+    localPort,
+    portName,
+    forwardIdOverride
+  ) => {
     set({ isLoading: true, error: null });
 
     try {
-      const forwardId = `${targetType}-${namespace}-${name}-${targetPort}-${Date.now()}`;
+      const forwardId =
+        forwardIdOverride ?? `${targetType}-${namespace}-${name}-${targetPort}-${Date.now()}`;
 
       // Add placeholder forward BEFORE calling Rust to avoid race condition
       // The "Connected" event might arrive before portforwardStart returns
@@ -541,14 +605,16 @@ export const usePortForwardStore = create<PortForwardState>()(
     }
   },
 
-  stopForward: async (forwardId: string) => {
+  stopForward: async (forwardId: string): Promise<boolean> => {
     try {
       await portforwardStop(forwardId);
+      return true;
     } catch (err) {
       console.error("Failed to stop port forward:", err);
       set({
         error: err instanceof Error ? err.message : "Failed to stop port forward",
       });
+      return false;
     }
   },
 
@@ -648,6 +714,7 @@ export const usePortForwardStore = create<PortForwardState>()(
     }),
     {
       name: "kubeli-portforward-history",
+      version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ history: state.history }),
     }

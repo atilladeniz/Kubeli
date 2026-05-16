@@ -445,7 +445,14 @@
     "noHistoryHint": "Stopped and failed forwards will appear here",
     "startAgain": "Start Again",
     "deleteFromHistory": "Delete from History",
-    "clearClusterHistory": "Clear History for This Cluster"
+    "clearClusterHistory": "Clear History for This Cluster",
+    "noForwards": "No port forwards",
+    "noForwardsHint": "Start a port forward from Services or Pods view",
+    "activeBadge": "{count} active",
+    "stoppedBadge": "{count} stopped",
+    "clearStopped": "Clear Stopped",
+    "stopConfirmTitle": "Stop Port Forward?",
+    "stopConfirmDesc": "Are you sure you want to stop the port forward for {name}?"
   },
   "settings": {
     "title": "Settings",
