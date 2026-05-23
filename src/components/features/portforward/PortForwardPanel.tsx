@@ -43,7 +43,7 @@ import {
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn, formatTimeAgoShort } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 interface PortForwardPanelProps {
   onClose?: () => void;
@@ -379,7 +379,7 @@ function PortForwardHistoryRow({
   const reasonText = panelStopReasonLabel(item.stop_reason, t);
   const agoText =
     item.stopped_at !== undefined
-      ? t("stoppedAgo", { time: formatTimeAgoShort(item.stopped_at, t("justNow")) })
+      ? t("stoppedAgo", { time: formatRelativeTime(item.stopped_at, t("justNow")) })
       : undefined;
 
   return (
@@ -420,7 +420,7 @@ function PortForwardHistoryRow({
                     {item.error_message}
                   </div>
                 </TooltipTrigger>
-                <TooltipContent className="max-w-sm break-words">
+                <TooltipContent className="max-w-sm wrap-break-word">
                   {item.error_message}
                 </TooltipContent>
               </Tooltip>

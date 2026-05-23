@@ -25,7 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { cn, formatTimeAgoShort } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
@@ -322,7 +322,7 @@ function HistoryRow({ item, onRestart, onDelete }: HistoryRowProps) {
   const reasonLabel = stopReasonLabel(item.stop_reason, item.status, t, tc);
   const agoLabel =
     item.stopped_at !== undefined
-      ? t("stoppedAgo", { time: formatTimeAgoShort(item.stopped_at, t("justNow")) })
+      ? t("stoppedAgo", { time: formatRelativeTime(item.stopped_at, t("justNow")) })
       : undefined;
   const dotTitle = agoLabel ? `${reasonLabel} • ${agoLabel}` : reasonLabel;
 
@@ -348,7 +348,7 @@ function HistoryRow({ item, onRestart, onDelete }: HistoryRowProps) {
                 {item.error_message}
               </div>
             </TooltipTrigger>
-            <TooltipContent className="max-w-sm break-words">
+            <TooltipContent className="max-w-sm wrap-break-word">
               {item.error_message}
             </TooltipContent>
           </Tooltip>
