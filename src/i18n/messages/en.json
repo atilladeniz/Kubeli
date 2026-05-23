@@ -411,6 +411,7 @@
     "newForward": "New Port Forward",
     "active": "Active",
     "inactive": "Inactive",
+    "stopped": "Stopped",
     "connecting": "Connecting...",
     "connected": "Connected",
     "disconnected": "Disconnected",

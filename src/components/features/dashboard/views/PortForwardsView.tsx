@@ -34,6 +34,8 @@ type RowData =
   | { kind: "active"; forward: PortForwardInfo }
   | { kind: "history"; item: PortForwardHistoryItem };
 
+type StatusFilter = "all" | "active" | "stopped";
+
 export function PortForwardsView() {
   const t = useTranslations("portForward");
   const tc = useTranslations("common");
@@ -44,6 +46,7 @@ export function PortForwardsView() {
     | { kind: "history"; itemId: string; name: string }
     | null
   >(null);
+  const [filter, setFilter] = useState<StatusFilter>("all");
 
   const history = usePortForwardStore((s) => s.history);
   const removeHistoryItem = usePortForwardStore((s) => s.removeHistoryItem);
@@ -98,17 +101,40 @@ export function PortForwardsView() {
   const activeCount = rows.filter((r) => r.kind === "active").length;
   const historyCount = rows.filter((r) => r.kind === "history").length;
 
+  const visibleRows = useMemo(() => {
+    if (filter === "active") return rows.filter((r) => r.kind === "active");
+    if (filter === "stopped") return rows.filter((r) => r.kind === "history");
+    return rows;
+  }, [rows, filter]);
+
   return (
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
-        <div className="flex min-h-8 items-center gap-3">
+        <div className="flex min-h-8 items-center gap-3 flex-wrap">
           <h1 className="text-lg font-semibold">{t("title")}</h1>
-          {activeCount > 0 && (
-            <Badge variant="secondary">{t("activeBadge", { count: activeCount })}</Badge>
-          )}
-          {historyCount > 0 && (
-            <Badge variant="outline" className="text-muted-foreground">{t("stoppedBadge", { count: historyCount })}</Badge>
-          )}
+          <div className="flex items-center gap-1 flex-wrap">
+            <FilterPill
+              label={tc("all")}
+              count={rows.length}
+              isActive={filter === "all"}
+              onClick={() => setFilter("all")}
+              color="default"
+            />
+            <FilterPill
+              label={t("active")}
+              count={activeCount}
+              isActive={filter === "active"}
+              onClick={() => setFilter("active")}
+              color="green"
+            />
+            <FilterPill
+              label={t("stopped")}
+              count={historyCount}
+              isActive={filter === "stopped"}
+              onClick={() => setFilter("stopped")}
+              color="default"
+            />
+          </div>
         </div>
         {historyCount > 0 && (
           <Button
@@ -124,7 +150,7 @@ export function PortForwardsView() {
       </div>
 
       <div className="flex-1 overflow-auto">
-        {rows.length === 0 ? (
+        {visibleRows.length === 0 ? (
           <div className="flex h-full flex-col items-center justify-center gap-4 text-muted-foreground">
             <ArrowRightLeft className="size-12 stroke-1" />
             <div className="text-center">
@@ -145,7 +171,7 @@ export function PortForwardsView() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) =>
+              {visibleRows.map((row) =>
                 row.kind === "active" ? (
                   <ActiveRow
                     key={row.forward.forward_id}
@@ -334,5 +360,38 @@ function PortsPill({ localPort, targetPort }: { localPort: number; targetPort: n
       <ArrowRightLeft className="size-3 text-muted-foreground shrink-0" />
       <span>{targetPort}</span>
     </div>
+  );
+}
+
+interface FilterPillProps {
+  label: string;
+  count: number;
+  isActive: boolean;
+  onClick: () => void;
+  color: "default" | "green";
+}
+
+function FilterPill({ label, count, isActive, onClick, color }: FilterPillProps) {
+  const colorClasses = {
+    default: isActive
+      ? "border-foreground bg-foreground text-background dark:border-zinc-500 dark:bg-zinc-700 dark:text-zinc-100 dark:hover:bg-zinc-600 classic-dark:border-zinc-500 classic-dark:bg-zinc-700 classic-dark:text-zinc-100 classic-dark:hover:bg-zinc-600"
+      : "border-border/70 bg-muted text-foreground/80 hover:bg-muted/80",
+    green: isActive
+      ? "border-green-600 bg-green-600 text-white hover:bg-green-500 dark:border-green-500/70 dark:bg-green-500/30 dark:text-green-100 dark:hover:bg-green-500/35 classic-dark:border-green-500/70 classic-dark:bg-green-500/30 classic-dark:text-green-100 classic-dark:hover:bg-green-500/35"
+      : "border-green-300 bg-green-50 text-green-700 hover:bg-green-100 dark:border-green-700/60 dark:bg-green-500/15 dark:text-green-300 dark:hover:bg-green-500/25 classic-dark:border-green-700/60 classic-dark:bg-green-500/15 classic-dark:text-green-300 classic-dark:hover:bg-green-500/25",
+  };
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={isActive}
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium transition-colors",
+        colorClasses[color]
+      )}
+    >
+      {label}
+      <span className={cn("tabular-nums", isActive ? "opacity-90" : "opacity-80")}>{count}</span>
+    </button>
   );
 }

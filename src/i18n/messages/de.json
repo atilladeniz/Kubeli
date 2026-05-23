@@ -411,6 +411,7 @@
     "newForward": "Neue Port-Weiterleitung",
     "active": "Aktiv",
     "inactive": "Inaktiv",
+    "stopped": "Gestoppt",
     "connecting": "Verbinde...",
     "connected": "Verbunden",
     "disconnected": "Getrennt",
