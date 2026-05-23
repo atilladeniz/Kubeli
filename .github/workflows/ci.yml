@@ -100,8 +100,6 @@ jobs:
 
   tauri-versions:
     name: Tauri Version Sync
-    needs: [detect-changes]
-    if: needs.detect-changes.outputs.app == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
