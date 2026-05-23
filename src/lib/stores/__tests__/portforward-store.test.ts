@@ -1100,6 +1100,25 @@ describe("PortForwardStore", () => {
         expect(history).toHaveLength(1);
         expect(history[0].cluster_context).toBe("other-cluster");
       });
+
+      it("should not touch the active forwards array", () => {
+        const liveForward: PortForwardInfo = {
+          ...mockForward,
+          forward_id: "live-1",
+        };
+        usePortForwardStore.setState({
+          history: [{ ...mockHistoryItem }],
+          forwards: [liveForward],
+        });
+
+        act(() => {
+          usePortForwardStore.getState().clearHistoryForCurrentCluster();
+        });
+
+        const state = usePortForwardStore.getState();
+        expect(state.history).toHaveLength(0);
+        expect(state.forwards).toEqual([liveForward]);
+      });
     });
 
     describe("restartFromHistory", () => {

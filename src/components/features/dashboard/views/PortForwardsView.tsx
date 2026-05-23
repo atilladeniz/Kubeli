@@ -24,11 +24,16 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn, formatTimeAgoShort } from "@/lib/utils";
 import { usePortForward } from "@/lib/hooks/usePortForward";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
-import type { PortForwardInfo, PortForwardHistoryItem } from "@/lib/types";
+import type {
+  PortForwardInfo,
+  PortForwardHistoryItem,
+  PortForwardStopReason,
+} from "@/lib/types";
 
 type RowData =
   | { kind: "active"; forward: PortForwardInfo }
@@ -313,14 +318,42 @@ function HistoryRow({ item, onRestart, onDelete }: HistoryRowProps) {
   const t = useTranslations("portForward");
   const tc = useTranslations("common");
   const dot = item.status === "error" ? "bg-red-400" : "bg-gray-400";
-  const dotTitle = item.status === "error" ? tc("error") : t("disconnected");
+
+  const reasonLabel = stopReasonLabel(item.stop_reason, item.status, t, tc);
+  const agoLabel =
+    item.stopped_at !== undefined
+      ? t("stoppedAgo", { time: formatTimeAgoShort(item.stopped_at, t("justNow")) })
+      : undefined;
+  const dotTitle = agoLabel ? `${reasonLabel} • ${agoLabel}` : reasonLabel;
 
   return (
     <TableRow className="opacity-60">
       <TableCell>
-        <span className={cn("size-2.5 rounded-full block", dot)} title={dotTitle} />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span
+              className={cn("size-2.5 rounded-full block cursor-default", dot)}
+              aria-label={dotTitle}
+            />
+          </TooltipTrigger>
+          <TooltipContent>{dotTitle}</TooltipContent>
+        </Tooltip>
       </TableCell>
-      <TableCell className="font-medium">{item.name}</TableCell>
+      <TableCell className="font-medium">
+        <div>{item.name}</div>
+        {item.error_message && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <div className="text-[10px] text-red-500/80 truncate max-w-[280px] cursor-default">
+                {item.error_message}
+              </div>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-sm break-words">
+              {item.error_message}
+            </TooltipContent>
+          </Tooltip>
+        )}
+      </TableCell>
       <TableCell>{item.namespace}</TableCell>
       <TableCell>
         <Badge variant="outline" className="capitalize text-[10px] font-normal">{item.target_type}</Badge>
@@ -361,6 +394,26 @@ function PortsPill({ localPort, targetPort }: { localPort: number; targetPort: n
       <span>{targetPort}</span>
     </div>
   );
+}
+
+function stopReasonLabel(
+  reason: PortForwardStopReason | undefined,
+  status: PortForwardHistoryItem["status"],
+  t: (key: string) => string,
+  tc: (key: string) => string,
+): string {
+  switch (reason) {
+    case "user":
+      return t("stopReasonUser");
+    case "podDied":
+      return t("stopReasonPodDied");
+    case "error":
+      return t("stopReasonError");
+    case "disconnected":
+      return t("stopReasonDisconnected");
+    default:
+      return status === "error" ? tc("error") : t("disconnected");
+  }
 }
 
 interface FilterPillProps {

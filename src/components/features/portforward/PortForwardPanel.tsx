@@ -9,6 +9,7 @@ import type {
   PortForwardInfo,
   PortForwardStatus,
   PortForwardHistoryItem,
+  PortForwardStopReason,
 } from "@/lib/types";
 import {
   ArrowRight,
@@ -41,7 +42,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { cn, formatTimeAgoShort } from "@/lib/utils";
 
 interface PortForwardPanelProps {
   onClose?: () => void;
@@ -329,6 +331,24 @@ interface PortForwardHistoryRowProps {
   onDelete: () => void;
 }
 
+function panelStopReasonLabel(
+  reason: PortForwardStopReason | undefined,
+  t: (key: string) => string,
+): string | undefined {
+  switch (reason) {
+    case "user":
+      return t("stopReasonUser");
+    case "podDied":
+      return t("stopReasonPodDied");
+    case "error":
+      return t("stopReasonError");
+    case "disconnected":
+      return t("stopReasonDisconnected");
+    default:
+      return undefined;
+  }
+}
+
 function PortForwardHistoryRow({
   item,
   onRestart,
@@ -356,6 +376,12 @@ function PortForwardHistoryRow({
     return "";
   };
 
+  const reasonText = panelStopReasonLabel(item.stop_reason, t);
+  const agoText =
+    item.stopped_at !== undefined
+      ? t("stoppedAgo", { time: formatTimeAgoShort(item.stopped_at, t("justNow")) })
+      : undefined;
+
   return (
     <Card>
       <CardContent className="p-3">
@@ -382,6 +408,23 @@ function PortForwardHistoryRow({
               <ArrowRight className="size-3 shrink-0" />
               <span>:{item.target_port}</span>
             </div>
+            {(reasonText || agoText) && (
+              <div className="text-[11px] text-muted-foreground mt-1 truncate">
+                {[reasonText, agoText].filter(Boolean).join(" • ")}
+              </div>
+            )}
+            {item.error_message && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div className="text-[11px] text-red-500/80 mt-0.5 truncate cursor-default">
+                    {item.error_message}
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent className="max-w-sm break-words">
+                  {item.error_message}
+                </TooltipContent>
+              </Tooltip>
+            )}
           </div>
 
           {/* Three-dot actions */}
