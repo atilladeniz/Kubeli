@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.74] - 2026-05-23
+
+- Added persistent port-forward history with restartable inactive forwards
+- Updated dependencies (Tauri, tokio, rmcp, tower-http, TypeScript, react-day-picker)
+- Hardened security with dev-only overrides for fast-uri and postcss
+- Improved CI with a Tauri version sync check and updated build actions
+
 ## [0.3.73] - 2026-05-03
 
 - Added OpenCode and Droid as AI assistant providers
