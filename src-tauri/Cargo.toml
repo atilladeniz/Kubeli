@@ -67,7 +67,7 @@ rand = "0.10"
 tauri-plugin-process = "2.3"
 flate2 = "1.1"
 url = "2.5"
-uuid = { version = "1.19", features = ["v4"] }
+uuid = { version = "1.23", features = ["v4"] }
 regex = "1.12"
 percent-encoding = "2.3"
 
