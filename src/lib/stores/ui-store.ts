@@ -11,7 +11,7 @@ export type PortForwardBrowserBehavior = "ask" | "always" | "never";
 
 export type ProxyType = "none" | "system" | "http" | "socks5";
 
-export type AiCliProvider = "claude" | "codex";
+export type AiCliProvider = "claude" | "codex" | "opencode" | "droid";
 
 export type LogCloseConfirmation = "ask" | "never";
 

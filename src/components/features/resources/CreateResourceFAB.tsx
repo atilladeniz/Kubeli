@@ -22,6 +22,7 @@ const HIDDEN_VIEWS = new Set([
   "helm-releases",
   "flux-kustomizations",
   "pod-logs",
+  "deployment-logs",
 ]);
 
 interface CreateResourceFABProps {

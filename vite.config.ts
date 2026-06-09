@@ -28,7 +28,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       outDir: "dist",
-      rollupOptions: {
+      rolldownOptions: {
         output: {
           manualChunks(id) {
             if (!id.includes("node_modules")) {

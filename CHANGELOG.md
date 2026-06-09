@@ -2,6 +2,65 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.74] - 2026-05-23
+
+- Added persistent port-forward history with restartable inactive forwards
+- Updated dependencies (Tauri, tokio, rmcp, tower-http, TypeScript, react-day-picker)
+- Hardened security with dev-only overrides for fast-uri and postcss
+- Improved CI with a Tauri version sync check and updated build actions
+
+## [0.3.73] - 2026-05-03
+
+- Added OpenCode and Droid as AI assistant providers
+- Added support for multiple windows in core app permissions
+- Fixed Tauri API and CLI version alignment with Rust crate (v2.11)
+
+## [0.3.72] - 2026-04-26
+
+- Fixed log and exec streams being terminated prematurely
+- Updated dependencies to address security alerts (rustls-webpki, dompurify, astro)
+- Refactored cluster module structure for improved maintainability
+
+## [0.3.71] - 2026-04-14
+
+- Fixed multi-kubeconfig file connection failure
+- Updated Rust dependencies (rustls, rand) and CI tooling
+
+## [0.3.70] - 2026-04-10
+
+- Fixed security vulnerabilities by updating Vite to 8.0.8
+- Updated Rust dependencies (tokio, hyper, tauri-plugin-deep-link, tauri-plugin-updater)
+
+## [0.3.69] - 2026-04-10
+
+- Added auto-follow logs when opening pod log viewer
+- Added starred-by section with company logos to landing page
+- Fixed Tauri plugin NPM packages to align with Rust crate versions
+
+## [0.3.68] - 2026-03-30
+
+- Added Cmd+S / Ctrl+S save shortcut to YAML editor
+- Fixed npm security vulnerabilities
+- Fixed landing page deploy environment gate
+- Updated Vite to v8 and @vitejs/plugin-react to v6
+- Updated lucide-react to v1.7.0
+- Updated CI actions (upload-artifact v7, download-artifact v8, SignPath v2)
+
+## [0.3.67] - 2026-03-29
+
+- Added Windows code signing via SignPath Foundation
+
+## [0.3.66] - 2026-03-28
+
+- Added fullscreen view for aggregated Deployment logs
+- Added display options, copy-all, scoped select-all, and search empty state to logs
+
+## [0.3.65] - 2026-03-25
+
+- Fixed long custom resource names in sidebar being truncated with tooltip on overflow
+- Updated Rust dependencies (rmcp 1.2.0, rusqlite 0.39.0, tungstenite 0.29.0)
+- Updated CI dependencies (paths-filter v4, download-artifact v8)
+
 ## [0.3.64] - 2026-03-22
 
 - Fixed GBM EGL display crash on NVIDIA Wayland (Linux)

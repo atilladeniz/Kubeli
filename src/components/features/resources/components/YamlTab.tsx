@@ -189,6 +189,27 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
     }
   };
 
+  // Cmd/Ctrl+S saves when in edit mode
+  const handleSaveRef = useRef(handleSave);
+  const hasChangesRef = useRef(hasChanges);
+  useEffect(() => {
+    handleSaveRef.current = handleSave;
+    hasChangesRef.current = hasChanges;
+  });
+
+  useEffect(() => {
+    if (!isEditing || !editorRef.current || !monacoRef.current) return;
+    const disposable = editorRef.current.addAction({
+      id: "kubeli-save",
+      label: "Save",
+      keybindings: [monacoRef.current.KeyMod.CtrlCmd | monacoRef.current.KeyCode.KeyS],
+      run: () => {
+        if (hasChangesRef.current) handleSaveRef.current();
+      },
+    });
+    return () => disposable.dispose();
+  }, [isEditing]);  
+
   // ESC exits edit mode when the Monaco find widget is not open
   useEffect(() => {
     if (!isEditing || !editorRef.current) return;

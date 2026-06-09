@@ -223,6 +223,39 @@ export type PortForwardEvent =
   | { type: "Error"; data: { forward_id: string; message: string } }
   | { type: "Stopped"; data: { forward_id: string } };
 
+export type PortForwardHistoryStatus =
+  | "active"
+  | "inactive"
+  | "error";
+
+export type PortForwardStopReason =
+  | "user"
+  | "podDied"
+  | "error"
+  | "disconnected";
+
+export interface PortForwardHistoryItem {
+  id: string;
+  signature: string;
+  cluster_context: string;
+  forward_id: string;
+  namespace: string;
+  name: string;
+  target_type: PortForwardTargetType;
+  requested_port?: number;
+  target_port: number;
+  local_port: number;
+  port_name?: string;
+  pod_name?: string;
+  pod_uid?: string;
+  status: PortForwardHistoryStatus;
+  started_at: number;
+  updated_at: number;
+  stopped_at?: number;
+  stop_reason?: PortForwardStopReason;
+  error_message?: string;
+}
+
 // Resource listing types (matching Rust backend)
 export interface ListOptions {
   namespace?: string;

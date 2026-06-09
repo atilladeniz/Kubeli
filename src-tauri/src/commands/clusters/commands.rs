@@ -1,86 +1,22 @@
 #![allow(unused_variables)] // Some state parameters may be unused but are required by Tauri command signatures
 
 use crate::error::KubeliError;
-use crate::k8s::{AppState, AuthType, KubeConfig, KubeconfigSourceType};
+use crate::k8s::{AppState, AuthType, KubeConfig};
 use crate::oidc::commands::OidcState;
 use crate::oidc::config::detect_oidc_exec;
 use kube::config::Kubeconfig;
 use kube::Client;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{command, AppHandle, Manager, State};
-use tauri_plugin_store::StoreExt;
 use tokio::sync::RwLock;
 
-use super::cluster_settings::ClusterSettings;
-
-/// Cluster information returned to frontend
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ClusterInfo {
-    pub id: String,
-    pub name: String,
-    pub context: String,
-    pub server: String,
-    pub namespace: Option<String>,
-    pub user: String,
-    pub auth_type: String,
-    pub current: bool,
-    pub source_file: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct OidcAuthInfo {
-    pub issuer_url: String,
-    pub client_id: String,
-    pub extra_scopes: Vec<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct ConnectionStatus {
-    pub connected: bool,
-    pub context: Option<String>,
-    pub error: Option<String>,
-    pub latency_ms: Option<u64>,
-    pub oidc_auth_required: Option<OidcAuthInfo>,
-}
-
-/// Health check result
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct HealthCheckResult {
-    pub healthy: bool,
-    pub latency_ms: Option<u64>,
-    pub error: Option<String>,
-}
-
-/// Load kubeconfig using configured sources (or default)
-async fn load_kubeconfig_from_sources(app: &AppHandle) -> Option<KubeConfig> {
-    // Try to load sources config from store
-    let sources_config = {
-        let store = app.store("kubeconfig-sources.json").ok()?;
-        match store.get("sources_config") {
-            Some(value) => {
-                serde_json::from_value::<crate::k8s::KubeconfigSourcesConfig>(value.clone()).ok()
-            }
-            None => None,
-        }
-    };
-
-    match sources_config {
-        Some(config) if !config.sources.is_empty() => {
-            match KubeConfig::load_from_sources(&config.sources, config.merge_mode).await {
-                Ok(cfg) => Some(cfg),
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to load from sources: {}, falling back to default",
-                        e
-                    );
-                    KubeConfig::load().await.ok()
-                }
-            }
-        }
-        _ => KubeConfig::load().await.ok(),
-    }
-}
+use super::kubeconfig::{
+    build_kubeconfig_for_connect, is_self_contained, load_configured_namespaces,
+    load_kubeconfig_from_sources,
+};
+use super::types::{
+    ClusterInfo, ConnectionStatus, HealthCheckResult, NamespaceResult, OidcAuthInfo,
+};
 
 /// List all available clusters from kubeconfig
 #[command]
@@ -189,75 +125,6 @@ pub async fn check_connection_health(
     }
 }
 
-/// Build a merged kube-rs Kubeconfig from all configured sources for client connection
-async fn build_kubeconfig_for_connect(app: &AppHandle) -> Result<Kubeconfig, String> {
-    let sources_config = super::kubeconfig::load_sources_config(app);
-
-    if sources_config.sources.is_empty() {
-        return Kubeconfig::read().map_err(|e| format!("Failed to read kubeconfig: {}", e));
-    }
-
-    let mut all_files: Vec<std::path::PathBuf> = Vec::new();
-    for source in &sources_config.sources {
-        let path = std::path::PathBuf::from(&source.path);
-        match source.source_type {
-            KubeconfigSourceType::File => {
-                if path.exists() {
-                    all_files.push(path);
-                }
-            }
-            KubeconfigSourceType::Folder => {
-                if let Ok(entries) = KubeConfig::scan_folder(&path).await {
-                    all_files.extend(entries);
-                }
-            }
-        }
-    }
-
-    // Also respect KUBECONFIG env var
-    if let Ok(env_val) = std::env::var("KUBECONFIG") {
-        for path in std::env::split_paths(&env_val) {
-            if path.exists() && !all_files.iter().any(|f| f == &path) {
-                all_files.push(path);
-            }
-        }
-    }
-
-    if all_files.is_empty() {
-        return Kubeconfig::read().map_err(|e| format!("Failed to read kubeconfig: {}", e));
-    }
-
-    merge_kubeconfig_files(&all_files).or_else(|_| {
-        Kubeconfig::read().map_err(|e| format!("No valid kubeconfig files found: {}", e))
-    })
-}
-
-/// Read and merge multiple kubeconfig files into a single kube-rs Kubeconfig.
-/// Uses `Kubeconfig::read_from` to correctly resolve relative certificate paths.
-/// Returns Err if no valid files could be parsed.
-fn merge_kubeconfig_files(files: &[std::path::PathBuf]) -> Result<Kubeconfig, String> {
-    let mut merged: Option<Kubeconfig> = None;
-
-    for file in files {
-        let cfg = match Kubeconfig::read_from(file) {
-            Ok(c) => c,
-            Err(e) => {
-                tracing::warn!("Skipping kubeconfig {:?}: {}", file, e);
-                continue;
-            }
-        };
-
-        merged = Some(match merged {
-            Some(existing) => existing
-                .merge(cfg)
-                .map_err(|e| format!("Failed to merge kubeconfig {:?}: {}", file, e))?,
-            None => cfg,
-        });
-    }
-
-    merged.ok_or_else(|| "No valid kubeconfig files could be parsed".to_string())
-}
-
 /// Connect to a cluster using a specific context
 #[command]
 pub async fn connect_cluster(
@@ -267,7 +134,7 @@ pub async fn connect_cluster(
 ) -> Result<ConnectionStatus, KubeliError> {
     tracing::info!("Connecting to cluster with context: {}", context);
 
-    // Resolve source_file for this context before building the merged kubeconfig
+    // Resolve source_file for this context before building the kubeconfig
     let source_file = load_kubeconfig_from_sources(&app).await.and_then(|cfg| {
         cfg.contexts
             .iter()
@@ -275,8 +142,43 @@ pub async fn connect_cluster(
             .and_then(|c| c.source_file.clone())
     });
 
-    let mut kubeconfig = build_kubeconfig_for_connect(&app).await?;
+    // When we know the source file, prefer loading ONLY that file to avoid name collisions.
+    // Multiple kubeconfig files often define users/clusters with the same name (e.g. "admin")
+    // but different certificates. Merging all files causes the first file's entries to
+    // shadow subsequent ones, making only the first cluster's auth work.
+    //
+    // However, some setups intentionally split contexts, clusters, and users across files
+    // (merge_mode). If the single file doesn't contain the referenced cluster or user,
+    // fall back to the merged kubeconfig.
+    let mut kubeconfig = if let Some(ref src) = source_file {
+        let path = std::path::PathBuf::from(src);
+        if path.exists() {
+            let single = Kubeconfig::read_from(&path)
+                .map_err(|e| format!("Failed to read kubeconfig {:?}: {}", path, e))?;
 
+            if is_self_contained(&single, &context) {
+                single
+            } else {
+                tracing::info!(
+                    "Source file {:?} has cross-file references, using merged kubeconfig",
+                    path
+                );
+                build_kubeconfig_for_connect(&app).await?
+            }
+        } else {
+            tracing::warn!(
+                "Source file {:?} not found, falling back to merged kubeconfig",
+                path
+            );
+            build_kubeconfig_for_connect(&app).await?
+        }
+    } else {
+        build_kubeconfig_for_connect(&app).await?
+    };
+
+    // Detect an OIDC exec plugin for this context's user and resolve a token
+    // natively (cached → refresh → interactive). If none can be obtained,
+    // surface oidc_auth_required so the frontend can start the browser flow.
     let user_name = kubeconfig
         .contexts
         .iter()
@@ -320,6 +222,7 @@ pub async fn connect_cluster(
         .await
     {
         Ok(_) => {
+            // Test the connection with latency measurement
             let start = std::time::Instant::now();
             match state.k8s.test_connection().await {
                 Ok(true) => {
@@ -329,6 +232,7 @@ pub async fn connect_cluster(
                         context,
                         latency
                     );
+                    // Keep the OIDC token fresh for the lifetime of the connection
                     if let (Some(oidc_config), Some(ref user)) = (active_oidc, &user_name) {
                         let oidc_state: State<'_, Arc<OidcState>> = app.state();
                         spawn_oidc_refresh_task(
@@ -387,6 +291,7 @@ pub async fn connect_cluster(
     }
 }
 
+/// Switch to a different context
 #[command]
 pub async fn switch_context(
     app: AppHandle,
@@ -396,6 +301,7 @@ pub async fn switch_context(
     connect_cluster(app, state, context).await
 }
 
+/// Disconnect from current cluster
 #[command]
 pub async fn disconnect_cluster(
     app: AppHandle,
@@ -407,14 +313,6 @@ pub async fn disconnect_cluster(
     *state.k8s.client_handle().write().await = None;
     *state.k8s.context_handle().write().await = None;
     Ok(())
-}
-
-/// Namespace resolution result with source indicator
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct NamespaceResult {
-    pub namespaces: Vec<String>,
-    /// "auto" = discovered from API, "configured" = from cluster settings, "none" = empty
-    pub source: String,
 }
 
 /// Get list of namespaces in the current cluster.
@@ -468,21 +366,6 @@ pub async fn get_namespaces(
                 Err(KubeliError::from(e))
             }
         }
-    }
-}
-
-/// Load configured namespaces from the cluster settings store
-fn load_configured_namespaces(app: &AppHandle, context: &str) -> Vec<String> {
-    let store = match app.store("cluster-settings.json") {
-        Ok(s) => s,
-        Err(_) => return vec![],
-    };
-
-    match store.get(context) {
-        Some(value) => serde_json::from_value::<ClusterSettings>(value.clone())
-            .map(|s| s.accessible_namespaces)
-            .unwrap_or_default(),
-        None => vec![],
     }
 }
 
@@ -561,6 +444,7 @@ async fn resolve_oidc_token(
     None
 }
 
+#[allow(clippy::too_many_arguments)]
 fn spawn_oidc_refresh_task(
     app_handle: AppHandle,
     k8s_manager: Arc<RwLock<Option<Client>>>,
@@ -721,262 +605,4 @@ fn inject_oidc_token(kubeconfig: &mut Kubeconfig, user_name: &str, token: &str) 
 #[command]
 pub async fn has_kubeconfig() -> Result<bool, KubeliError> {
     Ok(KubeConfig::exists().await)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::path::PathBuf;
-
-    fn write_kubeconfig(dir: &std::path::Path, name: &str, content: &str) -> PathBuf {
-        let path = dir.join(name);
-        std::fs::write(&path, content).unwrap();
-        path
-    }
-
-    const KUBECONFIG_A: &str = r#"
-apiVersion: v1
-kind: Config
-current-context: ctx-a
-clusters:
-- name: cluster-a
-  cluster:
-    server: https://cluster-a:6443
-contexts:
-- name: ctx-a
-  context:
-    cluster: cluster-a
-    user: user-a
-users:
-- name: user-a
-  user:
-    token: token-a
-"#;
-
-    const KUBECONFIG_B: &str = r#"
-apiVersion: v1
-kind: Config
-current-context: ctx-b
-clusters:
-- name: cluster-b
-  cluster:
-    server: https://cluster-b:6443
-contexts:
-- name: ctx-b
-  context:
-    cluster: cluster-b
-    user: user-b
-users:
-- name: user-b
-  user:
-    token: token-b
-"#;
-
-    #[test]
-    fn test_merge_single_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let f = write_kubeconfig(dir.path(), "config.yaml", KUBECONFIG_A);
-
-        let result = merge_kubeconfig_files(&[f]).unwrap();
-        assert_eq!(result.contexts.len(), 1);
-        assert_eq!(result.contexts[0].name, "ctx-a");
-        assert_eq!(result.clusters.len(), 1);
-        assert_eq!(result.auth_infos.len(), 1);
-        assert_eq!(result.current_context, Some("ctx-a".to_string()));
-    }
-
-    #[test]
-    fn test_merge_multiple_files_all_contexts_accessible() {
-        let dir = tempfile::tempdir().unwrap();
-        let f1 = write_kubeconfig(dir.path(), "cluster-a.yaml", KUBECONFIG_A);
-        let f2 = write_kubeconfig(dir.path(), "cluster-b.yaml", KUBECONFIG_B);
-
-        let result = merge_kubeconfig_files(&[f1, f2]).unwrap();
-
-        // Both contexts must be present (this was the bug — only default file was read)
-        assert_eq!(result.contexts.len(), 2);
-        let ctx_names: Vec<&str> = result.contexts.iter().map(|c| c.name.as_str()).collect();
-        assert!(ctx_names.contains(&"ctx-a"));
-        assert!(ctx_names.contains(&"ctx-b"));
-
-        // Both clusters and auth_infos merged
-        assert_eq!(result.clusters.len(), 2);
-        assert_eq!(result.auth_infos.len(), 2);
-    }
-
-    #[test]
-    fn test_merge_current_context_from_first_file() {
-        let dir = tempfile::tempdir().unwrap();
-        let f1 = write_kubeconfig(dir.path(), "first.yaml", KUBECONFIG_A);
-        let f2 = write_kubeconfig(dir.path(), "second.yaml", KUBECONFIG_B);
-
-        let result = merge_kubeconfig_files(&[f1, f2]).unwrap();
-        assert_eq!(result.current_context, Some("ctx-a".to_string()));
-
-        // Reverse order: ctx-b should be current
-        let dir2 = tempfile::tempdir().unwrap();
-        let f3 = write_kubeconfig(dir2.path(), "first.yaml", KUBECONFIG_B);
-        let f4 = write_kubeconfig(dir2.path(), "second.yaml", KUBECONFIG_A);
-
-        let result2 = merge_kubeconfig_files(&[f3, f4]).unwrap();
-        assert_eq!(result2.current_context, Some("ctx-b".to_string()));
-    }
-
-    #[test]
-    fn test_merge_skips_invalid_files() {
-        let dir = tempfile::tempdir().unwrap();
-        let bad = write_kubeconfig(dir.path(), "bad.yaml", "not: valid: yaml: [[[");
-        let good = write_kubeconfig(dir.path(), "good.yaml", KUBECONFIG_A);
-
-        let result = merge_kubeconfig_files(&[bad, good]).unwrap();
-        assert_eq!(result.contexts.len(), 1);
-        assert_eq!(result.contexts[0].name, "ctx-a");
-    }
-
-    #[test]
-    fn test_merge_skips_nonexistent_files() {
-        let dir = tempfile::tempdir().unwrap();
-        let missing = dir.path().join("nonexistent.yaml");
-        let good = write_kubeconfig(dir.path(), "good.yaml", KUBECONFIG_B);
-
-        let result = merge_kubeconfig_files(&[missing, good]).unwrap();
-        assert_eq!(result.contexts.len(), 1);
-        assert_eq!(result.contexts[0].name, "ctx-b");
-    }
-
-    #[test]
-    fn test_merge_no_valid_files_returns_error() {
-        let dir = tempfile::tempdir().unwrap();
-        let bad = write_kubeconfig(dir.path(), "bad.yaml", "garbage content");
-
-        let result = merge_kubeconfig_files(&[bad]);
-        assert!(result.is_err());
-        assert!(result
-            .unwrap_err()
-            .contains("No valid kubeconfig files could be parsed"));
-    }
-
-    #[test]
-    fn test_merge_empty_file_list_returns_error() {
-        let result = merge_kubeconfig_files(&[]);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_merge_context_can_be_found_by_name() {
-        let dir = tempfile::tempdir().unwrap();
-        let f1 = write_kubeconfig(dir.path(), "a.yaml", KUBECONFIG_A);
-        let f2 = write_kubeconfig(dir.path(), "b.yaml", KUBECONFIG_B);
-
-        let merged = merge_kubeconfig_files(&[f1, f2]).unwrap();
-
-        // Simulate what init_with_context does: find context by name
-        let found_a = merged.contexts.iter().find(|c| c.name == "ctx-a");
-        let found_b = merged.contexts.iter().find(|c| c.name == "ctx-b");
-        assert!(found_a.is_some(), "ctx-a must be findable in merged config");
-        assert!(found_b.is_some(), "ctx-b must be findable in merged config");
-
-        // Verify auth_infos are also accessible (needed for client creation)
-        let user_a = merged.auth_infos.iter().find(|u| u.name == "user-a");
-        let user_b = merged.auth_infos.iter().find(|u| u.name == "user-b");
-        assert!(user_a.is_some(), "user-a must be findable");
-        assert!(user_b.is_some(), "user-b must be findable");
-    }
-
-    #[test]
-    fn test_merge_duplicate_context_first_wins() {
-        let dir = tempfile::tempdir().unwrap();
-        let f1 = write_kubeconfig(dir.path(), "first.yaml", KUBECONFIG_A);
-        // Second file reuses context name "ctx-a" but with a different cluster
-        let duplicate = r#"
-apiVersion: v1
-kind: Config
-current-context: ctx-a
-clusters:
-- name: other-cluster
-  cluster:
-    server: https://other:6443
-contexts:
-- name: ctx-a
-  context:
-    cluster: other-cluster
-    user: other-user
-users:
-- name: other-user
-  user:
-    token: other-token
-"#;
-        let f2 = write_kubeconfig(dir.path(), "second.yaml", duplicate);
-
-        let merged = merge_kubeconfig_files(&[f1, f2]).unwrap();
-        // Only one context with name "ctx-a" (first file wins)
-        let matching: Vec<_> = merged
-            .contexts
-            .iter()
-            .filter(|c| c.name == "ctx-a")
-            .collect();
-        assert_eq!(matching.len(), 1);
-        // The cluster reference should be from the first file
-        assert_eq!(
-            matching[0].context.as_ref().unwrap().cluster,
-            "cluster-a",
-            "first file's cluster reference must win"
-        );
-    }
-
-    #[test]
-    fn test_merge_resolves_relative_cert_paths() {
-        let dir = tempfile::tempdir().unwrap();
-
-        // Write a CA file next to the kubeconfig
-        let ca_path = dir.path().join("ca.crt");
-        std::fs::write(&ca_path, "fake-ca-data").unwrap();
-
-        // Kubeconfig with relative certificate-authority path
-        let config_with_relative = r#"
-apiVersion: v1
-kind: Config
-clusters:
-- name: rel-cluster
-  cluster:
-    server: https://rel:6443
-    certificate-authority: ca.crt
-contexts:
-- name: rel-ctx
-  context:
-    cluster: rel-cluster
-    user: rel-user
-users:
-- name: rel-user
-  user:
-    token: rel-token
-"#;
-        let f = write_kubeconfig(dir.path(), "rel.yaml", config_with_relative);
-
-        let merged = merge_kubeconfig_files(&[f]).unwrap();
-        let cluster = merged
-            .clusters
-            .iter()
-            .find(|c| c.name == "rel-cluster")
-            .unwrap();
-        let ca = cluster
-            .cluster
-            .as_ref()
-            .unwrap()
-            .certificate_authority
-            .as_ref()
-            .unwrap();
-
-        // The relative path "ca.crt" must be resolved to an absolute path
-        assert!(
-            std::path::Path::new(ca).is_absolute(),
-            "certificate-authority must be resolved to absolute path, got: {}",
-            ca
-        );
-        assert!(
-            ca.ends_with("ca.crt"),
-            "resolved path must still point to ca.crt, got: {}",
-            ca
-        );
-    }
 }

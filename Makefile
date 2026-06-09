@@ -183,7 +183,7 @@ release: ## Release: version bump, changelog, commit, tag push → CI builds all
 	@echo ""
 	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
 	echo "$(CYAN)Committing release...$(RESET)"; \
-	git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json CHANGELOG.md web/src/pages/changelog.mdx .release-notes.md; \
+	git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json src-tauri/gen/schemas/ CHANGELOG.md web/src/pages/changelog.mdx .release-notes.md; \
 	git commit -m "chore(release): bump version to $$VERSION and update changelog"; \
 	echo "$(CYAN)Pushing to remote...$(RESET)"; \
 	git push; \
@@ -543,7 +543,10 @@ kubeconfig-fake-aks: ## Create fake AKS context pointing to local cluster
 kubeconfig-auth-error: ## Create context with invalid token for auth error testing
 	@./scripts/kubeconfig-sim.sh create-auth-error
 
-kubeconfig-cleanup: ## Remove all kubeli-* simulated contexts
+kubeconfig-same-user: ## Start 3 minikube profiles with same "admin" user for #283 testing
+	@./scripts/kubeconfig-sim.sh create-same-user
+
+kubeconfig-cleanup: ## Remove all kubeli-* simulated contexts, profiles, and files
 	@./scripts/kubeconfig-sim.sh cleanup
 
 k8s-pods: ## List all pods across namespaces

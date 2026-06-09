@@ -38,12 +38,11 @@ describe("useAutoScroll", () => {
   it("scrollToBottom re-enables autoScroll after delay", () => {
     const { result } = renderHook(() => useAutoScroll({ dependencies: [] }));
 
-    // Mock endRef.current with a DOM element
-    const mockElement = document.createElement("div");
-    mockElement.scrollIntoView = jest.fn();
-    Object.defineProperty(result.current.endRef, "current", {
-      value: mockElement,
-      writable: true,
+    // Attach a mock container node via the callback ref
+    const mockContainer = document.createElement("div");
+    mockContainer.scrollTo = jest.fn();
+    act(() => {
+      result.current.containerRef(mockContainer);
     });
 
     // First disable

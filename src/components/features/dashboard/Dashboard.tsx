@@ -147,6 +147,20 @@ function DashboardContent() {
       );
     }
 
+    if (activeResource === "deployment-logs") {
+      const deploymentName = activeTab?.metadata?.deploymentName;
+      const namespace = activeTab?.metadata?.namespace;
+      if (!deploymentName || !namespace) return null;
+      return (
+        favorites.find(
+          (f) =>
+            f.resourceType === "deployments" &&
+            f.name === deploymentName &&
+            f.namespace === namespace
+        )?.id ?? null
+      );
+    }
+
     if (!selectedResource) return null;
     const favoriteType = toFavoriteResourceType(selectedResource.type);
     if (!favoriteType) return null;
@@ -295,20 +309,18 @@ function DashboardContent() {
         return;
       }
 
-      if (resourceTabs.length >= 10) {
-        toast.warning(t("tabs.limitToast"));
-        return;
-      }
-
-      openTab("pod-logs", `Logs: ${favorite.name} (${favorite.namespace})`, {
-        newTab: true,
-        metadata: { namespace: favorite.namespace, podName: favorite.name },
-      });
+      const result = useTabsStore.getState().openOrActivateTab(
+        "pod-logs",
+        `Logs: ${favorite.name} (${favorite.namespace})`,
+        { namespace: favorite.namespace, podName: favorite.name },
+        (tab) => tab.type === "pod-logs" &&
+          tab.metadata?.podName === favorite.name &&
+          tab.metadata?.namespace === favorite.namespace,
+      );
+      if (result === null) toast.warning(t("tabs.limitToast"));
     },
     [
-      openTab,
       removeMissingFavorite,
-      resourceTabs.length,
       setActiveResource,
       setCurrentNamespace,
       t,

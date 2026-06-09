@@ -177,7 +177,9 @@ export function TabBar() {
                 onCloseToRight={() => requestCloseTabsToRight(tab.id)}
                 isLast={index === tabs.length - 1}
                 onMiddleClick={(event) => handleMouseDown(event, tab)}
-                title={tab.type === "pod-logs" ? tab.title : getTabTitle(tab.type)}
+                title={tab.type === "pod-logs" || tab.type === "deployment-logs"
+                  ? tab.title
+                  : getTabTitle(tab.type)}
                 labels={{
                   close: t("close"),
                   closeOthers: t("closeOthers"),

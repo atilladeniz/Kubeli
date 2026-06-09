@@ -9,6 +9,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn } from "@/lib/utils";
 import type { RecentSectionProps, ResourceType } from "../types/types";
 
@@ -68,13 +69,17 @@ export function RecentSection({
                 onClick={() =>
                   onResourceSelect(recent.resourceType as ResourceType)
                 }
-                className="flex items-center gap-2 w-full rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                className="flex items-center gap-2 w-full min-w-0 rounded-md px-2 py-1.5 text-xs text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
               >
-                <span className="truncate font-medium">{recent.name}</span>
+                <TruncateTooltip
+                  content={recent.name}
+                  className="min-w-0 flex-1 truncate font-medium"
+                />
                 {recent.namespace && (
-                  <span className="text-[10px] text-muted-foreground/60 truncate">
-                    {recent.namespace}
-                  </span>
+                  <TruncateTooltip
+                    content={recent.namespace}
+                    className="max-w-24 shrink-0 truncate text-[10px] text-muted-foreground/60"
+                  />
                 )}
               </button>
             ))}

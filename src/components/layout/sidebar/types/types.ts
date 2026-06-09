@@ -60,7 +60,8 @@ export type KnownResourceType =
   | "mutating-webhooks"
   | "validating-webhooks"
   // Special views
-  | "pod-logs";
+  | "pod-logs"
+  | "deployment-logs";
 
 export type ResourceType = KnownResourceType | CustomResourceType;
 
@@ -134,7 +135,7 @@ export interface PortForwardsSectionProps {
   setIsPortForwardsSectionOpen: (open: boolean) => void;
   onResourceSelect: (resource: ResourceType) => void;
   onOpenForwardInBrowser: (port: number) => void | Promise<void>;
-  stopForward: (forwardId: string) => void | Promise<void>;
+  stopForward: (forwardId: string) => void | Promise<void> | Promise<boolean>;
 }
 
 export interface FavoritesSectionProps {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { AlertCircle, Info } from "lucide-react";
 import { useLogs } from "@/lib/hooks/useLogs";
 import { useLogStore } from "@/lib/stores/log-store";
@@ -13,6 +13,7 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useLogFilter, useLogAnalysis, useLogDownload, useAutoScroll } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
+import type { TimestampMode } from "./types";
 
 interface LogViewerProps {
   namespace: string;
@@ -20,13 +21,14 @@ interface LogViewerProps {
   initialContainer?: string;
   logTabId?: string;
   onClose?: () => void;
+  onOpenInTab?: () => void;
 }
 
 /**
  * Log viewer component for Kubernetes pods.
  * Supports streaming, filtering, searching, and AI analysis.
  */
-export function LogViewer({ namespace, podName, initialContainer, logTabId }: LogViewerProps) {
+export function LogViewer({ namespace, podName, initialContainer, logTabId, onOpenInTab }: LogViewerProps) {
   const t = useTranslations();
 
   // Core log state from hook
@@ -50,8 +52,15 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
   );
 
   // Local UI state
-  const [showTimestamps, setShowTimestamps] = useState(true);
   const [showPreviousLogs, setShowPreviousLogs] = useState(false);
+
+  // Display options state
+  const [lineWrap, setLineWrap] = useState(true);
+  const [logColoring, setLogColoring] = useState(true);
+  const [timestampMode, setTimestampMode] = useState<TimestampMode>("local");
+
+  const showTimestamps = timestampMode !== "off";
+  const timestampLocal = timestampMode === "local";
 
   // Stop streaming when switching to previous logs (previous logs are static)
   useEffect(() => {
@@ -132,6 +141,16 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
     [isAICliAvailable, currentCluster, currentNamespace, namespace, podName, setPendingAnalysis, setAIAssistantOpen, t]
   );
 
+  // Copy all logs to clipboard
+  const copyAllLogs = useCallback(async () => {
+    try {
+      const text = filteredLogs.map((l) => l.message).join("\n");
+      await navigator.clipboard.writeText(text);
+    } catch {
+      // Clipboard write may fail in some environments
+    }
+  }, [filteredLogs]);
+
   // Download hook
   const { isDownloading, downloadLogs } = useLogDownload({
     podName,
@@ -148,6 +167,15 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
     }
   }, [initialContainer, containers, setSelectedContainer]);
 
+  // Auto-follow: start streaming automatically when log viewer mounts
+  // Detail pane is safe: TabsContent without forceMount only mounts when the Logs tab is active
+  const hasAutoStarted = useRef(false);
+  useEffect(() => {
+    if (hasAutoStarted.current || isStreaming || isLoading || isPodNotFound || showPreviousLogs) return;
+    hasAutoStarted.current = true;
+    startStream();
+  }, [isStreaming, isLoading, isPodNotFound, showPreviousLogs, startStream]);
+
   return (
     <div className="relative flex h-full flex-col bg-background">
       <LogHeader
@@ -160,6 +188,8 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         selectedContainer={selectedContainer}
         onContainerChange={setSelectedContainer}
         containerPlaceholder={t("terminal.selectContainer")}
+        onOpenInTab={onOpenInTab}
+        openInTabTooltip={t("logs.openInTab")}
       />
 
       <LogToolbar
@@ -183,13 +213,28 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
             info: t("logs.levelInfo"),
             debug: t("logs.levelDebug"),
           },
-          showTimestamps,
-          onTimestampsToggle: setShowTimestamps,
-          timestampsLabel: t("logs.timestamps"),
           showPreviousLogs,
           onPreviousLogsToggle: setShowPreviousLogs,
           previousLogsLabel: t("podDetail.previousLogs"),
           isStreaming,
+        }}
+        displayOptions={{
+          lineWrap,
+          onLineWrapChange: setLineWrap,
+          logColoring,
+          onLogColoringChange: setLogColoring,
+          timestampMode,
+          onTimestampModeChange: setTimestampMode,
+          labels: {
+            tooltip: t("logs.displayOptions"),
+            displayOptions: t("logs.displayOptions"),
+            lineWrap: t("logs.lineWrap"),
+            logColoring: t("logs.logColoring"),
+            timestamp: t("logs.timestampSection"),
+            timestampOff: t("logs.timestampOff"),
+            timestampUtc: t("logs.timestampUtc"),
+            timestampLocal: t("logs.timestampLocal"),
+          },
         }}
         stream={{
           isStreaming,
@@ -206,6 +251,11 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
           isDownloading,
           logsCount: logs.length,
           onDownload: downloadLogs,
+          tooltip: t("logs.download"),
+        }}
+        copyAll={{
+          onCopy: copyAllLogs,
+          tooltip: t("logs.copyAll"),
         }}
         ai={{
           isAvailable: isAICliAvailable,
@@ -245,6 +295,9 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         isLoading={isLoading}
         searchQuery={searchQuery}
         showTimestamps={showTimestamps}
+        timestampLocal={timestampLocal}
+        lineWrap={lineWrap}
+        logColoring={logColoring}
         useRegex={useRegex}
         searchRegex={searchRegex}
         onScroll={handleScroll}
@@ -252,7 +305,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId }: Lo
         streamDisabled={showPreviousLogs}
         endRef={endRef}
         loadingText={t("common.loading")}
-        searchingText={t("logs.searching")}
+        searchingText={t("logs.noMatchesFound", { query: searchQuery.length > LOG_DEFAULTS.MAX_SEARCH_DISPLAY_LENGTH ? searchQuery.slice(0, LOG_DEFAULTS.MAX_SEARCH_DISPLAY_LENGTH) + "..." : searchQuery })}
         noLogsText={t("logs.noLogs")}
         followText={t("logs.follow")}
         copyLabel={t("common.copy")}

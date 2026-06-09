@@ -1,7 +1,7 @@
 "use client";
 
 import { forwardRef, useState, useCallback, useRef, useEffect } from "react";
-import { Loader2, Copy, Check, Sparkles } from "lucide-react";
+import { Loader2, Copy, Check, Sparkles, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LogEntry } from "@/lib/types";
 import { LogLine } from "./LogLine";
@@ -11,6 +11,9 @@ interface LogContentProps {
   isLoading: boolean;
   searchQuery: string;
   showTimestamps: boolean;
+  timestampLocal?: boolean;
+  lineWrap?: boolean;
+  logColoring?: boolean;
   useRegex: boolean;
   searchRegex: RegExp | null;
   onScroll: () => void;
@@ -45,6 +48,9 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
       isLoading,
       searchQuery,
       showTimestamps,
+      timestampLocal,
+      lineWrap,
+      logColoring,
       useRegex,
       searchRegex,
       onScroll,
@@ -124,7 +130,10 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
                 <p>{loadingText}</p>
               </>
             ) : searchQuery ? (
-              <p>{searchingText}</p>
+              <>
+                <SearchX className="size-8" />
+                <p className="px-4 text-center">{searchingText}</p>
+              </>
             ) : (
               <>
                 <p>{noLogsText}</p>
@@ -144,16 +153,20 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
       <>
         <div
           ref={ref}
+          tabIndex={0}
           onScroll={onScroll}
           onContextMenu={handleContextMenu}
-          className="flex-1 overflow-auto"
+          className="flex-1 overflow-auto outline-none"
+          data-allow-context-menu
         >
-          <pre className="m-0 p-2 font-mono text-sm leading-5" data-allow-context-menu>
+          <pre className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-words" : ""}`}>
             {logs.map((log, index) => (
               <LogLine
                 key={`${log.timestamp}-${index}`}
                 log={log}
                 showTimestamp={showTimestamps}
+                timestampLocal={timestampLocal}
+                logColoring={logColoring}
                 searchQuery={searchQuery}
                 useRegex={useRegex}
                 searchRegex={searchRegex}

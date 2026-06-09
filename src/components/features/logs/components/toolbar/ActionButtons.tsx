@@ -1,6 +1,7 @@
 "use client";
 
-import { Trash2, Download, Loader2, ArrowDown, FileText, FileJson, Sparkles } from "lucide-react";
+import { useState, useCallback, useRef, useEffect } from "react";
+import { Trash2, Download, Loader2, ArrowDown, FileText, FileJson, Sparkles, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import {
@@ -50,20 +51,26 @@ interface DownloadButtonProps {
   isDownloading: boolean;
   disabled: boolean;
   onDownload: (format: DownloadFormat) => void;
+  tooltip: string;
 }
 
-export function DownloadButton({ isDownloading, disabled, onDownload }: DownloadButtonProps) {
+export function DownloadButton({ isDownloading, disabled, onDownload, tooltip }: DownloadButtonProps) {
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" disabled={isDownloading || disabled} className="size-7">
-          {isDownloading ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <Download className="size-3.5" />
-          )}
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="icon" disabled={isDownloading || disabled} className="size-7">
+              {isDownloading ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Download className="size-3.5" />
+              )}
+            </Button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent>{tooltip}</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         {DOWNLOAD_FORMATS.map(({ format, label }) => (
           <DropdownMenuItem key={format} onClick={() => onDownload(format)}>
@@ -77,6 +84,54 @@ export function DownloadButton({ isDownloading, disabled, onDownload }: Download
         ))}
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+// Copy All Button
+interface CopyAllButtonProps {
+  disabled: boolean;
+  onCopy: () => Promise<void>;
+  tooltip: string;
+}
+
+export function CopyAllButton({ disabled, onCopy, tooltip }: CopyAllButtonProps) {
+  const [copied, setCopied] = useState(false);
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(null);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);
+
+  const handleCopy = useCallback(async () => {
+    try {
+      await onCopy();
+      setCopied(true);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard write may fail silently
+    }
+  }, [onCopy]);
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleCopy}
+          disabled={disabled}
+          className="size-7"
+        >
+          {copied ? (
+            <Check className="size-3.5 text-green-500" />
+          ) : (
+            <Copy className="size-3.5" />
+          )}
+        </Button>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 

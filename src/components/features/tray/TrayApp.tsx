@@ -81,6 +81,9 @@ export function TrayApp() {
       listen("tray-popup-shown", () => {
         syncThemeFromStorage();
         syncConnectionState();
+        // Pull latest port-forward history from localStorage — Zustand state
+        // does not propagate live across Tauri windows.
+        void usePortForwardStore.persist?.rehydrate();
       }).then((fn) => {
         unlisten = fn;
       });

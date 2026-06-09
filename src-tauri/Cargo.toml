@@ -1,22 +1,22 @@
 [package]
 name = "kubeli"
-version = "0.3.64"
+version = "0.3.74"
 description = "Kubeli - Modern Kubernetes Management Desktop Application"
 authors = ["Kubeli Team"]
 edition = "2021"
 license = "MIT"
 
 [build-dependencies]
-tauri-build = { version = "2.5", features = [] }
+tauri-build = { version = "2.6", features = [] }
 
 [dependencies]
 # Tauri Core
-tauri = { version = "2.9", features = ["macos-private-api", "tray-icon", "image-png"] }
+tauri = { version = "2.11", features = ["macos-private-api", "tray-icon", "image-png"] }
 tauri-plugin-shell = "2.3"
 tauri-plugin-fs = { version = "2.4", features = ["watch"] }
 tauri-plugin-dialog = "2.5"
 tauri-plugin-store = "2.4"
-tauri-plugin-updater = "2.9"
+tauri-plugin-updater = "2.10"
 tauri-plugin-window-state = "2.4"
 tauri-plugin-deep-link = "2.4"
 tauri-plugin-log = "2.8"
@@ -32,21 +32,21 @@ jsonpath-rust = "1.0"
 dirs = "6.0"
 
 # Async Runtime
-tokio = { version = "1.49", features = ["full"] }
+tokio = { version = "1.52", features = ["full"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = "0.3"
 futures-util = "0.3"
 
 # HTTP & Networking
 reqwest = { version = "0.13", default-features = false, features = ["json", "rustls"] }
-hyper = "1.8"
+hyper = "1.9"
 hyper-util = "0.1"
 tower = "0.5"
 tower-http = "0.6"
 
 # WebSocket (for logs/exec streaming)
 tokio-tungstenite = "0.26"
-tungstenite = "0.28"
+tungstenite = "0.29"
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
@@ -78,10 +78,10 @@ regex = "1.12"
 percent-encoding = "2.3"
 
 # SQLite for AI session persistence
-rusqlite = { version = "0.38", features = ["bundled"] }
+rusqlite = { version = "0.39", features = ["bundled"] }
 
 # MCP (Model Context Protocol) Server
-rmcp = { version = "0.17", features = ["server", "transport-io", "macros"] }
+rmcp = { version = "1.7", features = ["server", "transport-io", "macros"] }
 clap = { version = "4.5", features = ["derive"] }
 
 # TOML for Codex config

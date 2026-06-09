@@ -8,6 +8,8 @@ import { getLogLevel, formatTimestamp } from "../lib";
 interface DeploymentLogLineProps {
   log: LogEntry;
   showTimestamp: boolean;
+  timestampLocal?: boolean;
+  logColoring?: boolean;
   searchQuery: string;
   useRegex: boolean;
   searchRegex: RegExp | null;
@@ -23,6 +25,8 @@ interface DeploymentLogLineProps {
 export const DeploymentLogLine = memo(function DeploymentLogLine({
   log,
   showTimestamp,
+  timestampLocal,
+  logColoring = true,
   searchQuery,
   useRegex,
   searchRegex,
@@ -49,17 +53,21 @@ export const DeploymentLogLine = memo(function DeploymentLogLine({
     return log.pod;
   }, [log.pod]);
 
+  const colorClass = logColoring
+    ? LOG_LEVEL_COLORS[logLevel] || LOG_LEVEL_COLORS.default
+    : "text-foreground";
+
   return (
     <>
       {showTimestamp && log.timestamp && (
         <span className="mr-2 text-muted-foreground/60">
-          {formatTimestamp(log.timestamp)}
+          {formatTimestamp(log.timestamp, timestampLocal)}
         </span>
       )}
       <span className={`mr-2 font-semibold ${podColor}`} title={log.pod}>
         [{shortPodName}]
       </span>
-      <span className={LOG_LEVEL_COLORS[logLevel] || LOG_LEVEL_COLORS.default}>
+      <span className={colorClass}>
         {highlightedMessage}
       </span>
       {"\n"}

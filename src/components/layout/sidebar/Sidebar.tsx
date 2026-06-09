@@ -20,10 +20,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { Kbd } from "@/components/ui/kbd";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import {
   FavoritesSection,
   CustomResourcesSection,
@@ -163,9 +164,10 @@ export function Sidebar({
                 <Layers className="size-5 text-primary" />
               )}
               <div className="flex-1 min-w-0">
-                <p className="truncate text-sm font-medium">
-                  {currentCluster?.name || tCluster("noCluster")}
-                </p>
+                <TruncateTooltip
+                  content={currentCluster?.name || tCluster("noCluster")}
+                  className="block truncate text-sm font-medium"
+                />
               </div>
               {isConnected && isHealthy && (
                 <div className="flex items-center gap-1.5 shrink-0">
@@ -253,8 +255,8 @@ export function Sidebar({
       />
 
       {/* Navigation */}
-      <ScrollArea className="flex-1 min-h-0 *:data-[slot=scroll-area-scrollbar]:absolute *:data-[slot=scroll-area-scrollbar]:right-0" type="scroll">
-        <nav className="p-2 pr-2 pb-4">
+      <ScrollArea className="flex-1 min-h-0 *:data-[slot=scroll-area-viewport]:!overflow-x-hidden *:data-[slot=scroll-area-scrollbar]:absolute *:data-[slot=scroll-area-scrollbar]:right-0" type="scroll">
+        <nav className="p-2 pr-2 pb-4 min-w-0 overflow-hidden">
           <QuickAccessSection
             navFavorites={navFavorites}
             navLabelById={navLabelById}

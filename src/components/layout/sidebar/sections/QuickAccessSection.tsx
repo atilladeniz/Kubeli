@@ -9,6 +9,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn } from "@/lib/utils";
 import type { QuickAccessSectionProps } from "../types/types";
 
@@ -77,7 +78,7 @@ export function QuickAccessSection({
                 size="sm"
                 onClick={() => onResourceSelect(resource)}
                 className={cn(
-                  "ml-4 w-[calc(100%-1rem)] gap-1.5 px-1.5 pr-8 font-normal text-xs",
+                  "ml-4 w-[calc(100%-1rem)] justify-start gap-1.5 px-1.5 pr-8 font-normal text-xs",
                   activeResource === resource
                     ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                     : "text-muted-foreground hover:text-foreground",
@@ -96,9 +97,17 @@ export function QuickAccessSection({
                       {icon}
                     </span>
                   )}
-                  <span className="truncate">{label}</span>
+                  <TruncateTooltip
+                    content={label}
+                    className="min-w-0 flex-1 truncate"
+                  />
                   {isDuplicate && section && (
-                    <Badge variant="outline" className="h-3.5 max-w-16 truncate rounded px-1 text-[9px] font-normal text-muted-foreground/60 border-border/40">{section}</Badge>
+                    <Badge variant="outline" className="h-3.5 max-w-16 rounded px-1 text-[9px] font-normal text-muted-foreground/60 border-border/40">
+                      <TruncateTooltip
+                        content={section}
+                        className="block truncate"
+                      />
+                    </Badge>
                   )}
                 </span>
               </Button>

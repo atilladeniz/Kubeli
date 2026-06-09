@@ -24,11 +24,18 @@ export function getLogLevel(message: string): LogLevel {
 
 /**
  * Formats a timestamp string to show only time portion.
- * Returns HH:MM:SS.mmm format.
+ * Returns HH:MM:SS.mmm format in UTC or local time.
  */
-export function formatTimestamp(timestamp: string): string {
+export function formatTimestamp(timestamp: string, local?: boolean): string {
   try {
     const date = new Date(timestamp);
+    if (local) {
+      const h = String(date.getHours()).padStart(2, "0");
+      const m = String(date.getMinutes()).padStart(2, "0");
+      const s = String(date.getSeconds()).padStart(2, "0");
+      const ms = String(date.getMilliseconds()).padStart(3, "0");
+      return `${h}:${m}:${s}.${ms}`;
+    }
     return date.toISOString().split("T")[1].slice(0, 12);
   } catch {
     // Fallback: extract time portion from string

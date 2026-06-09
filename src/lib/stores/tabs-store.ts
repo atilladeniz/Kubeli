@@ -5,6 +5,8 @@ import { useLogStore } from "./log-store";
 export interface TabMetadata {
   namespace?: string;
   podName?: string;
+  deploymentName?: string;
+  autoStream?: boolean;
 }
 
 export interface Tab {
@@ -22,6 +24,13 @@ interface TabsState {
 
   // Actions
   openTab: (type: ResourceType, title: string, opts?: { newTab?: boolean; metadata?: TabMetadata }) => void;
+  /** Opens a new tab or activates an existing one if a match is found. Returns the tab ID. */
+  openOrActivateTab: (
+    type: ResourceType,
+    title: string,
+    metadata: TabMetadata,
+    match: (tab: Tab) => boolean,
+  ) => string | null;
   closeTab: (id: string) => void;
   closeOtherTabs: (id: string) => void;
   closeTabsToRight: (id: string) => void;
@@ -34,7 +43,12 @@ interface TabsState {
   setTabFilter: (tabId: string, filter: string | null) => void;
 }
 
-const MAX_TABS = 10;
+export const MAX_TABS = 10;
+
+/** Tab types that manage log streams and need cleanup on close. */
+function isLogTab(type: string): boolean {
+  return type === "pod-logs" || type === "deployment-logs";
+}
 
 const DEFAULT_TAB: Tab = {
   id: "default",
@@ -46,13 +60,22 @@ function generateId(): string {
   return `tab-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+/** Strip ephemeral metadata fields (e.g. autoStream) before saving to localStorage. */
+function stripEphemeralMetadata(tabs: Tab[]): Tab[] {
+  return tabs.map((tab) => {
+    if (!tab.metadata?.autoStream) return tab;
+    const { autoStream: _, ...rest } = tab.metadata;
+    return { ...tab, metadata: rest };
+  });
+}
+
 function persistTabs(tabs: Tab[], activeTabId: string) {
   try {
     const clusterContext = getClusterContext();
     if (clusterContext) {
       localStorage.setItem(
         `kubeli:tabs:${clusterContext}`,
-        JSON.stringify({ tabs, activeTabId })
+        JSON.stringify({ tabs: stripEphemeralMetadata(tabs), activeTabId })
       );
     }
   } catch {
@@ -108,6 +131,26 @@ export const useTabsStore = create<TabsState>((set, get) => {
       syncActiveTabId(newTab.id);
     },
 
+    openOrActivateTab: (type, title, metadata, match) => {
+      const { tabs } = get();
+      const existing = tabs.find(match);
+      if (existing) {
+        set({ activeTabId: existing.id });
+        persistTabs(tabs, existing.id);
+        syncActiveTabId(existing.id);
+        return existing.id;
+      }
+      if (tabs.length >= MAX_TABS) {
+        return null;
+      }
+      const newTab: Tab = { id: generateId(), type, title, metadata };
+      const newTabs = [...tabs, newTab];
+      set({ tabs: newTabs, activeTabId: newTab.id });
+      persistTabs(newTabs, newTab.id);
+      syncActiveTabId(newTab.id);
+      return newTab.id;
+    },
+
     closeTab: (id) => {
       const { tabs, activeTabId, searchQueries, activeFilters } = get();
       if (tabs.length <= 1) return; // Can't close last tab
@@ -129,7 +172,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
       persistTabs(newTabs, newActiveId);
       syncActiveTabId(newActiveId);
 
-      if (closedTab?.type === "pod-logs") {
+      if (closedTab && isLogTab(closedTab.type)) {
         useLogStore.getState().cleanupLogTab(id);
       }
     },
@@ -148,7 +191,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
       syncActiveTabId(id);
 
       for (const t of removedTabs) {
-        if (t.type === "pod-logs") {
+        if (isLogTab(t.type)) {
           useLogStore.getState().cleanupLogTab(t.id);
         }
       }
@@ -174,7 +217,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
       syncActiveTabId(newActiveId);
 
       for (const t of removedTabs) {
-        if (t.type === "pod-logs") {
+        if (isLogTab(t.type)) {
           useLogStore.getState().cleanupLogTab(t.id);
         }
       }
@@ -248,7 +291,7 @@ export const useTabsStore = create<TabsState>((set, get) => {
       }
 
       for (const t of tabs) {
-        if (t.type === "pod-logs") {
+        if (isLogTab(t.type)) {
           useLogStore.getState().cleanupLogTab(t.id);
         }
       }

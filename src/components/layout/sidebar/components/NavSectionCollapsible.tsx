@@ -10,6 +10,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn } from "@/lib/utils";
 import { isImplementedView } from "../types/constants";
 import type { NavSection, ResourceType } from "../types/types";
@@ -112,7 +113,10 @@ export function NavSectionCollapsible({
                       {item.icon}
                     </span>
                   )}
-                  <span className="truncate">{item.label}</span>
+                  <TruncateTooltip
+                    content={item.label}
+                    className="min-w-0 flex-1 truncate"
+                  />
                 </span>
                 {!isImplemented && (
                   <Badge

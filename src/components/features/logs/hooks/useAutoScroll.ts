@@ -44,7 +44,7 @@ export function useAutoScroll({ dependencies, initialScrollTop, initialAutoScrol
   const endRef = useRef<HTMLDivElement>(null);
   const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Guard: ignore scroll events caused by programmatic scroll restoration
+  // Guard: ignore scroll events caused by programmatic scrolling
   const suppressScrollHandlerRef = useRef(false);
 
   // Wrap setAutoScroll to also persist to store
@@ -73,6 +73,19 @@ export function useAutoScroll({ dependencies, initialScrollTop, initialAutoScrol
     []
   );
 
+  // Scroll the container to its bottom edge directly via scrollTop.
+  // This is more reliable than scrollIntoView in deeply nested flex layouts
+  // (e.g. detail pane) where scrollIntoView can target the wrong ancestor.
+  const scrollToEnd = useCallback((behavior: ScrollBehavior) => {
+    const node = containerNodeRef.current;
+    if (!node) return;
+    suppressScrollHandlerRef.current = true;
+    node.scrollTo({ top: node.scrollHeight, behavior });
+    requestAnimationFrame(() => {
+      suppressScrollHandlerRef.current = false;
+    });
+  }, []);
+
   // Auto-scroll to bottom when dependencies change (skip first render when resuming)
   const skipNextScrollRef = useRef(isResuming);
   useEffect(() => {
@@ -80,9 +93,11 @@ export function useAutoScroll({ dependencies, initialScrollTop, initialAutoScrol
       skipNextScrollRef.current = false;
       return;
     }
-    if (autoScroll && endRef.current) {
-      endRef.current.scrollIntoView({ behavior: "smooth" });
-    }
+    if (!autoScroll) return;
+    // rAF ensures containerNodeRef is set after a logs empty→non-empty DOM transition
+    requestAnimationFrame(() => {
+      scrollToEnd("instant");
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoScroll, ...dependencies]);
 
@@ -110,18 +125,14 @@ export function useAutoScroll({ dependencies, initialScrollTop, initialAutoScrol
     };
   }, []);
 
-  // Scroll to bottom and re-enable auto-scroll after animation completes
+  // Manual scroll-to-bottom button — uses smooth animation
   const scrollToBottom = useCallback(() => {
-    if (!endRef.current) return;
-
-    endRef.current.scrollIntoView({ behavior: "smooth" });
-
-    // Delay setting autoScroll to avoid button flicker during smooth scroll
-    // 300ms matches typical smooth scroll duration
+    if (!containerNodeRef.current) return;
+    scrollToEnd("smooth");
     setTimeout(() => {
       setAutoScroll(true);
     }, 300);
-  }, [setAutoScroll]);
+  }, [scrollToEnd, setAutoScroll]);
 
   return {
     containerRef,
