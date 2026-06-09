@@ -15,6 +15,24 @@ use openidconnect::{
 use super::config::OidcExecConfig;
 use super::store::OidcTokens;
 
+/// Classification of a refresh failure so callers can react correctly:
+/// a `Terminal` error means the refresh token is dead and must be discarded,
+/// while a `Transient` error (network, IdP 5xx, discovery) should be retried
+/// WITHOUT discarding the still-valid refresh token.
+#[derive(Debug)]
+pub enum RefreshError {
+    Terminal(String),
+    Transient(String),
+}
+
+impl std::fmt::Display for RefreshError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RefreshError::Terminal(m) | RefreshError::Transient(m) => write!(f, "{}", m),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct PendingAuth {
     pub pkce_verifier: PkceCodeVerifier,
@@ -141,10 +159,12 @@ impl OidcFlowManager {
         &self,
         config: &OidcExecConfig,
         refresh_token: &str,
-    ) -> Result<OidcTokens, String> {
-        let provider_metadata = discover_provider(&config.issuer_url).await?;
+    ) -> Result<OidcTokens, RefreshError> {
+        let provider_metadata = discover_provider(&config.issuer_url)
+            .await
+            .map_err(RefreshError::Transient)?;
         let redirect_uri = RedirectUrl::new("kubeli://oidc/callback".to_string())
-            .map_err(|e| format!("Invalid OIDC redirect URL: {}", e))?;
+            .map_err(|e| RefreshError::Transient(format!("Invalid OIDC redirect URL: {}", e)))?;
         let client = CoreClient::from_provider_metadata(
             provider_metadata,
             ClientId::new(config.client_id.clone()),
@@ -155,23 +175,39 @@ impl OidcFlowManager {
         let refresh_token_value = RefreshToken::new(refresh_token.to_string());
         let refresh_token_request = client
             .exchange_refresh_token(&refresh_token_value)
-            .map_err(|e| format!("Failed to create OIDC refresh request: {}", e))?;
+            .map_err(|e| {
+                RefreshError::Transient(format!("Failed to create OIDC refresh request: {}", e))
+            })?;
 
-        let http_client = build_http_client()?;
-        let token_response: CoreTokenResponse = refresh_token_request
-            .request_async(&http_client)
-            .await
-            .map_err(|e| format!("Failed to refresh OIDC token: {}", e))?;
+        let http_client = build_http_client().map_err(RefreshError::Transient)?;
+        let token_response: CoreTokenResponse =
+            match refresh_token_request.request_async(&http_client).await {
+                Ok(response) => response,
+                Err(e) => {
+                    // Only `invalid_grant` means the refresh token itself is dead
+                    // and must be discarded. Network errors, IdP 5xx, parse errors
+                    // etc. are transient and must NOT cause us to delete a still
+                    // valid refresh token (a network error's message never contains
+                    // the OAuth2 `invalid_grant` error code).
+                    let message = format!("Failed to refresh OIDC token: {}", e);
+                    return Err(if message.contains("invalid_grant") {
+                        RefreshError::Terminal(message)
+                    } else {
+                        RefreshError::Transient(message)
+                    });
+                }
+            };
 
-        let id_token_obj = token_response
-            .extra_fields()
-            .id_token()
-            .ok_or_else(|| "OIDC provider did not return an id_token on refresh".to_string())?;
+        let id_token_obj = token_response.extra_fields().id_token().ok_or_else(|| {
+            RefreshError::Transient(
+                "OIDC provider did not return an id_token on refresh".to_string(),
+            )
+        })?;
 
         // Refreshed tokens may omit the nonce claim (Keycloak does this per OIDC spec).
         // Signature + audience + issuer are still validated by the K8s API server on each request.
         let id_token = id_token_obj.to_string();
-        let expires_at = parse_jwt_expiry(&id_token)?;
+        let expires_at = parse_jwt_expiry(&id_token).map_err(RefreshError::Transient)?;
         let next_refresh_token = token_response
             .refresh_token()
             .map(|token: &RefreshToken| token.secret().to_string())
@@ -234,4 +270,45 @@ fn parse_jwt_expiry(jwt: &str) -> Result<DateTime<Utc>, String> {
 
     DateTime::<Utc>::from_timestamp(exp, 0)
         .ok_or_else(|| "id_token exp claim is out of valid range".to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn jwt_with_payload(payload_json: &str) -> String {
+        let header = URL_SAFE_NO_PAD.encode(b"{\"alg\":\"none\"}");
+        let payload = URL_SAFE_NO_PAD.encode(payload_json.as_bytes());
+        format!("{header}.{payload}.signature")
+    }
+
+    #[test]
+    fn parses_exp_from_valid_token() {
+        let token = jwt_with_payload("{\"exp\":1700000000,\"sub\":\"user\"}");
+        let exp = parse_jwt_expiry(&token).expect("should parse exp");
+        assert_eq!(exp.timestamp(), 1700000000);
+    }
+
+    #[test]
+    fn rejects_token_without_exp_claim() {
+        let token = jwt_with_payload("{\"sub\":\"user\"}");
+        assert!(parse_jwt_expiry(&token).is_err());
+    }
+
+    #[test]
+    fn rejects_token_with_too_few_segments() {
+        assert!(parse_jwt_expiry("only-header").is_err());
+    }
+
+    #[test]
+    fn rejects_non_json_payload() {
+        let token = jwt_with_payload("this is not json");
+        assert!(parse_jwt_expiry(&token).is_err());
+    }
+
+    #[test]
+    fn refresh_error_display_shows_message() {
+        assert_eq!(RefreshError::Terminal("boom".into()).to_string(), "boom");
+        assert_eq!(RefreshError::Transient("blip".into()).to_string(), "blip");
+    }
 }

@@ -4,6 +4,7 @@ use crate::error::KubeliError;
 use crate::k8s::{AppState, AuthType, KubeConfig};
 use crate::oidc::commands::OidcState;
 use crate::oidc::config::detect_oidc_exec;
+use crate::oidc::flow::RefreshError;
 use kube::config::Kubeconfig;
 use kube::Client;
 use std::sync::Arc;
@@ -396,52 +397,45 @@ pub async fn remove_cluster(context: String) -> Result<(), KubeliError> {
 }
 
 async fn resolve_oidc_token(
-    app: &AppHandle,
+    _app: &AppHandle,
     oidc_state: &OidcState,
     config: &crate::oidc::config::OidcExecConfig,
 ) -> Option<String> {
-    if let Some(token) = oidc_state
-        .token_store
-        .get_valid_token(&config.issuer_url, &config.client_id)
-    {
-        return Some(token);
-    }
-
-    let refresh_token = crate::oidc::store::OidcTokenStore::load_refresh_token(
-        &config.issuer_url,
-        &config.client_id,
-    );
-
-    if let Some(ref rt) = refresh_token {
-        match oidc_state.flow_manager.refresh_token(config, rt).await {
-            Ok(tokens) => {
-                oidc_state.token_store.store_tokens(
-                    &config.issuer_url,
-                    &config.client_id,
-                    tokens.clone(),
-                );
-                if let Some(ref new_rt) = tokens.refresh_token {
-                    crate::oidc::store::OidcTokenStore::save_refresh_token(
-                        &config.issuer_url,
-                        &config.client_id,
-                        new_rt,
-                    );
-                }
-                return Some(tokens.id_token);
-            }
-            Err(_) => {
-                oidc_state
-                    .token_store
-                    .clear(&config.issuer_url, &config.client_id);
-                crate::oidc::store::OidcTokenStore::delete_refresh_token(
-                    &config.issuer_url,
-                    &config.client_id,
-                );
-            }
+    // OidcState::refresh() handles the cache check, serialized refresh, rotation
+    // and (on a definitive invalid_grant only) cleanup. A None here means no
+    // usable token and the caller surfaces oidc_auth_required to start the
+    // interactive browser flow.
+    match oidc_state.refresh(config).await {
+        Ok(token) => Some(token),
+        Err(e) => {
+            tracing::warn!("OIDC token resolution failed: {}", e);
+            None
         }
     }
+}
 
-    None
+/// Delay before proactively refreshing: ~3/4 of the token's remaining lifetime,
+/// with a 5s floor so a near-expired or already-expired token is retried promptly.
+fn refresh_delay_secs(remaining_lifetime_secs: i64) -> u64 {
+    std::cmp::max(remaining_lifetime_secs * 3 / 4, 5) as u64
+}
+
+/// Sleep up to `seconds`, polling `stop_flag` every few seconds so the wait is
+/// promptly cancellable. Returns false if cancelled, true if it slept the full
+/// duration without being cancelled.
+async fn sleep_cancellable(seconds: u64, stop_flag: &std::sync::atomic::AtomicBool) -> bool {
+    use std::sync::atomic::Ordering;
+    let check_interval = seconds.clamp(1, 5);
+    let mut elapsed = 0u64;
+    while elapsed < seconds {
+        if stop_flag.load(Ordering::Relaxed) {
+            return false;
+        }
+        let step = std::cmp::min(check_interval, seconds - elapsed);
+        tokio::time::sleep(tokio::time::Duration::from_secs(step)).await;
+        elapsed += step;
+    }
+    !stop_flag.load(Ordering::Relaxed)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -455,109 +449,74 @@ fn spawn_oidc_refresh_task(
     kubeconfig: Kubeconfig,
     user_name: String,
 ) {
-    oidc_state.cancel_refresh();
-    let stop_flag = oidc_state.get_refresh_stop_flag();
+    let stop_flag = oidc_state.arm_refresh();
 
     tokio::spawn(async move {
         while let Some(expires_at) = oidc_state
             .token_store
             .get_token_expiry(&oidc_config.issuer_url, &oidc_config.client_id)
         {
-            let now = chrono::Utc::now();
-            let lifetime = (expires_at - now).num_seconds();
-            let refresh_in = std::cmp::max(lifetime * 3 / 4, 5) as u64;
-
+            let lifetime = (expires_at - chrono::Utc::now()).num_seconds();
+            let refresh_in = refresh_delay_secs(lifetime);
             tracing::debug!(
                 "OIDC token refresh scheduled in {}s (token lifetime {}s)",
                 refresh_in,
                 lifetime
             );
 
-            let check_interval = std::cmp::min(refresh_in, 5);
-            let mut elapsed = 0u64;
-            while elapsed < refresh_in {
-                if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                    tracing::debug!("OIDC refresh loop cancelled");
-                    return;
-                }
-                tokio::time::sleep(tokio::time::Duration::from_secs(check_interval)).await;
-                elapsed += check_interval;
+            if !sleep_cancellable(refresh_in, &stop_flag).await {
+                tracing::debug!("OIDC refresh loop cancelled");
+                return;
             }
 
-            if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
-                break;
-            }
-
-            let connected_context = k8s_connected.read().await.clone();
-            if connected_context.as_deref() != Some(context_name.as_str()) {
+            // Stop if the user switched away from or disconnected this context.
+            if k8s_connected.read().await.as_deref() != Some(context_name.as_str()) {
                 tracing::debug!("OIDC refresh loop stopping: context changed");
                 break;
             }
 
-            let refresh_token = match crate::oidc::store::OidcTokenStore::load_refresh_token(
-                &oidc_config.issuer_url,
-                &oidc_config.client_id,
-            ) {
-                Some(rt) => rt,
-                None => {
-                    tracing::warn!("No refresh token available, stopping OIDC refresh loop");
-                    break;
+            // Refresh, retrying transient failures (network, IdP 5xx) with capped
+            // backoff so a blip does not permanently kill the loop or force a
+            // re-login. Only a terminal invalid_grant stops the loop (refresh()
+            // has already discarded the dead token in that case).
+            let mut backoff = 5u64;
+            let new_token = loop {
+                match oidc_state.refresh(&oidc_config).await {
+                    Ok(token) => break Some(token),
+                    Err(RefreshError::Terminal(e)) => {
+                        tracing::warn!("OIDC token refresh failed permanently: {}", e);
+                        break None;
+                    }
+                    Err(RefreshError::Transient(e)) => {
+                        tracing::warn!(
+                            "OIDC token refresh transient failure, retrying in {}s: {}",
+                            backoff,
+                            e
+                        );
+                        if !sleep_cancellable(backoff, &stop_flag).await {
+                            return;
+                        }
+                        backoff = std::cmp::min(backoff * 2, 60);
+                    }
                 }
             };
 
-            match oidc_state
-                .flow_manager
-                .refresh_token(&oidc_config, &refresh_token)
-                .await
-            {
-                Ok(tokens) => {
-                    let new_token = tokens.id_token.clone();
-                    if let Some(ref new_rt) = tokens.refresh_token {
-                        crate::oidc::store::OidcTokenStore::save_refresh_token(
-                            &oidc_config.issuer_url,
-                            &oidc_config.client_id,
-                            new_rt,
-                        );
-                    }
-                    oidc_state.token_store.store_tokens(
-                        &oidc_config.issuer_url,
-                        &oidc_config.client_id,
-                        tokens,
-                    );
+            let Some(new_token) = new_token else {
+                break;
+            };
 
-                    let mut refreshed_kubeconfig = kubeconfig.clone();
-                    inject_oidc_token(&mut refreshed_kubeconfig, &user_name, &new_token);
+            let mut refreshed_kubeconfig = kubeconfig.clone();
+            inject_oidc_token(&mut refreshed_kubeconfig, &user_name, &new_token);
 
-                    let new_client =
-                        match build_client_from_kubeconfig(refreshed_kubeconfig, &context_name)
-                            .await
-                        {
-                            Ok(c) => c,
-                            Err(e) => {
-                                tracing::error!(
-                                    "Failed to create client after OIDC refresh: {}",
-                                    e
-                                );
-                                break;
-                            }
-                        };
-
+            match build_client_from_kubeconfig(refreshed_kubeconfig, &context_name).await {
+                Ok(new_client) => {
                     *k8s_manager.write().await = Some(new_client);
-
                     tracing::info!("OIDC token refreshed and kube client reinitialized");
-
                     use tauri::Emitter;
                     let _ = app_handle.emit("oidc-token-refreshed", ());
                 }
                 Err(e) => {
-                    tracing::warn!("OIDC token refresh failed: {}", e);
-                    oidc_state
-                        .token_store
-                        .clear(&oidc_config.issuer_url, &oidc_config.client_id);
-                    crate::oidc::store::OidcTokenStore::delete_refresh_token(
-                        &oidc_config.issuer_url,
-                        &oidc_config.client_id,
-                    );
+                    tracing::error!("Failed to create client after OIDC refresh: {}", e);
                     break;
                 }
             }
@@ -600,4 +559,22 @@ fn inject_oidc_token(kubeconfig: &mut Kubeconfig, user_name: &str, token: &str) 
 #[command]
 pub async fn has_kubeconfig() -> Result<bool, KubeliError> {
     Ok(KubeConfig::exists().await)
+}
+
+#[cfg(test)]
+mod refresh_tests {
+    use super::refresh_delay_secs;
+
+    #[test]
+    fn refreshes_at_three_quarters_of_lifetime() {
+        assert_eq!(refresh_delay_secs(400), 300);
+        assert_eq!(refresh_delay_secs(100), 75);
+    }
+
+    #[test]
+    fn floors_at_five_seconds_for_short_or_expired_tokens() {
+        assert_eq!(refresh_delay_secs(4), 5);
+        assert_eq!(refresh_delay_secs(0), 5);
+        assert_eq!(refresh_delay_secs(-120), 5);
+    }
 }

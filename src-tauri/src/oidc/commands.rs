@@ -4,16 +4,36 @@ use tauri::State;
 use tauri_plugin_opener::OpenerExt;
 
 use super::config::OidcExecConfig;
-use super::flow::OidcFlowManager;
+use super::flow::{OidcFlowManager, RefreshError};
 use super::store::{OidcTokenStore, OidcTokens};
 
 pub struct OidcState {
     pub flow_manager: OidcFlowManager,
     pub token_store: OidcTokenStore,
     pub refresh_stop: std::sync::Mutex<Arc<AtomicBool>>,
+    /// Serializes token refreshes so concurrent paths (interactive auth, connect,
+    /// and the background refresh loop) cannot double-consume a rotating refresh
+    /// token. See [`OidcState::refresh`].
+    pub refresh_lock: tokio::sync::Mutex<()>,
 }
 
 impl OidcState {
+    /// Signal any running refresh task to stop and install a fresh stop flag,
+    /// atomically under a single lock. Returns the new flag for the task that is
+    /// about to be spawned to observe. This closes the cancel-then-arm TOCTOU
+    /// window that a separate cancel + read pair would leave open.
+    pub fn arm_refresh(&self) -> Arc<AtomicBool> {
+        let mut guard = self
+            .refresh_stop
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard.store(true, Ordering::Relaxed);
+        let fresh = Arc::new(AtomicBool::new(false));
+        *guard = Arc::clone(&fresh);
+        fresh
+    }
+
+    /// Signal any running refresh task to stop (used on disconnect).
     pub fn cancel_refresh(&self) {
         if let Ok(mut guard) = self.refresh_stop.lock() {
             guard.store(true, Ordering::Relaxed);
@@ -21,11 +41,60 @@ impl OidcState {
         }
     }
 
-    pub fn get_refresh_stop_flag(&self) -> Arc<AtomicBool> {
-        self.refresh_stop
-            .lock()
-            .map(|g| Arc::clone(&g))
-            .unwrap_or_else(|_| Arc::new(AtomicBool::new(true)))
+    /// Serialized, single-flight token refresh. Holds `refresh_lock` across the
+    /// whole load -> exchange -> persist sequence so concurrent callers cannot
+    /// double-consume a rotating refresh token, and re-checks the in-memory cache
+    /// inside the lock so a caller that waited reuses the token another caller
+    /// just obtained instead of issuing a second refresh.
+    ///
+    /// On a terminal failure (definitive `invalid_grant`) the stored refresh
+    /// token is discarded — but only if it still equals the one this call used
+    /// (compare-and-delete), so a stale-token failure never clobbers a token
+    /// another path just rotated. Transient failures leave the token untouched.
+    pub async fn refresh(&self, config: &OidcExecConfig) -> Result<String, RefreshError> {
+        let _guard = self.refresh_lock.lock().await;
+
+        if let Some(token) = self
+            .token_store
+            .get_valid_token(&config.issuer_url, &config.client_id)
+        {
+            return Ok(token);
+        }
+
+        let refresh_token =
+            OidcTokenStore::load_refresh_token(&config.issuer_url, &config.client_id)
+                .ok_or_else(|| RefreshError::Terminal("No stored refresh token".to_string()))?;
+
+        match self
+            .flow_manager
+            .refresh_token(config, &refresh_token)
+            .await
+        {
+            Ok(tokens) => {
+                if let Some(ref new_rt) = tokens.refresh_token {
+                    OidcTokenStore::save_refresh_token(
+                        &config.issuer_url,
+                        &config.client_id,
+                        new_rt,
+                    );
+                }
+                let id_token = tokens.id_token.clone();
+                self.token_store
+                    .store_tokens(&config.issuer_url, &config.client_id, tokens);
+                Ok(id_token)
+            }
+            Err(RefreshError::Terminal(message)) => {
+                self.token_store
+                    .clear(&config.issuer_url, &config.client_id);
+                OidcTokenStore::delete_refresh_token_if_matches(
+                    &config.issuer_url,
+                    &config.client_id,
+                    &refresh_token,
+                );
+                Err(RefreshError::Terminal(message))
+            }
+            Err(transient) => Err(transient),
+        }
     }
 }
 
@@ -35,6 +104,7 @@ impl Default for OidcState {
             flow_manager: OidcFlowManager::default(),
             token_store: OidcTokenStore::default(),
             refresh_stop: std::sync::Mutex::new(Arc::new(AtomicBool::new(false))),
+            refresh_lock: tokio::sync::Mutex::new(()),
         }
     }
 }
@@ -71,24 +141,20 @@ pub async fn oidc_start_auth(
         extra_scopes,
     };
 
-    if let Some(refresh_token) = load_refresh_token(&app, &issuer_url, &client_id) {
-        match oidc_state
-            .flow_manager
-            .refresh_token(&config, &refresh_token)
-            .await
-        {
-            Ok(tokens) => {
-                persist_tokens(&app, &oidc_state, &issuer_url, &client_id, &tokens);
-                return Ok(OidcAuthResult {
-                    status: "authenticated".to_string(),
-                    auth_url: None,
-                    token: Some(tokens.id_token),
-                });
-            }
-            Err(_) => {
-                oidc_state.token_store.clear(&issuer_url, &client_id);
-                OidcTokenStore::delete_refresh_token(&issuer_url, &client_id);
-            }
+    // Try a cached/refreshed token before opening the browser. refresh()
+    // serializes with the background refresh loop and only discards the stored
+    // token on a definitive invalid_grant, so a transient failure here simply
+    // falls through to interactive auth without destroying a good token.
+    match oidc_state.refresh(&config).await {
+        Ok(token) => {
+            return Ok(OidcAuthResult {
+                status: "authenticated".to_string(),
+                auth_url: None,
+                token: Some(token),
+            });
+        }
+        Err(e) => {
+            tracing::debug!("OIDC refresh before interactive auth failed: {}", e);
         }
     }
 
@@ -173,8 +239,4 @@ fn persist_tokens(
     if let Some(ref refresh_token) = tokens.refresh_token {
         OidcTokenStore::save_refresh_token(issuer, client_id, refresh_token);
     }
-}
-
-fn load_refresh_token(_app: &tauri::AppHandle, issuer: &str, client_id: &str) -> Option<String> {
-    OidcTokenStore::load_refresh_token(issuer, client_id)
 }

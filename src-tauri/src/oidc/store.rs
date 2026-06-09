@@ -72,6 +72,15 @@ impl OidcTokenStore {
             let _ = entry.delete_credential();
         }
     }
+
+    /// Delete the stored refresh token only if it still equals `expected`.
+    /// Prevents a stale-token failure in one refresh path from clobbering a
+    /// token another path just rotated and persisted (refresh-token rotation).
+    pub fn delete_refresh_token_if_matches(issuer: &str, client_id: &str, expected: &str) {
+        if Self::load_refresh_token(issuer, client_id).as_deref() == Some(expected) {
+            Self::delete_refresh_token(issuer, client_id);
+        }
+    }
 }
 
 fn keyring_service(issuer: &str, client_id: &str) -> String {
