@@ -362,7 +362,19 @@
     "compareSelected": "Compare ({count})",
     "diffTitle": "Source Config Diff",
     "diffOlder": "Older",
-    "diffNewer": "Newer"
+    "diffNewer": "Newer",
+    "refresh": "Refresh",
+    "hardRefresh": "Hard Refresh",
+    "sync": "Sync",
+    "copyRepo": "Copy Repo",
+    "copyPath": "Copy Path",
+    "refreshTriggered": "Refresh triggered",
+    "hardRefreshTriggered": "Hard refresh triggered",
+    "syncTriggered": "Sync triggered",
+    "refreshFailed": "Failed to trigger refresh",
+    "hardRefreshFailed": "Failed to trigger hard refresh",
+    "syncFailed": "Failed to trigger sync",
+    "noApplications": "No ArgoCD Applications found"
   },
   "logs": {
     "title": "Logs",

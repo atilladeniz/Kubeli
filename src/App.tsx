@@ -78,6 +78,43 @@ export default function Home() {
     };
   }, [isTauri, fetchClusters, connect]);
 
+  // Restart long-running connections after OIDC token refresh
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("oidc-token-refreshed", async () => {
+        const { usePortForwardStore } = await import("@/lib/stores/portforward-store");
+        const pfStore = usePortForwardStore.getState();
+        const activeForwards = pfStore.forwards.filter((f) => f.status === "connected");
+        for (const fwd of activeForwards) {
+          await pfStore.stopForward(fwd.forward_id);
+          await pfStore.startForward(
+            fwd.namespace,
+            fwd.name,
+            fwd.target_type,
+            fwd.target_port,
+            fwd.local_port,
+            fwd.port_name
+          );
+        }
+        const clusterStore = useClusterStore.getState();
+        if (clusterStore.namespaceSource === "auto") {
+          await clusterStore.stopNamespaceWatch();
+          await clusterStore.startNamespaceWatch();
+        }
+      }).then((fn) => {
+        if (cancelled) fn();
+        else unlisten = fn;
+      });
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isTauri]);
+
   // Disable native context menu globally
   useEffect(() => {
     const handleContextMenu = (e: MouseEvent) => {

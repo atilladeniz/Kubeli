@@ -32,6 +32,12 @@ impl OidcTokenStore {
         Some(entry.id_token.clone())
     }
 
+    pub fn get_token_expiry(&self, issuer: &str, client_id: &str) -> Option<DateTime<Utc>> {
+        let cache_key = Self::cache_key(issuer, client_id);
+        let guard = self.tokens.lock().ok()?;
+        guard.get(&cache_key).map(|t| t.expires_at)
+    }
+
     pub fn store_tokens(&self, issuer: &str, client_id: &str, tokens: OidcTokens) {
         let cache_key = Self::cache_key(issuer, client_id);
         if let Ok(mut guard) = self.tokens.lock() {
@@ -69,7 +75,15 @@ impl OidcTokenStore {
 }
 
 fn keyring_service(issuer: &str, client_id: &str) -> String {
-    format!("kubeli-oidc:{}:{}", issuer, client_id)
+    use base64::engine::general_purpose::URL_SAFE_NO_PAD;
+    use base64::Engine;
+    use sha2::{Digest, Sha256};
+    let mut hasher = Sha256::new();
+    hasher.update(issuer.as_bytes());
+    hasher.update(b":");
+    hasher.update(client_id.as_bytes());
+    let hash = URL_SAFE_NO_PAD.encode(&hasher.finalize()[..12]);
+    format!("kubeli-oidc-{}", hash)
 }
 
 impl Default for OidcTokenStore {

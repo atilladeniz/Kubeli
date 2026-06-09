@@ -1,3 +1,4 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::State;
 use tauri_plugin_opener::OpenerExt;
@@ -9,6 +10,23 @@ use super::store::{OidcTokenStore, OidcTokens};
 pub struct OidcState {
     pub flow_manager: OidcFlowManager,
     pub token_store: OidcTokenStore,
+    pub refresh_stop: std::sync::Mutex<Arc<AtomicBool>>,
+}
+
+impl OidcState {
+    pub fn cancel_refresh(&self) {
+        if let Ok(mut guard) = self.refresh_stop.lock() {
+            guard.store(true, Ordering::Relaxed);
+            *guard = Arc::new(AtomicBool::new(false));
+        }
+    }
+
+    pub fn get_refresh_stop_flag(&self) -> Arc<AtomicBool> {
+        self.refresh_stop
+            .lock()
+            .map(|g| Arc::clone(&g))
+            .unwrap_or_else(|_| Arc::new(AtomicBool::new(true)))
+    }
 }
 
 impl Default for OidcState {
@@ -16,6 +34,7 @@ impl Default for OidcState {
         Self {
             flow_manager: OidcFlowManager::default(),
             token_store: OidcTokenStore::default(),
+            refresh_stop: std::sync::Mutex::new(Arc::new(AtomicBool::new(false))),
         }
     }
 }
@@ -53,17 +72,23 @@ pub async fn oidc_start_auth(
     };
 
     if let Some(refresh_token) = load_refresh_token(&app, &issuer_url, &client_id) {
-        if let Ok(tokens) = oidc_state
+        match oidc_state
             .flow_manager
             .refresh_token(&config, &refresh_token)
             .await
         {
-            persist_tokens(&app, &oidc_state, &issuer_url, &client_id, &tokens);
-            return Ok(OidcAuthResult {
-                status: "authenticated".to_string(),
-                auth_url: None,
-                token: Some(tokens.id_token),
-            });
+            Ok(tokens) => {
+                persist_tokens(&app, &oidc_state, &issuer_url, &client_id, &tokens);
+                return Ok(OidcAuthResult {
+                    status: "authenticated".to_string(),
+                    auth_url: None,
+                    token: Some(tokens.id_token),
+                });
+            }
+            Err(_) => {
+                oidc_state.token_store.clear(&issuer_url, &client_id);
+                OidcTokenStore::delete_refresh_token(&issuer_url, &client_id);
+            }
         }
     }
 

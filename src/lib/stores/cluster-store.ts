@@ -202,16 +202,17 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         if (authResult.status === "auth_pending") {
           const OIDC_TIMEOUT_MS = 120_000;
           const { listen } = await import("@tauri-apps/api/event");
+          let unlistenFn: (() => void) | null = null;
           const timeout = setTimeout(() => {
-            unlisten();
+            unlistenFn?.();
             set({
               error: toKubeliError("OIDC authentication timed out — no response from browser"),
               isLoading: false,
             });
           }, OIDC_TIMEOUT_MS);
-          const unlisten = await listen<{ code: string; state: string }>("oidc-callback", async (event) => {
+          unlistenFn = await listen<{ code: string; state: string }>("oidc-callback", async (event) => {
             clearTimeout(timeout);
-            unlisten();
+            unlistenFn?.();
             try {
               const callbackResult = await oidcHandleCallback(event.payload.code, event.payload.state);
               if (callbackResult.status === "authenticated") {

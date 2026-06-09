@@ -95,6 +95,14 @@ impl KubeClientManager {
         self.connection_log.read().await.clone()
     }
 
+    pub fn client_handle(&self) -> Arc<RwLock<Option<Client>>> {
+        Arc::clone(&self.client)
+    }
+
+    pub fn context_handle(&self) -> Arc<RwLock<Option<String>>> {
+        Arc::clone(&self.current_context)
+    }
+
     pub fn new() -> Self {
         Self {
             client: Arc::new(RwLock::new(None)),

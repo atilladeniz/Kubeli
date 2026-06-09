@@ -362,7 +362,19 @@
     "compareSelected": "Vergleichen ({count})",
     "diffTitle": "Source-Config Diff",
     "diffOlder": "Älter",
-    "diffNewer": "Neuer"
+    "diffNewer": "Neuer",
+    "refresh": "Aktualisieren",
+    "hardRefresh": "Erzwungene Aktualisierung",
+    "sync": "Synchronisieren",
+    "copyRepo": "Repository kopieren",
+    "copyPath": "Pfad kopieren",
+    "refreshTriggered": "Aktualisierung ausgelöst",
+    "hardRefreshTriggered": "Erzwungene Aktualisierung ausgelöst",
+    "syncTriggered": "Synchronisation ausgelöst",
+    "refreshFailed": "Aktualisierung fehlgeschlagen",
+    "hardRefreshFailed": "Erzwungene Aktualisierung fehlgeschlagen",
+    "syncFailed": "Synchronisation fehlgeschlagen",
+    "noApplications": "Keine ArgoCD-Anwendungen gefunden"
   },
   "logs": {
     "title": "Logs",

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Copy, Trash2, Eye, RefreshCw, Zap } from "lucide-react";
 import { toast } from "sonner";
 import { useArgoCDApplications } from "@/lib/hooks/useK8sResources";
@@ -20,6 +21,8 @@ import {
 } from "@/lib/tauri/commands";
 
 export function ArgoCDApplicationsView() {
+  const t = useTranslations("common");
+  const tArgo = useTranslations("argocd");
   const { data, isLoading, error, refresh } = useArgoCDApplications({
     autoRefresh: true,
     refreshInterval: 30000,
@@ -32,78 +35,78 @@ export function ArgoCDApplicationsView() {
 
   const getApplicationContextMenu = (a: ArgoCDApplicationInfo): ContextMenuItemDef[] => [
     {
-      label: "View Details",
+      label: t("viewDetails"),
       icon: <Eye className="size-4" />,
       onClick: () => openResourceDetail("application", a.name, a.namespace),
     },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Refresh",
+      label: tArgo("refresh"),
       icon: <RefreshCw className="size-4" />,
       onClick: async () => {
         try {
           await refreshArgoCDApplication(a.name, a.namespace);
-          toast.success("Refresh triggered", { description: a.name });
+          toast.success(tArgo("refreshTriggered"), { description: a.name });
           refresh();
         } catch (e) {
-          toast.error("Failed to trigger refresh", { description: String(e) });
+          toast.error(tArgo("refreshFailed"), { description: String(e) });
         }
       },
     },
     {
-      label: "Hard Refresh",
+      label: tArgo("hardRefresh"),
       icon: <RefreshCw className="size-4" />,
       onClick: async () => {
         try {
           await hardRefreshArgoCDApplication(a.name, a.namespace);
-          toast.success("Hard refresh triggered", { description: a.name });
+          toast.success(tArgo("hardRefreshTriggered"), { description: a.name });
           refresh();
         } catch (e) {
-          toast.error("Failed to trigger hard refresh", { description: String(e) });
+          toast.error(tArgo("hardRefreshFailed"), { description: String(e) });
         }
       },
     },
     {
-      label: "Sync",
+      label: tArgo("sync"),
       icon: <Zap className="size-4" />,
       onClick: async () => {
         try {
           await syncArgoCDApplication(a.name, a.namespace);
-          toast.success("Sync triggered", { description: a.name });
+          toast.success(tArgo("syncTriggered"), { description: a.name });
           refresh();
         } catch (e) {
-          toast.error("Failed to trigger sync", { description: String(e) });
+          toast.error(tArgo("syncFailed"), { description: String(e) });
         }
       },
     },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Copy Name",
+      label: t("copyName"),
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(a.name);
-        toast.success("Copied to clipboard", { description: a.name });
+        toast.success(t("copiedToClipboard"), { description: a.name });
       },
     },
     {
-      label: "Copy Repo",
+      label: tArgo("copyRepo"),
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(a.repo_url);
-        toast.success("Copied to clipboard", { description: a.repo_url });
+        toast.success(t("copiedToClipboard"), { description: a.repo_url });
       },
     },
     {
-      label: "Copy Path",
+      label: tArgo("copyPath"),
       icon: <Copy className="size-4" />,
       onClick: () => {
         navigator.clipboard.writeText(a.path);
-        toast.success("Copied to clipboard", { description: a.path });
+        toast.success(t("copiedToClipboard"), { description: a.path });
       },
     },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Delete",
+      label: t("delete"),
       icon: <Trash2 className="size-4" />,
       onClick: () => handleDeleteFromContext("application", a.name, a.namespace, refresh),
       variant: "destructive",
@@ -112,7 +115,7 @@ export function ArgoCDApplicationsView() {
 
   return (
     <ResourceList
-      title="Applications"
+      title={tArgo("applications")}
       data={data}
       columns={argoCDApplicationColumns}
       isLoading={isLoading}
@@ -121,7 +124,7 @@ export function ArgoCDApplicationsView() {
       onRowClick={(a) => openResourceDetail("application", a.name, a.namespace)}
       getRowKey={(a) => `${a.namespace}/${a.name}`}
       getRowNamespace={(a) => a.namespace}
-      emptyMessage="No ArgoCD Applications found"
+      emptyMessage={tArgo("noApplications")}
       contextMenuItems={getApplicationContextMenu}
       sortKey={sortKey}
       sortDirection={sortDirection}

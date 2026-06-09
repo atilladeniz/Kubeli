@@ -5,10 +5,12 @@ use crate::k8s::{AppState, AuthType, KubeConfig, KubeconfigSourceType};
 use crate::oidc::commands::OidcState;
 use crate::oidc::config::detect_oidc_exec;
 use kube::config::Kubeconfig;
+use kube::Client;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tauri::{command, AppHandle, Manager, State};
 use tauri_plugin_store::StoreExt;
+use tokio::sync::RwLock;
 
 use super::cluster_settings::ClusterSettings;
 
@@ -282,6 +284,8 @@ pub async fn connect_cluster(
         .and_then(|c| c.context.as_ref())
         .and_then(|ctx| ctx.user.clone());
 
+    let mut active_oidc: Option<crate::oidc::config::OidcExecConfig> = None;
+
     if let Some(ref user) = user_name {
         if let Some(oidc_config) = detect_oidc_exec(&kubeconfig, user) {
             let oidc_state: State<'_, Arc<OidcState>> = app.state();
@@ -291,6 +295,7 @@ pub async fn connect_cluster(
             match token {
                 Some(id_token) => {
                     inject_oidc_token(&mut kubeconfig, user, &id_token);
+                    active_oidc = Some(oidc_config);
                 }
                 None => {
                     return Ok(ConnectionStatus {
@@ -311,7 +316,7 @@ pub async fn connect_cluster(
 
     match state
         .k8s
-        .init_with_context(&context, kubeconfig, source_file.as_deref())
+        .init_with_context(&context, kubeconfig.clone(), source_file.as_deref())
         .await
     {
         Ok(_) => {
@@ -324,6 +329,20 @@ pub async fn connect_cluster(
                         context,
                         latency
                     );
+                    if let (Some(oidc_config), Some(ref user)) = (active_oidc, &user_name) {
+                        let oidc_state: State<'_, Arc<OidcState>> = app.state();
+                        spawn_oidc_refresh_task(
+                            app.clone(),
+                            state.k8s.client_handle(),
+                            state.k8s.context_handle(),
+                            Arc::clone(&oidc_state),
+                            oidc_config,
+                            context.clone(),
+                            kubeconfig,
+                            user.clone(),
+                        );
+                    }
+
                     Ok(ConnectionStatus {
                         connected: true,
                         context: Some(context),
@@ -377,13 +396,16 @@ pub async fn switch_context(
     connect_cluster(app, state, context).await
 }
 
-/// Disconnect from current cluster
 #[command]
-#[allow(unused_variables)] // State parameter required by Tauri command signature
-pub async fn disconnect_cluster(_state: State<'_, AppState>) -> Result<(), KubeliError> {
+pub async fn disconnect_cluster(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), KubeliError> {
     tracing::info!("Disconnecting from cluster");
-    // The client manager will be reset when a new connection is made
-    // For now, we just log the disconnect
+    let oidc_state: State<'_, Arc<OidcState>> = app.state();
+    oidc_state.cancel_refresh();
+    *state.k8s.client_handle().write().await = None;
+    *state.k8s.context_handle().write().await = None;
     Ok(())
 }
 
@@ -537,6 +559,149 @@ async fn resolve_oidc_token(
     }
 
     None
+}
+
+fn spawn_oidc_refresh_task(
+    app_handle: AppHandle,
+    k8s_manager: Arc<RwLock<Option<Client>>>,
+    k8s_connected: Arc<RwLock<Option<String>>>,
+    oidc_state: Arc<OidcState>,
+    oidc_config: crate::oidc::config::OidcExecConfig,
+    context_name: String,
+    kubeconfig: Kubeconfig,
+    user_name: String,
+) {
+    oidc_state.cancel_refresh();
+    let stop_flag = oidc_state.get_refresh_stop_flag();
+
+    tokio::spawn(async move {
+        loop {
+            let expires_at = match oidc_state
+                .token_store
+                .get_token_expiry(&oidc_config.issuer_url, &oidc_config.client_id)
+            {
+                Some(expiry) => expiry,
+                None => break,
+            };
+
+            let now = chrono::Utc::now();
+            let lifetime = (expires_at - now).num_seconds();
+            let refresh_in = std::cmp::max(lifetime * 3 / 4, 5) as u64;
+
+            tracing::debug!(
+                "OIDC token refresh scheduled in {}s (token lifetime {}s)",
+                refresh_in,
+                lifetime
+            );
+
+            let check_interval = std::cmp::min(refresh_in, 5);
+            let mut elapsed = 0u64;
+            while elapsed < refresh_in {
+                if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                    tracing::debug!("OIDC refresh loop cancelled");
+                    return;
+                }
+                tokio::time::sleep(tokio::time::Duration::from_secs(check_interval)).await;
+                elapsed += check_interval;
+            }
+
+            if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
+                break;
+            }
+
+            let connected_context = k8s_connected.read().await.clone();
+            if connected_context.as_deref() != Some(context_name.as_str()) {
+                tracing::debug!("OIDC refresh loop stopping: context changed");
+                break;
+            }
+
+            let refresh_token = match crate::oidc::store::OidcTokenStore::load_refresh_token(
+                &oidc_config.issuer_url,
+                &oidc_config.client_id,
+            ) {
+                Some(rt) => rt,
+                None => {
+                    tracing::warn!("No refresh token available, stopping OIDC refresh loop");
+                    break;
+                }
+            };
+
+            match oidc_state
+                .flow_manager
+                .refresh_token(&oidc_config, &refresh_token)
+                .await
+            {
+                Ok(tokens) => {
+                    let new_token = tokens.id_token.clone();
+                    if let Some(ref new_rt) = tokens.refresh_token {
+                        crate::oidc::store::OidcTokenStore::save_refresh_token(
+                            &oidc_config.issuer_url,
+                            &oidc_config.client_id,
+                            new_rt,
+                        );
+                    }
+                    oidc_state.token_store.store_tokens(
+                        &oidc_config.issuer_url,
+                        &oidc_config.client_id,
+                        tokens,
+                    );
+
+                    let mut refreshed_kubeconfig = kubeconfig.clone();
+                    inject_oidc_token(&mut refreshed_kubeconfig, &user_name, &new_token);
+
+                    let new_client =
+                        match build_client_from_kubeconfig(refreshed_kubeconfig, &context_name)
+                            .await
+                        {
+                            Ok(c) => c,
+                            Err(e) => {
+                                tracing::error!(
+                                    "Failed to create client after OIDC refresh: {}",
+                                    e
+                                );
+                                break;
+                            }
+                        };
+
+                    *k8s_manager.write().await = Some(new_client);
+
+                    tracing::info!("OIDC token refreshed and kube client reinitialized");
+
+                    use tauri::Emitter;
+                    let _ = app_handle.emit("oidc-token-refreshed", ());
+                }
+                Err(e) => {
+                    tracing::warn!("OIDC token refresh failed: {}", e);
+                    oidc_state
+                        .token_store
+                        .clear(&oidc_config.issuer_url, &oidc_config.client_id);
+                    crate::oidc::store::OidcTokenStore::delete_refresh_token(
+                        &oidc_config.issuer_url,
+                        &oidc_config.client_id,
+                    );
+                    break;
+                }
+            }
+        }
+    });
+}
+
+async fn build_client_from_kubeconfig(
+    kubeconfig: Kubeconfig,
+    context_name: &str,
+) -> Result<Client, String> {
+    let config = kube::Config::from_custom_kubeconfig(
+        kubeconfig,
+        &kube::config::KubeConfigOptions {
+            context: Some(context_name.to_string()),
+            cluster: None,
+            user: None,
+        },
+    )
+    .await
+    .map_err(|e| format!("Config creation failed: {}", e))?;
+
+    Client::try_from(config).map_err(|e| format!("Client creation failed: {}", e))
 }
 
 fn inject_oidc_token(kubeconfig: &mut Kubeconfig, user_name: &str, token: &str) {
