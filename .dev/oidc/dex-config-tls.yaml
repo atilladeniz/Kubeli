@@ -1,0 +1,33 @@
+# Local Dex provider over HTTPS, for the OIDC test stack (make oidc-dev).
+# kube-apiserver only accepts an HTTPS OIDC issuer, so this serves TLS with a
+# generated dev CA (scripts/oidc-dev.sh). Dev only — not for production.
+#
+# Issuer host is host.minikube.internal so the apiserver (inside the minikube
+# node) and the host (browser + Kubeli, via /etc/hosts) resolve the same URL.
+issuer: https://host.minikube.internal:5556/dex
+
+storage:
+  type: memory
+
+web:
+  https: 0.0.0.0:5556
+  tlsCert: /etc/dex/tls.crt
+  tlsKey: /etc/dex/tls.key
+
+oauth2:
+  skipApprovalScreen: true
+
+staticClients:
+  - id: kubeli
+    name: Kubeli
+    public: true
+    redirectURIs:
+      - kubeli://oidc/callback
+
+enablePasswordDB: true
+staticPasswords:
+  - email: dev@kubeli.test
+    username: dev
+    userID: 08a8684b-db88-4b73-90a9-3cd1661f5466
+    # bcrypt hash of "password"
+    hash: "$2b$10$nSqVA9fVWu7GcV88Z2FEm.lYDiC97ohWf/pet6.cgnpVXVHnSFG2i"

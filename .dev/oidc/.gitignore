@@ -1,0 +1,2 @@
+# Generated dev TLS material for the OIDC test cluster — never commit private keys.
+certs/

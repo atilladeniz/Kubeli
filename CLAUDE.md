@@ -135,6 +135,17 @@ make k8s-services
 make k8s-namespaces
 ```
 
+### OIDC sign-in testing
+
+```bash
+make oidc-dev        # local OIDC stack: HTTPS Dex + minikube that trusts it
+make oidc-dev-stop   # tear it down
+```
+
+Brings up a local Dex provider and a dedicated minikube profile so a Kubeli OIDC
+sign-in connects all the way through. See `.dev/oidc/README.md` for details
+(needs a build for the `kubeli://` callback, and one `/etc/hosts` line via sudo).
+
 ### Sample Resources (kubeli-demo namespace)
 
 The `make minikube-start` command automatically creates sample Kubernetes resources:

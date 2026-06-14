@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-setup-argocd minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public build-deploy release generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build vet vet-install
+.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-setup-argocd minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup oidc-dev oidc-dev-stop astro astro-build astro-public build-deploy release generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build vet vet-install
 
 # Default target
 .DEFAULT_GOAL := help
@@ -575,6 +575,14 @@ k8s-services: ## List all services across namespaces
 
 k8s-namespaces: ## List all namespaces
 	kubectl get namespaces
+
+## OIDC Sign-in Testing
+
+oidc-dev: ## Start local OIDC stack (HTTPS Dex + minikube that trusts it) to test sign-in
+	@./scripts/oidc-dev.sh up
+
+oidc-dev-stop: ## Tear down the local OIDC stack (Dex + minikube profile + context)
+	@./scripts/oidc-dev.sh down
 
 ## Security / SBOM
 
