@@ -395,4 +395,3 @@ export function useK8sResource<T>(
     isWatching,
   };
 }
-

@@ -14,3 +14,4 @@ export * from "./commands/network";
 export * from "./commands/ai";
 export * from "./commands/mcp";
 export * from "./commands/oidc";
+export * from "./commands/deeplinks";

@@ -25,6 +25,28 @@ status:
     revision: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
   health:
     status: Healthy
+  history:
+    - id: 0
+      revision: 0f1e2d3c4b5a09f8e7d6c5b4a3928170f1e2d3c4
+      deployedAt: "2026-06-10T08:00:00Z"
+      source:
+        repoURL: https://github.com/example/demo-app.git
+        path: frontend
+        targetRevision: v1.0.0
+    - id: 1
+      revision: 9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b
+      deployedAt: "2026-06-12T14:30:00Z"
+      source:
+        repoURL: https://github.com/example/demo-app.git
+        path: frontend
+        targetRevision: v1.1.0
+    - id: 2
+      revision: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+      deployedAt: "2026-06-14T09:15:00Z"
+      source:
+        repoURL: https://github.com/example/demo-app.git
+        path: frontend
+        targetRevision: main
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -48,6 +70,21 @@ status:
   health:
     status: Progressing
     message: "Waiting for rollout to finish: 1 of 3 updated replicas are available"
+  history:
+    - id: 0
+      revision: 11aa22bb33cc44dd55ee66ff7788990011aa22bb
+      deployedAt: "2026-06-09T11:20:00Z"
+      source:
+        repoURL: https://github.com/example/demo-app.git
+        path: backend
+        targetRevision: v2.0.0
+    - id: 1
+      revision: b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3
+      deployedAt: "2026-06-13T16:45:00Z"
+      source:
+        repoURL: https://github.com/example/demo-app.git
+        path: backend
+        targetRevision: v2.1.0
 ---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -74,3 +111,248 @@ status:
   health:
     status: Degraded
     message: "Service demo-prometheus has no endpoints"
+  history:
+    - id: 0
+      revision: aabbccddeeff00112233445566778899aabbccdd
+      deployedAt: "2026-06-05T07:00:00Z"
+      source:
+        repoURL: https://github.com/example/infra-config.git
+        path: monitoring/prometheus
+        targetRevision: v0.9.0
+    - id: 1
+      revision: ccddeeff00112233445566778899aabbccddeeff
+      deployedAt: "2026-06-11T13:10:00Z"
+      source:
+        repoURL: https://github.com/example/infra-config.git
+        path: monitoring/prometheus
+        targetRevision: v1.0.0
+    - id: 2
+      revision: c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4
+      deployedAt: "2026-06-14T06:30:00Z"
+      source:
+        repoURL: https://github.com/example/infra-config.git
+        path: monitoring/prometheus
+        targetRevision: HEAD
+---
+# Larger Helm-based Application to demo long source diffs (many parameters,
+# changed/added/removed entries between revisions).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: demo-platform
+  namespace: kubeli-demo
+spec:
+  project: platform
+  source:
+    repoURL: https://github.com/example/platform-charts.git
+    path: charts/platform
+    targetRevision: v3.5.0
+    helm:
+      releaseName: platform
+      valueFiles:
+        - values.yaml
+        - values-prod.yaml
+      parameters:
+        - name: image.repository
+          value: registry.example.com/platform/api
+        - name: image.tag
+          value: v3.5.0
+        - name: replicaCount
+          value: "5"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: platform
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+status:
+  sync:
+    status: Synced
+    revision: f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1
+  health:
+    status: Healthy
+  history:
+    - id: 0
+      revision: "1122334455667788990011223344556677889900"
+      deployedAt: "2026-06-08T10:00:00Z"
+      source:
+        repoURL: https://github.com/example/platform-charts.git
+        path: charts/platform
+        targetRevision: v3.3.0
+        helm:
+          releaseName: platform
+          valueFiles:
+            - values.yaml
+          parameters:
+            - name: image.repository
+              value: registry.example.com/platform/api
+            - name: image.tag
+              value: v3.3.0
+            - name: replicaCount
+              value: "2"
+            - name: resources.requests.cpu
+              value: 250m
+            - name: resources.requests.memory
+              value: 256Mi
+            - name: ingress.enabled
+              value: "false"
+    - id: 1
+      revision: aabb1122ccdd3344eeff5566aabb7788ccdd9900
+      deployedAt: "2026-06-11T09:30:00Z"
+      source:
+        repoURL: https://github.com/example/platform-charts.git
+        path: charts/platform
+        targetRevision: v3.4.0
+        helm:
+          releaseName: platform
+          valueFiles:
+            - values.yaml
+            - values-common.yaml
+          values: |
+            global:
+              imageRegistry: registry.example.com
+              imagePullSecrets:
+                - regcred
+            logging:
+              level: info
+              format: json
+            tracing:
+              enabled: false
+          valuesObject:
+            podAnnotations:
+              prometheus.io/scrape: "true"
+              prometheus.io/port: "9090"
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/arch
+                          operator: In
+                          values:
+                            - amd64
+          parameters:
+            - name: image.repository
+              value: registry.example.com/platform/api
+            - name: image.tag
+              value: v3.4.0
+            - name: image.pullPolicy
+              value: IfNotPresent
+            - name: replicaCount
+              value: "3"
+            - name: resources.requests.cpu
+              value: 500m
+            - name: resources.requests.memory
+              value: 512Mi
+            - name: resources.limits.cpu
+              value: 1000m
+            - name: resources.limits.memory
+              value: 1Gi
+            - name: ingress.enabled
+              value: "true"
+            - name: ingress.className
+              value: nginx
+            - name: ingress.host
+              value: platform.staging.example.com
+            - name: ingress.annotations
+              value: "nginx.ingress.kubernetes.io/proxy-body-size=50m,nginx.ingress.kubernetes.io/ssl-redirect=true,cert-manager.io/cluster-issuer=letsencrypt-staging,nginx.ingress.kubernetes.io/rewrite-target=/"
+            - name: extraArgs
+              value: "--config=/etc/platform/config.yaml --log-level=info --max-connections=500 --timeout=30s --enable-feature-gates=AlphaFeature=false,BetaFeature=false --metrics-bind-address=0.0.0.0:9090"
+            - name: env.DATABASE_URL
+              value: "postgres://platform_user:s3cr3t@platform-db-primary.platform.svc.cluster.local:5432/platform?sslmode=require&pool_max_conns=20&pool_min_conns=5"
+            - name: autoscaling.enabled
+              value: "true"
+            - name: autoscaling.minReplicas
+              value: "3"
+            - name: autoscaling.maxReplicas
+              value: "10"
+            - name: autoscaling.targetCPUUtilizationPercentage
+              value: "80"
+            - name: service.type
+              value: ClusterIP
+            - name: service.port
+              value: "8080"
+    - id: 2
+      revision: f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1
+      deployedAt: "2026-06-14T08:45:00Z"
+      source:
+        repoURL: https://github.com/example/platform-charts.git
+        path: charts/platform
+        targetRevision: v3.5.0
+        helm:
+          releaseName: platform
+          valueFiles:
+            - values.yaml
+            - values-common.yaml
+            - values-prod.yaml
+          values: |
+            global:
+              imageRegistry: registry.example.com
+              imagePullSecrets:
+                - regcred
+            logging:
+              level: debug
+              format: json
+            tracing:
+              enabled: true
+              endpoint: http://jaeger-collector.observability.svc:14268
+          valuesObject:
+            podAnnotations:
+              prometheus.io/scrape: "true"
+              prometheus.io/port: "9090"
+              prometheus.io/path: /metrics
+            affinity:
+              nodeAffinity:
+                requiredDuringSchedulingIgnoredDuringExecution:
+                  nodeSelectorTerms:
+                    - matchExpressions:
+                        - key: kubernetes.io/arch
+                          operator: In
+                          values:
+                            - arm64
+          parameters:
+            - name: image.repository
+              value: registry.example.com/platform/api
+            - name: image.tag
+              value: v3.5.0
+            - name: image.pullPolicy
+              value: IfNotPresent
+            - name: replicaCount
+              value: "5"
+            - name: resources.requests.cpu
+              value: 750m
+            - name: resources.requests.memory
+              value: 1Gi
+            - name: resources.limits.cpu
+              value: 2000m
+            - name: resources.limits.memory
+              value: 2Gi
+            - name: ingress.enabled
+              value: "true"
+            - name: ingress.className
+              value: nginx
+            - name: ingress.host
+              value: platform.example.com
+            - name: ingress.annotations
+              value: "nginx.ingress.kubernetes.io/proxy-body-size=100m,nginx.ingress.kubernetes.io/ssl-redirect=true,cert-manager.io/cluster-issuer=letsencrypt-prod,nginx.ingress.kubernetes.io/rewrite-target=/,nginx.ingress.kubernetes.io/enable-cors=true"
+            - name: extraArgs
+              value: "--config=/etc/platform/config.yaml --log-level=debug --max-connections=1000 --timeout=60s --enable-feature-gates=AlphaFeature=true,BetaFeature=true --metrics-bind-address=0.0.0.0:9090 --health-probe-bind-address=0.0.0.0:8081 --leader-elect=true"
+            - name: env.DATABASE_URL
+              value: "postgres://platform_user:s3cr3t@platform-db-primary.platform-prod.svc.cluster.local:5432/platform?sslmode=verify-full&pool_max_conns=50&pool_min_conns=10&statement_cache_capacity=512"
+            - name: autoscaling.enabled
+              value: "true"
+            - name: autoscaling.minReplicas
+              value: "5"
+            - name: autoscaling.maxReplicas
+              value: "20"
+            - name: autoscaling.targetCPUUtilizationPercentage
+              value: "70"
+            - name: service.port
+              value: "8080"
+            - name: metrics.enabled
+              value: "true"
+            - name: podDisruptionBudget.minAvailable
+              value: "2"
+            - name: tls.caBundle
+              value: "LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS1NSUlEZ0RDQ0FtaWdBd0lCQWdJVUJHRGtsaXNlbmRvZmJhc2U2NGNlcnRpZmljYXRlZGF0YXRoYXRpc3Zlcnlsb25nYW5kdW5icm9rZW5MUzB0TFMxQ1JVZEpUaUJEUlZKVVNVWkpRMEZVUlMwdExTMHQ="

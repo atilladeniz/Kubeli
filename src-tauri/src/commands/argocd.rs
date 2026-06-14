@@ -41,6 +41,14 @@ pub struct ArgoCDHistoryEntry {
     pub source_raw: String,
 }
 
+/// Current state of an ArgoCD Application's in-flight operation (sync/rollback).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArgoCDOperationState {
+    /// "Running", "Succeeded", "Failed", "Error", "Terminating", or null when idle.
+    pub phase: Option<String>,
+    pub message: Option<String>,
+}
+
 /// ArgoCD Application info
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArgoCDApplicationInfo {
@@ -275,6 +283,98 @@ pub async fn hard_refresh_argocd_application(
     Ok(())
 }
 
+/// Returns an error if the Application already has an operation in progress.
+///
+/// ArgoCD's API server rejects setting `.operation` while one is running; a raw
+/// merge patch would instead overwrite or be ignored, so a successful patch
+/// would not mean a successful sync. We guard explicitly.
+/// Read `status.operationState.phase` (e.g. "Running", "Succeeded", "Failed").
+fn operation_phase(app: &DynamicObject) -> Option<String> {
+    app.data
+        .get("status")
+        .and_then(|s| s.get("operationState"))
+        .and_then(|o| o.get("phase"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+}
+
+/// Whether an operation phase counts as still in progress. ArgoCD keeps the
+/// `.operation` field set while the phase is `Running` *or* `Terminating` (a
+/// running operation being cancelled), and rejects a new operation in both
+/// cases — so we must treat both as in-progress, not just `Running`.
+fn is_in_progress_phase(phase: Option<&str>) -> bool {
+    matches!(phase, Some("Running") | Some("Terminating"))
+}
+
+fn ensure_no_running_operation(app: &DynamicObject, name: &str) -> Result<(), String> {
+    if is_in_progress_phase(operation_phase(app).as_deref()) {
+        return Err(format!(
+            "Application '{}' already has an operation in progress",
+            name
+        ));
+    }
+    Ok(())
+}
+
+/// Serialize a history record's source(s) for the diff/rollback preview.
+///
+/// Single-source apps use `source`; multi-source apps use the whole `sources`
+/// array so the preview reflects every source. `build_rollback_operation`
+/// restores all sources, so previewing only `sources[0]` would understate the
+/// change the rollback actually makes.
+fn history_source_raw(entry: &serde_json::Value) -> String {
+    if let Some(source) = entry.get("source") {
+        serde_json::to_string_pretty(source).unwrap_or_default()
+    } else if let Some(sources) = entry.get("sources") {
+        serde_json::to_string_pretty(sources).unwrap_or_default()
+    } else {
+        String::new()
+    }
+}
+
+/// Find the `status.history[]` record with the given ArgoCD history id.
+fn select_history_entry(history: &[serde_json::Value], id: i64) -> Option<&serde_json::Value> {
+    history
+        .iter()
+        .find(|e| e.get("id").and_then(|v| v.as_i64()) == Some(id))
+}
+
+/// Build the rollback `operation` payload for a history `entry`.
+///
+/// Restores the recorded source(s)/revision so the rollback reproduces that
+/// deployment's source rather than syncing only the git revision against the
+/// current spec. Carries over the Application's current
+/// `spec.syncPolicy.syncOptions` (history records source/revision only, not sync
+/// options). `prune` is left at ArgoCD's CLI default (false).
+fn build_rollback_operation(
+    spec: Option<&serde_json::Value>,
+    entry: &serde_json::Value,
+) -> serde_json::Value {
+    let mut sync = json!({
+        "revision": entry.get("revision").and_then(|v| v.as_str()).unwrap_or_default(),
+    });
+    if let Some(source) = entry.get("source") {
+        sync["source"] = source.clone();
+    } else if let Some(sources) = entry.get("sources") {
+        sync["sources"] = sources.clone();
+        if let Some(revisions) = entry.get("revisions") {
+            sync["revisions"] = revisions.clone();
+        }
+    }
+    if let Some(sync_options) = spec
+        .and_then(|s| s.get("syncPolicy"))
+        .and_then(|sp| sp.get("syncOptions"))
+    {
+        sync["syncOptions"] = sync_options.clone();
+    }
+    json!({
+        "operation": {
+            "initiatedBy": { "username": "kubeli" },
+            "sync": sync
+        }
+    })
+}
+
 /// Trigger a sync for an ArgoCD Application
 #[command]
 pub async fn sync_argocd_application(
@@ -286,6 +386,12 @@ pub async fn sync_argocd_application(
 
     let ar = argocd_api_resource();
     let api: Api<DynamicObject> = Api::namespaced_with(client, &namespace, &ar);
+
+    let app = api
+        .get(&name)
+        .await
+        .map_err(|e| format!("Failed to get application: {}", e))?;
+    ensure_no_running_operation(&app, &name)?;
 
     let patch = json!({
         "operation": {
@@ -366,9 +472,7 @@ pub async fn get_argocd_application_history(
                 .unwrap_or("")
                 .to_string();
 
-            let source_raw = source
-                .map(|s| serde_json::to_string_pretty(s).unwrap_or_default())
-                .unwrap_or_default();
+            let source_raw = history_source_raw(&entry);
 
             ArgoCDHistoryEntry {
                 id,
@@ -389,10 +493,10 @@ pub async fn get_argocd_application_history(
 ///
 /// `id` is the ArgoCD `status.history[].id` of the target deployment (not the
 /// git revision), matching `argocd app rollback`. We look the record up so we
-/// can restore the exact source(s) that were deployed — repo/path/chart/
-/// targetRevision/helm values — rather than syncing only the git revision
-/// against the current spec.source (which is wrong for Helm, path-changed, or
-/// multi-source Applications).
+/// can restore the recorded source(s) — repo/path/chart/targetRevision — rather
+/// than syncing only the git revision against the current spec.source (which is
+/// wrong for Helm, path-changed, or multi-source Applications). Sync options are
+/// taken from the current spec, since history does not record them.
 #[command]
 pub async fn rollback_argocd_application(
     state: State<'_, AppState>,
@@ -410,44 +514,184 @@ pub async fn rollback_argocd_application(
         .await
         .map_err(|e| format!("Failed to get application: {}", e))?;
 
-    let entry = app
+    ensure_no_running_operation(&app, &name)?;
+
+    let history = app
         .data
         .get("status")
         .and_then(|s| s.get("history"))
-        .and_then(|h| h.as_array())
-        .and_then(|entries| {
-            entries
-                .iter()
-                .find(|e| e.get("id").and_then(|v| v.as_i64()) == Some(id))
-        })
+        .and_then(|h| h.as_array());
+    let entry = history
+        .and_then(|entries| select_history_entry(entries, id))
         .ok_or_else(|| format!("History record {} not found for application {}", id, name))?;
 
-    let mut sync = json!({
-        "revision": entry.get("revision").and_then(|v| v.as_str()).unwrap_or_default(),
-    });
-    // Restore the historical source(s) so the rollback reproduces that exact
-    // deployment, not just its revision against the current spec.
-    if let Some(source) = entry.get("source") {
-        sync["source"] = source.clone();
-    } else if let Some(sources) = entry.get("sources") {
-        sync["sources"] = sources.clone();
-        if let Some(revisions) = entry.get("revisions") {
-            sync["revisions"] = revisions.clone();
-        }
-    }
-
-    let patch = json!({
-        "operation": {
-            "initiatedBy": {
-                "username": "kubeli"
-            },
-            "sync": sync
-        }
-    });
+    let patch = build_rollback_operation(app.data.get("spec"), entry);
 
     api.patch(&name, &PatchParams::apply("kubeli"), &Patch::Merge(&patch))
         .await
         .map_err(|e| format!("Failed to rollback application: {}", e))?;
 
     Ok(())
+}
+
+/// Read the current operation state of an ArgoCD Application, so the UI can
+/// disable rollback while a sync is running and poll progress afterwards.
+#[command]
+pub async fn get_argocd_operation_state(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<ArgoCDOperationState, String> {
+    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+
+    let ar = argocd_api_resource();
+    let api: Api<DynamicObject> = Api::namespaced_with(client, &namespace, &ar);
+
+    let app = api
+        .get(&name)
+        .await
+        .map_err(|e| format!("Failed to get application: {}", e))?;
+
+    let message = app
+        .data
+        .get("status")
+        .and_then(|s| s.get("operationState"))
+        .and_then(|o| o.get("message"))
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
+
+    Ok(ArgoCDOperationState {
+        phase: operation_phase(&app),
+        message,
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        build_rollback_operation, history_source_raw, is_in_progress_phase, select_history_entry,
+    };
+    use serde_json::json;
+
+    #[test]
+    fn in_progress_phase_covers_running_and_terminating() {
+        assert!(is_in_progress_phase(Some("Running")));
+        assert!(is_in_progress_phase(Some("Terminating")));
+        assert!(!is_in_progress_phase(Some("Succeeded")));
+        assert!(!is_in_progress_phase(Some("Failed")));
+        assert!(!is_in_progress_phase(Some("Error")));
+        assert!(!is_in_progress_phase(None));
+    }
+
+    #[test]
+    fn source_raw_single_source_serializes_the_source() {
+        let entry = json!({
+            "id": 1,
+            "source": { "repoURL": "https://example.com/repo", "path": "app" }
+        });
+        let raw = history_source_raw(&entry);
+        assert!(raw.contains("https://example.com/repo"));
+        // Single-source must not be wrapped in an array.
+        assert!(raw.trim_start().starts_with('{'));
+    }
+
+    #[test]
+    fn source_raw_multi_source_includes_every_source() {
+        let entry = json!({
+            "id": 2,
+            "sources": [
+                { "repoURL": "https://example.com/first" },
+                { "repoURL": "https://example.com/second" }
+            ]
+        });
+        let raw = history_source_raw(&entry);
+        // Both sources must appear so the preview matches what rollback restores.
+        assert!(raw.contains("https://example.com/first"));
+        assert!(raw.contains("https://example.com/second"));
+        assert!(raw.trim_start().starts_with('['));
+    }
+
+    #[test]
+    fn source_raw_missing_source_is_empty() {
+        assert_eq!(history_source_raw(&json!({ "id": 3 })), "");
+    }
+
+    #[test]
+    fn rollback_single_source_restores_source_and_revision() {
+        let entry = json!({
+            "id": 3,
+            "revision": "abc123",
+            "source": { "repoURL": "https://example.com/repo", "path": "app", "targetRevision": "v1.0.0" }
+        });
+        let op = build_rollback_operation(None, &entry);
+        let sync = &op["operation"]["sync"];
+        assert_eq!(sync["revision"], "abc123");
+        assert_eq!(sync["source"]["path"], "app");
+        assert!(sync.get("sources").is_none());
+        assert!(sync.get("syncOptions").is_none());
+    }
+
+    #[test]
+    fn rollback_multi_source_restores_sources_and_revisions() {
+        let entry = json!({
+            "id": 5,
+            "revision": "",
+            "sources": [ { "repoURL": "r1" }, { "repoURL": "r2" } ],
+            "revisions": ["v1", "v2"]
+        });
+        let op = build_rollback_operation(None, &entry);
+        let sync = &op["operation"]["sync"];
+        assert_eq!(sync["sources"].as_array().unwrap().len(), 2);
+        assert_eq!(sync["revisions"][1], "v2");
+        assert!(sync.get("source").is_none());
+    }
+
+    #[test]
+    fn rollback_multi_source_without_revisions_omits_them() {
+        let entry = json!({
+            "id": 1,
+            "sources": [ { "repoURL": "r1" } ]
+        });
+        let op = build_rollback_operation(None, &entry);
+        let sync = &op["operation"]["sync"];
+        assert!(sync.get("sources").is_some());
+        assert!(sync.get("revisions").is_none());
+    }
+
+    #[test]
+    fn rollback_carries_current_sync_options() {
+        let spec = json!({
+            "syncPolicy": { "syncOptions": ["CreateNamespace=true", "ApplyOutOfSyncOnly=true"] }
+        });
+        let entry = json!({ "id": 2, "revision": "r", "source": {} });
+        let op = build_rollback_operation(Some(&spec), &entry);
+        assert_eq!(
+            op["operation"]["sync"]["syncOptions"],
+            json!(["CreateNamespace=true", "ApplyOutOfSyncOnly=true"])
+        );
+    }
+
+    #[test]
+    fn rollback_initiated_by_kubeli() {
+        let entry = json!({ "id": 1, "revision": "r", "source": {} });
+        let op = build_rollback_operation(None, &entry);
+        assert_eq!(op["operation"]["initiatedBy"]["username"], "kubeli");
+    }
+
+    #[test]
+    fn select_history_entry_finds_by_id_including_zero() {
+        let history = vec![
+            json!({ "id": 0, "revision": "first" }),
+            json!({ "id": 1, "revision": "second" }),
+        ];
+        assert_eq!(
+            select_history_entry(&history, 0).unwrap()["revision"],
+            "first"
+        );
+        assert_eq!(
+            select_history_entry(&history, 1).unwrap()["revision"],
+            "second"
+        );
+        assert!(select_history_entry(&history, 99).is_none());
+    }
 }

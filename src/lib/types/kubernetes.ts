@@ -1232,6 +1232,11 @@ export interface ArgoCDHistoryEntry {
   source_raw: string;
 }
 
+export interface ArgoCDOperationState {
+  phase: string | null;
+  message: string | null;
+}
+
 export interface ArgoCDApplicationInfo {
   name: string;
   namespace: string;

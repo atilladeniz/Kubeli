@@ -1,7 +1,8 @@
 "use client";
 
-import { DiffEditor } from "@monaco-editor/react";
+import { useMemo } from "react";
 import { useTranslations } from "next-intl";
+import { ArrowRight, GitCompareArrows } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -9,8 +10,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { useUIStore } from "@/lib/stores/ui-store";
+import { computeSideBySideDiff } from "@/lib/utils/text-diff";
 import type { ArgoCDHistoryEntry } from "@/lib/types";
+import { SourceDiffView } from "./SourceDiffView";
 
 interface ArgoCDSourceDiffDialogProps {
   entries: [ArgoCDHistoryEntry, ArgoCDHistoryEntry] | null;
@@ -31,80 +33,74 @@ export function ArgoCDSourceDiffDialog({
   onOpenChange,
 }: ArgoCDSourceDiffDialogProps) {
   const t = useTranslations();
-  const { resolvedTheme } = useUIStore();
 
-  if (!entries) return null;
+  // Sort so the older entry is the original (left), newer is the modified (right).
+  const data = useMemo(() => {
+    if (!entries) return null;
+    const [older, newer] =
+      entries[0].id < entries[1].id
+        ? [entries[0], entries[1]]
+        : [entries[1], entries[0]];
+    const diff = computeSideBySideDiff(
+      older.source_raw || "{}",
+      newer.source_raw || "{}",
+    );
+    return { older, newer, diff };
+  }, [entries]);
 
-  // Sort so older entry is first (original), newer is second (modified)
-  const sorted =
-    entries[0].id < entries[1].id
-      ? [entries[0], entries[1]]
-      : [entries[1], entries[0]];
-  const [older, newer] = sorted;
-
-  const monacoTheme =
-    resolvedTheme === "dark" || resolvedTheme === "classic-dark"
-      ? "vs-dark"
-      : "light";
+  if (!entries || !data) return null;
+  const { older, newer, diff } = data;
 
   return (
     <Dialog open={!!entries} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl h-[70vh] flex flex-col">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            {t("argocd.diffTitle")}
-          </DialogTitle>
-          <div className="flex items-center gap-3 text-sm text-muted-foreground">
-            <div className="flex items-center gap-1.5">
-              <span>{t("argocd.diffOlder")}:</span>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {shortenRevision(older.revision)}
-              </Badge>
-              {older.deployed_at && (
-                <span className="text-xs">
-                  ({formatDate(older.deployed_at)})
-                </span>
-              )}
-            </div>
-            <span>→</span>
-            <div className="flex items-center gap-1.5">
-              <span>{t("argocd.diffNewer")}:</span>
-              <Badge variant="secondary" className="font-mono text-xs">
-                {shortenRevision(newer.revision)}
-              </Badge>
-              {newer.deployed_at && (
-                <span className="text-xs">
-                  ({formatDate(newer.deployed_at)})
-                </span>
-              )}
+      <DialogContent className="flex h-[85vh] w-[92vw] max-w-[1400px] flex-col gap-0 overflow-hidden p-0 sm:max-w-[1400px]">
+        <DialogHeader className="shrink-0 gap-1.5 border-b py-3 pr-12 pl-4 text-left">
+          <div className="flex items-center justify-between gap-2">
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <GitCompareArrows className="size-4 shrink-0 text-muted-foreground" />
+              {t("argocd.diffTitle")}
+            </DialogTitle>
+            <div className="flex shrink-0 items-center gap-1.5 font-mono text-xs font-medium">
+              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-emerald-600 tabular-nums dark:text-emerald-400">
+                +{diff.stats.additions}
+              </span>
+              <span className="rounded bg-rose-500/15 px-1.5 py-0.5 text-rose-600 tabular-nums dark:text-rose-400">
+                &minus;{diff.stats.deletions}
+              </span>
             </div>
           </div>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-muted-foreground">
+            <span className="text-xs">{t("argocd.diffOlder")}</span>
+            <Badge variant="secondary" className="font-mono text-xs">
+              {shortenRevision(older.revision)}
+            </Badge>
+            {older.deployed_at && (
+              <span className="text-xs text-muted-foreground/70">
+                {formatDate(older.deployed_at)}
+              </span>
+            )}
+            <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/50" />
+            <span className="text-xs">{t("argocd.diffNewer")}</span>
+            <Badge variant="secondary" className="font-mono text-xs">
+              {shortenRevision(newer.revision)}
+            </Badge>
+            {newer.deployed_at && (
+              <span className="text-xs text-muted-foreground/70">
+                {formatDate(newer.deployed_at)}
+              </span>
+            )}
+          </div>
         </DialogHeader>
-        <div className="flex-1 min-h-0 border rounded-md overflow-hidden">
-          <DiffEditor
-            original={older.source_raw || "{}"}
-            modified={newer.source_raw || "{}"}
-            language="json"
-            theme={monacoTheme}
-            options={{
-              readOnly: true,
-              minimap: { enabled: false },
-              fontSize: 13,
-              scrollBeyondLastLine: false,
-              automaticLayout: true,
-              renderOverviewRuler: false,
-              contextmenu: false,
-              codeLens: false,
-              folding: true,
-              lineNumbers: "on",
-              scrollbar: {
-                vertical: "visible",
-                horizontal: "visible",
-                useShadows: false,
-                verticalScrollbarSize: 10,
-                horizontalScrollbarSize: 10,
-              },
-            }}
+
+        <div className="min-h-0 flex-1 overflow-auto">
+          <SourceDiffView
+            diff={diff}
+            olderLabel={t("argocd.diffOlder")}
+            newerLabel={t("argocd.diffNewer")}
+            emptyHint={t("argocd.diffNoChanges", {
+              older: shortenRevision(older.revision),
+              newer: shortenRevision(newer.revision),
+            })}
           />
         </div>
       </DialogContent>

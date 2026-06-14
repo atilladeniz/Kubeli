@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public build-deploy release generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build vet vet-install
+.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-setup-argocd minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup astro astro-build astro-public build-deploy release generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build vet vet-install
 
 # Default target
 .DEFAULT_GOAL := help
@@ -365,6 +365,8 @@ minikube-start: ## Start minikube cluster with addons and sample resources
 	@$(MAKE) minikube-setup-samples
 	@echo "$(CYAN)Setting up Flux test resources...$(RESET)"
 	@$(MAKE) minikube-setup-flux
+	@echo "$(CYAN)Setting up ArgoCD test resources...$(RESET)"
+	@$(MAKE) minikube-setup-argocd
 	@echo "$(CYAN)Setting up native Helm releases...$(RESET)"
 	@$(MAKE) minikube-setup-helm
 	@echo "$(GREEN)✓ Minikube ready with sample resources$(RESET)"
@@ -374,7 +376,7 @@ minikube-setup-samples: ## Apply sample Kubernetes resources for testing
 	@if [ -d ".dev/k8s-samples" ]; then \
 		kubectl apply -f .dev/k8s-samples/01-namespace.yaml 2>/dev/null || true; \
 		sleep 1; \
-		kubectl apply -f .dev/k8s-samples/ 2>&1 | grep -v "unchanged" || true; \
+		kubectl apply -f .dev/k8s-samples/ 2>&1 | grep -vE "unchanged|resource mapping not found|ensure CRDs are installed first" || true; \
 		echo "$(GREEN)✓ Sample resources applied$(RESET)"; \
 		echo ""; \
 		echo "$(CYAN)Resources created in kubeli-demo namespace:$(RESET)"; \
@@ -431,6 +433,22 @@ minikube-setup-flux: ## Install Flux CRDs and sample HelmReleases for testing
 	@echo "  - monitoring (Failed)"
 	@echo ""
 	@echo "$(YELLOW)Note: Mock resources for testing Kubeli's Flux support.$(RESET)"
+
+minikube-setup-argocd: ## Install ArgoCD CRD and sample Applications for testing
+	@echo "$(CYAN)Installing ArgoCD CRD...$(RESET)"
+	@kubectl apply -f .dev/k8s-samples/17-argocd-crds.yaml 2>/dev/null || true
+	@echo "$(CYAN)Waiting for ArgoCD CRD to be established...$(RESET)"
+	@kubectl wait --for condition=established --timeout=60s crd/applications.argoproj.io 2>/dev/null || true
+	@echo "$(CYAN)Creating sample ArgoCD Applications...$(RESET)"
+	@kubectl apply -f .dev/k8s-samples/18-argocd-applications.yaml 2>/dev/null || true
+	@echo "$(GREEN)✓ ArgoCD test resources installed$(RESET)"
+	@echo ""
+	@echo "$(CYAN)ArgoCD Applications (kubeli-demo namespace):$(RESET)"
+	@echo "  - demo-frontend (Synced / Healthy)"
+	@echo "  - demo-backend (OutOfSync / Progressing)"
+	@echo "  - demo-monitoring (OutOfSync / Degraded)"
+	@echo ""
+	@echo "$(YELLOW)Note: Minimal CRD + mock resources for testing Kubeli's ArgoCD support.$(RESET)"
 
 minikube-setup-helm: ## Install native Helm releases for testing (requires helm CLI)
 	@echo "$(CYAN)Installing native Helm releases...$(RESET)"

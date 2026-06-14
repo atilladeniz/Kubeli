@@ -1,4 +1,8 @@
-import type { ArgoCDApplicationInfo, ArgoCDHistoryEntry } from "../../types";
+import type {
+  ArgoCDApplicationInfo,
+  ArgoCDHistoryEntry,
+  ArgoCDOperationState,
+} from "../../types";
 
 import { invoke } from "./core";
 
@@ -43,4 +47,14 @@ export async function rollbackArgoCDApplication(
   id: number
 ): Promise<void> {
   return invoke<void>("rollback_argocd_application", { name, namespace, id });
+}
+
+export async function getArgoCDOperationState(
+  name: string,
+  namespace: string
+): Promise<ArgoCDOperationState> {
+  return invoke<ArgoCDOperationState>("get_argocd_operation_state", {
+    name,
+    namespace,
+  });
 }

@@ -86,7 +86,7 @@ export function useNavigationSections(): NavSection[] {
         id: "argocd",
         title: "ArgoCD",
         icon: <GitBranch className="size-4" />,
-        items: [{ id: "argocd-applications", label: t("applications") }],
+        items: [{ id: "argocd-applications", label: t("applications"), icon: <GitBranch className={iconClass} /> }],
       },
       {
         id: "workloads",
