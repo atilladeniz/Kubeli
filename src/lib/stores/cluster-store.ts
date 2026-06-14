@@ -169,11 +169,53 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       if (status.oidc_auth_required) {
         const { issuer_url, client_id, extra_scopes } = status.oidc_auth_required;
         set({ isLoading: true });
-        
+
         const { oidcStartAuth, oidcHandleCallback } = await import("../tauri/commands/oidc");
-        const authResult = await oidcStartAuth(issuer_url, client_id, extra_scopes);
-        
+
+        // Clear any previous in-flight OIDC auth so repeated connects during the
+        // browser wait cannot accumulate duplicate listeners/timeouts.
+        get().cancelOidcAuth();
+
+        // Register the oidc-callback listener BEFORE oidcStartAuth opens the
+        // browser. With a warm SSO session the browser can round-trip and emit
+        // "oidc-callback" almost immediately; a listener registered only after
+        // oidcStartAuth resolved could miss it and strand the flow until the
+        // 120s timeout, since Tauri does not buffer events for late listeners.
+        const { listen } = await import("@tauri-apps/api/event");
+        let callbackHandled = false;
+        const unlisten = await listen<{ code: string; state: string }>(
+          "oidc-callback",
+          async (event) => {
+            callbackHandled = true;
+            get().cancelOidcAuth();
+            try {
+              const callbackResult = await oidcHandleCallback(
+                event.payload.code,
+                event.payload.state
+              );
+              if (callbackResult.status === "authenticated") {
+                await get().connect(context);
+              } else {
+                set({ error: toKubeliError("OIDC authentication failed"), isLoading: false });
+              }
+            } catch {
+              set({ error: toKubeliError("OIDC authentication failed"), isLoading: false });
+            }
+          }
+        );
+
+        let authResult: Awaited<ReturnType<typeof oidcStartAuth>>;
+        try {
+          authResult = await oidcStartAuth(issuer_url, client_id, extra_scopes);
+        } catch (e) {
+          unlisten();
+          throw e;
+        }
+
+        // A cached/refreshed token authenticated without opening the browser, so
+        // the callback listener is unused — tear it down and retry the connect.
         if (authResult.status === "authenticated") {
+          unlisten();
           const retryStatus = await connectCluster(context);
           if (retryStatus.connected) {
             const clusters = get().clusters;
@@ -210,36 +252,16 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
           });
           return retryStatus;
         }
-        
-        if (authResult.status === "auth_pending") {
-          // Clear any previous in-flight OIDC auth so repeated connects during
-          // the browser wait cannot accumulate duplicate listeners/timeouts.
-          get().cancelOidcAuth();
 
+        if (authResult.status === "auth_pending") {
+          // The browser is open; the listener is already armed. If the callback
+          // already arrived during the start-auth round trip, the handler has
+          // driven the flow — don't arm a stale timeout over a finished auth.
+          if (callbackHandled) {
+            unlisten();
+            return status;
+          }
           const OIDC_TIMEOUT_MS = 120_000;
-          const { listen } = await import("@tauri-apps/api/event");
-          // Register the listener BEFORE arming the timeout so a listen()
-          // rejection can't leave an orphaned timeout, and store both on the
-          // store so disconnect()/a later connect() can cancel them.
-          const unlisten = await listen<{ code: string; state: string }>(
-            "oidc-callback",
-            async (event) => {
-              get().cancelOidcAuth();
-              try {
-                const callbackResult = await oidcHandleCallback(
-                  event.payload.code,
-                  event.payload.state
-                );
-                if (callbackResult.status === "authenticated") {
-                  await get().connect(context);
-                } else {
-                  set({ error: toKubeliError("OIDC authentication failed"), isLoading: false });
-                }
-              } catch {
-                set({ error: toKubeliError("OIDC authentication failed"), isLoading: false });
-              }
-            }
-          );
           const timeout = setTimeout(() => {
             get().cancelOidcAuth();
             set({
@@ -254,6 +276,9 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
           });
           return status;
         }
+
+        // Unexpected status — don't leak the listener.
+        unlisten();
       }
       if (status.connected) {
         const clusters = get().clusters;
