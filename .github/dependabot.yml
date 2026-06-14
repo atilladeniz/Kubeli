@@ -12,6 +12,9 @@ updates:
       - "npm"
     commit-message:
       prefix: "chore(deps)"
+    ignore:
+      # eslint updates handled manually (v10 flat-config migration)
+      - dependency-name: "eslint"
 
   # Rust/Cargo dependencies
   - package-ecosystem: "cargo"
