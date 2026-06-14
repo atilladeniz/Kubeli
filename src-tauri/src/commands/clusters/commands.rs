@@ -515,7 +515,21 @@ fn spawn_oidc_refresh_task(
 
             match build_client_from_kubeconfig(refreshed_kubeconfig, &context_name).await {
                 Ok(new_client) => {
-                    *k8s_manager.write().await = Some(new_client);
+                    // Re-check the context while holding the client lock before
+                    // swapping it in. A cluster switch may have landed while we
+                    // were refreshing/​building; the connect path publishes the new
+                    // context before its client, so if the context no longer
+                    // matches, a newer client either is or will be installed and
+                    // we must not clobber it with this stale one.
+                    let mut client_guard = k8s_manager.write().await;
+                    if !refresh_target_is_current(&k8s_connected, &context_name).await {
+                        tracing::debug!(
+                            "OIDC refresh: context changed during refresh, discarding stale client"
+                        );
+                        break;
+                    }
+                    *client_guard = Some(new_client);
+                    drop(client_guard);
                     tracing::info!("OIDC token refreshed and kube client reinitialized");
                     use tauri::Emitter;
                     let _ = app_handle.emit("oidc-token-refreshed", ());
@@ -529,11 +543,25 @@ fn spawn_oidc_refresh_task(
     });
 }
 
-async fn build_client_from_kubeconfig(
+/// Whether a freshly refreshed client for `context_name` may still be installed.
+///
+/// The background OIDC refresh can take seconds (token roundtrip + client build),
+/// during which the user may switch clusters. Call this while holding the client
+/// write lock so the check and the swap are atomic: if the active context no
+/// longer matches, a newer connection already owns the client and this stale one
+/// must be dropped instead of clobbering it.
+async fn refresh_target_is_current(
+    k8s_connected: &RwLock<Option<String>>,
+    context_name: &str,
+) -> bool {
+    k8s_connected.read().await.as_deref() == Some(context_name)
+}
+
+async fn config_from_kubeconfig(
     kubeconfig: Kubeconfig,
     context_name: &str,
-) -> Result<Client, String> {
-    let config = kube::Config::from_custom_kubeconfig(
+) -> Result<kube::Config, String> {
+    let mut config = kube::Config::from_custom_kubeconfig(
         kubeconfig,
         &kube::config::KubeConfigOptions {
             context: Some(context_name.to_string()),
@@ -544,6 +572,17 @@ async fn build_client_from_kubeconfig(
     .await
     .map_err(|e| format!("Config creation failed: {}", e))?;
 
+    // Mirror the connect path: keep long-lived streams (log_stream, exec) alive
+    // after a token refresh by not reinstating per-read/write timeouts. See #292.
+    crate::k8s::client::apply_shared_client_timeouts(&mut config);
+    Ok(config)
+}
+
+async fn build_client_from_kubeconfig(
+    kubeconfig: Kubeconfig,
+    context_name: &str,
+) -> Result<Client, String> {
+    let config = config_from_kubeconfig(kubeconfig, context_name).await?;
     Client::try_from(config).map_err(|e| format!("Client creation failed: {}", e))
 }
 
@@ -568,7 +607,9 @@ pub async fn has_kubeconfig() -> Result<bool, KubeliError> {
 
 #[cfg(test)]
 mod refresh_tests {
-    use super::refresh_delay_secs;
+    use super::{config_from_kubeconfig, refresh_delay_secs, refresh_target_is_current};
+    use kube::config::Kubeconfig;
+    use tokio::sync::RwLock;
 
     #[test]
     fn refreshes_at_three_quarters_of_lifetime() {
@@ -581,5 +622,67 @@ mod refresh_tests {
         assert_eq!(refresh_delay_secs(4), 5);
         assert_eq!(refresh_delay_secs(0), 5);
         assert_eq!(refresh_delay_secs(-120), 5);
+    }
+
+    // Regression: a token refresh that completes after the user switched away
+    // must not overwrite the new connection's client. The guard keys off the
+    // active context, which the connect path publishes before its client.
+    #[tokio::test]
+    async fn refresh_only_commits_when_context_still_matches() {
+        let connected = RwLock::new(Some("cluster-a".to_string()));
+        assert!(refresh_target_is_current(&connected, "cluster-a").await);
+
+        *connected.write().await = Some("cluster-b".to_string());
+        assert!(
+            !refresh_target_is_current(&connected, "cluster-a").await,
+            "stale refresh must not commit after a cluster switch"
+        );
+
+        *connected.write().await = None;
+        assert!(
+            !refresh_target_is_current(&connected, "cluster-a").await,
+            "stale refresh must not commit after disconnect"
+        );
+    }
+
+    // Regression for #292: the client rebuilt after an OIDC token refresh must
+    // carry the same no-stream-timeout policy as the initial connect, otherwise
+    // long-lived log/exec streams die ~295s after a refresh.
+    #[tokio::test]
+    async fn refreshed_client_keeps_streams_alive() {
+        let kubeconfig = Kubeconfig::from_yaml(
+            r#"
+apiVersion: v1
+kind: Config
+clusters:
+- name: test
+  cluster:
+    server: https://127.0.0.1:6443
+contexts:
+- name: test
+  context:
+    cluster: test
+    user: test
+users:
+- name: test
+  user:
+    token: dummy
+current-context: test
+"#,
+        )
+        .expect("valid kubeconfig");
+
+        let config = config_from_kubeconfig(kubeconfig, "test")
+            .await
+            .expect("config builds");
+
+        assert!(
+            config.read_timeout.is_none(),
+            "read_timeout must stay unset after refresh (issue #292)"
+        );
+        assert!(
+            config.write_timeout.is_none(),
+            "write_timeout must stay unset after refresh (issue #292)"
+        );
     }
 }
