@@ -19,6 +19,7 @@ tauri-plugin-store = "2.4"
 tauri-plugin-updater = "2.10"
 tauri-plugin-window-state = "2.4"
 tauri-plugin-deep-link = "2.4"
+tauri-plugin-single-instance = { version = "2.4", features = ["deep-link"] }
 tauri-plugin-log = "2.8"
 tauri-plugin-os = "2.3"
 tauri-plugin-opener = "2.5"

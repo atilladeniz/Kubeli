@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useKubeconfigWatcher } from "@/lib/hooks/useKubeconfigWatcher";
+import { useStartupDeepLinks } from "@/lib/hooks/useStartupDeepLinks";
 import { Dashboard } from "@/components/features/dashboard";
 import { HomePage } from "@/components/features/home";
 
@@ -20,6 +21,9 @@ export default function Home() {
 
   // Watch kubeconfig for filesystem changes (new/modified/deleted files)
   useKubeconfigWatcher();
+
+  // Dispatch any deep link that launched the app (cold start), once Tauri is ready
+  useStartupDeepLinks(isTauri);
 
   const { isConnected, fetchClusters, connect } = useClusterStore();
 

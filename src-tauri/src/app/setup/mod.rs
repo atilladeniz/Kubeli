@@ -1,4 +1,4 @@
-mod deep_links;
+pub mod deep_links;
 mod menu;
 
 use crate::app::state;
