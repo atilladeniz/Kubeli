@@ -26,6 +26,18 @@ pub enum DeepLinkAction {
 #[derive(Default)]
 pub struct StartupDeepLinks(pub Mutex<Vec<DeepLinkAction>>);
 
+impl StartupDeepLinks {
+    /// Drain every buffered action, leaving the buffer empty. A second call
+    /// returns nothing, so cold-start links are dispatched exactly once even if
+    /// the frontend retries the pull.
+    pub fn drain(&self) -> Vec<DeepLinkAction> {
+        self.0
+            .lock()
+            .map(|mut pending| std::mem::take(&mut *pending))
+            .unwrap_or_default()
+    }
+}
+
 #[cfg(desktop)]
 pub fn setup_deep_links(app: &mut tauri::App) {
     use tauri::Manager;
@@ -63,11 +75,7 @@ pub fn setup_deep_links(app: &mut tauri::App) {
 /// between process launch and React being ready to listen.
 #[tauri::command]
 pub fn take_startup_deep_links(buffer: tauri::State<'_, StartupDeepLinks>) -> Vec<DeepLinkAction> {
-    buffer
-        .0
-        .lock()
-        .map(|mut pending| std::mem::take(&mut *pending))
-        .unwrap_or_default()
+    buffer.drain()
 }
 
 /// Parse a `kubeli://` deep link into the action it should trigger, or `None`
@@ -122,7 +130,8 @@ fn emit_action(app_handle: &tauri::AppHandle, action: &DeepLinkAction) {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_deep_link, DeepLinkAction};
+    use super::{parse_deep_link, DeepLinkAction, StartupDeepLinks};
+    use std::sync::Mutex;
     use url::Url;
 
     fn parse(raw: &str) -> Option<DeepLinkAction> {
@@ -170,6 +179,40 @@ mod tests {
         assert_eq!(parse("kubeli://view/"), None);
         assert_eq!(parse("kubeli://connect/"), None);
         assert_eq!(parse("kubeli://unknown/thing"), None);
+    }
+
+    #[test]
+    fn drains_buffered_cold_start_links_exactly_once() {
+        let buffer = StartupDeepLinks(Mutex::new(vec![
+            DeepLinkAction::Navigate {
+                view: "pods".to_string(),
+            },
+            DeepLinkAction::Connect {
+                context: "prod".to_string(),
+            },
+        ]));
+
+        let drained = buffer.drain();
+        assert_eq!(
+            drained,
+            vec![
+                DeepLinkAction::Navigate {
+                    view: "pods".to_string()
+                },
+                DeepLinkAction::Connect {
+                    context: "prod".to_string()
+                },
+            ]
+        );
+
+        // A second pull must come back empty: a frontend retry must not replay
+        // cold-start links a second time.
+        assert!(buffer.drain().is_empty());
+    }
+
+    #[test]
+    fn draining_an_empty_buffer_yields_nothing() {
+        assert!(StartupDeepLinks::default().drain().is_empty());
     }
 
     #[test]
