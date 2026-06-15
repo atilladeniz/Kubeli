@@ -1,0 +1,80 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const repo = "https://github.com/atilladeniz/Kubeli";
+---
+
+<BaseLayout
+  title="Code Signing Policy"
+  description="How Kubeli's Windows binaries are signed, who can trigger a signing request, and how to verify a download."
+>
+  <div class="mx-auto max-w-3xl px-4 sm:px-8 py-8 sm:py-12">
+    <h1 class="text-3xl font-semibold mb-3">Code Signing Policy</h1>
+    <p class="text-neutral-500 mb-10">
+      Kubeli's Windows installers are signed so you can confirm they come from
+      this project and have not been tampered with.
+    </p>
+
+    <section class="space-y-4 mb-10">
+      <h2 class="text-xl font-semibold">Signing provider</h2>
+      <p class="text-neutral-600 leading-relaxed">
+        Free code signing provided by
+        <a href="https://about.signpath.io" target="_blank" rel="noopener" class="underline hover:text-neutral-900">SignPath.io</a>,
+        certificate by
+        <a href="https://signpath.org" target="_blank" rel="noopener" class="underline hover:text-neutral-900">SignPath Foundation</a>.
+      </p>
+    </section>
+
+    <section class="space-y-4 mb-10">
+      <h2 class="text-xl font-semibold">Roles</h2>
+      <p class="text-neutral-600 leading-relaxed">
+        Kubeli is maintained by
+        <a href="https://github.com/atilladeniz" target="_blank" rel="noopener" class="underline hover:text-neutral-900">atilladeniz</a>,
+        who acts as author, reviewer, and approver. Every release signing
+        request is approved manually before the certificate is applied.
+        Contributions arrive as pull requests and are reviewed before merge.
+      </p>
+    </section>
+
+    <section class="space-y-4 mb-10">
+      <h2 class="text-xl font-semibold">What gets signed</h2>
+      <p class="text-neutral-600 leading-relaxed">
+        Only the official Windows release artifacts are signed: the NSIS
+        installer (<code class="text-sm">Kubeli_*_x64-setup.exe</code>) and the
+        MSI package (<code class="text-sm">Kubeli_*_x64_en-US.msi</code>).
+        Artifacts are built by GitHub Actions directly from the source in this
+        repository and submitted to SignPath from that workflow only.
+      </p>
+    </section>
+
+    <section class="space-y-4 mb-10">
+      <h2 class="text-xl font-semibold">Privacy</h2>
+      <p class="text-neutral-600 leading-relaxed">
+        This program will not transfer any information to other networked
+        systems unless specifically requested by the user.
+      </p>
+    </section>
+
+    <section class="space-y-4 mb-10">
+      <h2 class="text-xl font-semibold">Verifying a download</h2>
+      <p class="text-neutral-600 leading-relaxed">
+        On Windows, check the signature with PowerShell:
+      </p>
+      <pre class="bg-neutral-900 text-neutral-100 rounded-lg p-4 text-sm overflow-x-auto"><code>Get-AuthenticodeSignature .\Kubeli_*_x64-setup.exe</code></pre>
+      <p class="text-neutral-600 leading-relaxed">
+        The status must be <strong>Valid</strong> and the signer
+        <strong>SignPath Foundation</strong>. You can also right-click the file
+        &rarr; Properties &rarr; Digital Signatures.
+      </p>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-xl font-semibold">Source</h2>
+      <p class="text-neutral-600 leading-relaxed">
+        Kubeli is open source under the MIT license. The build and signing
+        workflow lives in
+        <a href={`${repo}/blob/main/.github/workflows/publish.yml`} target="_blank" rel="noopener" class="underline hover:text-neutral-900">.github/workflows/publish.yml</a>.
+      </p>
+    </section>
+  </div>
+</BaseLayout>

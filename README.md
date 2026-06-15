@@ -347,6 +347,10 @@ See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes.
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
+## Code signing
+
+Free code signing on Windows provided by [SignPath.io](https://about.signpath.io), certificate by [SignPath Foundation](https://signpath.org). See the [Code Signing Policy](https://kubeli.dev/code-signing-policy) for roles, what gets signed, and how to verify a download.
+
 ## Author
 
 Created by [Atilla Deniz](https://atilladeniz.com)
