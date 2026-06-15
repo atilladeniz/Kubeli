@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.75] - 2026-06-15
+
+- Added native OIDC authentication for cluster sign-in with production deep link support
+- Added ArgoCD applications view
+- Updated Rust dependencies and resolved npm audit advisories (ws, brace-expansion)
+
 ## [0.3.74] - 2026-05-23
 
 - Added persistent port-forward history with restartable inactive forwards
