@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.76] - 2026-06-15
+
+- Fixed 4 security advisories by updating vite, launch-editor, js-yaml, and @babel/core
+- Switched Windows code signing to SignPath production certificate
+
 ## [0.3.75] - 2026-06-15
 
 - Added native OIDC authentication for cluster sign-in with production deep link support
