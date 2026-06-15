@@ -303,11 +303,17 @@ const websiteSchema = {
             <h3 class="font-semibold text-sm text-neutral-900 mb-4">Legal</h3>
             <ul class="space-y-3 text-sm">
               <li><a href="https://github.com/atilladeniz/kubeli/blob/main/LICENSE" target="_blank" rel="noopener" class="text-neutral-500 hover:text-neutral-900 transition-colors">MIT License</a></li>
+              <li><a href="/code-signing-policy" class="text-neutral-500 hover:text-neutral-900 transition-colors">Code Signing Policy</a></li>
             </ul>
           </div>
         </div>
 
-        <div class="flex flex-col sm:flex-row justify-between items-center pt-8 border-t border-neutral-100">
+        <div class="flex items-center justify-center gap-2 text-xs text-neutral-400 pt-8 border-t border-neutral-100">
+          <img src="/signpath-logo.svg" class="h-4 w-auto" alt="SignPath" />
+          <span>Free code signing provided by <a href="https://about.signpath.io" target="_blank" rel="noopener" class="underline hover:text-neutral-600 transition-colors">SignPath.io</a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener" class="underline hover:text-neutral-600 transition-colors">SignPath Foundation</a>.</span>
+        </div>
+
+        <div class="flex flex-col sm:flex-row justify-between items-center pt-8">
           <div class="flex items-center gap-2 mb-4 sm:mb-0">
             <img src="/kubeli.svg" class="w-6 h-6" alt="Kubeli" />
             <span class="text-sm text-neutral-500">&copy; {currentYear} Kubeli. Open Source under MIT.</span>
