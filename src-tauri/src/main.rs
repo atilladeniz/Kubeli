@@ -10,6 +10,7 @@ mod error;
 mod k8s;
 mod mcp;
 mod network;
+mod oidc;
 
 fn main() {
     let args = app::bootstrap::initialize();

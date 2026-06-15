@@ -38,6 +38,7 @@ const mockConnectionStatus: ConnectionStatus = {
   context: null,
   error: null,
   latency_ms: null,
+  oidc_auth_required: null,
 };
 
 const mockHealth: HealthCheckResult = {
@@ -195,6 +196,7 @@ export function mockInvoke(command: string, payload?: Record<string, unknown>) {
         context: (payload?.context as string) ?? "kubeli-mock",
         error: null,
         latency_ms: 12,
+        oidc_auth_required: null,
       } satisfies ConnectionStatus);
     case "check_connection_health":
       return Promise.resolve(mockHealth);
@@ -215,6 +217,8 @@ export function mockInvoke(command: string, payload?: Record<string, unknown>) {
       return Promise.resolve(mockPods);
     case "restart_app":
       return Promise.resolve();
+    case "take_startup_deep_links":
+      return Promise.resolve([]);
     case "check_metrics_server":
       return Promise.resolve(true);
     case "get_pod_metrics":

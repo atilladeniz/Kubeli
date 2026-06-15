@@ -1,11 +1,14 @@
 import type {
   HelmReleaseInfo,
   FluxKustomizationInfo,
+  ArgoCDApplicationInfo,
 } from "@/lib/types";
 import type { Column, TranslateFunc } from "../types";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { HelmStatusBadge } from "../components/badges/HelmStatusBadge";
 import { FluxKustomizationStatusBadge } from "../components/badges/FluxKustomizationStatusBadge";
+import { ArgoCDSyncStatusBadge } from "../components/badges/ArgoCDSyncStatusBadge";
+import { ArgoCDHealthStatusBadge } from "../components/badges/ArgoCDHealthStatusBadge";
 import { formatAge } from "../lib/utils";
 
 export const helmReleaseColumns: Column<HelmReleaseInfo>[] = [
@@ -199,5 +202,95 @@ export const fluxKustomizationColumns: Column<FluxKustomizationInfo>[] = [
     label: "AGE",
     sortable: true,
     render: (k) => (k.created_at ? formatAge(k.created_at) : "-"),
+  },
+];
+
+export const argoCDApplicationColumns: Column<ArgoCDApplicationInfo>[] = [
+  {
+    key: "name",
+    label: "NAME",
+    sortable: true,
+    render: (a) => <span className="font-medium text-xs">{a.name}</span>,
+  },
+  {
+    key: "namespace",
+    label: "NAMESPACE",
+    sortable: true,
+    render: (a) => (
+      <div className="flex items-center gap-1.5">
+        <NamespaceColorDot namespace={a.namespace} />
+        <span className="text-muted-foreground text-xs">{a.namespace}</span>
+      </div>
+    ),
+  },
+  {
+    key: "project",
+    label: "PROJECT",
+    sortable: true,
+    render: (a) => (
+      <span className="text-xs text-muted-foreground">{a.project || "-"}</span>
+    ),
+  },
+  {
+    key: "sync_status",
+    label: "SYNC",
+    sortable: true,
+    render: (a) => <ArgoCDSyncStatusBadge status={a.sync_status} />,
+  },
+  {
+    key: "health_status",
+    label: "HEALTH",
+    sortable: true,
+    render: (a) => <ArgoCDHealthStatusBadge status={a.health_status} />,
+  },
+  {
+    key: "repo_url",
+    label: "REPO",
+    sortable: true,
+    render: (a) => (
+      <span className="text-xs text-muted-foreground truncate max-w-[200px] block">
+        {a.repo_url || "-"}
+      </span>
+    ),
+  },
+  {
+    key: "path",
+    label: "PATH",
+    sortable: true,
+    render: (a) => (
+      <span className="text-xs text-muted-foreground font-mono">{a.path || "-"}</span>
+    ),
+  },
+  {
+    key: "current_revision",
+    label: "REVISION",
+    sortable: false,
+    render: (a) => (
+      <span className="text-xs text-muted-foreground font-mono truncate max-w-[120px] block">
+        {a.current_revision ? a.current_revision.slice(0, 12) : "-"}
+      </span>
+    ),
+  },
+  {
+    key: "dest_namespace",
+    label: "DEST",
+    sortable: true,
+    render: (a) => (
+      <span className="text-xs text-muted-foreground">{a.dest_namespace || "-"}</span>
+    ),
+  },
+  {
+    key: "sync_policy",
+    label: "SYNC POLICY",
+    sortable: true,
+    render: (a) => (
+      <span className="text-xs text-muted-foreground capitalize">{a.sync_policy}</span>
+    ),
+  },
+  {
+    key: "created_at",
+    label: "AGE",
+    sortable: true,
+    render: (a) => (a.created_at ? formatAge(a.created_at) : "-"),
   },
 ];

@@ -2,14 +2,22 @@
 
 use crate::error::KubeliError;
 use crate::k8s::{AppState, AuthType, KubeConfig};
+use crate::oidc::commands::OidcState;
+use crate::oidc::config::detect_oidc_exec;
+use crate::oidc::flow::RefreshError;
 use kube::config::Kubeconfig;
-use tauri::{command, AppHandle, State};
+use kube::Client;
+use std::sync::Arc;
+use tauri::{command, AppHandle, Manager, State};
+use tokio::sync::RwLock;
 
 use super::kubeconfig::{
     build_kubeconfig_for_connect, is_self_contained, load_configured_namespaces,
     load_kubeconfig_from_sources,
 };
-use super::types::{ClusterInfo, ConnectionStatus, HealthCheckResult, NamespaceResult};
+use super::types::{
+    ClusterInfo, ConnectionStatus, HealthCheckResult, NamespaceResult, OidcAuthInfo,
+};
 
 /// List all available clusters from kubeconfig
 #[command]
@@ -74,6 +82,7 @@ pub async fn get_connection_status(
         context,
         error: None,
         latency_ms: None,
+        oidc_auth_required: None,
     })
 }
 
@@ -142,7 +151,7 @@ pub async fn connect_cluster(
     // However, some setups intentionally split contexts, clusters, and users across files
     // (merge_mode). If the single file doesn't contain the referenced cluster or user,
     // fall back to the merged kubeconfig.
-    let kubeconfig = if let Some(ref src) = source_file {
+    let mut kubeconfig = if let Some(ref src) = source_file {
         let path = std::path::PathBuf::from(src);
         if path.exists() {
             let single = Kubeconfig::read_from(&path)
@@ -168,9 +177,54 @@ pub async fn connect_cluster(
         build_kubeconfig_for_connect(&app).await?
     };
 
+    // Detect an OIDC exec plugin for this context's user and resolve a token
+    // natively (cached → refresh → interactive). If none can be obtained,
+    // surface oidc_auth_required so the frontend can start the browser flow.
+    let user_name = kubeconfig
+        .contexts
+        .iter()
+        .find(|c| c.name == context)
+        .and_then(|c| c.context.as_ref())
+        .and_then(|ctx| ctx.user.clone());
+
+    let mut active_oidc: Option<crate::oidc::config::OidcExecConfig> = None;
+
+    if let Some(ref user) = user_name {
+        if let Some(oidc_config) = detect_oidc_exec(&kubeconfig, user) {
+            let oidc_state: State<'_, Arc<OidcState>> = app.state();
+
+            // Remember the CA/TLS settings so the interactive browser flow
+            // (oidc_start_auth, which only gets issuer/client/scopes from the UI)
+            // can trust a private-CA IdP too.
+            oidc_state.remember_config(&oidc_config);
+
+            let token = resolve_oidc_token(&app, &oidc_state, &oidc_config).await;
+
+            match token {
+                Some(id_token) => {
+                    inject_oidc_token(&mut kubeconfig, user, &id_token);
+                    active_oidc = Some(oidc_config);
+                }
+                None => {
+                    return Ok(ConnectionStatus {
+                        connected: false,
+                        context: Some(context),
+                        error: None,
+                        latency_ms: None,
+                        oidc_auth_required: Some(OidcAuthInfo {
+                            issuer_url: oidc_config.issuer_url,
+                            client_id: oidc_config.client_id,
+                            extra_scopes: oidc_config.extra_scopes,
+                        }),
+                    });
+                }
+            }
+        }
+    }
+
     match state
         .k8s
-        .init_with_context(&context, kubeconfig, source_file.as_deref())
+        .init_with_context(&context, kubeconfig.clone(), source_file.as_deref())
         .await
     {
         Ok(_) => {
@@ -184,11 +238,27 @@ pub async fn connect_cluster(
                         context,
                         latency
                     );
+                    // Keep the OIDC token fresh for the lifetime of the connection
+                    if let (Some(oidc_config), Some(ref user)) = (active_oidc, &user_name) {
+                        let oidc_state: State<'_, Arc<OidcState>> = app.state();
+                        spawn_oidc_refresh_task(
+                            app.clone(),
+                            state.k8s.client_handle(),
+                            state.k8s.context_handle(),
+                            Arc::clone(&oidc_state),
+                            oidc_config,
+                            context.clone(),
+                            kubeconfig,
+                            user.clone(),
+                        );
+                    }
+
                     Ok(ConnectionStatus {
                         connected: true,
                         context: Some(context),
                         error: None,
                         latency_ms: Some(latency),
+                        oidc_auth_required: None,
                     })
                 }
                 Ok(false) => {
@@ -199,6 +269,7 @@ pub async fn connect_cluster(
                         context: Some(context),
                         error: Some("Connection test failed - unable to reach cluster".to_string()),
                         latency_ms: Some(latency),
+                        oidc_auth_required: None,
                     })
                 }
                 Err(e) => {
@@ -208,6 +279,7 @@ pub async fn connect_cluster(
                         context: Some(context),
                         error: Some(format!("Connection test failed: {}", e)),
                         latency_ms: None,
+                        oidc_auth_required: None,
                     })
                 }
             }
@@ -219,6 +291,7 @@ pub async fn connect_cluster(
                 context: Some(context),
                 error: Some(format!("Failed to connect: {}", e)),
                 latency_ms: None,
+                oidc_auth_required: None,
             })
         }
     }
@@ -236,11 +309,15 @@ pub async fn switch_context(
 
 /// Disconnect from current cluster
 #[command]
-#[allow(unused_variables)] // State parameter required by Tauri command signature
-pub async fn disconnect_cluster(_state: State<'_, AppState>) -> Result<(), KubeliError> {
+pub async fn disconnect_cluster(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<(), KubeliError> {
     tracing::info!("Disconnecting from cluster");
-    // The client manager will be reset when a new connection is made
-    // For now, we just log the disconnect
+    let oidc_state: State<'_, Arc<OidcState>> = app.state();
+    oidc_state.cancel_refresh();
+    *state.k8s.client_handle().write().await = None;
+    *state.k8s.context_handle().write().await = None;
     Ok(())
 }
 
@@ -324,8 +401,288 @@ pub async fn remove_cluster(context: String) -> Result<(), KubeliError> {
     Err(KubeliError::unknown("Cluster removal not yet implemented"))
 }
 
+async fn resolve_oidc_token(
+    _app: &AppHandle,
+    oidc_state: &OidcState,
+    config: &crate::oidc::config::OidcExecConfig,
+) -> Option<String> {
+    // OidcState::refresh() handles the cache check, serialized refresh, rotation
+    // and (on a definitive invalid_grant only) cleanup. A None here means no
+    // usable token and the caller surfaces oidc_auth_required to start the
+    // interactive browser flow.
+    match oidc_state.refresh(config).await {
+        Ok(token) => Some(token),
+        Err(e) => {
+            tracing::warn!("OIDC token resolution failed: {}", e);
+            None
+        }
+    }
+}
+
+/// Delay before proactively refreshing: ~3/4 of the token's remaining lifetime,
+/// with a 5s floor so a near-expired or already-expired token is retried promptly.
+fn refresh_delay_secs(remaining_lifetime_secs: i64) -> u64 {
+    std::cmp::max(remaining_lifetime_secs * 3 / 4, 5) as u64
+}
+
+/// Sleep up to `seconds`, polling `stop_flag` every few seconds so the wait is
+/// promptly cancellable. Returns false if cancelled, true if it slept the full
+/// duration without being cancelled.
+async fn sleep_cancellable(seconds: u64, stop_flag: &std::sync::atomic::AtomicBool) -> bool {
+    use std::sync::atomic::Ordering;
+    let check_interval = seconds.clamp(1, 5);
+    let mut elapsed = 0u64;
+    while elapsed < seconds {
+        if stop_flag.load(Ordering::Relaxed) {
+            return false;
+        }
+        let step = std::cmp::min(check_interval, seconds - elapsed);
+        tokio::time::sleep(tokio::time::Duration::from_secs(step)).await;
+        elapsed += step;
+    }
+    !stop_flag.load(Ordering::Relaxed)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn spawn_oidc_refresh_task(
+    app_handle: AppHandle,
+    k8s_manager: Arc<RwLock<Option<Client>>>,
+    k8s_connected: Arc<RwLock<Option<String>>>,
+    oidc_state: Arc<OidcState>,
+    oidc_config: crate::oidc::config::OidcExecConfig,
+    context_name: String,
+    kubeconfig: Kubeconfig,
+    user_name: String,
+) {
+    let stop_flag = oidc_state.arm_refresh();
+
+    tokio::spawn(async move {
+        while let Some(expires_at) = oidc_state
+            .token_store
+            .get_token_expiry(&oidc_config.issuer_url, &oidc_config.client_id)
+        {
+            let lifetime = (expires_at - chrono::Utc::now()).num_seconds();
+            let refresh_in = refresh_delay_secs(lifetime);
+            tracing::debug!(
+                "OIDC token refresh scheduled in {}s (token lifetime {}s)",
+                refresh_in,
+                lifetime
+            );
+
+            if !sleep_cancellable(refresh_in, &stop_flag).await {
+                tracing::debug!("OIDC refresh loop cancelled");
+                return;
+            }
+
+            // Stop if the user switched away from or disconnected this context.
+            if k8s_connected.read().await.as_deref() != Some(context_name.as_str()) {
+                tracing::debug!("OIDC refresh loop stopping: context changed");
+                break;
+            }
+
+            // Refresh, retrying transient failures (network, IdP 5xx) with capped
+            // backoff so a blip does not permanently kill the loop or force a
+            // re-login. Only a terminal invalid_grant stops the loop (refresh()
+            // has already discarded the dead token in that case).
+            let mut backoff = 5u64;
+            let new_token = loop {
+                match oidc_state.refresh(&oidc_config).await {
+                    Ok(token) => break Some(token),
+                    Err(RefreshError::Terminal(e)) => {
+                        tracing::warn!("OIDC token refresh failed permanently: {}", e);
+                        break None;
+                    }
+                    Err(RefreshError::Transient(e)) => {
+                        tracing::warn!(
+                            "OIDC token refresh transient failure, retrying in {}s: {}",
+                            backoff,
+                            e
+                        );
+                        if !sleep_cancellable(backoff, &stop_flag).await {
+                            return;
+                        }
+                        backoff = std::cmp::min(backoff * 2, 60);
+                    }
+                }
+            };
+
+            let Some(new_token) = new_token else {
+                break;
+            };
+
+            let mut refreshed_kubeconfig = kubeconfig.clone();
+            inject_oidc_token(&mut refreshed_kubeconfig, &user_name, &new_token);
+
+            match build_client_from_kubeconfig(refreshed_kubeconfig, &context_name).await {
+                Ok(new_client) => {
+                    // Re-check the context while holding the client lock before
+                    // swapping it in. A cluster switch may have landed while we
+                    // were refreshing/​building; the connect path publishes the new
+                    // context before its client, so if the context no longer
+                    // matches, a newer client either is or will be installed and
+                    // we must not clobber it with this stale one.
+                    let mut client_guard = k8s_manager.write().await;
+                    if !refresh_target_is_current(&k8s_connected, &context_name).await {
+                        tracing::debug!(
+                            "OIDC refresh: context changed during refresh, discarding stale client"
+                        );
+                        break;
+                    }
+                    *client_guard = Some(new_client);
+                    drop(client_guard);
+                    tracing::info!("OIDC token refreshed and kube client reinitialized");
+                    use tauri::Emitter;
+                    let _ = app_handle.emit("oidc-token-refreshed", ());
+                }
+                Err(e) => {
+                    tracing::error!("Failed to create client after OIDC refresh: {}", e);
+                    break;
+                }
+            }
+        }
+    });
+}
+
+/// Whether a freshly refreshed client for `context_name` may still be installed.
+///
+/// The background OIDC refresh can take seconds (token roundtrip + client build),
+/// during which the user may switch clusters. Call this while holding the client
+/// write lock so the check and the swap are atomic: if the active context no
+/// longer matches, a newer connection already owns the client and this stale one
+/// must be dropped instead of clobbering it.
+async fn refresh_target_is_current(
+    k8s_connected: &RwLock<Option<String>>,
+    context_name: &str,
+) -> bool {
+    k8s_connected.read().await.as_deref() == Some(context_name)
+}
+
+async fn config_from_kubeconfig(
+    kubeconfig: Kubeconfig,
+    context_name: &str,
+) -> Result<kube::Config, String> {
+    let mut config = kube::Config::from_custom_kubeconfig(
+        kubeconfig,
+        &kube::config::KubeConfigOptions {
+            context: Some(context_name.to_string()),
+            cluster: None,
+            user: None,
+        },
+    )
+    .await
+    .map_err(|e| format!("Config creation failed: {}", e))?;
+
+    // Mirror the connect path: keep long-lived streams (log_stream, exec) alive
+    // after a token refresh by not reinstating per-read/write timeouts. See #292.
+    crate::k8s::client::apply_shared_client_timeouts(&mut config);
+    Ok(config)
+}
+
+async fn build_client_from_kubeconfig(
+    kubeconfig: Kubeconfig,
+    context_name: &str,
+) -> Result<Client, String> {
+    let config = config_from_kubeconfig(kubeconfig, context_name).await?;
+    Client::try_from(config).map_err(|e| format!("Client creation failed: {}", e))
+}
+
+fn inject_oidc_token(kubeconfig: &mut Kubeconfig, user_name: &str, token: &str) {
+    if let Some(auth_entry) = kubeconfig
+        .auth_infos
+        .iter_mut()
+        .find(|a| a.name == user_name)
+    {
+        if let Some(ref mut auth_info) = auth_entry.auth_info {
+            auth_info.exec = None;
+            auth_info.token = Some(secrecy::SecretString::from(token.to_string()));
+        }
+    }
+}
+
 /// Check if kubeconfig exists
 #[command]
 pub async fn has_kubeconfig() -> Result<bool, KubeliError> {
     Ok(KubeConfig::exists().await)
+}
+
+#[cfg(test)]
+mod refresh_tests {
+    use super::{config_from_kubeconfig, refresh_delay_secs, refresh_target_is_current};
+    use kube::config::Kubeconfig;
+    use tokio::sync::RwLock;
+
+    #[test]
+    fn refreshes_at_three_quarters_of_lifetime() {
+        assert_eq!(refresh_delay_secs(400), 300);
+        assert_eq!(refresh_delay_secs(100), 75);
+    }
+
+    #[test]
+    fn floors_at_five_seconds_for_short_or_expired_tokens() {
+        assert_eq!(refresh_delay_secs(4), 5);
+        assert_eq!(refresh_delay_secs(0), 5);
+        assert_eq!(refresh_delay_secs(-120), 5);
+    }
+
+    // Regression: a token refresh that completes after the user switched away
+    // must not overwrite the new connection's client. The guard keys off the
+    // active context, which the connect path publishes before its client.
+    #[tokio::test]
+    async fn refresh_only_commits_when_context_still_matches() {
+        let connected = RwLock::new(Some("cluster-a".to_string()));
+        assert!(refresh_target_is_current(&connected, "cluster-a").await);
+
+        *connected.write().await = Some("cluster-b".to_string());
+        assert!(
+            !refresh_target_is_current(&connected, "cluster-a").await,
+            "stale refresh must not commit after a cluster switch"
+        );
+
+        *connected.write().await = None;
+        assert!(
+            !refresh_target_is_current(&connected, "cluster-a").await,
+            "stale refresh must not commit after disconnect"
+        );
+    }
+
+    // Regression for #292: the client rebuilt after an OIDC token refresh must
+    // carry the same no-stream-timeout policy as the initial connect, otherwise
+    // long-lived log/exec streams die ~295s after a refresh.
+    #[tokio::test]
+    async fn refreshed_client_keeps_streams_alive() {
+        let kubeconfig = Kubeconfig::from_yaml(
+            r#"
+apiVersion: v1
+kind: Config
+clusters:
+- name: test
+  cluster:
+    server: https://127.0.0.1:6443
+contexts:
+- name: test
+  context:
+    cluster: test
+    user: test
+users:
+- name: test
+  user:
+    token: dummy
+current-context: test
+"#,
+        )
+        .expect("valid kubeconfig");
+
+        let config = config_from_kubeconfig(kubeconfig, "test")
+            .await
+            .expect("config builds");
+
+        assert!(
+            config.read_timeout.is_none(),
+            "read_timeout must stay unset after refresh (issue #292)"
+        );
+        assert!(
+            config.write_timeout.is_none(),
+            "write_timeout must stay unset after refresh (issue #292)"
+        );
+    }
 }

@@ -30,6 +30,11 @@ ignore = [
     # fxhash: unmaintained, pulled in by tauri ecosystem
     "RUSTSEC-2025-0057",
 
+    # rsa 0.9.x Marvin Attack (timing side-channel), transitive via
+    # openidconnect -> rsa. No fixed upgrade available upstream. Only exercised
+    # in the OIDC ID-token signature path against the trusted IdP, which would
+    # require an attacker-controlled timing oracle — low practical risk.
+    "RUSTSEC-2023-0071",
 ]
 
 # -- Licenses: ensure all crate licenses are acceptable --

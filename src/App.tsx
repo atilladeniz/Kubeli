@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useKubeconfigWatcher } from "@/lib/hooks/useKubeconfigWatcher";
+import { useStartupDeepLinks } from "@/lib/hooks/useStartupDeepLinks";
 import { Dashboard } from "@/components/features/dashboard";
 import { HomePage } from "@/components/features/home";
 
@@ -20,6 +21,9 @@ export default function Home() {
 
   // Watch kubeconfig for filesystem changes (new/modified/deleted files)
   useKubeconfigWatcher();
+
+  // Dispatch any deep link that launched the app (cold start), once Tauri is ready
+  useStartupDeepLinks(isTauri);
 
   const { isConnected, fetchClusters, connect } = useClusterStore();
 
@@ -77,6 +81,54 @@ export default function Home() {
       unlisten?.();
     };
   }, [isTauri, fetchClusters, connect]);
+
+  // Restart long-running connections after OIDC token refresh
+  useEffect(() => {
+    if (!isTauri) return;
+    let unlisten: (() => void) | undefined;
+    let cancelled = false;
+    import("@tauri-apps/api/event").then(({ listen }) => {
+      listen("oidc-token-refreshed", async () => {
+        const { usePortForwardStore } = await import("@/lib/stores/portforward-store");
+        const pfStore = usePortForwardStore.getState();
+        const activeForwards = pfStore.forwards.filter((f) => f.status === "connected");
+        for (const fwd of activeForwards) {
+          // Per-forward try/catch so one failure doesn't strand the rest.
+          try {
+            await pfStore.stopForward(fwd.forward_id);
+            await pfStore.startForward(
+              fwd.namespace,
+              fwd.name,
+              fwd.target_type,
+              fwd.target_port,
+              fwd.local_port,
+              fwd.port_name
+            );
+          } catch (err) {
+            console.error(`Failed to restart port-forward ${fwd.forward_id} after OIDC refresh`, err);
+          }
+        }
+        const clusterStore = useClusterStore.getState();
+        if (clusterStore.namespaceSource === "auto") {
+          await clusterStore.stopNamespaceWatch();
+          await clusterStore.startNamespaceWatch();
+        }
+      })
+        .then((fn) => {
+          if (cancelled) fn();
+          else unlisten = fn;
+        })
+        .catch((err) => {
+          console.error("Failed to register oidc-token-refreshed listener", err);
+        });
+    }).catch((err) => {
+      console.error("Failed to load Tauri event module for OIDC refresh", err);
+    });
+    return () => {
+      cancelled = true;
+      unlisten?.();
+    };
+  }, [isTauri]);
 
   // Disable native context menu globally
   useEffect(() => {

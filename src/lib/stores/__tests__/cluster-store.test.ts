@@ -12,6 +12,8 @@ const mockGetNamespaces = jest.fn();
 const mockCheckConnectionHealth = jest.fn();
 const mockWatchNamespaces = jest.fn();
 const mockStopWatch = jest.fn();
+const mockOidcStartAuth = jest.fn();
+const mockOidcHandleCallback = jest.fn();
 
 jest.mock("../../tauri/commands", () => ({
   listClusters: () => mockListClusters(),
@@ -22,6 +24,13 @@ jest.mock("../../tauri/commands", () => ({
   checkConnectionHealth: () => mockCheckConnectionHealth(),
   watchNamespaces: (watchId: string) => mockWatchNamespaces(watchId),
   stopWatch: (watchId: string) => mockStopWatch(watchId),
+}));
+
+jest.mock("../../tauri/commands/oidc", () => ({
+  oidcStartAuth: (issuer: string, clientId: string, scopes: string[]) =>
+    mockOidcStartAuth(issuer, clientId, scopes),
+  oidcHandleCallback: (code: string, state: string) =>
+    mockOidcHandleCallback(code, state),
 }));
 
 // Test data
@@ -200,6 +209,94 @@ describe("ClusterStore", () => {
       const state = useClusterStore.getState();
       expect(state.isConnected).toBe(false);
       expect(state.error?.message).toBe("Timeout");
+    });
+  });
+
+  describe("connect with OIDC auth", () => {
+    beforeEach(() => {
+      useClusterStore.setState({ clusters: mockClusters });
+    });
+
+    it("registers the oidc-callback listener before opening the browser", async () => {
+      mockConnectCluster.mockResolvedValue({
+        connected: false,
+        context: "oidc-context",
+        oidc_auth_required: {
+          issuer_url: "https://issuer.example.com",
+          client_id: "kubeli",
+          extra_scopes: [],
+        },
+      });
+      const unlisten = jest.fn();
+      (listen as jest.Mock).mockResolvedValue(unlisten);
+      mockOidcStartAuth.mockResolvedValue({
+        status: "auth_pending",
+        auth_url: "https://issuer.example.com/auth",
+        token: null,
+      });
+
+      await act(async () => {
+        await useClusterStore.getState().connect("oidc-context");
+      });
+
+      // Regression: a warm SSO session can emit "oidc-callback" the instant the
+      // browser opens. The listener must be registered before oidcStartAuth (which
+      // opens the browser), or the event is lost and the flow stalls for 120s.
+      const callbackListenIdx = (listen as jest.Mock).mock.calls.findIndex(
+        ([channel]) => channel === "oidc-callback"
+      );
+      expect(callbackListenIdx).toBeGreaterThanOrEqual(0);
+      const listenOrder = (listen as jest.Mock).mock.invocationCallOrder[
+        callbackListenIdx
+      ];
+      expect(listenOrder).toBeLessThan(mockOidcStartAuth.mock.invocationCallOrder[0]);
+
+      // The pending flow is tracked so disconnect()/a later connect() can cancel it.
+      const state = useClusterStore.getState();
+      expect(state.oidcPendingContext).toBe("oidc-context");
+      expect(state.oidcCallbackUnlisten).toBe(unlisten);
+
+      useClusterStore.getState().cancelOidcAuth();
+    });
+
+    it("tears down the listener when a cached token authenticates without a browser", async () => {
+      mockConnectCluster
+        .mockResolvedValueOnce({
+          connected: false,
+          context: "oidc-context",
+          oidc_auth_required: {
+            issuer_url: "https://issuer.example.com",
+            client_id: "kubeli",
+            extra_scopes: [],
+          },
+        })
+        .mockResolvedValueOnce({
+          connected: true,
+          context: "oidc-context",
+          latency_ms: 12,
+        });
+      const unlisten = jest.fn();
+      (listen as jest.Mock).mockResolvedValue(unlisten);
+      mockOidcStartAuth.mockResolvedValue({
+        status: "authenticated",
+        auth_url: null,
+        token: "id-token",
+      });
+      mockGetNamespaces.mockResolvedValue({ namespaces: ["default"], source: "auto" });
+      mockCheckConnectionHealth.mockResolvedValue({ healthy: true, latency_ms: 12 });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+
+      await act(async () => {
+        await useClusterStore.getState().connect("oidc-context");
+      });
+
+      // No browser round-trip happened, so the unused listener must be removed and
+      // no pending OIDC state left behind.
+      expect(unlisten).toHaveBeenCalledTimes(1);
+      const state = useClusterStore.getState();
+      expect(state.isConnected).toBe(true);
+      expect(state.oidcPendingContext).toBeNull();
+      expect(state.oidcAuthTimeout).toBeNull();
     });
   });
 
@@ -674,6 +771,54 @@ describe("ClusterStore", () => {
       });
 
       expect(useClusterStore.getState().isConnected).toBe(false);
+    });
+  });
+
+  describe("cancelOidcAuth", () => {
+    it("clears the in-flight OIDC listener and timeout", () => {
+      const unlisten = jest.fn();
+      const timeout = setTimeout(() => {}, 100_000);
+      useClusterStore.setState({
+        oidcPendingContext: "test-context",
+        oidcCallbackUnlisten: unlisten,
+        oidcAuthTimeout: timeout,
+      });
+
+      useClusterStore.getState().cancelOidcAuth();
+
+      // The listener is removed exactly once (prevents duplicate oidc-callback
+      // listeners accumulating across repeated connects) and all handles reset.
+      expect(unlisten).toHaveBeenCalledTimes(1);
+      const state = useClusterStore.getState();
+      expect(state.oidcPendingContext).toBeNull();
+      expect(state.oidcCallbackUnlisten).toBeNull();
+      expect(state.oidcAuthTimeout).toBeNull();
+    });
+
+    it("is a no-op when no OIDC auth is in flight", () => {
+      useClusterStore.setState({
+        oidcPendingContext: null,
+        oidcCallbackUnlisten: null,
+        oidcAuthTimeout: null,
+      });
+      expect(() => useClusterStore.getState().cancelOidcAuth()).not.toThrow();
+    });
+
+    it("is invoked by disconnect to tear down a pending browser flow", async () => {
+      const unlisten = jest.fn();
+      mockDisconnectCluster.mockResolvedValue(undefined);
+      useClusterStore.setState({
+        oidcPendingContext: "test-context",
+        oidcCallbackUnlisten: unlisten,
+        oidcAuthTimeout: setTimeout(() => {}, 100_000),
+      });
+
+      await act(async () => {
+        await useClusterStore.getState().disconnect();
+      });
+
+      expect(unlisten).toHaveBeenCalledTimes(1);
+      expect(useClusterStore.getState().oidcPendingContext).toBeNull();
     });
   });
 });

@@ -23,4 +23,4 @@ export { nodeColumns, getNodeColumns, crdColumns, priorityClassColumns, runtimeC
 export { hpaColumns, limitRangeColumns, resourceQuotaColumns, pdbColumns } from "./scaling";
 
 // Extensions
-export { helmReleaseColumns, getHelmReleaseColumns, fluxKustomizationColumns } from "./extensions";
+export { helmReleaseColumns, getHelmReleaseColumns, fluxKustomizationColumns, argoCDApplicationColumns } from "./extensions";

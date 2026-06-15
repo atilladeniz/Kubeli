@@ -48,6 +48,7 @@ export function ClusterGrid() {
     isLoading,
     fetchClusters,
     connect,
+    oidcPendingContext,
     saveAccessibleNamespaces,
     clearAccessibleNamespaces,
   } = useClusterStore();
@@ -271,8 +272,11 @@ export function ClusterGrid() {
               const cardProps = {
                 cluster,
                 isActive,
-                isConnecting: connectingContext === cluster.context,
-                disabled: connectingContext !== null || isActive,
+                isConnecting:
+                  connectingContext === cluster.context ||
+                  oidcPendingContext === cluster.context,
+                disabled:
+                  connectingContext !== null || oidcPendingContext !== null || isActive,
                 onConnect: handleConnect,
                 onConfigureNamespaces: handleConfigureNamespaces,
                 forwardsCount: showForwards ? forwards.length : 0,

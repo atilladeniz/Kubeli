@@ -1,0 +1,15 @@
+# cargo-audit configuration
+# https://github.com/rustsec/rustsec/tree/main/cargo-audit
+#
+# Run from src-tauri: cargo audit
+
+[advisories]
+ignore = [
+    # RUSTSEC-2023-0071 — rsa 0.9.x Marvin Attack (timing side-channel).
+    # Pulled in transitively via openidconnect -> rsa; no fixed upgrade exists
+    # upstream. The rsa code path is only exercised when verifying the IdP's
+    # ID-token signature, which would require an attacker-controlled timing
+    # oracle against the trusted issuer — low practical risk for an OIDC client.
+    # Revisit once openidconnect/rsa ship a fix.
+    "RUSTSEC-2023-0071",
+]

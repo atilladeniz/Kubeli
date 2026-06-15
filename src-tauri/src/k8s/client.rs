@@ -26,7 +26,7 @@ use super::config::KubeConfig as ParsedKubeConfig;
 ///
 /// Per-request deadlines for non-streaming calls are layered on top with
 /// `tokio::time::timeout` (see `test_connection`).
-fn apply_shared_client_timeouts(config: &mut Config) {
+pub(crate) fn apply_shared_client_timeouts(config: &mut Config) {
     config.connect_timeout = Some(Duration::from_secs(10));
     config.read_timeout = None;
     config.write_timeout = None;
@@ -109,6 +109,14 @@ impl KubeClientManager {
 
     pub async fn get_last_connection_log(&self) -> Option<String> {
         self.connection_log.read().await.clone()
+    }
+
+    pub fn client_handle(&self) -> Arc<RwLock<Option<Client>>> {
+        Arc::clone(&self.client)
+    }
+
+    pub fn context_handle(&self) -> Arc<RwLock<Option<String>>> {
+        Arc::clone(&self.current_context)
     }
 
     pub fn new() -> Self {
@@ -280,8 +288,11 @@ impl KubeClientManager {
             }
         };
 
-        *self.client.write().await = Some(client);
+        // Publish the context before the client: the OIDC refresh task guards its
+        // write by re-reading the context while holding the client lock, so a
+        // newer connection must make its context visible no later than its client.
         *self.current_context.write().await = Some(context_name.to_string());
+        *self.client.write().await = Some(client);
 
         steps.push("Client stored in manager and ready for use".into());
 

@@ -1,11 +1,13 @@
 use crate::ai::agent_manager::AgentManager;
 use crate::ai::commands::AIConfigState;
 use crate::ai::session_store::create_session_store;
+use crate::app::setup::deep_links::StartupDeepLinks;
 use crate::commands::logs::LogStreamManager;
 use crate::commands::portforward::{PortForwardManager, PortForwardWatchManager};
 use crate::commands::shell::ShellSessionManager;
 use crate::commands::watch::WatchManager;
 use crate::k8s::AppState;
+use crate::oidc::commands::OidcState;
 use std::sync::Arc;
 use tauri::Manager;
 
@@ -19,6 +21,8 @@ pub fn register(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wr
         .manage(Arc::new(PortForwardWatchManager::new()))
         .manage(AIConfigState::new())
         .manage(Arc::new(AgentManager::new()))
+        .manage(Arc::new(OidcState::default()))
+        .manage(StartupDeepLinks::default())
 }
 
 pub fn initialize_ai_session_store(app: &mut tauri::App) {

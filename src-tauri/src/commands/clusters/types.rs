@@ -14,6 +14,15 @@ pub struct ClusterInfo {
     pub source_file: Option<String>,
 }
 
+/// OIDC authentication details surfaced to the frontend when a connection
+/// requires interactive browser login (no valid/refreshable token cached).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OidcAuthInfo {
+    pub issuer_url: String,
+    pub client_id: String,
+    pub extra_scopes: Vec<String>,
+}
+
 /// Connection status
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConnectionStatus {
@@ -21,6 +30,7 @@ pub struct ConnectionStatus {
     pub context: Option<String>,
     pub error: Option<String>,
     pub latency_ms: Option<u64>,
+    pub oidc_auth_required: Option<OidcAuthInfo>,
 }
 
 /// Health check result

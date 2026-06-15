@@ -16,6 +16,8 @@ import * as portforward from "../portforward";
 import * as resources from "../resources";
 import * as shell from "../shell";
 import * as watch from "../watch";
+import * as argocd from "../argocd";
+import * as oidc from "../oidc";
 import * as tauriCommands from "../../commands";
 import * as tauriIndex from "../../index";
 import { invoke } from "../core";
@@ -62,6 +64,15 @@ const cases: TestCase[] = [
   { name: "reconcileFluxHelmRelease", run: () => flux.reconcileFluxHelmRelease("app", "flux-system"), expectedCommand: "reconcile_flux_helmrelease", expectedPayload: { name: "app", namespace: "flux-system" } },
   { name: "suspendFluxHelmRelease", run: () => flux.suspendFluxHelmRelease("app", "flux-system"), expectedCommand: "suspend_flux_helmrelease", expectedPayload: { name: "app", namespace: "flux-system" } },
   { name: "resumeFluxHelmRelease", run: () => flux.resumeFluxHelmRelease("app", "flux-system"), expectedCommand: "resume_flux_helmrelease", expectedPayload: { name: "app", namespace: "flux-system" } },
+  { name: "listArgoCDApplications", run: () => argocd.listArgoCDApplications("argocd"), expectedCommand: "list_argocd_applications", expectedPayload: { namespace: "argocd" } },
+  { name: "refreshArgoCDApplication", run: () => argocd.refreshArgoCDApplication("app", "argocd"), expectedCommand: "refresh_argocd_application", expectedPayload: { name: "app", namespace: "argocd" } },
+  { name: "hardRefreshArgoCDApplication", run: () => argocd.hardRefreshArgoCDApplication("app", "argocd"), expectedCommand: "hard_refresh_argocd_application", expectedPayload: { name: "app", namespace: "argocd" } },
+  { name: "syncArgoCDApplication", run: () => argocd.syncArgoCDApplication("app", "argocd"), expectedCommand: "sync_argocd_application", expectedPayload: { name: "app", namespace: "argocd" } },
+  { name: "getArgoCDApplicationHistory", run: () => argocd.getArgoCDApplicationHistory("app", "argocd"), expectedCommand: "get_argocd_application_history", expectedPayload: { name: "app", namespace: "argocd" } },
+  { name: "rollbackArgoCDApplication", run: () => argocd.rollbackArgoCDApplication("app", "argocd", 5), expectedCommand: "rollback_argocd_application", expectedPayload: { name: "app", namespace: "argocd", id: 5 } },
+  { name: "oidcStartAuth", run: () => oidc.oidcStartAuth("https://issuer", "client", ["openid"]), expectedCommand: "oidc_start_auth", expectedPayload: { issuerUrl: "https://issuer", clientId: "client", extraScopes: ["openid"] } },
+  { name: "oidcHandleCallback", run: () => oidc.oidcHandleCallback("code123", "state456"), expectedCommand: "oidc_handle_callback", expectedPayload: { code: "code123", state: "state456" } },
+  { name: "oidcGetTokenStatus", run: () => oidc.oidcGetTokenStatus("https://issuer", "client"), expectedCommand: "oidc_get_token_status", expectedPayload: { issuerUrl: "https://issuer", clientId: "client" } },
   { name: "generateResourceGraph", run: () => graph.generateResourceGraph(["default"]), expectedCommand: "generate_resource_graph", expectedPayload: { namespaces: ["default"] } },
   { name: "listHelmReleases", run: () => helm.listHelmReleases("default"), expectedCommand: "list_helm_releases", expectedPayload: { namespace: "default" } },
   { name: "getHelmRelease", run: () => helm.getHelmRelease("demo", "default", 3), expectedCommand: "get_helm_release", expectedPayload: { name: "demo", namespace: "default", revision: 3 } },
