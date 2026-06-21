@@ -29,8 +29,11 @@ export function SettingsPanel() {
   const [activeTab, setActiveTab] = useState("appearance");
   const [appVersion, setAppVersion] = useState<string>("0.1.0");
 
-  const aiCli = useAiCli(isSettingsOpen);
-  const mcp = useMcpIdes(isSettingsOpen);
+  // Only probe a tab's backend (AI CLI subprocess spawns, IDE detection) once
+  // that tab is actually visited. Probing eagerly on every open congests Tauri
+  // IPC and makes Settings slow to open right after launch.
+  const aiCli = useAiCli(isSettingsOpen && activeTab === "ai");
+  const mcp = useMcpIdes(isSettingsOpen && activeTab === "mcp");
 
   // Sync active tab when settings panel opens with a specific tab
   useEffect(() => {
