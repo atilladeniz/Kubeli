@@ -31,9 +31,12 @@ ISSUER="https://${ISSUER_HOST}:${DEX_PORT}/dex"
 DISCOVERY="${ISSUER}/.well-known/openid-configuration"
 
 PROFILE="kubeli-oidc"
+EXEC_CONTEXT="kubeli-oidc-exec"
 LOGIN_USER="kubeli-oidc-login"
 OIDC_EMAIL="dev@kubeli.test"
 CLIENT_ID="kubeli"
+# Kubeli's per-cluster settings store (macOS dev build, identifier com.kubeli).
+KUBELI_SETTINGS="$HOME/Library/Application Support/com.kubeli/cluster-settings.json"
 NODE_CA_PATH="/var/lib/minikube/certs/oidc-dex-ca.crt"
 MINIKUBE_FILES_CA="$HOME/.minikube/files${NODE_CA_PATH}"
 KUBECONFIG_FILE="${KUBECONFIG:-$HOME/.kube/config}"
@@ -45,6 +48,32 @@ log_warn()    { echo -e "${YELLOW}[WARN]${NC} $*"; }
 log_error()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
 
 require() { command -v "$1" >/dev/null 2>&1 || { log_error "$1 is required but not installed."; exit 1; }; }
+
+KUBELOGIN_FORMULA="int128/kubelogin/kubelogin"
+
+# kubelogin (the `kubectl oidc-login` plugin) is NOT needed for Kubeli's native
+# OIDC flow, but it IS the exec provider the kubeconfig declares. Installing it
+# lets you test the #335 path: "Use kubeconfig auth only" and the automatic
+# fallback when native OIDC can't reach the issuer both run `kubectl oidc-login`.
+# Best-effort: a missing kubelogin only blocks the exec-fallback test, not the
+# native flow, so we warn instead of aborting.
+ensure_kubelogin() {
+  if command -v kubelogin >/dev/null 2>&1 || command -v kubectl-oidc_login >/dev/null 2>&1; then
+    log_info "kubelogin present — exec-provider fallback (#335) is testable."
+    return
+  fi
+  log_warn "kubelogin (kubectl oidc-login) not installed — needed only to test the kubeconfig exec fallback (#335)."
+  if command -v brew >/dev/null 2>&1; then
+    log_info "Installing kubelogin via Homebrew ($KUBELOGIN_FORMULA)..."
+    if brew install "$KUBELOGIN_FORMULA" >/dev/null 2>&1; then
+      log_success "kubelogin installed."
+    else
+      log_warn "Auto-install failed. Install manually: brew install $KUBELOGIN_FORMULA"
+    fi
+  else
+    log_warn "Install manually: brew install $KUBELOGIN_FORMULA   (or: kubectl krew install oidc-login)"
+  fi
+}
 
 gen_certs() {
   if [ -f "$CERT_DIR/dex.crt" ] && [ -f "$CERT_DIR/ca.crt" ]; then
@@ -169,7 +198,36 @@ context_up() {
     --exec-arg="--certificate-authority=${CERT_DIR}/ca.crt" >/dev/null
   kubectl --kubeconfig "$KUBECONFIG_FILE" config set-context "$PROFILE" \
     --cluster="$PROFILE" --user="$LOGIN_USER" >/dev/null
-  log_success "Context '$PROFILE' now signs in via OIDC (single cluster in Kubeli)"
+
+  # Second context onto the SAME cluster + exec user. Native OIDC vs the exec
+  # provider is a Kubeli per-cluster setting, not a kubeconfig difference — so we
+  # expose two cards: '$PROFILE' (native OIDC, default) and '$EXEC_CONTEXT'
+  # (kubeconfig exec login, flag seeded below). Lets you test both #335 paths
+  # side by side without toggling.
+  kubectl --kubeconfig "$KUBECONFIG_FILE" config set-context "$EXEC_CONTEXT" \
+    --cluster="$PROFILE" --user="$LOGIN_USER" >/dev/null
+  log_success "Contexts '$PROFILE' (native OIDC) and '$EXEC_CONTEXT' (kubeconfig exec) ready"
+}
+
+# Pre-enable "use kubeconfig auth only" for EXEC_CONTEXT so its card runs the
+# exec provider out of the box, while PROFILE stays on native OIDC. Best-effort:
+# the store is macOS/dev-build specific and Kubeli reads it at startup.
+seed_kubeli_settings() {
+  [ "$(uname)" = "Darwin" ] || return 0
+  if ! command -v jq >/dev/null 2>&1; then
+    log_warn "jq not found; skipping cluster-settings seed for '$EXEC_CONTEXT'."
+    return 0
+  fi
+  mkdir -p "$(dirname "$KUBELI_SETTINGS")"
+  local current='{}'
+  [ -f "$KUBELI_SETTINGS" ] && current="$(cat "$KUBELI_SETTINGS")"
+  if ! printf '%s' "$current" | jq empty >/dev/null 2>&1; then
+    current='{}'  # tolerate an empty/corrupt file
+  fi
+  printf '%s' "$current" | jq --arg ctx "$EXEC_CONTEXT" \
+    '.[$ctx] = {accessible_namespaces: [], prefer_kubeconfig_auth: true}' \
+    > "$KUBELI_SETTINGS"
+  log_success "Seeded '$EXEC_CONTEXT' with prefer_kubeconfig_auth=true (restart Kubeli to apply)."
 }
 
 print_next_steps() {
@@ -179,13 +237,23 @@ $(echo -e "${GREEN}Local OIDC stack ready.${NC}")
 
   Issuer  : $ISSUER   (client: $CLIENT_ID)
   Login    : $OIDC_EMAIL  /  password
-  Context  : $PROFILE   (signs in via OIDC)
+  Cluster cards in Kubeli (both hit the same minikube + Dex):
+    * $PROFILE        native OIDC browser flow (Kubeli's built-in)
+    * $EXEC_CONTEXT   kubeconfig exec login (kubectl oidc-login), flag pre-set
 
 Next:
   1. Build & open the app so the kubeli:// scheme is registered:
        make build && open src-tauri/target/release/bundle/macos/Kubeli.app
   2. In Kubeli, connect to "$PROFILE".
   3. Browser opens Dex (accept the dev cert warning) -> log in -> connect goes green.
+
+Testing the kubeconfig exec path (#335):
+  * Connect to "$EXEC_CONTEXT": its "Use kubeconfig auth only" flag is already
+    seeded, so kube-rs runs '$LOGIN_USER' -> kubectl oidc-login directly (needs
+    kubelogin). Restart Kubeli once after this script so it picks up the setting.
+  * Automatic fallback: on "$PROFILE", when native OIDC can't reach the issuer
+    (e.g. 'docker stop kubeli-dex'), the connect quietly switches to the exec
+    provider instead of erroring.
 
 Tear down with:  make oidc-dev-stop
 EOF
@@ -198,9 +266,18 @@ down() {
   fi
   if command -v kubectl >/dev/null 2>&1; then
     # minikube delete removes the kubeli-oidc context/cluster; drop the orphan
-    # OIDC user it leaves behind.
+    # OIDC user and the second exec context it leaves behind.
     kubectl --kubeconfig "$KUBECONFIG_FILE" config unset "users.${LOGIN_USER}" >/dev/null 2>&1 \
       && log_success "Removed OIDC user '$LOGIN_USER'." || true
+    kubectl --kubeconfig "$KUBECONFIG_FILE" config delete-context "$EXEC_CONTEXT" >/dev/null 2>&1 \
+      && log_success "Removed context '$EXEC_CONTEXT'." || true
+  fi
+  # Drop the seeded Kubeli setting for the exec context.
+  if [ -f "$KUBELI_SETTINGS" ] && command -v jq >/dev/null 2>&1; then
+    if tmp="$(jq --arg ctx "$EXEC_CONTEXT" 'del(.[$ctx])' "$KUBELI_SETTINGS" 2>/dev/null)"; then
+      printf '%s' "$tmp" > "$KUBELI_SETTINGS"
+      log_success "Removed seeded setting for '$EXEC_CONTEXT'."
+    fi
   fi
   rm -f "$MINIKUBE_FILES_CA"
   log_info "Left the /etc/hosts entry and .dev/oidc/certs/ in place (remove manually if desired)."
@@ -214,6 +291,8 @@ case "${1:-up}" in
     dex_up
     cluster_up
     context_up
+    seed_kubeli_settings
+    ensure_kubelogin
     print_next_steps
     ;;
   down) down ;;
