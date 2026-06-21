@@ -100,13 +100,13 @@ const comparisonPoints = [
   <!-- Hero -->
   <section class="mx-auto max-w-6xl px-4 sm:px-8 py-12 sm:py-20">
     <div class="text-center">
-      <span class="inline-flex items-center rounded-full bg-purple-50 px-3 py-1 text-xs font-medium text-purple-700 mb-6">
+      <span class="inline-flex items-center rounded-full border border-border bg-card px-3 py-1 text-xs font-medium text-muted-foreground mb-6">
         Comparison
       </span>
       <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold max-w-4xl mx-auto leading-tight">
-        Looking for a <span class="text-purple-600">k9s Alternative</span>?
+        Looking for a <span class="text-accent-strong">k9s Alternative</span>?
       </h1>
-      <p class="text-neutral-500 max-w-2xl mx-auto text-lg mt-6">
+      <p class="text-muted-foreground max-w-2xl mx-auto text-lg mt-6">
         Love the speed of k9s but want a visual interface? Kubeli offers the same
         performance with an intuitive GUI, interactive diagrams, and AI-powered analysis.
       </p>
@@ -114,7 +114,7 @@ const comparisonPoints = [
       <div class="mt-10">
         <a
           href={dmgUrlArm}
-          class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
+          class="inline-flex items-center gap-2 rounded-full bg-accent-strong px-8 py-3 text-lg font-medium text-accent-strong-foreground hover:opacity-90 transition-colors"
         >
           Try Kubeli Free
         </a>
@@ -123,57 +123,57 @@ const comparisonPoints = [
   </section>
 
   <!-- Key Differences -->
-  <section class="bg-neutral-50 py-16 sm:py-20">
+  <section class="bg-muted py-16 sm:py-20">
     <div class="mx-auto max-w-6xl px-4 sm:px-8">
       <h2 class="text-2xl font-bold text-center mb-12">
         Different approaches to the same goal
       </h2>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div class="bg-white p-8 rounded-xl border border-neutral-200">
+        <div class="bg-card p-8 rounded-xl border border-border">
           <h3 class="font-semibold text-lg mb-4">k9s</h3>
-          <ul class="space-y-3 text-neutral-600">
+          <ul class="space-y-3 text-muted-foreground">
             <li class="flex items-start gap-2">
-              <span class="text-neutral-400 mt-0.5">+</span>
+              <span class="text-muted-foreground mt-0.5">+</span>
               <span>Fast terminal-based navigation</span>
             </li>
             <li class="flex items-start gap-2">
-              <span class="text-neutral-400 mt-0.5">+</span>
+              <span class="text-muted-foreground mt-0.5">+</span>
               <span>Vim-style keybindings</span>
             </li>
             <li class="flex items-start gap-2">
-              <span class="text-neutral-400 mt-0.5">+</span>
+              <span class="text-muted-foreground mt-0.5">+</span>
               <span>Runs in any terminal</span>
             </li>
             <li class="flex items-start gap-2">
-              <span class="text-neutral-400 mt-0.5">-</span>
+              <span class="text-muted-foreground mt-0.5">-</span>
               <span>Learning curve for keybindings</span>
             </li>
             <li class="flex items-start gap-2">
-              <span class="text-neutral-400 mt-0.5">-</span>
+              <span class="text-muted-foreground mt-0.5">-</span>
               <span>No visual topology view</span>
             </li>
           </ul>
         </div>
-        <div class="bg-white p-8 rounded-xl border border-purple-200 border-2">
+        <div class="bg-card p-8 rounded-xl border border-border border-2">
           <h3 class="font-semibold text-lg mb-4 flex items-center gap-2">
             Kubeli
-            <span class="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">GUI</span>
+            <span class="text-xs border border-border bg-card text-muted-foreground px-2 py-0.5 rounded-full">GUI</span>
           </h3>
-          <ul class="space-y-3 text-neutral-600">
+          <ul class="space-y-3 text-muted-foreground">
             <li class="flex items-start gap-2">
-              <span class="text-green-500 mt-0.5">+</span>
+              <span class="text-success mt-0.5">+</span>
               <span>Point-and-click interface</span>
             </li>
             <li class="flex items-start gap-2">
-              <span class="text-green-500 mt-0.5">+</span>
+              <span class="text-success mt-0.5">+</span>
               <span>Interactive resource diagrams</span>
             </li>
             <li class="flex items-start gap-2">
-              <span class="text-green-500 mt-0.5">+</span>
+              <span class="text-success mt-0.5">+</span>
               <span>AI-powered log analysis</span>
             </li>
             <li class="flex items-start gap-2">
-              <span class="text-green-500 mt-0.5">+</span>
+              <span class="text-success mt-0.5">+</span>
               <span>Native desktop experience (macOS, Windows & Linux)</span>
             </li>
           </ul>
@@ -191,16 +191,16 @@ const comparisonPoints = [
 
       <div class="space-y-4">
         {comparisonPoints.map((point) => (
-          <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+          <div class="bg-card border border-border rounded-xl overflow-hidden">
             <div class="grid grid-cols-3 gap-4 p-4 items-center">
               <div>
                 <div class="font-medium">{point.category}</div>
-                <div class="text-xs text-neutral-400 mt-1">{point.detail}</div>
+                <div class="text-xs text-muted-foreground mt-1">{point.detail}</div>
               </div>
-              <div class={`text-center py-2 rounded-lg ${point.winner === 'kubeli' ? 'bg-purple-50 text-purple-700 font-medium' : ''}`}>
+              <div class={`text-center py-2 rounded-lg ${point.winner === 'kubeli' ? 'border border-border bg-card text-muted-foreground font-medium' : ''}`}>
                 {point.kubeli}
               </div>
-              <div class={`text-center py-2 rounded-lg ${point.winner === 'k9s' ? 'bg-neutral-100 text-neutral-700 font-medium' : 'text-neutral-500'}`}>
+              <div class={`text-center py-2 rounded-lg ${point.winner === 'k9s' ? 'border border-border bg-card text-muted-foreground font-medium' : 'text-muted-foreground'}`}>
                 {point.k9s}
               </div>
             </div>
@@ -211,25 +211,25 @@ const comparisonPoints = [
   </section>
 
   <!-- When to use which -->
-  <section class="bg-neutral-900 text-white py-16 sm:py-24">
+  <section class="bg-surface-inverse text-surface-inverse-foreground py-16 sm:py-24">
     <div class="mx-auto max-w-4xl px-4 sm:px-8">
       <h2 class="text-2xl sm:text-3xl font-bold text-center mb-12">
         When to use which?
       </h2>
 
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
-        <div class="p-6 rounded-xl bg-neutral-800">
+        <div class="p-6 rounded-xl bg-white/5 border border-white/10">
           <h3 class="font-semibold text-lg mb-4">Choose k9s if you:</h3>
-          <ul class="space-y-2 text-neutral-400">
+          <ul class="space-y-2 text-surface-inverse-foreground/70">
             <li>Love terminal-based workflows</li>
             <li>Already know vim keybindings</li>
             <li>Prefer SSH-based workflows</li>
             <li>Work primarily over SSH</li>
           </ul>
         </div>
-        <div class="p-6 rounded-xl bg-purple-900/30 border border-purple-500/30">
+        <div class="p-6 rounded-xl bg-white/5 border border-white/10">
           <h3 class="font-semibold text-lg mb-4">Choose Kubeli if you:</h3>
-          <ul class="space-y-2 text-neutral-300">
+          <ul class="space-y-2 text-surface-inverse-foreground/70">
             <li>Prefer visual interfaces</li>
             <li>Want AI-assisted troubleshooting</li>
             <li>Need to visualize cluster topology</li>
@@ -244,19 +244,19 @@ const comparisonPoints = [
   <section class="py-16 sm:py-24">
     <div class="mx-auto max-w-3xl px-4 sm:px-8 text-center">
       <h2 class="text-2xl sm:text-3xl font-bold">Ready to try the visual approach?</h2>
-      <p class="text-neutral-500 mt-4">
+      <p class="text-muted-foreground mt-4">
         Download Kubeli for free and see if a GUI fits your workflow.
       </p>
       <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
         <a
           href={dmgUrlArm}
-          class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
+          class="inline-flex items-center gap-2 rounded-full bg-accent-strong px-8 py-3 text-lg font-medium text-accent-strong-foreground hover:opacity-90 transition-colors"
         >
           Download for macOS
         </a>
         <a
           href={appImageUrl}
-          class="inline-flex items-center gap-2 rounded-full border border-neutral-300 px-8 py-3 text-lg font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+          class="inline-flex items-center gap-2 rounded-full border border-border px-8 py-3 text-lg font-medium text-foreground hover:bg-accent transition-colors"
         >
           Download for Linux
         </a>

@@ -49,7 +49,7 @@ const screenshots = [
   <div class="mx-auto max-w-6xl px-4 sm:px-8 py-8 sm:py-12">
     <div class="mb-8 sm:mb-12 text-center">
       <h1 class="text-3xl font-semibold mb-3">Screenshots</h1>
-      <p class="text-neutral-500 max-w-lg mx-auto">
+      <p class="text-muted-foreground max-w-lg mx-auto">
         Explore Kubeli's features through these screenshots. From cluster management to AI-powered log analysis.
       </p>
     </div>
@@ -59,7 +59,7 @@ const screenshots = [
         <article class={`flex flex-col md:flex-row gap-6 sm:gap-8 items-center ${index % 2 === 1 ? 'md:flex-row-reverse' : ''}`}>
           <div class="md:w-1/3 space-y-2 sm:space-y-3 text-center md:text-left">
             <h2 class="font-semibold text-xl sm:text-2xl">{shot.title}</h2>
-            <p class="text-neutral-500 leading-relaxed">{shot.description}</p>
+            <p class="text-muted-foreground leading-relaxed">{shot.description}</p>
           </div>
           <div class="md:w-2/3 overflow-hidden">
             <img

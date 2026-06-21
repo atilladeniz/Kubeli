@@ -11,8 +11,8 @@ const { title = "Changelog" } = Astro.props;
 <BaseLayout title={title} activeNav="changelog" description="Latest updates, new features, and improvements for Kubeli - the native Kubernetes desktop app. See what's new in each release." canonicalPath="/changelog">
   <div class="mx-auto max-w-3xl px-4 sm:px-8 py-8 sm:py-12">
     <div class="mb-10">
-      <h1 class="text-3xl font-bold mb-3">Changelog</h1>
-      <p class="text-neutral-500 leading-relaxed">
+      <h1 class="text-3xl font-bold mb-3 text-foreground">Changelog</h1>
+      <p class="text-muted-foreground leading-relaxed">
         Here are the latest updates and enhancements we've implemented for Kubeli.
         Our commitment to continuous improvement means that we frequently introduce
         modifications, making it essential for you to revisit this space periodically
@@ -20,12 +20,15 @@ const { title = "Changelog" } = Astro.props;
       </p>
     </div>
 
-    <article class="prose prose-neutral max-w-none
+    <article class="prose max-w-none
+      prose-headings:text-foreground
       prose-h2:text-xl prose-h2:font-bold prose-h2:mt-10 prose-h2:mb-3 first:prose-h2:mt-0
       prose-ul:my-2 prose-ul:list-disc
-      prose-li:text-neutral-600 prose-li:my-0.5 prose-li:marker:text-neutral-300
-      prose-p:text-neutral-500 prose-p:my-1
-      prose-strong:text-neutral-700 prose-strong:font-semibold
+      prose-li:text-muted-foreground prose-li:my-0.5 prose-li:marker:text-accent-strong/60
+      prose-p:text-muted-foreground prose-p:my-1
+      prose-strong:text-foreground prose-strong:font-semibold
+      prose-a:text-accent-strong prose-a:no-underline hover:prose-a:underline
+      prose-code:text-foreground
     ">
       <slot />
     </article>

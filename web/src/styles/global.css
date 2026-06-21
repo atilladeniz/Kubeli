@@ -5,6 +5,12 @@
 @plugin "@tailwindcss/typography";
 
 @theme inline {
+  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-strong-foreground: var(--accent-strong-foreground);
+  --color-surface-inverse: var(--surface-inverse);
+  --color-surface-inverse-foreground: var(--surface-inverse-foreground);
+  --color-success: var(--success);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -45,73 +51,88 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Brand tokens mirror the Kubeli app (src/app/globals.css): warm-grey light
+   surfaces, deep-blue (hue 260) as the single accent, navy classic-dark for
+   dark mode. Single source of truth — the marketing site now looks like the app.
+   --accent-strong is the brand blue exposed for hero/CTA fills regardless of theme. */
 :root {
   --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.129 0.042 264.695);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.129 0.042 264.695);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.129 0.042 264.695);
-  --primary: oklch(0.208 0.042 265.755);
-  --primary-foreground: oklch(0.984 0.003 247.858);
-  --secondary: oklch(0.968 0.007 247.896);
-  --secondary-foreground: oklch(0.208 0.042 265.755);
-  --muted: oklch(0.968 0.007 247.896);
-  --muted-foreground: oklch(0.554 0.046 257.417);
-  --accent: oklch(0.968 0.007 247.896);
-  --accent-foreground: oklch(0.208 0.042 265.755);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.929 0.013 255.508);
-  --input: oklch(0.929 0.013 255.508);
-  --ring: oklch(0.704 0.04 256.788);
-  --chart-1: oklch(0.646 0.222 41.116);
+  --background: #f5f5f5;
+  --foreground: oklch(0.18 0 0);
+  --card: #ffffff;
+  --card-foreground: oklch(0.18 0 0);
+  --popover: #ffffff;
+  --popover-foreground: oklch(0.18 0 0);
+  --primary: oklch(0.35 0.12 260);
+  --primary-foreground: oklch(0.98 0 0);
+  --secondary: #ebebeb;
+  --secondary-foreground: oklch(0.25 0 0);
+  --muted: #ebebeb;
+  --muted-foreground: oklch(0.45 0 0);
+  --accent: #e8e8e8;
+  --accent-foreground: oklch(0.2 0 0);
+  --accent-strong: oklch(0.45 0.16 260);
+  --accent-strong-foreground: oklch(0.98 0 0);
+  --surface-inverse: #14151b;
+  --surface-inverse-foreground: oklch(0.92 0 0);
+  --destructive: oklch(0.55 0.22 25);
+  --success: oklch(0.55 0.13 160);
+  --border: oklch(0 0 0 / 10%);
+  --input: oklch(0 0 0 / 8%);
+  --ring: oklch(0.5 0.1 260);
+  --chart-1: oklch(0.55 0.2 260);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.984 0.003 247.858);
-  --sidebar-foreground: oklch(0.129 0.042 264.695);
-  --sidebar-primary: oklch(0.208 0.042 265.755);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.968 0.007 247.896);
-  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
-  --sidebar-border: oklch(0.929 0.013 255.508);
-  --sidebar-ring: oklch(0.704 0.04 256.788);
+  --sidebar: #efefef;
+  --sidebar-foreground: oklch(0.18 0 0);
+  --sidebar-primary: oklch(0.35 0.12 260);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: #e5e5e5;
+  --sidebar-accent-foreground: oklch(0.2 0 0);
+  --sidebar-border: oklch(0 0 0 / 8%);
+  --sidebar-ring: oklch(0.5 0.1 260);
 }
 
+/* Dark = the app's "classic-dark" navy (most on-brand: blue-tinted, nautical). */
 .dark {
-  --background: oklch(0.129 0.042 264.695);
-  --foreground: oklch(0.984 0.003 247.858);
-  --card: oklch(0.208 0.042 265.755);
-  --card-foreground: oklch(0.984 0.003 247.858);
-  --popover: oklch(0.208 0.042 265.755);
-  --popover-foreground: oklch(0.984 0.003 247.858);
-  --primary: oklch(0.929 0.013 255.508);
-  --primary-foreground: oklch(0.208 0.042 265.755);
-  --secondary: oklch(0.279 0.041 260.031);
-  --secondary-foreground: oklch(0.984 0.003 247.858);
-  --muted: oklch(0.279 0.041 260.031);
-  --muted-foreground: oklch(0.704 0.04 256.788);
-  --accent: oklch(0.279 0.041 260.031);
-  --accent-foreground: oklch(0.984 0.003 247.858);
-  --destructive: oklch(0.704 0.191 22.216);
+  --background: #191a22;
+  --foreground: oklch(0.92 0 0);
+  --card: #1f212b;
+  --card-foreground: oklch(0.92 0 0);
+  --popover: #1f212b;
+  --popover-foreground: oklch(0.92 0 0);
+  --primary: oklch(0.7 0.12 260);
+  --primary-foreground: oklch(0.16 0.02 260);
+  --secondary: #252631;
+  --secondary-foreground: oklch(0.88 0 0);
+  --muted: #252631;
+  --muted-foreground: oklch(0.65 0 0);
+  --accent: #2a2b38;
+  --accent-foreground: oklch(0.92 0 0);
+  --accent-strong: oklch(0.62 0.15 260);
+  --accent-strong-foreground: oklch(0.98 0 0);
+  --surface-inverse: #14151b;
+  --surface-inverse-foreground: oklch(0.92 0 0);
+  --destructive: oklch(0.65 0.2 25);
+  --success: oklch(0.7 0.14 160);
   --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.551 0.027 264.364);
-  --chart-1: oklch(0.488 0.243 264.376);
+  --input: oklch(1 0 0 / 12%);
+  --ring: oklch(0.6 0.1 260);
+  --chart-1: oklch(0.65 0.18 260);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.208 0.042 265.755);
-  --sidebar-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-accent: oklch(0.279 0.041 260.031);
-  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.551 0.027 264.364);
+  --sidebar: #14151b;
+  --sidebar-foreground: oklch(0.88 0 0);
+  --sidebar-primary: oklch(0.65 0.12 260);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
+  --sidebar-accent: #252631;
+  --sidebar-accent-foreground: oklch(0.88 0 0);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.5 0.08 260);
 }
 
 @layer base {
@@ -121,4 +142,22 @@
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Logo wall — kept in GLOBAL (render-blocking) css, not the scoped page <style>,
+   so the grayscale filter is present at first paint. (Scoped styles are injected
+   late by HMR in `astro dev`, which flashed the logos in full colour on refresh.)
+   Uniform muted grey via tonal compression; only the hovered logo lifts. */
+.logo-wall img {
+  filter: grayscale(1) contrast(0.5) brightness(1.35) opacity(0.85);
+  transition: filter 0.2s ease;
+}
+.dark .logo-wall img {
+  filter: grayscale(1) invert(1) contrast(0.55) brightness(1.1) opacity(0.78);
+}
+.logo-wall .logo-tip:hover img {
+  filter: grayscale(1) contrast(0.8) brightness(1.05) opacity(1);
+}
+.dark .logo-wall .logo-tip:hover img {
+  filter: grayscale(1) invert(1) contrast(0.7) brightness(1.25) opacity(1);
 }
