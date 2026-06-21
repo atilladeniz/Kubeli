@@ -12,10 +12,17 @@ import { getErrorMessage } from "@/lib/types/errors";
 
 export function ConnectionErrorAlert() {
   const td = useTranslations("debug");
+  const tc = useTranslations("cluster");
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const { error, lastConnectionErrorContext, lastConnectionErrorMessage, setError } =
-    useClusterStore();
+  const {
+    error,
+    lastConnectionErrorContext,
+    lastConnectionErrorMessage,
+    oidcTimedOutContext,
+    setError,
+    fallbackToKubeconfigAuth,
+  } = useClusterStore();
 
   const canDownloadDebugLog = Boolean(
     error &&
@@ -79,6 +86,17 @@ export function ConnectionErrorAlert() {
       >
         <X className="size-3.5" />
       </Button>
+      {oidcTimedOutContext && (
+        <div className="flex flex-wrap gap-2 pl-6">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fallbackToKubeconfigAuth(oidcTimedOutContext)}
+          >
+            {tc("useKubeconfigAuthAndReconnect")}
+          </Button>
+        </div>
+      )}
       {canDownloadDebugLog && (
         <div className="flex flex-wrap gap-2 pl-6">
           <Button

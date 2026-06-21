@@ -24,6 +24,8 @@ export interface NamespaceResult {
 
 export interface ClusterSettings {
   accessible_namespaces: string[];
+  /** Skip Kubeli's native OIDC flow; use the kubeconfig's own auth (e.g. exec provider). */
+  prefer_kubeconfig_auth?: boolean;
 }
 
 export interface ConnectionStatus {

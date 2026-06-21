@@ -19,11 +19,13 @@ export function ClusterGridCard({
   isConnecting,
   disabled,
   onConnect,
+  onCancelConnect,
   onConfigureNamespaces,
   forwardsCount,
   hasConfiguredNamespaces,
 }: ClusterCardProps) {
   const t = useTranslations("cluster");
+  const tCommon = useTranslations("common");
 
   return (
     <Card
@@ -88,23 +90,26 @@ export function ClusterGridCard({
         >
           <Settings2 className="size-4" />
         </Button>
-        <Button
-          onClick={() => onConnect(cluster.context)}
-          disabled={disabled}
-          className="flex-1"
-          variant={isActive ? "secondary" : "default"}
-        >
-          {isConnecting ? (
-            <>
-              <Spinner />
-              {t("connecting")}
-            </>
-          ) : isActive ? (
-            t("connected")
-          ) : (
-            t("connect")
-          )}
-        </Button>
+        {isConnecting ? (
+          <Button
+            onClick={onCancelConnect}
+            className="flex-1"
+            variant="destructive"
+            title={t("cancelConnect")}
+          >
+            <Spinner />
+            {tCommon("cancel")}
+          </Button>
+        ) : (
+          <Button
+            onClick={() => onConnect(cluster.context)}
+            disabled={disabled}
+            className="flex-1"
+            variant={isActive ? "secondary" : "default"}
+          >
+            {isActive ? t("connected") : t("connect")}
+          </Button>
+        )}
         </div>
       </CardContent>
     </Card>

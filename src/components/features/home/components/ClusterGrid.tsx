@@ -49,6 +49,7 @@ export function ClusterGrid() {
     fetchClusters,
     connect,
     oidcPendingContext,
+    cancelConnect,
     saveAccessibleNamespaces,
     clearAccessibleNamespaces,
   } = useClusterStore();
@@ -59,10 +60,11 @@ export function ClusterGrid() {
     open: boolean;
     context: string;
     existing: string[] | undefined;
+    preferAuth: boolean;
     configuredContexts: Set<string>;
   };
   type NsDialogAction =
-    | { type: "open"; context: string; existing: string[] | undefined }
+    | { type: "open"; context: string; existing: string[] | undefined; preferAuth: boolean }
     | { type: "close" }
     | { type: "setOpen"; open: boolean }
     | { type: "addConfigured"; context: string }
@@ -73,7 +75,13 @@ export function ClusterGrid() {
     (state: NsDialogState, action: NsDialogAction): NsDialogState => {
       switch (action.type) {
         case "open":
-          return { ...state, open: true, context: action.context, existing: action.existing };
+          return {
+            ...state,
+            open: true,
+            context: action.context,
+            existing: action.existing,
+            preferAuth: action.preferAuth,
+          };
         case "close":
           return { ...state, open: false };
         case "setOpen":
@@ -89,7 +97,7 @@ export function ClusterGrid() {
           return { ...state, configuredContexts: action.contexts };
       }
     },
-    { open: false, context: "", existing: undefined, configuredContexts: new Set<string>() },
+    { open: false, context: "", existing: undefined, preferAuth: false, configuredContexts: new Set<string>() },
   );
 
   // Load configured contexts on mount and when clusters change
@@ -115,13 +123,15 @@ export function ClusterGrid() {
 
   const handleConfigureNamespaces = useCallback(async (context: string) => {
     let existing: string[] | undefined;
+    let preferAuth = false;
     try {
       const settings = await getClusterSettings(context);
       existing = settings?.accessible_namespaces;
+      preferAuth = Boolean(settings?.prefer_kubeconfig_auth);
     } catch {
       existing = undefined;
     }
-    nsDialogDispatch({ type: "open", context, existing });
+    nsDialogDispatch({ type: "open", context, existing, preferAuth });
   }, []);
 
   const handleSaveNamespaces = useCallback(async (context: string, namespaces: string[]) => {
@@ -148,13 +158,23 @@ export function ClusterGrid() {
       cluster.context.toLowerCase().includes(searchLower),
   );
 
+  // Monotonic id so a cancelled connect that resolves late can't clobber the UI.
+  const connectSeq = useRef(0);
+
   const handleConnect = async (context: string) => {
+    const seq = ++connectSeq.current;
     setConnectingContext(context);
     try {
       await connect(context);
     } finally {
-      setConnectingContext(null);
+      if (connectSeq.current === seq) setConnectingContext(null);
     }
+  };
+
+  const handleCancelConnect = () => {
+    connectSeq.current++; // invalidate the in-flight connect
+    setConnectingContext(null);
+    cancelConnect();
   };
 
   return (
@@ -278,6 +298,7 @@ export function ClusterGrid() {
                 disabled:
                   connectingContext !== null || oidcPendingContext !== null || isActive,
                 onConnect: handleConnect,
+                onCancelConnect: handleCancelConnect,
                 onConfigureNamespaces: handleConfigureNamespaces,
                 forwardsCount: showForwards ? forwards.length : 0,
                 hasConfiguredNamespaces: nsDialog.configuredContexts.has(cluster.context),
@@ -298,6 +319,7 @@ export function ClusterGrid() {
         context={nsDialog.context}
         defaultNamespace={clusters.find((c) => c.context === nsDialog.context)?.namespace}
         existingNamespaces={nsDialog.existing}
+        preferKubeconfigAuth={nsDialog.preferAuth}
         onSave={handleSaveNamespaces}
         onClear={handleClearNamespaces}
       />
