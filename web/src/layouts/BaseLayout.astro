@@ -13,7 +13,7 @@ interface Props {
 
 const {
   title,
-  description = "Native Kubernetes Desktop App for macOS, Windows & Linux. Multi-Cluster Management, Real-Time Monitoring, AI-Powered Log Analysis with Claude & OpenAI. Open Source & Free.",
+  description = "Native Kubernetes Desktop App for macOS, Windows & Linux. Multi-Cluster Management, Real-Time Monitoring, AI-Powered Log Analysis with Claude, Codex, OpenCode & Droid. Open Source & Free.",
   activeNav = "",
   ogImage = "/og-image.png",
   canonicalPath = "",
@@ -21,6 +21,46 @@ const {
 } = Astro.props;
 
 const currentYear = new Date().getFullYear();
+
+// GitHub star count — resolved at BUILD time (never client-side: a per-visitor
+// fetch would burn the 60-req/hr unauthenticated limit instantly). A small disk
+// cache dedupes the call across all page renders in one build and across dev
+// rebuilds (6h TTL), so we hit the API at most once every 6h regardless of how
+// often the site rebuilds. Set GITHUB_TOKEN in CI to lift the limit to 5000/hr.
+import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+const ghRepo = "atilladeniz/kubeli";
+const cacheFile = "node_modules/.cache/kubeli-gh-stars.json";
+const ttl = 6 * 60 * 60 * 1000;
+let ghStars: number | null = null;
+let cached: { t: number; stars: number } | null = null;
+try { cached = JSON.parse(readFileSync(cacheFile, "utf8")); } catch { /* no cache yet */ }
+if (cached && Date.now() - cached.t < ttl) {
+  ghStars = cached.stars;
+} else {
+  try {
+    const res = await fetch(`https://api.github.com/repos/${ghRepo}`, {
+      headers: {
+        "User-Agent": "kubeli-web",
+        Accept: "application/vnd.github+json",
+        ...(process.env.GITHUB_TOKEN ? { Authorization: `Bearer ${process.env.GITHUB_TOKEN}` } : {}),
+      },
+    });
+    if (res.ok) {
+      ghStars = (await res.json()).stargazers_count ?? null;
+      if (ghStars != null) {
+        try { mkdirSync("node_modules/.cache", { recursive: true }); writeFileSync(cacheFile, JSON.stringify({ t: Date.now(), stars: ghStars })); } catch { /* read-only fs — fine */ }
+      }
+    }
+  } catch { /* offline/rate-limited */ }
+  // Fall back to a stale cached value rather than dropping the badge to "GitHub".
+  if (ghStars == null && cached) ghStars = cached.stars;
+}
+const ghStarsLabel =
+  ghStars == null
+    ? null
+    : ghStars >= 1000
+      ? `${(ghStars / 1000).toFixed(1).replace(/\.0$/, "")}k`
+      : String(ghStars);
 const siteUrl = "https://kubeli.dev";
 const canonicalUrl = `${siteUrl}${canonicalPath}`;
 const fullTitle = title === "Home" ? "Kubeli - Native Kubernetes Desktop App for macOS, Windows & Linux | Multi-Cluster & AI" : `${title} | Kubeli`;
@@ -53,7 +93,7 @@ const schemaData = {
     "AI-Powered Log Analysis",
     "Interactive Resource Diagram",
     "Port Forwarding",
-    "Claude & OpenAI Integration",
+    "AI Agent Integration (Claude, Codex, OpenCode, Droid)",
     "Native Desktop App with Tauri"
   ],
   "aggregateRating": {
@@ -98,7 +138,7 @@ const websiteSchema = {
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
     />
 
     <!-- Primary Meta Tags -->
@@ -161,10 +201,13 @@ const websiteSchema = {
           <a href="/" class={activeNav === "home" ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground transition-colors"}>Home</a>
           <a href="/screenshots" class={activeNav === "screenshots" ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground transition-colors"}>Screenshots</a>
           <a href="/changelog" class={activeNav === "changelog" ? "text-foreground font-medium" : "text-muted-foreground hover:text-foreground transition-colors"}>Changelog</a>
-          <a href="https://github.com/atilladeniz/kubeli" target="_blank" rel="noopener" class="text-muted-foreground hover:text-foreground transition-colors">GitHub</a>
+          <a href="https://github.com/atilladeniz/kubeli" target="_blank" rel="noopener" aria-label="Kubeli on GitHub" class="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-muted-foreground hover:text-foreground hover:bg-accent transition-colors">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M12 0c-6.626 0-12 5.373-12 12 0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23.957-.266 1.983-.399 3.003-.404 1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576 4.765-1.589 8.199-6.086 8.199-11.386 0-6.627-5.373-12-12-12z"/></svg>
+            <span class="text-sm font-medium tabular-nums">{ghStarsLabel ?? "GitHub"}</span>
+          </a>
           <button type="button" class="theme-toggle text-muted-foreground hover:text-foreground transition-colors" aria-label="Toggle theme">
             <svg class="w-5 h-5 icon-sun" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" /></svg>
-            <svg class="w-5 h-5 icon-moon hidden" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" /></svg>
+            <svg class="w-5 h-5 icon-moon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" /></svg>
           </button>
         </nav>
 
@@ -189,16 +232,23 @@ const websiteSchema = {
         <a href="/" class={`mobile-nav-link ${activeNav === "home" ? "font-medium text-foreground" : ""}`}>Home</a>
         <a href="/screenshots" class={`mobile-nav-link ${activeNav === "screenshots" ? "font-medium text-foreground" : ""}`}>Screenshots</a>
         <a href="/changelog" class={`mobile-nav-link ${activeNav === "changelog" ? "font-medium text-foreground" : ""}`}>Changelog</a>
-        <a href="https://github.com/atilladeniz/kubeli" target="_blank" rel="noopener" class="mobile-nav-link">GitHub</a>
+        <a href="https://github.com/atilladeniz/kubeli" target="_blank" rel="noopener" class="mobile-nav-link">GitHub{ghStarsLabel ? ` · ${ghStarsLabel}` : ""}</a>
         <button type="button" class="theme-toggle mobile-nav-link flex items-center gap-2" aria-label="Toggle theme">
           <svg class="w-5 h-5 icon-sun" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" /></svg>
-          <svg class="w-5 h-5 icon-moon hidden" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" /></svg>
+          <svg class="w-5 h-5 icon-moon" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21.752 15.002A9.718 9.718 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z" /></svg>
           <span>Theme</span>
         </button>
       </nav>
     </div>
 
     <style>
+      /* Theme-toggle icons: visibility driven purely by .dark on <html> (set
+         before paint by the no-FOUC script) so the right icon is correct on
+         first render — no JS sync, no flash when navigating between pages. */
+      .icon-moon { display: none; }
+      :global(.dark) .icon-sun { display: none; }
+      :global(.dark) .icon-moon { display: block; }
+
       /* Menu Toggle Button */
       .menu-toggle-wrapper {
         width: 18px;
@@ -289,18 +339,12 @@ const websiteSchema = {
         document.body.style.overflow = isExpanded ? '' : 'hidden';
       });
 
-      // Theme toggle — flips .dark on <html>, persists choice, syncs sun/moon icons.
-      function syncThemeIcons() {
-        const dark = document.documentElement.classList.contains('dark');
-        document.querySelectorAll('.icon-sun').forEach((el) => el.classList.toggle('hidden', dark));
-        document.querySelectorAll('.icon-moon').forEach((el) => el.classList.toggle('hidden', !dark));
-      }
-      syncThemeIcons();
+      // Theme toggle — flips .dark on <html> + persists. Icon visibility is pure
+      // CSS keyed off .dark (set pre-paint), so no JS sync = no icon flash on nav.
       document.querySelectorAll('.theme-toggle').forEach((btn) => {
         btn.addEventListener('click', () => {
           const dark = document.documentElement.classList.toggle('dark');
           try { localStorage.setItem('theme', dark ? 'dark' : 'light'); } catch (e) {}
-          syncThemeIcons();
         });
       });
     </script>
@@ -360,10 +404,8 @@ const websiteSchema = {
         </div>
 
         <div class="flex flex-col sm:flex-row justify-between items-center pt-8">
-          <div class="flex items-center gap-2 mb-4 sm:mb-0">
-            {/* MASCOT SLOT — drop a waving/dab shark PNG at web/public/mascot/wave.png, then:
-                <img src="/mascot/wave.png" width="28" height="28" alt="Kubeli the shark" class="w-7 h-7" /> */}
-            <img src="/kubeli.svg" class="w-6 h-6" alt="Kubeli" />
+          <div class="flex items-center gap-2.5 mb-4 sm:mb-0">
+            <img src="/mascot/shark-sit.svg" width="32" height="32" class="w-8 h-8 shrink-0" alt="Kubeli the shark mascot" />
             <span class="text-sm text-muted-foreground">&copy; {currentYear} Kubeli. Open Source under MIT.</span>
           </div>
           <div class="flex items-center gap-4">
