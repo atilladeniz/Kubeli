@@ -16,6 +16,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Syn
         crate::commands::clusters::has_kubeconfig,
         crate::commands::cluster_settings::get_cluster_settings,
         crate::commands::cluster_settings::set_cluster_accessible_namespaces,
+        crate::commands::cluster_settings::set_cluster_prefer_kubeconfig_auth,
         crate::commands::cluster_settings::clear_cluster_settings,
         crate::commands::kubeconfig::get_kubeconfig_sources,
         crate::commands::kubeconfig::set_kubeconfig_sources,

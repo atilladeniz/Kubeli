@@ -140,6 +140,22 @@ pub(super) fn load_configured_namespaces(app: &AppHandle, context: &str) -> Vec<
     }
 }
 
+/// Whether the user asked to skip Kubeli's native OIDC flow for this context
+/// and rely solely on the kubeconfig's own auth (e.g. an exec provider). See #335.
+pub(super) fn load_prefer_kubeconfig_auth(app: &AppHandle, context: &str) -> bool {
+    let store = match app.store("cluster-settings.json") {
+        Ok(s) => s,
+        Err(_) => return false,
+    };
+
+    match store.get(context) {
+        Some(value) => serde_json::from_value::<ClusterSettings>(value.clone())
+            .map(|s| s.prefer_kubeconfig_auth)
+            .unwrap_or(false),
+        None => false,
+    }
+}
+
 #[cfg(test)]
 #[path = "kubeconfig_tests.rs"]
 mod tests;
