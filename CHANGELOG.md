@@ -2,6 +2,11 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.77] - 2026-06-21
+
+- Fixed 8 dompurify security advisories by updating dependencies
+- Added "use kubeconfig auth only" option for exec-based OIDC clusters
+
 ## [0.3.76] - 2026-06-15
 
 - Fixed 4 security advisories by updating vite, launch-editor, js-yaml, and @babel/core

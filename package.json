@@ -1,6 +1,6 @@
 {
   "name": "kubeli",
-  "version": "0.3.76",
+  "version": "0.3.77",
   "private": true,
   "scripts": {
     "dev": "vite",
