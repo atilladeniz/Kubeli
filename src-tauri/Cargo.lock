@@ -3025,7 +3025,7 @@ dependencies = [
 
 [[package]]
 name = "kubeli"
-version = "0.3.77"
+version = "0.3.78"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
