@@ -6,6 +6,8 @@ export interface ClusterCardProps {
   isConnecting: boolean;
   disabled: boolean;
   onConnect: (context: string) => void;
+  /** Abort the in-flight connect (OIDC browser wait, or a hung exec/cert connect). */
+  onCancelConnect: () => void;
   onConfigureNamespaces: (context: string) => void;
   forwardsCount: number;
   hasConfiguredNamespaces?: boolean;

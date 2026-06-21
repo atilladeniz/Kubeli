@@ -175,7 +175,14 @@
     "configureNamespacesWhy1": "Kubeli normally discovers all namespaces automatically. This works when your account has cluster-wide permissions.",
     "configureNamespacesWhy2": "On some clusters, your admin only grants access to specific namespaces (e.g. \"team-frontend\", \"staging\") without permission to list all of them. In that case, Kubeli can't discover namespaces and shows an empty list.",
     "configureNamespacesWhy3": "By entering your namespaces here, Kubeli skips the discovery step and directly uses the ones you specified. If you have full access, you don't need this.",
-    "invalidNamespaceWarning": "May not be a valid Kubernetes namespace name"
+    "invalidNamespaceWarning": "May not be a valid Kubernetes namespace name",
+    "preferKubeconfigAuth": "Use kubeconfig authentication only",
+    "preferKubeconfigAuthDesc": "Kubeli already uses your kubeconfig's exec provider (kubectl oidc-login, kubelogin, or Pinniped) when its plugin is installed, and only falls back to the built-in browser login when it isn't. Turn this on to always use kubeconfig authentication and never the built-in login.",
+    "preferKubeconfigAuthEnabled": "Using kubeconfig authentication only. Reconnect to apply.",
+    "preferKubeconfigAuthDisabled": "Automatic authentication restored. Reconnect to apply.",
+    "preferKubeconfigAuthError": "Could not change the authentication setting.",
+    "useKubeconfigAuthAndReconnect": "Use kubeconfig authentication & reconnect",
+    "cancelConnect": "Cancel connecting"
   },
   "workloads": {
     "overview": "Workloads Overview",

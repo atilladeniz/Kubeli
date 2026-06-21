@@ -43,6 +43,13 @@ export async function setClusterAccessibleNamespaces(
   return invoke("set_cluster_accessible_namespaces", { context, namespaces });
 }
 
+export async function setClusterPreferKubeconfigAuth(
+  context: string,
+  prefer: boolean
+): Promise<void> {
+  return invoke("set_cluster_prefer_kubeconfig_auth", { context, prefer });
+}
+
 export async function clearClusterSettings(context: string): Promise<void> {
   return invoke("clear_cluster_settings", { context });
 }

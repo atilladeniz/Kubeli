@@ -2,8 +2,12 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { AlertTriangle, ChevronDown, HelpCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { setClusterPreferKubeconfigAuth } from "@/lib/tauri/commands";
 import {
   Collapsible,
   CollapsibleContent,
@@ -42,6 +46,7 @@ interface ConfigureNamespacesDialogProps {
   context: string;
   defaultNamespace?: string | null;
   existingNamespaces?: string[];
+  preferKubeconfigAuth?: boolean;
   onSave: (context: string, namespaces: string[]) => Promise<void>;
   onClear: (context: string) => Promise<void>;
 }
@@ -52,6 +57,7 @@ export function ConfigureNamespacesDialog({
   context,
   defaultNamespace,
   existingNamespaces,
+  preferKubeconfigAuth: preferKubeconfigAuthProp = false,
   onSave,
   onClear,
 }: ConfigureNamespacesDialogProps) {
@@ -60,17 +66,32 @@ export function ConfigureNamespacesDialog({
   const [input, setInput] = useState("");
   const [saving, setSaving] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [preferKubeconfigAuth, setPreferKubeconfigAuth] = useState(false);
 
-  // Pre-fill textarea when dialog opens
+  // Seed local state from props when the dialog opens. The parent already
+  // fetched the cluster settings to open the dialog, so the auth flag arrives
+  // as a prop — no second fetch needed here.
   useEffect(() => {
-    if (open) {
-      if (existingNamespaces && existingNamespaces.length > 0) {
-        setInput(existingNamespaces.join("\n"));
-      } else {
-        setInput("");
+    if (!open) return;
+    setInput(existingNamespaces && existingNamespaces.length > 0 ? existingNamespaces.join("\n") : "");
+    setPreferKubeconfigAuth(preferKubeconfigAuthProp);
+  }, [open, existingNamespaces, defaultNamespace, preferKubeconfigAuthProp]);
+
+  const handleToggleAuth = useCallback(
+    async (next: boolean) => {
+      setPreferKubeconfigAuth(next);
+      try {
+        await setClusterPreferKubeconfigAuth(context, next);
+        toast.success(
+          next ? t("preferKubeconfigAuthEnabled") : t("preferKubeconfigAuthDisabled")
+        );
+      } catch {
+        setPreferKubeconfigAuth(!next); // revert on failure
+        toast.error(t("preferKubeconfigAuthError"));
       }
-    }
-  }, [open, existingNamespaces, defaultNamespace]);
+    },
+    [context, t]
+  );
 
   const parsed = parseNamespaces(input);
   const invalidNames = parsed.filter((ns) => !validateNamespace(ns));
@@ -125,6 +146,40 @@ export function ConfigureNamespacesDialog({
             </div>
           </CollapsibleContent>
         </Collapsible>
+
+        <div
+          role="button"
+          tabIndex={saving ? -1 : 0}
+          onClick={() => !saving && handleToggleAuth(!preferKubeconfigAuth)}
+          onKeyDown={(e) => {
+            if (saving) return;
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              handleToggleAuth(!preferKubeconfigAuth);
+            }
+          }}
+          className={cn(
+            "flex items-start justify-between gap-3 rounded-md border border-input p-3 transition-colors",
+            saving ? "opacity-60" : "cursor-pointer hover:bg-muted/50"
+          )}
+        >
+          <div className="space-y-1">
+            <Label htmlFor="prefer-kubeconfig-auth" className="text-sm font-medium pointer-events-none">
+              {t("preferKubeconfigAuth")}
+            </Label>
+            <p className="text-xs text-muted-foreground">{t("preferKubeconfigAuthDesc")}</p>
+          </div>
+          {/* Stop propagation so the switch toggles once via its own handler,
+              not twice (switch + container click). */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <Switch
+              id="prefer-kubeconfig-auth"
+              checked={preferKubeconfigAuth}
+              onCheckedChange={handleToggleAuth}
+              disabled={saving}
+            />
+          </div>
+        </div>
 
         <div className="space-y-3">
           <textarea

@@ -12,11 +12,13 @@ export function ClusterListCard({
   isConnecting,
   disabled,
   onConnect,
+  onCancelConnect,
   onConfigureNamespaces,
   forwardsCount,
   hasConfiguredNamespaces,
 }: ClusterCardProps) {
   const t = useTranslations("cluster");
+  const tCommon = useTranslations("common");
 
   return (
     <div
@@ -77,24 +79,28 @@ export function ClusterListCard({
         >
           <Settings2 className="size-3.5" />
         </Button>
-        <Button
-          onClick={() => onConnect(cluster.context)}
-          disabled={disabled}
-          size="sm"
-          variant={isActive ? "secondary" : "default"}
-          className="h-7 px-3 text-xs"
-        >
-          {isConnecting ? (
-            <>
-              <Spinner />
-              {t("connecting")}
-            </>
-          ) : isActive ? (
-            t("connected")
-          ) : (
-            t("connect")
-          )}
-        </Button>
+        {isConnecting ? (
+          <Button
+            onClick={onCancelConnect}
+            size="sm"
+            variant="destructive"
+            className="h-7 px-3 text-xs"
+            title={t("cancelConnect")}
+          >
+            <Spinner />
+            {tCommon("cancel")}
+          </Button>
+        ) : (
+          <Button
+            onClick={() => onConnect(cluster.context)}
+            disabled={disabled}
+            size="sm"
+            variant={isActive ? "secondary" : "default"}
+            className="h-7 px-3 text-xs"
+          >
+            {isActive ? t("connected") : t("connect")}
+          </Button>
+        )}
       </div>
     </div>
   );

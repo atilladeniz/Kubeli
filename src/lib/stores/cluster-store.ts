@@ -12,7 +12,7 @@ import {
   watchNamespaces,
   stopWatch,
   setClusterAccessibleNamespaces,
-  clearClusterSettings,
+  setClusterPreferKubeconfigAuth,
 } from "../tauri/commands";
 import { useResourceCacheStore } from "./resource-cache-store";
 import type { WatchEvent } from "../types";
@@ -33,6 +33,10 @@ interface ClusterState {
   namespaceSource: NamespaceSource;
   isConnected: boolean;
   isLoading: boolean;
+  // Bumped on every connect() start and on cancel/disconnect. A connect attempt
+  // captures it and drops its result if the value changed while it was awaiting,
+  // so a cancelled-but-still-running connect can't flip state back to connected.
+  connectGeneration: number;
   error: KubeliError | null;
   lastConnectionErrorContext: string | null;
   lastConnectionErrorMessage: string | null;
@@ -51,6 +55,9 @@ interface ClusterState {
   oidcPendingContext: string | null;
   oidcCallbackUnlisten: UnlistenFn | null;
   oidcAuthTimeout: ReturnType<typeof setTimeout> | null;
+  /** Context whose native OIDC flow just timed out — drives the
+   *  "use kubeconfig auth instead" suggestion in the error banner (#335). */
+  oidcTimedOutContext: string | null;
 
   // Auto-reconnect
   reconnectAttempts: number;
@@ -65,6 +72,14 @@ interface ClusterState {
   disconnect: () => Promise<void>;
   /** Cancel any in-flight OIDC browser auth, clearing its listener and timeout. */
   cancelOidcAuth: () => void;
+  /** User-initiated abort of a pending connect (e.g. closed the OIDC browser):
+   *  cancels the OIDC wait and drops the loading state so the card resets. */
+  cancelConnect: () => void;
+  /** Enable "use kubeconfig auth only" for a context and immediately reconnect (#335). */
+  fallbackToKubeconfigAuth: (
+    context: string,
+    expectedGeneration?: number,
+  ) => Promise<ConnectionStatus>;
   refreshConnectionStatus: () => Promise<void>;
   fetchNamespaces: () => Promise<void>;
   setSelectedNamespaces: (namespaces: string[]) => void;
@@ -112,6 +127,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   namespaceSource: "none",
   isConnected: false,
   isLoading: false,
+  connectGeneration: 0,
   error: null,
   lastConnectionErrorContext: null,
   lastConnectionErrorMessage: null,
@@ -130,6 +146,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   oidcPendingContext: null,
   oidcCallbackUnlisten: null,
   oidcAuthTimeout: null,
+  oidcTimedOutContext: null,
 
   // Auto-reconnect initial state
   reconnectAttempts: 0,
@@ -162,15 +179,33 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   },
 
   connect: async (context: string) => {
-    set({ isLoading: true, isReconnecting: false });
+    const generation = get().connectGeneration + 1;
+    set({
+      connectGeneration: generation,
+      isLoading: true,
+      isReconnecting: false,
+      oidcTimedOutContext: null,
+    });
+    // True once a newer connect started or the user cancelled/disconnected while
+    // this attempt was awaiting — then we must not apply its (stale) result.
+    const superseded = () => get().connectGeneration !== generation;
     useResourceCacheStore.getState().clearCache();
     try {
       const status = await connectCluster(context);
+      // A hung non-OIDC connect (exec/cert) can resolve long after the user hit
+      // Cancel; dropping it here keeps the cancel from being undone.
+      if (superseded()) return status;
       if (status.oidc_auth_required) {
         const { issuer_url, client_id, extra_scopes } = status.oidc_auth_required;
         set({ isLoading: true });
 
         const { oidcStartAuth, oidcHandleCallback } = await import("../tauri/commands/oidc");
+
+        // The module import is awaited; if the user cancelled / a newer attempt
+        // started meanwhile, bail BEFORE cancelOidcAuth — otherwise we'd clear a
+        // newer attempt's listener/timeout from the shared OIDC state. No local
+        // listener exists yet, so there's nothing of ours to tear down.
+        if (superseded()) return status;
 
         // Clear any previous in-flight OIDC auth so repeated connects during the
         // browser wait cannot accumulate duplicate listeners/timeouts.
@@ -186,6 +221,12 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         const unlisten = await listen<{ code: string; state: string }>(
           "oidc-callback",
           async (event) => {
+            // If the user cancelled/disconnected while the browser was open, a
+            // late warm-SSO callback must not resurrect the connect. The
+            // superseding actor already removed this listener; just drop the
+            // event (don't call cancelOidcAuth, which could tear down a newer
+            // attempt's listener).
+            if (superseded()) return;
             callbackHandled = true;
             get().cancelOidcAuth();
             try {
@@ -193,30 +234,73 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
                 event.payload.code,
                 event.payload.state
               );
+              // The token exchange can take >1s (e.g. Entra); if the user
+              // cancelled/disconnected during it, neither resurrect the connect
+              // nor overwrite the terminal state with an auth error.
+              if (superseded()) return;
               if (callbackResult.status === "authenticated") {
                 await get().connect(context);
               } else {
                 set({ error: toKubeliError("OIDC authentication failed"), isLoading: false });
               }
             } catch {
+              if (superseded()) return;
               set({ error: toKubeliError("OIDC authentication failed"), isLoading: false });
             }
           }
         );
 
+        // listen() is awaited; if the user cancelled / a newer attempt started
+        // meanwhile, tear down only OUR just-registered listener and bail BEFORE
+        // writing it into shared state — otherwise we'd overwrite a newer
+        // attempt's oidcCallbackUnlisten and strand it.
+        if (superseded()) {
+          unlisten();
+          return status;
+        }
+
+        // Track the listener in state immediately (not only after auth_pending),
+        // so a cancel/disconnect during the oidcStartAuth wait can tear it down.
+        set({ oidcCallbackUnlisten: unlisten });
+
         let authResult: Awaited<ReturnType<typeof oidcStartAuth>>;
         try {
           authResult = await oidcStartAuth(issuer_url, client_id, extra_scopes);
         } catch (e) {
+          // Check superseded BEFORE touching OIDC state: a late rejection from a
+          // cancelled attempt must not call cancelOidcAuth and tear down a newer
+          // attempt's listener/timeout (which would strand it). It also must not
+          // auto-fall-back, which would persist prefer_kubeconfig_auth=true and
+          // reconnect behind the user's back.
+          if (superseded()) {
+            unlisten();
+            return status;
+          }
+          get().cancelOidcAuth();
+          // Native OIDC couldn't even start — typically OIDC discovery failing
+          // (unreachable issuer, private-CA/TLS error, or an Azure/Entra issuer
+          // the generic OIDC discovery can't handle). We only got here because
+          // the kubeconfig has an oidc-login exec provider, which already works
+          // with kubectl, so fall back to it automatically instead of dead-ending
+          // on the error (#335).
+          debug("Native OIDC start failed, falling back to kubeconfig auth:", e);
+          return get().fallbackToKubeconfigAuth(context, generation);
+        }
+
+        // The browser auth started; if the user cancelled/disconnected meanwhile,
+        // tear down only our listener and bail before arming a timeout, driving
+        // the callback flow, or writing state for an abandoned attempt.
+        if (superseded()) {
           unlisten();
-          throw e;
+          return status;
         }
 
         // A cached/refreshed token authenticated without opening the browser, so
         // the callback listener is unused — tear it down and retry the connect.
         if (authResult.status === "authenticated") {
-          unlisten();
+          get().cancelOidcAuth();
           const retryStatus = await connectCluster(context);
+          if (superseded()) return retryStatus;
           if (retryStatus.connected) {
             const clusters = get().clusters;
             const currentCluster = clusters.find((c) => c.context === context) || null;
@@ -235,6 +319,9 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
               lastConnectionErrorMessage: null,
             });
             await get().fetchNamespaces();
+            // A disconnect during fetchNamespaces() would leave a leaked watch
+            // and health interval running for a connection that's already gone.
+            if (superseded()) return retryStatus;
             if (get().namespaceSource === "auto") {
               get().startNamespaceWatch();
             }
@@ -258,15 +345,23 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
           // already arrived during the start-auth round trip, the handler has
           // driven the flow — don't arm a stale timeout over a finished auth.
           if (callbackHandled) {
-            unlisten();
+            get().cancelOidcAuth();
             return status;
           }
           const OIDC_TIMEOUT_MS = 120_000;
           const timeout = setTimeout(() => {
             get().cancelOidcAuth();
+            // A non-OIDC connect to another cluster doesn't clear this timeout
+            // (only cancelOidcAuth/a new auth does). If such a connect happened
+            // while the browser sat open, don't write a stale timeout error over
+            // the newer connection's state ~120s later.
+            if (superseded()) return;
             set({
               error: toKubeliError("OIDC authentication timed out — no response from browser"),
               isLoading: false,
+              // Remember which context timed out so the error banner can offer
+              // the kubeconfig-auth fallback for it (#335).
+              oidcTimedOutContext: context,
             });
           }, OIDC_TIMEOUT_MS);
           set({
@@ -278,7 +373,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         }
 
         // Unexpected status — don't leak the listener.
-        unlisten();
+        get().cancelOidcAuth();
       }
       if (status.connected) {
         const clusters = get().clusters;
@@ -299,6 +394,9 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         });
         // Fetch namespaces after connecting, then start watch for live updates
         await get().fetchNamespaces();
+        // A disconnect during fetchNamespaces() would leave a leaked watch and
+        // health interval running for a connection that's already gone.
+        if (superseded()) return status;
         // Only start namespace watch for auto-discovered namespaces (not configured)
         if (get().namespaceSource === "auto") {
           get().startNamespaceWatch();
@@ -319,6 +417,11 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       return status;
     } catch (e) {
       const errorMsg = getErrorMessage(e);
+      // A failure from a cancelled/superseded attempt must not overwrite the
+      // state the newer attempt (or the cancel) already set.
+      if (superseded()) {
+        return { connected: false, context, error: errorMsg, latency_ms: null, oidc_auth_required: null };
+      }
       set({
         error: toKubeliError(e),
         isLoading: false,
@@ -338,14 +441,47 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
     set({ oidcAuthTimeout: null, oidcCallbackUnlisten: null, oidcPendingContext: null });
   },
 
+  cancelConnect: () => {
+    get().cancelOidcAuth();
+    // Bump the generation so an in-flight connect (including a hung non-OIDC
+    // exec/cert connect) drops its result instead of flipping us to connected.
+    set({
+      connectGeneration: get().connectGeneration + 1,
+      isLoading: false,
+      oidcTimedOutContext: null,
+    });
+  },
+
+  fallbackToKubeconfigAuth: async (context, expectedGeneration) => {
+    get().cancelOidcAuth();
+    // Auto-fallback (connect() catch) passes the originating attempt's
+    // generation; the manual banner button passes none, so baseline against the
+    // current generation. Either way, if a connect/cancel/disconnect happens
+    // while the preference write is in flight, abort rather than reconnect
+    // behind the user's newer action.
+    const baseline = expectedGeneration ?? get().connectGeneration;
+    await setClusterPreferKubeconfigAuth(context, true);
+    if (get().connectGeneration !== baseline) {
+      return { connected: false, context, error: null, latency_ms: null, oidc_auth_required: null };
+    }
+    set({ error: null, oidcTimedOutContext: null });
+    return get().connect(context);
+  },
+
   disconnect: async () => {
-    // Stop any in-flight OIDC auth, health monitoring and namespace watch first
+    // Stop any in-flight OIDC auth, health monitoring and namespace watch first.
+    // Bumping the generation also drops any connect that's still awaiting.
     get().cancelOidcAuth();
     get().stopHealthMonitoring();
     get().stopNamespaceWatch();
+    const generation = get().connectGeneration + 1;
+    set({ connectGeneration: generation });
     useResourceCacheStore.getState().clearCache();
     try {
       await disconnectCluster();
+      // A connect started after this disconnect (newer generation) wins — don't
+      // clobber its freshly-established state with our teardown.
+      if (get().connectGeneration !== generation) return;
       // Keep currentCluster so port forward badge still shows on the correct cluster card
       set({
         isConnected: false,
@@ -361,6 +497,9 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         lastConnectionErrorMessage: null,
       });
     } catch (e) {
+      // A connect that started during disconnectCluster()'s await (newer
+      // generation) wins — don't overwrite its state with a stale disconnect error.
+      if (get().connectGeneration !== generation) return;
       set({
         error: toKubeliError(e),
       });
@@ -423,7 +562,10 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   },
 
   clearAccessibleNamespaces: async (context) => {
-    await clearClusterSettings(context);
+    // Clear only the namespace list, not the whole context entry, so the
+    // prefer_kubeconfig_auth flag (#335) survives. The Rust setter drops the
+    // entry automatically if nothing meaningful remains.
+    await setClusterAccessibleNamespaces(context, []);
     set({ namespaceSource: "none", namespaces: [], selectedNamespaces: [], currentNamespace: "" });
     // Re-fetch namespaces via auto-discovery
     await get().fetchNamespaces();
@@ -585,15 +727,29 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
 
     set({ isReconnecting: true, reconnectAttempts: reconnectAttempts + 1 });
 
+    // Capture the connect generation so a manual connect or an explicit
+    // disconnect during the backoff/connect drops this auto-reconnect instead
+    // of resurrecting a connection the user already moved on from.
+    const generation = get().connectGeneration;
+    const superseded = () => get().connectGeneration !== generation;
+
     // Calculate backoff delay
     const delay = getBackoffDelay(reconnectAttempts);
     debug(`Attempting reconnect in ${delay}ms (attempt ${reconnectAttempts + 1}/${maxReconnectAttempts})`);
 
     // Wait for backoff delay
     await new Promise((resolve) => setTimeout(resolve, delay));
+    if (superseded()) {
+      set({ isReconnecting: false });
+      return false;
+    }
 
     try {
       const status = await connectCluster(lastConnectedContext);
+      if (superseded()) {
+        set({ isReconnecting: false });
+        return false;
+      }
       if (status.connected) {
         const clusters = get().clusters;
         const currentCluster = clusters.find((c) => c.context === lastConnectedContext) || null;
@@ -618,6 +774,12 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       }
     } catch (e) {
       console.error("Reconnect attempt failed:", e);
+      // A manual connect / explicit disconnect during the failed attempt wins —
+      // stop retrying instead of fighting the user's newer action.
+      if (superseded()) {
+        set({ isReconnecting: false });
+        return false;
+      }
       // Retry
       return get().attemptReconnect();
     }

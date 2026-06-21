@@ -3,7 +3,7 @@
 use crate::error::KubeliError;
 use crate::k8s::{AppState, AuthType, KubeConfig};
 use crate::oidc::commands::OidcState;
-use crate::oidc::config::detect_oidc_exec;
+use crate::oidc::config::{detect_oidc_exec, exec_provider_runnable};
 use crate::oidc::flow::RefreshError;
 use kube::config::Kubeconfig;
 use kube::Client;
@@ -13,7 +13,7 @@ use tokio::sync::RwLock;
 
 use super::kubeconfig::{
     build_kubeconfig_for_connect, is_self_contained, load_configured_namespaces,
-    load_kubeconfig_from_sources,
+    load_kubeconfig_from_sources, load_prefer_kubeconfig_auth,
 };
 use super::types::{
     ClusterInfo, ConnectionStatus, HealthCheckResult, NamespaceResult, OidcAuthInfo,
@@ -189,8 +189,41 @@ pub async fn connect_cluster(
 
     let mut active_oidc: Option<crate::oidc::config::OidcExecConfig> = None;
 
+    // Decide between two OIDC paths for an exec-based kubeconfig:
+    //
+    //   1. Let kube-rs run the kubeconfig's exec provider (kubectl oidc-login /
+    //      kubelogin / Pinniped). This is the standard, best-practice behaviour
+    //      (the same one Headlamp and Lens use) and is what makes issue #335
+    //      work: the user's kubeconfig already authenticates with kubectl.
+    //   2. Kubeli's native browser flow (Authorization Code + PKCE), which needs
+    //      no plugin binary but cannot complete in some environments (#335).
+    //
+    // Prefer (1) whenever the plugin binary is actually installed, and fall back
+    // to (2) only when it is missing — that keeps the no-binary comfort added in
+    // e079d70 while no longer overriding a working exec setup. A per-cluster
+    // "use kubeconfig auth only" flag forces (1) regardless of detection.
+    let prefer_kubeconfig_auth = load_prefer_kubeconfig_auth(&app, &context);
+    if prefer_kubeconfig_auth {
+        tracing::info!(
+            "Context '{}' set to use kubeconfig auth only; skipping native OIDC",
+            context
+        );
+    }
+
     if let Some(ref user) = user_name {
-        if let Some(oidc_config) = detect_oidc_exec(&kubeconfig, user) {
+        if let Some(oidc_config) = detect_oidc_exec(&kubeconfig, user).filter(|cfg| {
+            // Use native OIDC only when the user hasn't forced exec auth AND the
+            // exec provider isn't runnable; otherwise let kube-rs run exec.
+            let run_exec = prefer_kubeconfig_auth || exec_provider_runnable(cfg);
+            if run_exec {
+                tracing::info!(
+                    "Context '{}' uses exec plugin '{}'; letting kube-rs run it (skipping native OIDC)",
+                    context,
+                    cfg.command
+                );
+            }
+            !run_exec
+        }) {
             let oidc_state: State<'_, Arc<OidcState>> = app.state();
 
             // Remember the CA/TLS settings so the interactive browser flow

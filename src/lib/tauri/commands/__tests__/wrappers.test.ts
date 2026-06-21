@@ -45,6 +45,7 @@ const cases: TestCase[] = [
   { name: "getNamespaces", run: () => cluster.getNamespaces(), expectedCommand: "get_namespaces" },
   { name: "getClusterSettings", run: () => cluster.getClusterSettings("ctx"), expectedCommand: "get_cluster_settings", expectedPayload: { context: "ctx" } },
   { name: "setClusterAccessibleNamespaces", run: () => cluster.setClusterAccessibleNamespaces("ctx", ["a", "b"]), expectedCommand: "set_cluster_accessible_namespaces", expectedPayload: { context: "ctx", namespaces: ["a", "b"] } },
+  { name: "setClusterPreferKubeconfigAuth", run: () => cluster.setClusterPreferKubeconfigAuth("ctx", true), expectedCommand: "set_cluster_prefer_kubeconfig_auth", expectedPayload: { context: "ctx", prefer: true } },
   { name: "clearClusterSettings", run: () => cluster.clearClusterSettings("ctx"), expectedCommand: "clear_cluster_settings", expectedPayload: { context: "ctx" } },
   { name: "addCluster", run: () => cluster.addCluster("apiVersion: v1"), expectedCommand: "add_cluster", expectedPayload: { kubeconfigContent: "apiVersion: v1" } },
   { name: "removeCluster", run: () => cluster.removeCluster("ctx"), expectedCommand: "remove_cluster", expectedPayload: { context: "ctx" } },

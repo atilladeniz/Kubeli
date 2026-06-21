@@ -20,6 +20,8 @@ make oidc-dev-stop   # tear it all down
 5. Repoints the profile's own `kubeli-oidc` context at an OIDC sign-in user, so
    Kubeli shows a single cluster that connects via OIDC (not the extra cert
    admin context that `minikube start` creates).
+6. Best-effort installs `kubelogin` (`kubectl oidc-login`) so the kubeconfig
+   exec-provider path is testable too (see "Testing the exec fallback" below).
 
 Then:
 
@@ -33,6 +35,22 @@ returns the token and the connect goes green.
 
 > Need the cert admin back (e.g. if OIDC breaks)? `minikube update-context -p
 > kubeli-oidc` restores the certificate-based `kubeli-oidc` context.
+
+## Testing the exec fallback (#335)
+
+Native OIDC is the default. The same `kubeli-oidc` context also declares a
+`kubectl oidc-login` exec provider, so you can test Kubeli running the
+kubeconfig's own auth instead:
+
+- **Manual:** open the cluster's settings (gear icon) → enable **"Use kubeconfig
+  auth only"** → connect. kube-rs runs `kubectl oidc-login` (needs `kubelogin`,
+  which `make oidc-dev` installs for you).
+- **Automatic:** when native OIDC can't reach the issuer (e.g. `docker stop
+  kubeli-dex`, or a TLS/private-CA error), the connect quietly falls back to the
+  exec provider instead of erroring out.
+
+If `kubelogin` couldn't be auto-installed: `brew install int128/kubelogin/kubelogin`
+(or `kubectl krew install oidc-login`).
 
 ## Why it needs a build (the kubeli:// callback)
 
@@ -56,4 +74,5 @@ the generated dev CA:
 ## Requirements
 
 `docker`, `minikube`, `kubectl`, `openssl`, and `sudo` for the one `/etc/hosts`
-line. Dev only — none of this is for production.
+line. `kubelogin` is auto-installed via Homebrew (best-effort) for the exec
+fallback test. Dev only — none of this is for production.
