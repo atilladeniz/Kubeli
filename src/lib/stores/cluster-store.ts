@@ -158,11 +158,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   fetchClusters: async () => {
     set({ isLoading: true, error: null });
     try {
-      // Minimum delay for visible loading feedback
-      const [clusters] = await Promise.all([
-        listClusters(),
-        new Promise((resolve) => setTimeout(resolve, 400)),
-      ]);
+      const clusters = await listClusters();
       const currentCluster = clusters.find((c) => c.current) || null;
       set({
         clusters,
