@@ -213,7 +213,7 @@ const logos = [
         </div>
 
         <!-- Product shot — bigger, bleeds off the right edge with a soft fade, no frame (LCP) -->
-        <div class="lg:col-span-7">
+        <div class="relative lg:col-span-7">
           <img
             src="/screens/02-cluster-overview-896w.webp"
             srcset="/screens/02-cluster-overview-896w.webp 896w, /screens/02-cluster-overview.webp 1600w"
@@ -223,6 +223,13 @@ const logos = [
             alt="Kubeli Cluster Overview"
             fetchpriority="high"
             class="block w-full max-w-none rounded-2xl lg:w-[122%]"
+          />
+          <!-- Mascot peeking on the screenshot's bottom-left corner (decorative). -->
+          <img
+            src="/mascot/working-laptop.svg"
+            alt=""
+            aria-hidden="true"
+            class="pointer-events-none absolute -bottom-10 -left-8 hidden w-36 select-none lg:block xl:-bottom-12 xl:-left-12 xl:w-44"
           />
         </div>
       </div>
@@ -289,7 +296,14 @@ const logos = [
   <!-- ============ PRODUCT TOUR — tabbed showcase (Medusa-style: divided
        tab cells w/ progress bar + auto-advance, top-anchored cropped stage) ============ -->
   <section class="border-b border-border">
-    <div class="mx-auto max-w-6xl px-6 sm:px-8 py-20 sm:py-28">
+    <div class="relative mx-auto max-w-6xl px-6 sm:px-8 py-20 sm:py-28">
+      <!-- Mascot presenting the tour, bleeding up past the top edge with a slight tilt (decorative). -->
+      <img
+        src="/mascot/presenting.svg"
+        alt=""
+        aria-hidden="true"
+        class="pointer-events-none absolute right-0 -top-6 hidden w-40 rotate-[-5deg] select-none lg:block xl:right-2 xl:w-48"
+      />
       <p class="font-mono text-xs uppercase tracking-[0.2em] text-accent-strong">Product tour</p>
       <h2 class="mt-3 max-w-2xl text-3xl sm:text-4xl font-semibold tracking-tight">
         See your cluster the way you think about it.
@@ -431,8 +445,15 @@ const logos = [
   </section>
 
   <!-- ============ DIFFERENTIATORS — dark inverse band ============ -->
-  <section class="bg-surface-inverse text-surface-inverse-foreground border-b border-border">
-    <div class="mx-auto max-w-6xl px-6 sm:px-8 py-20 sm:py-28">
+  <section class="bg-surface-inverse text-surface-inverse-foreground border-b border-border overflow-x-clip">
+    <div class="relative mx-auto max-w-6xl px-6 sm:px-8 py-20 sm:py-28">
+      <!-- Mascot pointing at the differentiators (decorative). -->
+      <img
+        src="/mascot/confident-pointing.svg"
+        alt=""
+        aria-hidden="true"
+        class="pointer-events-none absolute right-2 top-6 hidden w-44 select-none lg:block xl:right-4 xl:w-52"
+      />
       <p class="font-mono text-xs uppercase tracking-[0.2em] text-accent-strong">What sets it apart</p>
       <h2 class="mt-3 max-w-2xl text-3xl sm:text-4xl font-semibold tracking-tight">
         Built because we wanted them and couldn't find them elsewhere.
@@ -581,6 +602,13 @@ const logos = [
           <h2 class="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight">
             Frequently asked questions
           </h2>
+          <!-- Mascot thinking it over, filling the empty left column (decorative). -->
+          <img
+            src="/mascot/thinking.svg"
+            alt=""
+            aria-hidden="true"
+            class="pointer-events-none -ml-2 mt-6 hidden w-52 select-none lg:block xl:w-56"
+          />
         </div>
         <div class="lg:col-span-8">
           <FAQSection client:visible />
@@ -598,7 +626,7 @@ const logos = [
           src="/mascot/shark-rest.svg"
           alt=""
           aria-hidden="true"
-          class="pointer-events-none absolute -top-10 right-6 w-24 select-none sm:-top-14 sm:right-12 sm:w-32"
+          class="pointer-events-none absolute -top-12 right-6 w-32 select-none sm:-top-[4.5rem] sm:right-12 sm:w-44"
         />
         <p class="font-mono text-xs uppercase tracking-[0.2em] text-accent-strong">Get started</p>
         <h2 class="mt-3 max-w-2xl text-3xl sm:text-4xl font-semibold tracking-tight">
