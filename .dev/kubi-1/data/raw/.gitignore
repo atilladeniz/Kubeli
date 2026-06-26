@@ -1,0 +1,5 @@
+# Raw harvested data — too large for git
+# Repos can be re-cloned with clone_repos.sh
+# HF datasets can be re-downloaded with load_hf_datasets.py
+*
+!.gitignore
