@@ -1,6 +1,7 @@
 ---
-layout: ../layouts/ChangelogLayout.astro
 title: Changelog
+# Not a page — parsed at build by src/pages/changelog.astro. Edit releases below;
+# `make release` prepends new entries here automatically.
 ---
 
 ## v0.3.78 <span class="text-sm font-normal text-muted-foreground ml-2">2026-06-21</span>
