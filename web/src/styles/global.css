@@ -5,8 +5,10 @@
 @plugin "@tailwindcss/typography";
 
 @theme inline {
-  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, "Liberation Mono", monospace;
+  /* astro:fonts vars already carry the family + metric-matched fallback chain.
+     The literal tail only applies if the var is ever missing. */
+  --font-sans: var(--font-inter, "Inter", ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif);
+  --font-mono: var(--font-jetbrains, "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace);
   --color-accent-strong: var(--accent-strong);
   --color-accent-strong-foreground: var(--accent-strong-foreground);
   --color-surface-inverse: var(--surface-inverse);

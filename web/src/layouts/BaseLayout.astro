@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import { Font } from "astro:assets";
 import pkg from "../../../package.json";
 
 interface Props {
@@ -133,13 +134,9 @@ const websiteSchema = {
       })();
     </script>
 
-    <!-- Inter (matches the Kubeli app). ponytail: CDN link; self-host if a 3rd-party request ever matters. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-    />
+    <!-- Self-hosted, preloaded, metric-matched fallback (astro:fonts) — no swap CLS. -->
+    <Font cssVariable="--font-inter" preload />
+    <Font cssVariable="--font-jetbrains" />
 
     <!-- Primary Meta Tags -->
     <title>{fullTitle}</title>
