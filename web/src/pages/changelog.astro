@@ -92,20 +92,25 @@ function renderNote(s: string): string {
               </div>
 
               {isLatest ? (
-                <details class="download-menu relative shrink-0">
-                  <summary class="inline-flex cursor-pointer list-none select-none items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent">
+                <div class="download-menu relative shrink-0">
+                  <button
+                    type="button"
+                    class="menu-trigger inline-flex cursor-pointer select-none items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                    aria-expanded="false"
+                    aria-haspopup="true"
+                  >
                     Download
                     <svg class="download-caret h-4 w-4 text-muted-foreground transition-transform" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
-                  </summary>
-                  <div class="menu-panel absolute right-0 z-20 mt-2 w-56 rounded-lg border border-border bg-background p-1 shadow-lg">
+                  </button>
+                  <div class="menu-panel absolute right-0 z-20 mt-2 w-56 rounded-lg border border-border bg-background p-1 shadow-lg" role="menu">
                     {latestInstallers.map((i) => (
-                      <a href={i.href} class="flex select-none items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
+                      <a href={i.href} role="menuitem" class="flex select-none items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
                         <svg class="h-4 w-4 shrink-0" fill="currentColor" viewBox={i.icon.viewBox} set:html={`<path d="${i.icon.path}"/>`} />
                         {i.label}
                       </a>
                     ))}
                   </div>
-                </details>
+                </div>
               ) : (
                 <a
                   href={tagUrl}
@@ -130,14 +135,10 @@ function renderNote(s: string): string {
   </div>
 
   <style>
-    /* Native <details> dropdown with an animated panel. */
-    .download-menu > summary::-webkit-details-marker { display: none; }
-    .download-menu[open] .download-caret { transform: rotate(180deg); }
+    /* Custom dropdown (button + panel) so open/close can transition. */
+    .download-menu.is-open .download-caret { transform: rotate(180deg); }
 
-    /* Keep the panel in the DOM (override the UA hide-when-closed) so open/close
-       can transition. It's absolutely positioned, so this adds no layout shift. */
-    .download-menu .menu-panel {
-      display: block;
+    .menu-panel {
       opacity: 0;
       visibility: hidden;
       transform: translateY(-6px) scale(0.98);
@@ -149,7 +150,7 @@ function renderNote(s: string): string {
         transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
         visibility 0s linear 0.18s;
     }
-    .download-menu[open] .menu-panel {
+    .download-menu.is-open .menu-panel {
       opacity: 1;
       visibility: visible;
       transform: none;
@@ -160,21 +161,35 @@ function renderNote(s: string): string {
         visibility 0s;
     }
     @media (prefers-reduced-motion: reduce) {
-      .download-menu .menu-panel,
+      .menu-panel,
       .download-caret { transition: none; }
     }
   </style>
 
   <script>
-    // Close any open download dropdown on outside click or Escape.
-    document.addEventListener("click", (e) => {
-      document.querySelectorAll("details.download-menu[open]").forEach((d) => {
-        if (!d.contains(e.target as Node)) d.removeAttribute("open");
+    function closeAll(except?: Element) {
+      document.querySelectorAll(".download-menu.is-open").forEach((m) => {
+        if (m === except) return;
+        m.classList.remove("is-open");
+        m.querySelector(".menu-trigger")?.setAttribute("aria-expanded", "false");
+      });
+    }
+    document.querySelectorAll<HTMLButtonElement>(".download-menu .menu-trigger").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.stopPropagation();
+        const menu = btn.closest(".download-menu")!;
+        closeAll(menu);
+        const open = menu.classList.toggle("is-open");
+        btn.setAttribute("aria-expanded", String(open));
       });
     });
+    // Outside click and Escape close the menu.
+    document.addEventListener("click", (e) => {
+      const inside = (e.target as Element)?.closest?.(".download-menu");
+      if (!inside) closeAll();
+    });
     document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      document.querySelectorAll("details.download-menu[open]").forEach((d) => d.removeAttribute("open"));
+      if (e.key === "Escape") closeAll();
     });
   </script>
 </BaseLayout>
