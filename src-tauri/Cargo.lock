@@ -2894,18 +2894,6 @@ dependencies = [
 
 [[package]]
 name = "k8s-openapi"
-version = "0.27.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "51b326f5219dd55872a72c1b6ddd1b830b8334996c667449c29391d657d78d5e"
-dependencies = [
- "base64 0.22.1",
- "jiff",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "k8s-openapi"
 version = "0.28.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d9c6922f6afe80418dd6019818af5d0d34584c371780ff09b9752370c25b4abb"
@@ -2968,7 +2956,7 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4bb9108095346a7096d11feeaff419c75dddcac1b2f59acb38d7bf3d13c3e146"
 dependencies = [
- "k8s-openapi 0.28.0",
+ "k8s-openapi",
  "kube-client",
  "kube-core",
  "kube-derive",
@@ -2994,7 +2982,7 @@ dependencies = [
  "hyper-util",
  "jiff",
  "jsonpath-rust",
- "k8s-openapi 0.28.0",
+ "k8s-openapi",
  "kube-core",
  "pem",
  "rustls",
@@ -3022,7 +3010,7 @@ dependencies = [
  "http",
  "jiff",
  "json-patch 4.2.0",
- "k8s-openapi 0.28.0",
+ "k8s-openapi",
  "schemars 1.2.1",
  "serde",
  "serde-value",
@@ -3059,7 +3047,7 @@ dependencies = [
  "hashbrown 0.16.1",
  "hostname",
  "json-patch 4.2.0",
- "k8s-openapi 0.28.0",
+ "k8s-openapi",
  "kube-client",
  "parking_lot",
  "pin-project",
@@ -3088,7 +3076,7 @@ dependencies = [
  "hyper",
  "hyper-util",
  "jsonpath-rust",
- "k8s-openapi 0.27.1",
+ "k8s-openapi",
  "keyring",
  "kube",
  "objc",
@@ -4450,9 +4438,9 @@ dependencies = [
 
 [[package]]
 name = "quinn-proto"
-version = "0.11.14"
+version = "0.11.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "434b42fec591c96ef50e21e886936e66d3cc3f737104fdb9b737c40ffb94c098"
+checksum = "4fcb935c5bec503c2f0e306bdd3e58bb9029dcb14fa8d9ac76e3a5256ac0763e"
 dependencies = [
  "aws-lc-rs",
  "bytes",
