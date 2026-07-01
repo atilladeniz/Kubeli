@@ -119,6 +119,10 @@ const websiteSchema = {
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!-- Layout-critical: reserve the scrollbar gutter on the very first paint,
+         before global.css loads. Prevents a one-frame width reflow (dev FOUC;
+         also a safety net if the stylesheet is slow in prod). -->
+    <style>html{scrollbar-gutter:stable}</style>
     <link rel="icon" type="image/svg+xml" href="/kubeli.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
