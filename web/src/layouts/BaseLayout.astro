@@ -1,5 +1,6 @@
 ---
 import "../styles/global.css";
+import { Font } from "astro:assets";
 import pkg from "../../../package.json";
 
 interface Props {
@@ -118,6 +119,10 @@ const websiteSchema = {
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <!-- Layout-critical: reserve the scrollbar gutter on the very first paint,
+         before global.css loads. Prevents a one-frame width reflow (dev FOUC;
+         also a safety net if the stylesheet is slow in prod). -->
+    <style>html{scrollbar-gutter:stable}</style>
     <link rel="icon" type="image/svg+xml" href="/kubeli.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -133,13 +138,9 @@ const websiteSchema = {
       })();
     </script>
 
-    <!-- Inter (matches the Kubeli app). ponytail: CDN link; self-host if a 3rd-party request ever matters. -->
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-    />
+    <!-- Self-hosted, preloaded, metric-matched fallback (astro:fonts) — no swap CLS. -->
+    <Font cssVariable="--font-inter" preload />
+    <Font cssVariable="--font-jetbrains" />
 
     <!-- Primary Meta Tags -->
     <title>{fullTitle}</title>
@@ -318,6 +319,13 @@ const websiteSchema = {
         color: var(--foreground);
       }
 
+      /* Theme button keeps its icon inline; base rule forces display:block. */
+      .mobile-nav-link.theme-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
 
       /* Hide popover on desktop */
       @media (min-width: 640px) {
@@ -398,8 +406,8 @@ const websiteSchema = {
           </div>
         </div>
 
-        <div class="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-8 border-t border-border">
-          <img src="/signpath-logo.svg" class="h-4 w-auto brightness-0 opacity-60 dark:invert dark:opacity-70" alt="SignPath" />
+        <div class="flex items-start sm:items-center justify-center gap-2 text-xs text-muted-foreground pt-8 border-t border-border">
+          <img src="/signpath-logo.svg" class="h-4 w-auto shrink-0 mt-0.5 sm:mt-0 brightness-0 opacity-60 dark:invert dark:opacity-70" alt="SignPath" />
           <span>Free code signing provided by <a href="https://about.signpath.io" target="_blank" rel="noopener" class="underline hover:text-foreground transition-colors">SignPath.io</a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener" class="underline hover:text-foreground transition-colors">SignPath Foundation</a>.</span>
         </div>
 

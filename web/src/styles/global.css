@@ -5,8 +5,10 @@
 @plugin "@tailwindcss/typography";
 
 @theme inline {
-  --font-sans: "Inter Variable", "Inter", ui-sans-serif, system-ui, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, "Liberation Mono", monospace;
+  /* astro:fonts vars already carry the family + metric-matched fallback chain.
+     The literal tail only applies if the var is ever missing. */
+  --font-sans: var(--font-inter, "Inter", ui-sans-serif, system-ui, "Segoe UI", Arial, sans-serif);
+  --font-mono: var(--font-jetbrains, "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace);
   --color-accent-strong: var(--accent-strong);
   --color-accent-strong-foreground: var(--accent-strong-foreground);
   --color-surface-inverse: var(--surface-inverse);
@@ -139,6 +141,32 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /* Reserve the scrollbar gutter so locking body scroll (mobile menu open)
+     can't shift page content sideways by the scrollbar width. */
+  html {
+    scrollbar-gutter: stable;
+    /* Firefox: thin thumb, no track background. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--foreground) 22%, transparent) transparent;
+  }
+  /* WebKit/Chromium: overlay-style thin thumb, transparent track. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--foreground) 20%, transparent);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--foreground) 35%, transparent);
+    background-clip: content-box;
   }
   body {
     @apply bg-background text-foreground;
