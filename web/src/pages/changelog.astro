@@ -97,7 +97,7 @@ function renderNote(s: string): string {
                     Download
                     <svg class="download-caret h-4 w-4 text-muted-foreground transition-transform" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
                   </summary>
-                  <div class="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-border bg-background p-1 shadow-lg">
+                  <div class="menu-panel absolute right-0 z-20 mt-2 w-56 rounded-lg border border-border bg-background p-1 shadow-lg">
                     {latestInstallers.map((i) => (
                       <a href={i.href} class="flex select-none items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
                         <svg class="h-4 w-4 shrink-0" fill="currentColor" viewBox={i.icon.viewBox} set:html={`<path d="${i.icon.path}"/>`} />
@@ -130,9 +130,39 @@ function renderNote(s: string): string {
   </div>
 
   <style>
-    /* Native <details> dropdown. */
+    /* Native <details> dropdown with an animated panel. */
     .download-menu > summary::-webkit-details-marker { display: none; }
     .download-menu[open] .download-caret { transform: rotate(180deg); }
+
+    /* Keep the panel in the DOM (override the UA hide-when-closed) so open/close
+       can transition. It's absolutely positioned, so this adds no layout shift. */
+    .download-menu .menu-panel {
+      display: block;
+      opacity: 0;
+      visibility: hidden;
+      transform: translateY(-6px) scale(0.98);
+      transform-origin: top right;
+      pointer-events: none;
+      /* delay visibility:hidden until the fade-out finishes */
+      transition:
+        opacity 0.16s ease,
+        transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+        visibility 0s linear 0.18s;
+    }
+    .download-menu[open] .menu-panel {
+      opacity: 1;
+      visibility: visible;
+      transform: none;
+      pointer-events: auto;
+      transition:
+        opacity 0.16s ease,
+        transform 0.18s cubic-bezier(0.16, 1, 0.3, 1),
+        visibility 0s;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .download-menu .menu-panel,
+      .download-caret { transition: none; }
+    }
   </style>
 
   <script>
