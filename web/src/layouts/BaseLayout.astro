@@ -318,6 +318,13 @@ const websiteSchema = {
         color: var(--foreground);
       }
 
+      /* Theme button keeps its icon inline; base rule forces display:block. */
+      .mobile-nav-link.theme-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
 
       /* Hide popover on desktop */
       @media (min-width: 640px) {
@@ -398,8 +405,8 @@ const websiteSchema = {
           </div>
         </div>
 
-        <div class="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-8 border-t border-border">
-          <img src="/signpath-logo.svg" class="h-4 w-auto brightness-0 opacity-60 dark:invert dark:opacity-70" alt="SignPath" />
+        <div class="flex items-start sm:items-center justify-center gap-2 text-xs text-muted-foreground pt-8 border-t border-border">
+          <img src="/signpath-logo.svg" class="h-4 w-auto shrink-0 mt-0.5 sm:mt-0 brightness-0 opacity-60 dark:invert dark:opacity-70" alt="SignPath" />
           <span>Free code signing provided by <a href="https://about.signpath.io" target="_blank" rel="noopener" class="underline hover:text-foreground transition-colors">SignPath.io</a>, certificate by <a href="https://signpath.org" target="_blank" rel="noopener" class="underline hover:text-foreground transition-colors">SignPath Foundation</a>.</span>
         </div>
 

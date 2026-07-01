@@ -85,7 +85,7 @@ function renderNote(s: string): string {
         const tagUrl = r.version ? `${repo}/releases/tag/v${r.version}` : `${repo}/releases`;
         return (
           <section class="flex flex-col gap-4 border-t border-border py-8 first:border-t-0 first:pt-0">
-            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div class="flex items-start justify-between gap-3">
               <div class="flex flex-wrap items-center gap-3">
                 <span class="rounded-full bg-accent-strong px-2.5 py-0.5 font-mono text-sm font-medium text-accent-strong-foreground">{r.label}</span>
                 <span class="text-sm text-muted-foreground">Released {fmtDate(r.date)}</span>
