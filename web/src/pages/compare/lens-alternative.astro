@@ -47,10 +47,10 @@ const comparisonPoints = [
   },
   {
     category: "AI Integration",
-    kubeli: "Claude + OpenAI (choice)",
+    kubeli: "Claude, Codex, OpenCode, Droid",
     lens: "Lens Prism only",
     winner: "kubeli",
-    detail: "Kubeli lets you choose your preferred AI provider."
+    detail: "Kubeli lets you choose your preferred AI agent."
   },
   {
     category: "MCP Server",
@@ -98,23 +98,21 @@ const comparisonPoints = [
   extraSchema={[breadcrumbSchema]}
 >
   <!-- Hero -->
-  <section class="mx-auto max-w-6xl px-4 sm:px-8 py-12 sm:py-20">
-    <div class="text-center">
-      <span class="inline-flex items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 mb-6">
-        Comparison
-      </span>
-      <h1 class="text-3xl sm:text-4xl md:text-5xl font-bold max-w-4xl mx-auto leading-tight">
-        Looking for a <span class="text-blue-600">Lens Alternative</span>?
+  <section class="border-b border-border">
+    <div class="mx-auto max-w-6xl px-6 sm:px-8 py-16 sm:py-24">
+      <p class="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">KUBELI VS LENS</p>
+      <h1 class="mt-5 text-5xl sm:text-6xl font-semibold tracking-tighter leading-[1.02] max-w-3xl">
+        Looking for a <span class="text-accent-strong">Lens Alternative</span>?
       </h1>
-      <p class="text-neutral-500 max-w-2xl mx-auto text-lg mt-6">
+      <p class="mt-5 max-w-2xl text-lg text-muted-foreground leading-relaxed">
         Kubeli is a native Kubernetes client for macOS, Windows & Linux that's 70x smaller, uses 3x less memory,
         starts instantly, and is 100% free and open source.
       </p>
 
-      <div class="mt-10">
+      <div class="mt-8 flex flex-wrap gap-3">
         <a
           href={dmgUrlArm}
-          class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-accent-strong px-6 py-3 text-base font-medium text-accent-strong-foreground hover:opacity-90 transition-opacity"
         >
           Try Kubeli Free
         </a>
@@ -123,47 +121,48 @@ const comparisonPoints = [
   </section>
 
   <!-- Key Differences -->
-  <section class="bg-neutral-50 py-16 sm:py-20">
-    <div class="mx-auto max-w-6xl px-4 sm:px-8">
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-8 text-center">
-        <div class="bg-white p-8 rounded-xl border border-neutral-200">
-          <div class="text-4xl font-bold text-green-600">70x</div>
-          <div class="text-neutral-600 mt-2">Smaller App Size</div>
-          <div class="text-sm text-neutral-400 mt-1">26.8MB vs 1.9GB</div>
+  <section class="bg-muted border-b border-border">
+    <div class="mx-auto max-w-6xl px-6 sm:px-8 py-14 sm:py-16">
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-px bg-border overflow-hidden rounded-xl border border-border">
+        <div class="bg-muted p-8">
+          <div class="text-5xl sm:text-6xl font-semibold tracking-tighter text-accent-strong">70x</div>
+          <div class="mt-3 font-medium text-foreground">Smaller App Size</div>
+          <div class="mt-1 font-mono text-xs text-muted-foreground">26.8MB vs 1.9GB</div>
         </div>
-        <div class="bg-white p-8 rounded-xl border border-neutral-200">
-          <div class="text-4xl font-bold text-green-600">3x</div>
-          <div class="text-neutral-600 mt-2">Less Memory</div>
-          <div class="text-sm text-neutral-400 mt-1">100MB vs 350MB</div>
+        <div class="bg-muted p-8">
+          <div class="text-5xl sm:text-6xl font-semibold tracking-tighter text-accent-strong">3x</div>
+          <div class="mt-3 font-medium text-foreground">Less Memory</div>
+          <div class="mt-1 font-mono text-xs text-muted-foreground">100MB vs 350MB</div>
         </div>
-        <div class="bg-white p-8 rounded-xl border border-neutral-200">
-          <div class="text-4xl font-bold text-green-600">6x</div>
-          <div class="text-neutral-600 mt-2">Faster Startup</div>
-          <div class="text-sm text-neutral-400 mt-1">&lt;1s vs 6s</div>
+        <div class="bg-muted p-8">
+          <div class="text-5xl sm:text-6xl font-semibold tracking-tighter text-accent-strong">6x</div>
+          <div class="mt-3 font-medium text-foreground">Faster Startup</div>
+          <div class="mt-1 font-mono text-xs text-muted-foreground">&lt;1s vs 6s</div>
         </div>
       </div>
     </div>
   </section>
 
   <!-- Comparison Table -->
-  <section class="py-16 sm:py-24">
-    <div class="mx-auto max-w-4xl px-4 sm:px-8">
-      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-12">
+  <section class="border-b border-border">
+    <div class="mx-auto max-w-6xl px-6 sm:px-8 py-16 sm:py-24">
+      <p class="font-mono text-xs uppercase tracking-[0.2em] text-accent-strong">COMPARISON</p>
+      <h2 class="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight max-w-2xl mb-10">
         Feature-by-Feature Comparison
       </h2>
 
       <div class="space-y-4">
         {comparisonPoints.map((point) => (
-          <div class="bg-white border border-neutral-200 rounded-xl overflow-hidden">
+          <div class="bg-card border border-border rounded-xl overflow-hidden">
             <div class="grid grid-cols-3 gap-4 p-4 items-center">
               <div>
                 <div class="font-medium">{point.category}</div>
-                <div class="text-xs text-neutral-400 mt-1">{point.detail}</div>
+                <div class="text-xs text-muted-foreground mt-1">{point.detail}</div>
               </div>
-              <div class={`text-center py-2 rounded-lg ${point.winner === 'kubeli' ? 'bg-green-50 text-green-700 font-medium' : ''}`}>
+              <div class={`text-center py-2 ${point.winner === 'kubeli' ? 'font-semibold text-accent-strong' : 'text-muted-foreground'}`}>
                 {point.kubeli}
               </div>
-              <div class="text-center py-2 text-neutral-500">
+              <div class="text-center py-2 text-muted-foreground">
                 {point.lens}
               </div>
             </div>
@@ -171,9 +170,9 @@ const comparisonPoints = [
         ))}
       </div>
 
-      <div class="flex justify-center gap-8 mt-8 text-sm text-neutral-400">
+      <div class="flex gap-8 mt-8 text-sm text-muted-foreground">
         <div class="flex items-center gap-2">
-          <div class="w-3 h-3 rounded bg-green-100"></div>
+          <div class="w-3 h-3 rounded bg-accent-strong"></div>
           <span>Kubeli advantage</span>
         </div>
       </div>
@@ -181,64 +180,65 @@ const comparisonPoints = [
   </section>
 
   <!-- Why Switch -->
-  <section class="bg-neutral-900 text-white py-16 sm:py-24">
-    <div class="mx-auto max-w-4xl px-4 sm:px-8">
-      <h2 class="text-2xl sm:text-3xl font-bold text-center mb-12">
+  <section class="bg-surface-inverse text-surface-inverse-foreground border-b border-border">
+    <div class="mx-auto max-w-6xl px-6 sm:px-8 py-16 sm:py-24">
+      <p class="font-mono text-xs uppercase tracking-[0.2em] text-accent-strong">WHY SWITCH</p>
+      <h2 class="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight max-w-2xl mb-12">
         Why developers are switching from Lens
       </h2>
 
-      <div class="space-y-8">
+      <div class="space-y-8 max-w-2xl">
         <div class="flex gap-4">
-          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
+            <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <div>
             <h3 class="font-semibold text-lg">No more Electron bloat</h3>
-            <p class="text-neutral-400 mt-1">
+            <p class="text-surface-inverse-foreground/70 mt-1">
               Lens bundles an entire Chromium browser. Kubeli uses native OS WebView for a lightweight experience.
             </p>
           </div>
         </div>
 
         <div class="flex gap-4">
-          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
+            <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <div>
             <h3 class="font-semibold text-lg">Truly free, no feature gating</h3>
-            <p class="text-neutral-400 mt-1">
+            <p class="text-surface-inverse-foreground/70 mt-1">
               Lens Pro costs $25/month. Kubeli is MIT licensed - all features free, forever. No login required.
             </p>
           </div>
         </div>
 
         <div class="flex gap-4">
-          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
+            <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <div>
             <h3 class="font-semibold text-lg">AI integration you control</h3>
-            <p class="text-neutral-400 mt-1">
-              Choose between Claude or OpenAI for AI analysis. Your data stays local - no cloud processing.
+            <p class="text-surface-inverse-foreground/70 mt-1">
+              Choose between Claude, Codex, OpenCode or Droid for AI analysis. Your data stays local - no cloud processing.
             </p>
           </div>
         </div>
 
         <div class="flex gap-4">
-          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-            <svg class="w-4 h-4 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <div class="flex-shrink-0 w-8 h-8 rounded-full bg-success/20 flex items-center justify-center">
+            <svg class="w-4 h-4 text-success" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
           <div>
             <h3 class="font-semibold text-lg">Native desktop experience</h3>
-            <p class="text-neutral-400 mt-1">
+            <p class="text-surface-inverse-foreground/70 mt-1">
               Vibrancy effects, system-level integration, and a fraction of the memory footprint.
             </p>
           </div>
@@ -248,22 +248,23 @@ const comparisonPoints = [
   </section>
 
   <!-- CTA -->
-  <section class="py-16 sm:py-24">
-    <div class="mx-auto max-w-3xl px-4 sm:px-8 text-center">
-      <h2 class="text-2xl sm:text-3xl font-bold">Ready to try the lighter alternative?</h2>
-      <p class="text-neutral-500 mt-4">
+  <section>
+    <div class="mx-auto max-w-6xl px-6 sm:px-8 py-16 sm:py-24">
+      <p class="font-mono text-xs uppercase tracking-[0.2em] text-accent-strong">GET STARTED</p>
+      <h2 class="mt-3 text-3xl sm:text-4xl font-semibold tracking-tight max-w-2xl">Ready to try the lighter alternative?</h2>
+      <p class="mt-5 max-w-2xl text-lg text-muted-foreground leading-relaxed">
         Download Kubeli for free and experience the difference.
       </p>
-      <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+      <div class="mt-8 flex flex-wrap gap-3">
         <a
           href={dmgUrlArm}
-          class="inline-flex items-center gap-2 rounded-full bg-black px-8 py-3 text-lg font-medium text-white hover:bg-neutral-800 transition-colors"
+          class="inline-flex items-center justify-center gap-2 rounded-lg bg-accent-strong px-6 py-3 text-base font-medium text-accent-strong-foreground hover:opacity-90 transition-opacity"
         >
           Download for macOS
         </a>
         <a
           href={appImageUrl}
-          class="inline-flex items-center gap-2 rounded-full border border-neutral-300 px-8 py-3 text-lg font-medium text-neutral-700 hover:bg-neutral-50 transition-colors"
+          class="inline-flex items-center justify-center gap-2 rounded-lg border border-border px-6 py-3 text-base font-medium text-foreground hover:bg-accent transition-colors"
         >
           Download for Linux
         </a>
