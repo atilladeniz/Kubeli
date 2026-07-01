@@ -144,6 +144,27 @@
      can't shift page content sideways by the scrollbar width. */
   html {
     scrollbar-gutter: stable;
+    /* Firefox: thin thumb, no track background. */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--foreground) 22%, transparent) transparent;
+  }
+  /* WebKit/Chromium: overlay-style thin thumb, transparent track. */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: color-mix(in srgb, var(--foreground) 20%, transparent);
+    border-radius: 9999px;
+    border: 3px solid transparent;
+    background-clip: content-box;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: color-mix(in srgb, var(--foreground) 35%, transparent);
+    background-clip: content-box;
   }
   body {
     @apply bg-background text-foreground;
