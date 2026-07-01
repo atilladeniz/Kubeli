@@ -270,7 +270,10 @@ const logos = [
   </section>
 
   <!-- ============ LOGO WALL (flush-left) ============ -->
-  <section class="border-b border-border">
+  <!-- overflow-x-clip: the hover tooltips (position:absolute, nowrap) stay laid
+       out at opacity:0 and would push page width sideways at some breakpoints.
+       clip removes that phantom width while keeping the upward tooltip visible. -->
+  <section class="border-b border-border overflow-x-clip">
     <div class="mx-auto max-w-6xl px-6 sm:px-8 py-10 sm:py-12">
       <p class="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground mb-7">
         Starred on GitHub by engineers at
