@@ -43,7 +43,7 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "rus
 hyper = "1.10"
 hyper-util = "0.1"
 tower = "0.5"
-tower-http = "0.6"
+tower-http = "0.7"
 
 # WebSocket (for logs/exec streaming)
 tokio-tungstenite = "0.26"
