@@ -140,6 +140,11 @@
   * {
     @apply border-border outline-ring/50;
   }
+  /* Reserve the scrollbar gutter so locking body scroll (mobile menu open)
+     can't shift page content sideways by the scrollbar width. */
+  html {
+    scrollbar-gutter: stable;
+  }
   body {
     @apply bg-background text-foreground;
   }
