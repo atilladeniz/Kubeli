@@ -17,6 +17,9 @@ export default defineConfig({
       name: 'Inter',
       cssVariable: '--font-inter',
       weights: [400, 500, 600, 700],
+      // optional: with the preload above the woff2 is ready before first paint,
+      // so Inter shows immediately and never flashes/swaps (no FOUT).
+      display: 'optional',
       fallbacks: ['ui-sans-serif', 'system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
     },
     {
@@ -24,6 +27,7 @@ export default defineConfig({
       name: 'JetBrains Mono',
       cssVariable: '--font-jetbrains',
       weights: [400, 500],
+      display: 'optional',
       fallbacks: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
     },
   ],
