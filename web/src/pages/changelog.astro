@@ -93,13 +93,13 @@ function renderNote(s: string): string {
 
               {isLatest ? (
                 <details class="download-menu relative shrink-0">
-                  <summary class="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent">
+                  <summary class="inline-flex cursor-pointer list-none select-none items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent">
                     Download
                     <svg class="download-caret h-4 w-4 text-muted-foreground transition-transform" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
                   </summary>
                   <div class="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-border bg-background p-1 shadow-lg">
                     {latestInstallers.map((i) => (
-                      <a href={i.href} class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
+                      <a href={i.href} class="flex select-none items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
                         <svg class="h-4 w-4 shrink-0" fill="currentColor" viewBox={i.icon.viewBox} set:html={`<path d="${i.icon.path}"/>`} />
                         {i.label}
                       </a>
@@ -111,7 +111,7 @@ function renderNote(s: string): string {
                   href={tagUrl}
                   target="_blank"
                   rel="noopener"
-                  class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                  class="inline-flex shrink-0 select-none items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
                 >
                   Download
                 </a>
@@ -130,8 +130,21 @@ function renderNote(s: string): string {
   </div>
 
   <style>
-    /* Native <details> dropdown — no JS. */
+    /* Native <details> dropdown. */
     .download-menu > summary::-webkit-details-marker { display: none; }
     .download-menu[open] .download-caret { transform: rotate(180deg); }
   </style>
+
+  <script>
+    // Close any open download dropdown on outside click or Escape.
+    document.addEventListener("click", (e) => {
+      document.querySelectorAll("details.download-menu[open]").forEach((d) => {
+        if (!d.contains(e.target as Node)) d.removeAttribute("open");
+      });
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+      document.querySelectorAll("details.download-menu[open]").forEach((d) => d.removeAttribute("open"));
+    });
+  </script>
 </BaseLayout>
