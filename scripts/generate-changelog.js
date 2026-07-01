@@ -119,9 +119,9 @@ ${changelogItems}
     fs.writeFileSync(changelogPath, changelog);
   }
 
-  // Update changelog.mdx
-  log(CYAN, 'Updating web/src/pages/changelog.mdx...');
-  const mdxPath = 'web/src/pages/changelog.mdx';
+  // Update the changelog markdown (parsed at build by web/src/pages/changelog.astro)
+  log(CYAN, 'Updating web/src/data/changelog.md...');
+  const mdxPath = 'web/src/data/changelog.md';
   let mdx = fs.readFileSync(mdxPath, 'utf8');
 
   // Check if version already exists

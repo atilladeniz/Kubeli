@@ -1,0 +1,137 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import pkg from "../../../package.json";
+import { osIcons } from "../lib/os-icons";
+// Source of truth stays plain markdown so `make release` (generate-changelog.js)
+// can keep appending entries. We parse it here into per-release rows.
+import changelogRaw from "../data/changelog.md?raw";
+
+const version = pkg.version;
+const repo = "https://github.com/atilladeniz/Kubeli";
+const releaseBase = `${repo}/releases/download/v${version}`;
+
+interface Release {
+  version: string | null;
+  label: string;
+  date: string;
+  notes: string[];
+}
+
+// Parse "## vX.Y.Z <span ...>YYYY-MM-DD</span>" headings + "- " bullets.
+const headingRe = /^##\s+(.+?)\s*<span[^>]*>([\d-]+)<\/span>\s*$/;
+const releases: Release[] = [];
+let cur: Release | null = null;
+for (const raw of changelogRaw.split("\n")) {
+  const line = raw.replace(/\r$/, "");
+  const h = line.match(headingRe);
+  if (h) {
+    const label = h[1].trim();
+    const vm = label.match(/^v(\d+\.\d+\.\d+)/);
+    cur = { version: vm ? vm[1] : null, label, date: h[2].trim(), notes: [] };
+    releases.push(cur);
+    continue;
+  }
+  if (!cur) continue;
+  const m = line.match(/^-\s+(.*)$/);
+  if (m) cur.notes.push(m[1].trim());
+}
+
+// Every installer for the newest release — shown in the download dropdown.
+const latestInstallers = [
+  { label: "macOS (Apple Silicon)", icon: osIcons.apple, href: `${releaseBase}/Kubeli_${version}_aarch64.dmg` },
+  { label: "macOS (Intel)", icon: osIcons.apple, href: `${releaseBase}/Kubeli_${version}_x64.dmg` },
+  { label: "Windows (.exe)", icon: osIcons.windows, href: `${releaseBase}/Kubeli_${version}_x64-setup.exe` },
+  { label: "Windows (.msi)", icon: osIcons.windows, href: `${releaseBase}/Kubeli_${version}_x64_en-US.msi` },
+  { label: "Linux (.AppImage)", icon: osIcons.linux, href: `${releaseBase}/Kubeli_${version}_amd64.AppImage` },
+  { label: "Linux (.deb)", icon: osIcons.linux, href: `${releaseBase}/Kubeli_${version}_amd64.deb` },
+  { label: "Linux (.rpm)", icon: osIcons.linux, href: `${releaseBase}/Kubeli-${version}-1.x86_64.rpm` },
+];
+
+const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  if (!y || !m || !d) return iso;
+  return `${months[m - 1]} ${d}, ${y}`;
+}
+
+// Notes are trusted static content; escape HTML, then re-enable the only two
+// inline markdown forms the changelog uses: **bold** and `code`.
+function renderNote(s: string): string {
+  const esc = s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  return esc
+    .replace(/\*\*(.+?)\*\*/g, '<strong class="font-semibold text-foreground">$1</strong>')
+    .replace(/`([^`]+?)`/g, '<code class="rounded bg-muted px-1 py-0.5 text-[0.85em] text-foreground">$1</code>');
+}
+---
+
+<BaseLayout
+  title="Changelog"
+  activeNav="changelog"
+  description="Latest updates, new features, and improvements for Kubeli - the native Kubernetes desktop app. See what's new in each release."
+  canonicalPath="/changelog"
+>
+  <div class="mx-auto max-w-3xl px-6 sm:px-8 py-12 sm:py-16">
+    <div class="mb-12 sm:mb-16">
+      <p class="font-mono text-xs uppercase tracking-[0.2em] text-muted-foreground">Releases</p>
+      <h1 class="mt-3 text-4xl sm:text-5xl font-semibold tracking-tight text-foreground">Changelog</h1>
+      <p class="mt-4 max-w-2xl text-lg text-muted-foreground leading-relaxed">
+        Every release of Kubeli, newest first.
+      </p>
+    </div>
+
+    <div class="flex flex-col">
+      {releases.map((r) => {
+        const isLatest = r.version === version;
+        const tagUrl = r.version ? `${repo}/releases/tag/v${r.version}` : `${repo}/releases`;
+        return (
+          <section class="flex flex-col gap-4 border-t border-border py-8 first:border-t-0 first:pt-0">
+            <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div class="flex flex-wrap items-center gap-3">
+                <span class="rounded-full bg-accent-strong px-2.5 py-0.5 font-mono text-sm font-medium text-accent-strong-foreground">{r.label}</span>
+                <span class="text-sm text-muted-foreground">Released {fmtDate(r.date)}</span>
+              </div>
+
+              {isLatest ? (
+                <details class="download-menu relative shrink-0">
+                  <summary class="inline-flex cursor-pointer list-none items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent">
+                    Download
+                    <svg class="download-caret h-4 w-4 text-muted-foreground transition-transform" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6" /></svg>
+                  </summary>
+                  <div class="absolute right-0 z-20 mt-2 w-56 rounded-lg border border-border bg-background p-1 shadow-lg">
+                    {latestInstallers.map((i) => (
+                      <a href={i.href} class="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-foreground transition-colors hover:bg-accent">
+                        <svg class="h-4 w-4 shrink-0" fill="currentColor" viewBox={i.icon.viewBox} set:html={`<path d="${i.icon.path}"/>`} />
+                        {i.label}
+                      </a>
+                    ))}
+                  </div>
+                </details>
+              ) : (
+                <a
+                  href={tagUrl}
+                  target="_blank"
+                  rel="noopener"
+                  class="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-border px-4 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent"
+                >
+                  Download
+                </a>
+              )}
+            </div>
+
+            <ul class="flex list-disc flex-col gap-1.5 pl-5 marker:text-accent-strong/60">
+              {r.notes.map((n) => (
+                <li class="text-sm leading-relaxed text-muted-foreground" set:html={renderNote(n)} />
+              ))}
+            </ul>
+          </section>
+        );
+      })}
+    </div>
+  </div>
+
+  <style>
+    /* Native <details> dropdown — no JS. */
+    .download-menu > summary::-webkit-details-marker { display: none; }
+    .download-menu[open] .download-caret { transform: rotate(180deg); }
+  </style>
+</BaseLayout>
