@@ -17,9 +17,13 @@ export default defineConfig({
       name: 'Inter',
       cssVariable: '--font-inter',
       weights: [400, 500, 600, 700],
-      // optional: with the preload above the woff2 is ready before first paint,
-      // so Inter shows immediately and never flashes/swaps (no FOUT).
-      display: 'optional',
+      // block, not optional: optional shows the metric-fallback for the whole
+      // pageview whenever the woff2 misses the ~100ms block window (e.g. a hard
+      // reload past the cache) -> inconsistent "wrong font this load, right the
+      // next". block keeps text invisible (fallback metrics reserve the box, so
+      // 0 CLS) until the real font paints. Both faces are preloaded same-origin
+      // subsets, so that invisible window is a few ms -> no FOIT, always Inter.
+      display: 'block',
       fallbacks: ['ui-sans-serif', 'system-ui', 'Segoe UI', 'Helvetica Neue', 'Arial', 'sans-serif'],
     },
     {
@@ -27,7 +31,7 @@ export default defineConfig({
       name: 'JetBrains Mono',
       cssVariable: '--font-jetbrains',
       weights: [400, 500],
-      display: 'optional',
+      display: 'block',
       fallbacks: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'monospace'],
     },
   ],
