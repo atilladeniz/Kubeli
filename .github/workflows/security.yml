@@ -223,7 +223,10 @@ jobs:
 
       - name: Run cargo-audit
         working-directory: src-tauri
-        run: cargo audit
+        # Ignores mirror src-tauri/deny.toml. quick-xml DoS (RUSTSEC-2026-0194/0195)
+        # is patched only in >= 0.41; transitive via plist -> tauri which pin 0.39
+        # (no upgrade path), and only parses trusted local plists -> not reachable.
+        run: cargo audit --ignore RUSTSEC-2026-0194 --ignore RUSTSEC-2026-0195
 
   lockfile-lint:
     name: Lockfile Integrity Check
