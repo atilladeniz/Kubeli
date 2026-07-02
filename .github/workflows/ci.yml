@@ -89,7 +89,7 @@ jobs:
       # they are left untouched — no dangerous-clean-slate. Cuts the job from
       # "re-upload every file" to "upload the diff".
       - name: Deploy to FTP (incremental)
-        uses: SamKirkland/FTP-Deploy-Action@8e83cea8672e3fbcbb9fdafff34debf6ae4c5f65 # v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@110f9186c050f71550953127052e77650219c287 # v4.4.0
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
@@ -320,7 +320,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [macos-latest]
+        os: [macos-15]
 
     steps:
       - uses: actions/checkout@v7
