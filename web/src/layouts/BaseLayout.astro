@@ -119,10 +119,21 @@ const websiteSchema = {
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <!-- Layout-critical: reserve the scrollbar gutter on the very first paint,
-         before global.css loads. Prevents a one-frame width reflow (dev FOUC;
-         also a safety net if the stylesheet is slow in prod). -->
-    <style>html{scrollbar-gutter:stable}</style>
+    <!-- Layout-critical, applied on the very first paint (is:inline keeps it
+         verbatim in <head>; without it Astro bundles the rule into the CSS that
+         Vite injects via JS *after* first paint in dev, so it never lands early).
+         - scrollbar-gutter: no width shift when the mobile menu locks scroll.
+         - font-family: paint text in the metric-matched fallback immediately.
+           --font-inter is defined inline in this head by astro:fonts below, so
+           the var resolves at first paint; the Tailwind bundle later maps the
+           same stack onto body. Kills the dev/first-load heading reflow (text
+           was flashing in the browser-default font before the bundle applied). -->
+    <style is:inline>
+      html {
+        scrollbar-gutter: stable;
+        font-family: var(--font-inter, ui-sans-serif, system-ui, sans-serif);
+      }
+    </style>
     <link rel="icon" type="image/svg+xml" href="/kubeli.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -140,7 +151,7 @@ const websiteSchema = {
 
     <!-- Self-hosted, preloaded, metric-matched fallback (astro:fonts) — no swap CLS. -->
     <Font cssVariable="--font-inter" preload />
-    <Font cssVariable="--font-jetbrains" />
+    <Font cssVariable="--font-jetbrains" preload />
 
     <!-- Primary Meta Tags -->
     <title>{fullTitle}</title>
