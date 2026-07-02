@@ -119,11 +119,11 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - platform: macos-latest
+          - platform: macos-15
             label: macOS-aarch64
             args: '--target aarch64-apple-darwin'
             rust_target: aarch64-apple-darwin
-          - platform: macos-latest
+          - platform: macos-15
             label: macOS-x86_64
             args: '--target x86_64-apple-darwin'
             rust_target: x86_64-apple-darwin
@@ -517,7 +517,7 @@ jobs:
       # this action previously uploaded. The release installers uploaded above
       # to the same path are not in the state file, so they stay untouched.
       - name: Deploy landing page to FTP (incremental)
-        uses: SamKirkland/FTP-Deploy-Action@8e83cea8672e3fbcbb9fdafff34debf6ae4c5f65 # v4.3.5
+        uses: SamKirkland/FTP-Deploy-Action@110f9186c050f71550953127052e77650219c287 # v4.4.0
         with:
           server: ${{ secrets.FTP_HOST }}
           username: ${{ secrets.FTP_USER }}
