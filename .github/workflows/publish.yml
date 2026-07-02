@@ -512,22 +512,18 @@ jobs:
           bun run build
           echo "Landing page built successfully"
 
-      - name: Deploy landing page to FTP
-        env:
-          FTP_HOST: ${{ secrets.FTP_HOST }}
-          FTP_USER: ${{ secrets.FTP_USER }}
-          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
-          DEPLOY_LANDING_FTP_PATH: ${{ secrets.DEPLOY_LANDING_FTP_PATH }}
-        run: |
-          # Upload all landing page files
-          cd web/dist
-          find . -type f | while read -r file; do
-            REMOTE_PATH="${file#./}"
-            echo "Uploading $REMOTE_PATH..."
-            curl -s -T "$file" --user "$FTP_USER:$FTP_PASSWORD" \
-              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$REMOTE_PATH" --ftp-create-dirs
-          done
-          echo "Landing page deployed"
+      # Incremental sync (same as ci.yml): hash-diff against the server-side
+      # .ftp-deploy-sync-state.json, upload only changed/new, delete only files
+      # this action previously uploaded. The release installers uploaded above
+      # to the same path are not in the state file, so they stay untouched.
+      - name: Deploy landing page to FTP (incremental)
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: web/dist/
+          server-dir: ${{ secrets.DEPLOY_LANDING_FTP_PATH }}/
 
       - name: Publish release
         env:
