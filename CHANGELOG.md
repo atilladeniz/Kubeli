@@ -2,6 +2,14 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.79] - 2026-07-02
+
+- Redesigned marketing site with Müller-Brockmann grid layout
+- Fixed mobile layout issues in changelog, footer, and menu
+- Fixed layout-critical styles not applying on first paint
+- Updated Kubernetes client (kube 4.0) and other Rust dependencies
+- Improved CI with incremental FTP deploys for the landing page
+
 ## [0.3.78] - 2026-06-21
 
 - Fixed slow Settings panel open immediately after app launch
