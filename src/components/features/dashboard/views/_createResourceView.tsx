@@ -11,6 +11,7 @@ import {
   type ContextMenuItemDef,
   type FilterOption,
   type Column,
+  type TranslateFunc,
 } from "../../resources/columns";
 import { useResourceDetail } from "../context";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
@@ -59,7 +60,7 @@ export interface ResourceViewConfig<T extends BaseResource> {
   filterOptions?: FilterOption<T>[];
 
   // Optional: Additional context menu items (inserted before Copy/Delete)
-  additionalMenuItems?: (resource: T, refresh: () => void) => ContextMenuItemDef[];
+  additionalMenuItems?: (resource: T, refresh: () => void, t: TranslateFunc) => ContextMenuItemDef[];
 
   // Optional: Skip delete action (for read-only resources like EndpointSlices)
   hideDelete?: boolean;
@@ -135,7 +136,7 @@ export function createResourceView<T extends BaseResource>(
       // Add custom menu items if provided
       if (additionalMenuItems) {
         items.push({ separator: true, label: "", onClick: () => {} });
-        items.push(...additionalMenuItems(resource, refresh));
+        items.push(...additionalMenuItems(resource, refresh, t));
       }
 
       items.push({ separator: true, label: "", onClick: () => {} });
