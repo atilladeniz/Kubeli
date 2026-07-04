@@ -219,6 +219,9 @@ const cases: TestCase[] = [
   { name: "applyResourceYaml", run: () => resources.applyResourceYaml("kind: Pod"), expectedCommand: "apply_resource_yaml", expectedPayload: { yamlContent: "kind: Pod" } },
   { name: "deleteResource", run: () => resources.deleteResource("Service", "demo", "default"), expectedCommand: "delete_resource", expectedPayload: { resourceType: "Service", name: "demo", namespace: "default" } },
   { name: "scaleDeployment", run: () => resources.scaleDeployment("demo", "default", 3), expectedCommand: "scale_deployment", expectedPayload: { name: "demo", namespace: "default", replicas: 3 } },
+  { name: "triggerCronjob", run: () => resources.triggerCronjob("demo", "default"), expectedCommand: "trigger_cronjob", expectedPayload: { name: "demo", namespace: "default" } },
+  { name: "suspendCronjob", run: () => resources.suspendCronjob("demo", "default"), expectedCommand: "suspend_cronjob", expectedPayload: { name: "demo", namespace: "default" } },
+  { name: "resumeCronjob", run: () => resources.resumeCronjob("demo", "default"), expectedCommand: "resume_cronjob", expectedPayload: { name: "demo", namespace: "default" } },
 ];
 
 describe("tauri command wrappers", () => {

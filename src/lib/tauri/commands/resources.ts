@@ -288,3 +288,15 @@ export async function scaleDeployment(
 ): Promise<void> {
   return invoke("scale_deployment", { name, namespace, replicas });
 }
+
+export async function triggerCronjob(name: string, namespace: string): Promise<void> {
+  return invoke("trigger_cronjob", { name, namespace });
+}
+
+export async function suspendCronjob(name: string, namespace: string): Promise<void> {
+  return invoke("suspend_cronjob", { name, namespace });
+}
+
+export async function resumeCronjob(name: string, namespace: string): Promise<void> {
+  return invoke("resume_cronjob", { name, namespace });
+}
