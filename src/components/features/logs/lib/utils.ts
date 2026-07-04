@@ -94,6 +94,8 @@ export function compileRegex(pattern: string): RegExp | null {
   try {
     // No "g" flag: .test() on a global regex is stateful (lastIndex persists
     // across calls) and silently skips matches when reused for filtering.
+    // ReDoS is mitigated by validateRegexSafety() above.
+    // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
     return new RegExp(pattern, "i");
   } catch {
     return null;

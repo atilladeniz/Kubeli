@@ -70,7 +70,9 @@ export const LogLine = memo(function LogLine({
  */
 function highlightWithRegex(text: string, regex: RegExp): React.ReactNode {
   // The filter regex is deliberately non-global (.test() with "g" is stateful);
-  // highlighting needs all occurrences, so build a local global copy.
+  // highlighting needs all occurrences, so build a local global copy. The
+  // source already passed validateRegexSafety() in compileRegex (ReDoS check).
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const globalRegex = new RegExp(
     regex.source,
     regex.flags.includes("g") ? regex.flags : `${regex.flags}g`

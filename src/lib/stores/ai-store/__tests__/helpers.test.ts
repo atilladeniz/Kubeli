@@ -1,5 +1,6 @@
 import {
   buildFallbackSystemPrompt,
+  finalizeStreamingMessage,
   findConversationById,
   generateId,
   getErrorMessage,
@@ -94,5 +95,47 @@ describe("ai-store helpers", () => {
         toolCalls: undefined,
       },
     ]);
+  });
+
+  describe("finalizeStreamingMessage", () => {
+    const base: Conversation = {
+      id: "c1",
+      clusterContext: "alpha",
+      messages: [],
+      createdAt: 1,
+      updatedAt: 1,
+    };
+
+    it("marks a streaming assistant message as finished", () => {
+      const conversation: Conversation = {
+        ...base,
+        messages: [
+          { id: "m1", role: "assistant", content: "partial", timestamp: 1, isStreaming: true },
+        ],
+      };
+
+      const result = finalizeStreamingMessage(conversation);
+
+      expect(result.messages[0].isStreaming).toBe(false);
+      expect(result).not.toBe(conversation);
+    });
+
+    it("returns the conversation unchanged when nothing is streaming", () => {
+      const finished: Conversation = {
+        ...base,
+        messages: [
+          { id: "m1", role: "assistant", content: "done", timestamp: 1, isStreaming: false },
+        ],
+      };
+      const userLast: Conversation = {
+        ...base,
+        messages: [{ id: "m1", role: "user", content: "hi", timestamp: 1 }],
+      };
+      const empty: Conversation = { ...base, messages: [] };
+
+      expect(finalizeStreamingMessage(finished)).toBe(finished);
+      expect(finalizeStreamingMessage(userLast)).toBe(userLast);
+      expect(finalizeStreamingMessage(empty)).toBe(empty);
+    });
   });
 });
