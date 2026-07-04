@@ -143,4 +143,39 @@ describe("useLogFilter", () => {
     expect(result.current.searchQuery).toBe("");
     expect(result.current.logLevel).toBe("all");
   });
+
+  // Regression: a shared "g"-flagged regex made .test() stateful (lastIndex
+  // persisted across lines), silently dropping matching lines from the filter.
+  it("regex filter matches every matching line, not every other one", () => {
+    const logs = [
+      createLogEntry("request ok id=1", "2024-01-01T10:00:00Z"),
+      createLogEntry("request ok id=2", "2024-01-01T10:01:00Z"),
+      createLogEntry("request ok id=3", "2024-01-01T10:02:00Z"),
+      createLogEntry("request ok id=4", "2024-01-01T10:03:00Z"),
+    ];
+    const { result } = renderHook(() => useLogFilter({ logs }));
+
+    act(() => {
+      result.current.setUseRegex(true);
+      result.current.setSearchQuery("request ok");
+    });
+
+    expect(result.current.filteredLogs).toHaveLength(4);
+  });
+
+  // Regression: bare substring "err" classified lines like "transferred" as errors.
+  it("does not classify words containing 'err' as errors", () => {
+    const logs = [
+      createLogEntry("bytes transferred: 1024", "2024-01-01T10:00:00Z"),
+      createLogEntry("ERROR: real failure", "2024-01-01T10:01:00Z"),
+    ];
+    const { result } = renderHook(() => useLogFilter({ logs }));
+
+    act(() => {
+      result.current.setLogLevel("error");
+    });
+
+    expect(result.current.filteredLogs).toHaveLength(1);
+    expect(result.current.filteredLogs[0].message).toBe("ERROR: real failure");
+  });
 });

@@ -218,6 +218,10 @@ async fn run_shell_session(
 ) {
     let mut stdin = attached.stdin().expect("stdin available after attach");
     let mut stdout = attached.stdout().expect("stdout available after attach");
+    // terminal_size() takes the sender out of AttachedProcess (kube 4.0), so it
+    // must be called exactly once and reused — calling it per resize returns
+    // None after the first call and silently drops every later resize.
+    let mut terminal_size_tx = attached.terminal_size();
 
     let mut stdout_buf = vec![0u8; 4096];
 
@@ -241,8 +245,7 @@ async fn run_shell_session(
                         }
                     }
                     Some(ShellInput::Resize { cols, rows }) => {
-                        // Terminal resize is handled separately via AttachedProcess
-                        if let Some(mut terminal_size) = attached.terminal_size() {
+                        if let Some(terminal_size) = terminal_size_tx.as_mut() {
                             let _ = terminal_size.send(TerminalSize { width: cols, height: rows }).await;
                         }
                     }

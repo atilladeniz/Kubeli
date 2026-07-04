@@ -1,5 +1,7 @@
+import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { Globe } from "lucide-react";
+import { applyProxyFromSettings } from "@/lib/tauri/commands/network";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -16,6 +18,26 @@ export function NetworkTab() {
   const t = useTranslations("settings");
   const tc = useTranslations("common");
   const { settings, updateSettings } = useUIStore();
+  const skippedInitialApply = useRef(false);
+
+  // Push proxy changes to the backend (debounced); startup re-apply happens in App.tsx.
+  const { proxyType, proxyHost, proxyPort, proxyUsername, proxyPassword } = settings;
+  useEffect(() => {
+    if (!skippedInitialApply.current) {
+      skippedInitialApply.current = true;
+      return;
+    }
+    const timer = setTimeout(() => {
+      applyProxyFromSettings({
+        proxyType,
+        proxyHost,
+        proxyPort,
+        proxyUsername,
+        proxyPassword,
+      }).catch((e) => console.error("Failed to apply proxy config:", e));
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [proxyType, proxyHost, proxyPort, proxyUsername, proxyPassword]);
 
   return (
     <div className="space-y-6">

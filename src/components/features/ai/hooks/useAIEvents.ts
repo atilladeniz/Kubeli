@@ -36,10 +36,12 @@ export function useAIEvents(
 ) {
   const {
     appendMessageChunk,
+    finalizeStreaming,
     setThinking,
     setError,
     addToolCall,
     setApprovalRequest,
+    markSessionEnded,
   } = useAIStore();
 
   useEffect(() => {
@@ -102,10 +104,13 @@ export function useAIEvents(
 
         case "Error":
           setError(data.message || i18n.unknownError);
+          // The stream is dead - unstick the streaming/thinking flags and
+          // finalize the in-flight assistant message.
+          finalizeStreaming();
           break;
 
         case "SessionEnded":
-          // Session ended, parent component handles state reset
+          markSessionEnded();
           break;
       }
     });
@@ -116,10 +121,12 @@ export function useAIEvents(
   }, [
     sessionId,
     appendMessageChunk,
+    finalizeStreaming,
     setThinking,
     setError,
     addToolCall,
     setApprovalRequest,
+    markSessionEnded,
     callbacks,
     i18n,
   ]);

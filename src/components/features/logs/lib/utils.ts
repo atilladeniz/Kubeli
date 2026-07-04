@@ -4,20 +4,19 @@ import type { LogLevel } from "../types";
  * Detects log level from message content.
  * Checks for common log level indicators in the message.
  */
-export function getLogLevel(message: string): LogLevel {
-  const lower = message.toLowerCase();
+// Word-bounded: bare substrings misclassify (e.g. "transferred" contains "err").
+const LEVEL_PATTERNS: [RegExp, LogLevel][] = [
+  [/\b(?:error|fatal|err)\b/i, "error"],
+  [/\b(?:warn|warning)\b/i, "warn"],
+  [/\binfo\b/i, "info"],
+  [/\b(?:debug|trace)\b/i, "debug"],
+];
 
-  if (lower.includes("error") || lower.includes("fatal") || lower.includes("err")) {
-    return "error";
-  }
-  if (lower.includes("warn") || lower.includes("warning")) {
-    return "warn";
-  }
-  if (lower.includes("info")) {
-    return "info";
-  }
-  if (lower.includes("debug") || lower.includes("trace")) {
-    return "debug";
+export function getLogLevel(message: string): LogLevel {
+  for (const [pattern, level] of LEVEL_PATTERNS) {
+    if (pattern.test(message)) {
+      return level;
+    }
   }
   return "default";
 }
@@ -93,7 +92,9 @@ export function compileRegex(pattern: string): RegExp | null {
   if (safetyError) return null;
 
   try {
-    return new RegExp(pattern, "gi");
+    // No "g" flag: .test() on a global regex is stateful (lastIndex persists
+    // across calls) and silently skips matches when reused for filtering.
+    return new RegExp(pattern, "i");
   } catch {
     return null;
   }

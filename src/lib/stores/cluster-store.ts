@@ -33,6 +33,8 @@ interface ClusterState {
   namespaceSource: NamespaceSource;
   isConnected: boolean;
   isLoading: boolean;
+  /** True once the first fetchClusters completed (success or error). */
+  hasFetchedClusters: boolean;
   // Bumped on every connect() start and on cancel/disconnect. A connect attempt
   // captures it and drops its result if the value changed while it was awaiting,
   // so a cancelled-but-still-running connect can't flip state back to connected.
@@ -101,7 +103,7 @@ interface ClusterState {
   checkHealth: () => Promise<HealthCheckResult>;
   startHealthMonitoring: (intervalMs?: number) => void;
   stopHealthMonitoring: () => void;
-  attemptReconnect: () => Promise<boolean>;
+  attemptReconnect: (isRetry?: boolean) => Promise<boolean>;
   setAutoReconnect: (enabled: boolean) => void;
   resetReconnectAttempts: () => void;
 }
@@ -127,6 +129,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   namespaceSource: "none",
   isConnected: false,
   isLoading: false,
+  hasFetchedClusters: false,
   connectGeneration: 0,
   error: null,
   lastConnectionErrorContext: null,
@@ -165,11 +168,13 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         currentCluster,
         selectedNamespaces: [],
         isLoading: false,
+        hasFetchedClusters: true,
       });
     } catch (e) {
       set({
         error: toKubeliError(e),
         isLoading: false,
+        hasFetchedClusters: true,
       });
     }
   },
@@ -705,10 +710,12 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
     }
   },
 
-  attemptReconnect: async () => {
+  attemptReconnect: async (isRetry = false) => {
     const { lastConnectedContext, reconnectAttempts, maxReconnectAttempts, isReconnecting } = get();
 
-    if (!lastConnectedContext || isReconnecting) {
+    // The reentrancy guard must not block our own retries: retries run while
+    // isReconnecting is still true, so they pass isRetry to bypass it.
+    if (!lastConnectedContext || (isReconnecting && !isRetry)) {
       return false;
     }
 
@@ -766,7 +773,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         return true;
       } else {
         // Retry
-        return get().attemptReconnect();
+        return get().attemptReconnect(true);
       }
     } catch (e) {
       console.error("Reconnect attempt failed:", e);
@@ -777,7 +784,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         return false;
       }
       // Retry
-      return get().attemptReconnect();
+      return get().attemptReconnect(true);
     }
   },
 

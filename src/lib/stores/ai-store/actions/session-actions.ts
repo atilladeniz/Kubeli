@@ -13,6 +13,7 @@ import {
 import { useUIStore } from "../../ui-store";
 import {
   buildFallbackSystemPrompt,
+  finalizeStreamingMessage,
   findConversationById,
   generateId,
   getErrorMessage,
@@ -27,6 +28,7 @@ type SessionActions = Pick<
   | "sendMessage"
   | "interrupt"
   | "stopSession"
+  | "markSessionEnded"
   | "refreshSessions"
   | "loadSavedSession"
   | "updateSessionTitle"
@@ -139,10 +141,18 @@ export function createSessionActions(
         },
         isStreaming: true,
         isThinking: true,
+        isInterrupted: false,
       }));
 
       try {
-        await aiSaveMessage(userMessage.id, currentSessionId, "user", message);
+        // Persist the display message - the enriched version (with view
+        // context prefix) is only needed for the live send.
+        await aiSaveMessage(
+          userMessage.id,
+          currentSessionId,
+          "user",
+          userMessage.content
+        );
       } catch (error) {
         console.warn("Failed to save user message:", error);
       }
@@ -165,14 +175,33 @@ export function createSessionActions(
     },
 
     interrupt: async () => {
-      const { currentSessionId } = get();
+      const { currentSessionId, currentConversationId, conversations } = get();
       if (!currentSessionId) {
         return;
       }
 
+      // Finalize immediately - the backend stop is async and chunks may
+      // still arrive afterwards; appendMessageChunk ignores them while
+      // isInterrupted is set.
+      const conversation = findConversationById(
+        conversations,
+        currentConversationId
+      );
+      set((state) => ({
+        isStreaming: false,
+        isThinking: false,
+        isInterrupted: true,
+        conversations: conversation
+          ? {
+              ...state.conversations,
+              [conversation.clusterContext]:
+                finalizeStreamingMessage(conversation),
+            }
+          : state.conversations,
+      }));
+
       try {
         await aiInterrupt(currentSessionId);
-        set({ isStreaming: false, isThinking: false });
       } catch (error) {
         set({ error: getErrorMessage(error, "Failed to interrupt") });
       }
@@ -202,6 +231,7 @@ export function createSessionActions(
           isSessionActive: false,
           isStreaming: false,
           isThinking: false,
+          isInterrupted: false,
         }));
         return;
       }
@@ -212,7 +242,29 @@ export function createSessionActions(
         isSessionActive: false,
         isStreaming: false,
         isThinking: false,
+        isInterrupted: false,
       });
+    },
+
+    markSessionEnded: () => {
+      const { currentConversationId, conversations } = get();
+      const conversation = findConversationById(
+        conversations,
+        currentConversationId
+      );
+
+      set((state) => ({
+        isSessionActive: false,
+        isStreaming: false,
+        isThinking: false,
+        conversations: conversation
+          ? {
+              ...state.conversations,
+              [conversation.clusterContext]:
+                finalizeStreamingMessage(conversation),
+            }
+          : state.conversations,
+      }));
     },
 
     refreshSessions: async () => {
@@ -226,6 +278,9 @@ export function createSessionActions(
       set((state) => ({
         currentSessionId: sessionId,
         isSessionActive: false,
+        isStreaming: false,
+        isThinking: false,
+        isInterrupted: false,
         currentConversationId: conversationId,
         conversations: {
           ...state.conversations,

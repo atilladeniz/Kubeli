@@ -43,6 +43,24 @@ export function removeConversationByClusterContext(
   return rest;
 }
 
+export function finalizeStreamingMessage(
+  conversation: Conversation
+): Conversation {
+  const messages = [...conversation.messages];
+  const lastMessage = messages[messages.length - 1];
+
+  if (
+    !lastMessage ||
+    lastMessage.role !== "assistant" ||
+    !lastMessage.isStreaming
+  ) {
+    return conversation;
+  }
+
+  messages[messages.length - 1] = { ...lastMessage, isStreaming: false };
+  return { ...conversation, messages, updatedAt: Date.now() };
+}
+
 export function toChatMessages(records: MessageRecord[]): ChatMessage[] {
   return records.map((record) => ({
     id: record.message_id,

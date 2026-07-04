@@ -4,7 +4,19 @@ import { toast } from "sonner";
 interface MarkdownComponentsOptions {
   /** Callback when a kubeli:// link is clicked */
   onKubeliLink?: (namespace: string, podName: string) => void;
+  /** Translated toast labels (defaults are English). */
+  labels?: {
+    navigatingTo: (target: string) => string;
+    switchToPodsView: string;
+    linkCopied: string;
+  };
 }
+
+const defaultLabels = {
+  navigatingTo: (target: string) => `Navigating to ${target}`,
+  switchToPodsView: "Switch to the Pods view to see the logs",
+  linkCopied: "Link copied!",
+};
 
 /**
  * Custom ReactMarkdown components for AI assistant messages.
@@ -13,7 +25,7 @@ interface MarkdownComponentsOptions {
 export function createMarkdownComponents(
   options: MarkdownComponentsOptions = {}
 ): Components {
-  const { onKubeliLink } = options;
+  const { onKubeliLink, labels = defaultLabels } = options;
 
   return {
     // Code blocks
@@ -124,8 +136,8 @@ export function createMarkdownComponents(
               e.preventDefault();
               e.stopPropagation();
               onKubeliLink?.(linkNamespace, linkPodName);
-              toast.success(`Navigiere zu ${linkNamespace}/${linkPodName}`, {
-                description: "Wechsle zur Pods-Ansicht um die Logs zu sehen",
+              toast.success(labels.navigatingTo(`${linkNamespace}/${linkPodName}`), {
+                description: labels.switchToPodsView,
               });
             }}
             style={{ cursor: "pointer" }}
@@ -146,7 +158,7 @@ export function createMarkdownComponents(
             e.stopPropagation();
             if (href) {
               navigator.clipboard.writeText(href);
-              toast.success("Link kopiert!");
+              toast.success(labels.linkCopied);
             }
           }}
           title={href}

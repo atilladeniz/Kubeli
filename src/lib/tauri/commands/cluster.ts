@@ -137,7 +137,7 @@ export async function generateDebugLog(
   errorMessage?: string
 ): Promise<string> {
   return invoke<string>("generate_debug_log", {
-    failed_context: failedContext ?? null,
-    error_message: errorMessage ?? null,
+    failedContext: failedContext ?? null,
+    errorMessage: errorMessage ?? null,
   });
 }

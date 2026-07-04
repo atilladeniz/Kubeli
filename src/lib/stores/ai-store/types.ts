@@ -44,6 +44,7 @@ export interface AIState {
   currentConversationId: string | null;
   isThinking: boolean;
   isStreaming: boolean;
+  isInterrupted: boolean;
   error: string | null;
   permissionMode: PermissionMode;
   pendingApproval: ApprovalRequest | null;
@@ -53,9 +54,11 @@ export interface AIState {
   sendMessage: (message: string, displayMessage?: string) => Promise<void>;
   interrupt: () => Promise<void>;
   stopSession: () => Promise<void>;
+  markSessionEnded: () => void;
   refreshSessions: () => Promise<SessionInfo[]>;
 
   appendMessageChunk: (content: string, done: boolean) => void;
+  finalizeStreaming: () => void;
   setThinking: (thinking: boolean) => void;
   addToolCall: (toolCall: ToolCall) => void;
 
@@ -92,6 +95,7 @@ export type AIStateValues = Pick<
   | "currentConversationId"
   | "isThinking"
   | "isStreaming"
+  | "isInterrupted"
   | "error"
   | "permissionMode"
   | "pendingApproval"

@@ -1,10 +1,11 @@
 import { aiUpdateMessage } from "../../../tauri/commands";
-import { findConversationById } from "../helpers";
+import { finalizeStreamingMessage, findConversationById } from "../helpers";
 import type { AIGetState, AISetState, AIState, ToolCall } from "../types";
 
 type MessageActions = Pick<
   AIState,
   | "appendMessageChunk"
+  | "finalizeStreaming"
   | "setThinking"
   | "addToolCall"
   | "getConversation"
@@ -17,7 +18,17 @@ export function createMessageActions(
 ): MessageActions {
   return {
     appendMessageChunk: (content: string, done: boolean) => {
-      const { currentConversationId, currentSessionId, conversations } = get();
+      const {
+        currentConversationId,
+        currentSessionId,
+        conversations,
+        isInterrupted,
+      } = get();
+      // The backend stop is async - drop chunks that arrive after an
+      // interrupt so they don't resurrect the streaming state.
+      if (isInterrupted) {
+        return;
+      }
       const conversation = findConversationById(conversations, currentConversationId);
       if (!conversation) {
         return;
@@ -55,6 +66,23 @@ export function createMessageActions(
         },
         isStreaming: !done,
         isThinking: !done,
+      }));
+    },
+
+    finalizeStreaming: () => {
+      const { currentConversationId, conversations } = get();
+      const conversation = findConversationById(conversations, currentConversationId);
+
+      set((state) => ({
+        isStreaming: false,
+        isThinking: false,
+        conversations: conversation
+          ? {
+              ...state.conversations,
+              [conversation.clusterContext]:
+                finalizeStreamingMessage(conversation),
+            }
+          : state.conversations,
       }));
     },
 

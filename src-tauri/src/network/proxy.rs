@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::env;
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ProxyConfig {
     pub proxy_type: String, // "none", "system", "http", "socks5"
     pub host: String,
