@@ -35,18 +35,11 @@ export default defineConfig(({ mode }) => {
               return;
             }
 
-            if (id.includes("monaco-editor") || id.includes("@monaco-editor") || id.includes("monaco-yaml")) {
-              return "vendor-monaco";
-            }
-
-            if (id.includes("@xterm")) {
-              return "vendor-xterm";
-            }
-
-            if (id.includes("@xyflow") || id.includes("elkjs")) {
-              return "vendor-diagram";
-            }
-
+            // Only always-loaded vendors get named chunks (cache stability).
+            // Monaco/xterm/diagram are NOT listed: forcing them into manual
+            // chunks pulled shared helper modules into those chunks and
+            // dragged them back into the startup graph — the dynamic imports
+            // (lazy Dashboard/editor/diagram/terminal) split them naturally.
             if (id.includes("@tauri-apps")) {
               return "vendor-tauri";
             }

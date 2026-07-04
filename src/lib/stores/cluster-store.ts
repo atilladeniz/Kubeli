@@ -14,6 +14,7 @@ import {
   setClusterAccessibleNamespaces,
   setClusterPreferKubeconfigAuth,
 } from "../tauri/commands";
+import { oidcStartAuth, oidcHandleCallback } from "../tauri/commands/oidc";
 import { useResourceCacheStore } from "./resource-cache-store";
 import type { WatchEvent } from "../types";
 
@@ -199,14 +200,6 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       if (status.oidc_auth_required) {
         const { issuer_url, client_id, extra_scopes } = status.oidc_auth_required;
         set({ isLoading: true });
-
-        const { oidcStartAuth, oidcHandleCallback } = await import("../tauri/commands/oidc");
-
-        // The module import is awaited; if the user cancelled / a newer attempt
-        // started meanwhile, bail BEFORE cancelOidcAuth — otherwise we'd clear a
-        // newer attempt's listener/timeout from the shared OIDC state. No local
-        // listener exists yet, so there's nothing of ours to tear down.
-        if (superseded()) return status;
 
         // Clear any previous in-flight OIDC auth so repeated connects during the
         // browser wait cannot accumulate duplicate listeners/timeouts.

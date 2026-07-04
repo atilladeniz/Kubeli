@@ -1,7 +1,11 @@
 "use client";
 
 import { loader } from "@monaco-editor/react";
-import * as monaco from "monaco-editor";
+// Slim Monaco: full editor features (find, folding, hover, ...) without the
+// ts/html/css/json language services and their multi-MB workers.
+import * as monaco from "monaco-editor/esm/vs/editor/edcore.main";
+// Only the languages Kubeli actually displays (syntax highlighting only).
+import "monaco-editor/esm/vs/basic-languages/yaml/yaml.contribution.js";
 import type { Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { parseDocument } from "yaml";

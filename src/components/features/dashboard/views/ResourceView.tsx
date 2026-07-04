@@ -1,9 +1,14 @@
 "use client";
 
+import { lazy, Suspense } from "react";
 import type { ResourceType } from "@/components/layout/sidebar/Sidebar";
 import { isCustomResourceType, parseCustomResourceType } from "@/lib/custom-resources";
-import { ResourceDiagram } from "../../visualization";
 import { ComingSoon } from "../components";
+
+// React Flow + elkjs (~1.6 MB) load only when the diagram view is opened.
+const ResourceDiagram = lazy(() =>
+  import("../../visualization").then((m) => ({ default: m.ResourceDiagram }))
+);
 
 // Overview views
 import { ClusterOverview } from "./ClusterOverview";
@@ -110,7 +115,11 @@ export function ResourceView({ activeResource }: ResourceViewProps) {
     case "cluster-overview":
       return <ClusterOverview />;
     case "resource-diagram":
-      return <ResourceDiagram />;
+      return (
+        <Suspense fallback={null}>
+          <ResourceDiagram />
+        </Suspense>
+      );
     case "workloads-overview":
       return <WorkloadsOverview />;
 

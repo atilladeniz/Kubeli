@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useRef, useEffect } from "react";
+import { getErrorMessage } from "@/lib/types/errors";
 import Editor, { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
 import { setupYamlValidation } from "@/lib/monaco-config";
@@ -105,7 +106,6 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
       onApplied();
       onClose();
     } catch (err) {
-      const { getErrorMessage } = await import("@/lib/types/errors");
       setError(getErrorMessage(err));
     } finally {
       setIsApplying(false);

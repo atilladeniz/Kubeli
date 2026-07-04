@@ -1,13 +1,22 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useState, useCallback, useMemo, useEffect, useRef, lazy, Suspense } from "react";
+
+// Split on demand: the settings dialog, create-resource panel (pulls in the
+// Monaco editor), and AI chat only mount when the user opens them.
+const SettingsPanel = lazy(() =>
+  import("../settings/SettingsPanel").then((m) => ({ default: m.SettingsPanel }))
+);
+const CreateResourcePanel = lazy(() =>
+  import("../resources/CreateResourcePanel").then((m) => ({ default: m.CreateResourcePanel }))
+);
+const AIAssistant = lazy(() =>
+  import("../ai/AIAssistant").then((m) => ({ default: m.AIAssistant }))
+);
 import { useTranslations } from "next-intl";
 import { Sidebar, type ResourceType } from "@/components/layout/sidebar/Sidebar";
 import { ResourceDetail, type ResourceData } from "../resources/ResourceDetail";
-import { CreateResourcePanel } from "../resources/CreateResourcePanel";
-import { AIAssistant } from "../ai/AIAssistant";
 import { TerminalTabsProvider, useTerminalTabs } from "../terminal";
-import { SettingsPanel } from "../settings/SettingsPanel";
 import { PortForwardDialogs } from "../portforward/PortForwardDialogs";
 import { RestartDialog } from "../updater/RestartDialog";
 import { useTabTitle } from "@/components/layout/tabbar/TabBar";
@@ -52,7 +61,9 @@ export function Dashboard() {
   return (
     <TerminalTabsProvider>
       <DashboardContent />
-      <SettingsPanel />
+      <Suspense fallback={null}>
+        <SettingsPanel />
+      </Suspense>
       <PortForwardDialogs />
       <RestartDialog />
     </TerminalTabsProvider>
@@ -501,10 +512,12 @@ function DashboardContent() {
               <ResizablePanel id="detail-panel-content" defaultSize="700px" minSize="500px" maxSize="65%">
                 <div className="h-full border-l border-border overflow-hidden">
                   {isCreateResourceOpen ? (
-                    <CreateResourcePanel
-                      onClose={() => setCreateResourceOpen(false)}
-                      onApplied={triggerRefresh}
-                    />
+                    <Suspense fallback={null}>
+                      <CreateResourcePanel
+                        onClose={() => setCreateResourceOpen(false)}
+                        onApplied={triggerRefresh}
+                      />
+                    </Suspense>
                   ) : selectedResource ? (
                     <ResourceDetail
                       resource={selectedResource.data}
@@ -532,7 +545,9 @@ function DashboardContent() {
             {isAIAssistantOpen && (
               <ResizablePanel id="ai-assistant-panel" defaultSize="400px" minSize="400px" maxSize="50%">
                 <div className="h-full border-l border-border overflow-auto">
-                  <AIAssistant />
+                  <Suspense fallback={null}>
+                    <AIAssistant />
+                  </Suspense>
                 </div>
               </ResizablePanel>
             )}
