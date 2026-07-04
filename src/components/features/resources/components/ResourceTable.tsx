@@ -23,6 +23,16 @@ import { cn } from "@/lib/utils";
 import { getNamespaceColor } from "@/lib/utils/colors";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Column, ContextMenuItemDef, SortDirection } from "../types";
+import { ResourceActionsMenu } from "./ResourceActionsMenu";
+import { renderMenuItems, type MenuSlots } from "./menu-items";
+
+const contextMenuSlots: MenuSlots = {
+  Item: ContextMenuItem,
+  Separator: ContextMenuSeparator,
+  Sub: ContextMenuSub,
+  SubTrigger: ContextMenuSubTrigger,
+  SubContent: ContextMenuSubContent,
+};
 
 interface ResourceTableProps<T> {
   data: T[];
@@ -107,6 +117,7 @@ export function ResourceTable<T>({
                 )}
               </TableHead>
             ))}
+            {contextMenuItems && <TableHead className="w-12 bg-background" />}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -117,6 +128,7 @@ export function ResourceTable<T>({
               : null;
             const itemKey = getRowKey(item);
             const isSelected = selectedKeys.has(itemKey);
+            const menuItems = contextMenuItems?.(item);
 
             const rowContent = (
               <TableRow
@@ -151,67 +163,23 @@ export function ResourceTable<T>({
                         )}
                   </TableCell>
                 ))}
+                {menuItems && (
+                  <TableCell
+                    className="w-12 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <ResourceActionsMenu items={menuItems} />
+                  </TableCell>
+                )}
               </TableRow>
             );
 
-            if (contextMenuItems) {
-              const menuItems = contextMenuItems(item);
+            if (menuItems) {
               return (
-                <ContextMenu key={getRowKey(item)}>
-                  <ContextMenuTrigger asChild>
-                    {rowContent}
-                  </ContextMenuTrigger>
+                <ContextMenu key={itemKey}>
+                  <ContextMenuTrigger asChild>{rowContent}</ContextMenuTrigger>
                   <ContextMenuContent className="w-48">
-                    {menuItems.map((menuItem, index) =>
-                      menuItem.separator ? (
-                        <ContextMenuSeparator key={`sep-${index}`} />
-                      ) : menuItem.children ? (
-                        <ContextMenuSub key={menuItem.label}>
-                          <ContextMenuSubTrigger
-                            disabled={menuItem.disabled}
-                            className="gap-2"
-                          >
-                            {menuItem.icon}
-                            {menuItem.label}
-                          </ContextMenuSubTrigger>
-                          <ContextMenuSubContent>
-                            {menuItem.children.map((child) => (
-                              <ContextMenuItem
-                                key={child.label}
-                                onClick={child.onClick}
-                                disabled={child.disabled}
-                                variant={child.variant}
-                                className="gap-2"
-                              >
-                                {child.icon}
-                                {child.label}
-                                {child.hint && (
-                                  <span className={cn(
-                                    "ml-auto rounded-full px-2 py-0.5 text-[10px] font-mono font-medium",
-                                    child.hintVariant === "active"
-                                      ? "bg-purple-500/20 text-purple-400"
-                                      : "bg-muted text-foreground"
-                                  )}>
-                                    {child.hint}
-                                  </span>
-                                )}
-                              </ContextMenuItem>
-                            ))}
-                          </ContextMenuSubContent>
-                        </ContextMenuSub>
-                      ) : (
-                        <ContextMenuItem
-                          key={menuItem.label}
-                          onClick={menuItem.onClick}
-                          disabled={menuItem.disabled}
-                          variant={menuItem.variant}
-                          className="gap-2"
-                        >
-                          {menuItem.icon}
-                          {menuItem.label}
-                        </ContextMenuItem>
-                      )
-                    )}
+                    {renderMenuItems(menuItems, contextMenuSlots)}
                   </ContextMenuContent>
                 </ContextMenu>
               );

@@ -21,7 +21,9 @@ use k8s_openapi::api::rbac::v1::{ClusterRole, ClusterRoleBinding, Role, RoleBind
 use k8s_openapi::api::scheduling::v1::PriorityClass;
 use k8s_openapi::api::storage::v1::{CSIDriver, CSINode, StorageClass, VolumeAttachment};
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
-use kube::api::{Api, DeleteParams, ListParams, Patch, PatchParams};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
+use k8s_openapi::Resource;
+use kube::api::{Api, DeleteParams, ListParams, Patch, PatchParams, PostParams};
 use kube::core::DynamicObject;
 use kube::discovery::ApiResource;
 use kube::ResourceExt;
@@ -29,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::Read;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{command, State};
 
 // Helper function to convert BTreeMap to HashMap
@@ -1575,6 +1578,99 @@ pub async fn scale_deployment(
         .await?;
 
     tracing::info!("Scaled deployment {} to {} replicas", name, replicas);
+    Ok(())
+}
+
+async fn set_cronjob_suspend(
+    state: State<'_, AppState>,
+    name: &str,
+    namespace: &str,
+    suspend: bool,
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await?;
+
+    let api: Api<CronJob> = Api::namespaced(client, namespace);
+    let patch = serde_json::json!({
+        "spec": { "suspend": suspend }
+    });
+
+    api.patch(name, &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
+
+    tracing::info!("Set cronjob {}/{} suspend={}", namespace, name, suspend);
+    Ok(())
+}
+
+#[command]
+pub async fn suspend_cronjob(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), KubeliError> {
+    set_cronjob_suspend(state, &name, &namespace, true).await
+}
+
+#[command]
+pub async fn resume_cronjob(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), KubeliError> {
+    set_cronjob_suspend(state, &name, &namespace, false).await
+}
+
+#[command]
+pub async fn trigger_cronjob(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await?;
+
+    let cronjobs: Api<CronJob> = Api::namespaced(client.clone(), &namespace);
+    let cronjob = cronjobs.get(&name).await?;
+
+    let template = cronjob.spec.unwrap_or_default().job_template;
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|elapsed| elapsed.as_secs())
+        .unwrap_or_default();
+    let job_name = format!("{name}-{timestamp}");
+
+    let mut metadata = template.metadata.unwrap_or_default();
+    metadata.name = Some(job_name.clone());
+    metadata.namespace = Some(namespace.clone());
+    metadata
+        .annotations
+        .get_or_insert_with(Default::default)
+        .insert(
+            "cronjob.kubernetes.io/instantiate".to_string(),
+            "manual".to_string(),
+        );
+    metadata.owner_references = Some(vec![OwnerReference {
+        api_version: CronJob::API_VERSION.to_string(),
+        kind: CronJob::KIND.to_string(),
+        name: name.clone(),
+        uid: cronjob.metadata.uid.unwrap_or_default(),
+        ..Default::default()
+    }]);
+
+    let job = Job {
+        metadata,
+        spec: template.spec,
+        status: None,
+    };
+
+    let jobs: Api<Job> = Api::namespaced(client, &namespace);
+    jobs.create(&PostParams::default(), &job).await?;
+
+    tracing::info!(
+        "Triggered cronjob {}/{} as job {}",
+        namespace,
+        name,
+        job_name
+    );
     Ok(())
 }
 
