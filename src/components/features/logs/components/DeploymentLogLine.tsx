@@ -76,8 +76,14 @@ export const DeploymentLogLine = memo(function DeploymentLogLine({
 });
 
 function highlightWithRegex(text: string, regex: RegExp): React.ReactNode {
-  const parts = text.split(regex);
-  const matches = text.match(regex) || [];
+  // The filter regex is deliberately non-global (.test() with "g" is stateful);
+  // highlighting needs all occurrences, so build a local global copy.
+  const globalRegex = new RegExp(
+    regex.source,
+    regex.flags.includes("g") ? regex.flags : `${regex.flags}g`
+  );
+  const parts = text.split(globalRegex);
+  const matches = text.match(globalRegex) || [];
   const result: React.ReactNode[] = [];
 
   parts.forEach((part, i) => {

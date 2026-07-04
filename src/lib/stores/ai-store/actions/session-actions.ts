@@ -130,6 +130,9 @@ export function createSessionActions(
         isStreaming: true,
       };
 
+      // isInterrupted stays set until the new send reaches the backend (below):
+      // clearing it here would let late chunks from a just-killed generation
+      // slip through the appendMessageChunk gate into this fresh message.
       set((state) => ({
         conversations: {
           ...state.conversations,
@@ -141,7 +144,6 @@ export function createSessionActions(
         },
         isStreaming: true,
         isThinking: true,
-        isInterrupted: false,
       }));
 
       try {
@@ -165,11 +167,13 @@ export function createSessionActions(
 
       try {
         await aiSendMessage(currentSessionId, message);
+        set({ isInterrupted: false });
       } catch (error) {
         set({
           error: getErrorMessage(error, "Failed to send message"),
           isStreaming: false,
           isThinking: false,
+          isInterrupted: false,
         });
       }
     },

@@ -37,22 +37,27 @@ export function createMessageActions(
       const messages = [...conversation.messages];
       const lastMessage = messages[messages.length - 1];
 
-      if (lastMessage && lastMessage.role === "assistant" && lastMessage.isStreaming) {
-        const newContent = lastMessage.content + content;
-        messages[messages.length - 1] = {
-          ...lastMessage,
-          content: newContent,
-          isStreaming: !done,
-        };
+      // Only a chunk that lands in an actual streaming assistant message may
+      // drive the global flags — a stray chunk after Error/finalizeStreaming
+      // must not re-disable the input by flipping isStreaming back on.
+      if (!lastMessage || lastMessage.role !== "assistant" || !lastMessage.isStreaming) {
+        return;
+      }
 
-        if (done && currentSessionId) {
-          const toolCallsJson = lastMessage.toolCalls
-            ? JSON.stringify(lastMessage.toolCalls)
-            : undefined;
-          aiUpdateMessage(lastMessage.id, newContent, toolCallsJson).catch((error) => {
-            console.warn("Failed to update message in database:", error);
-          });
-        }
+      const newContent = lastMessage.content + content;
+      messages[messages.length - 1] = {
+        ...lastMessage,
+        content: newContent,
+        isStreaming: !done,
+      };
+
+      if (done && currentSessionId) {
+        const toolCallsJson = lastMessage.toolCalls
+          ? JSON.stringify(lastMessage.toolCalls)
+          : undefined;
+        aiUpdateMessage(lastMessage.id, newContent, toolCallsJson).catch((error) => {
+          console.warn("Failed to update message in database:", error);
+        });
       }
 
       set((state) => ({

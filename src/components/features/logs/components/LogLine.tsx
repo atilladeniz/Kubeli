@@ -69,8 +69,14 @@ export const LogLine = memo(function LogLine({
  * Highlights matches in text using a regex pattern.
  */
 function highlightWithRegex(text: string, regex: RegExp): React.ReactNode {
-  const parts = text.split(regex);
-  const matches = text.match(regex) || [];
+  // The filter regex is deliberately non-global (.test() with "g" is stateful);
+  // highlighting needs all occurrences, so build a local global copy.
+  const globalRegex = new RegExp(
+    regex.source,
+    regex.flags.includes("g") ? regex.flags : `${regex.flags}g`
+  );
+  const parts = text.split(globalRegex);
+  const matches = text.match(globalRegex) || [];
   const result: React.ReactNode[] = [];
 
   parts.forEach((part, i) => {
@@ -105,8 +111,10 @@ function highlightWithString(text: string, query: string): React.ReactNode {
   const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
   const parts = text.split(regex);
 
+  // split() with a capture group puts matches at odd indices; checking via
+  // regex.test(part) on a global regex is stateful and skips every other match.
   return parts.map((part, i) =>
-    regex.test(part) ? (
+    i % 2 === 1 ? (
       <mark key={i} className="bg-yellow-500/30 text-yellow-200">
         {part}
       </mark>

@@ -605,6 +605,7 @@ impl AgentManager {
                     // Spawn CLI process with retry for transient errors
                     let extended_path = super::cli_detector::get_extended_path();
                     let max_attempts = 2u32;
+                    let mut was_interrupted = false;
 
                     for attempt in 1..=max_attempts {
                         let stderr_capture = Arc::new(tokio::sync::Mutex::new(String::new()));
@@ -745,16 +746,13 @@ impl AgentManager {
                                             provider_name
                                         );
                                         kill_child(&mut child, provider_name).await;
+                                        was_interrupted = true;
+                                        // No MessageChunk here: the frontend finalizes the
+                                        // message locally on interrupt, and any chunk emitted
+                                        // after the kill can race into the user's NEXT message
+                                        // once the interrupt flag is cleared.
                                         let _ = app
                                             .emit(&event_name, AIEvent::Thinking { active: false });
-                                        let _ = app.emit(
-                                            &event_name,
-                                            AIEvent::MessageChunk {
-                                                content: "\n*Generation interrupted.*\n"
-                                                    .to_string(),
-                                                done: false,
-                                            },
-                                        );
                                     }
                                     ChildOutcome::Stopped => {
                                         tracing::info!(
@@ -805,14 +803,18 @@ impl AgentManager {
                         break;
                     }
 
-                    // Done processing, emit final message chunk
-                    let _ = app.emit(
-                        &event_name,
-                        AIEvent::MessageChunk {
-                            content: String::new(),
-                            done: true,
-                        },
-                    );
+                    // Done processing, emit final message chunk — except after an
+                    // interrupt, where the frontend already finalized locally and a
+                    // late done chunk could prematurely finalize the next message.
+                    if !was_interrupted {
+                        let _ = app.emit(
+                            &event_name,
+                            AIEvent::MessageChunk {
+                                content: String::new(),
+                                done: true,
+                            },
+                        );
+                    }
                     is_processing.store(false, Ordering::SeqCst);
                 }
                 AgentInput::Interrupt => {
