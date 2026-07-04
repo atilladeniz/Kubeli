@@ -130,9 +130,12 @@ export function createSessionActions(
         isStreaming: true,
       };
 
-      // isInterrupted stays set until the new send reaches the backend (below):
-      // clearing it here would let late chunks from a just-killed generation
-      // slip through the appendMessageChunk gate into this fresh message.
+      // Clearing isInterrupted here is safe: the backend suppresses all
+      // post-kill emissions for an interrupted generation, so by the time a
+      // user sends the next message no stale chunks can still be in flight —
+      // while clearing only after aiSendMessage resolves could drop the NEW
+      // generation's first chunks (the invoke returns before the CLI spawns,
+      // but its promise continuation may run after the first emission).
       set((state) => ({
         conversations: {
           ...state.conversations,
@@ -144,6 +147,7 @@ export function createSessionActions(
         },
         isStreaming: true,
         isThinking: true,
+        isInterrupted: false,
       }));
 
       try {
@@ -167,13 +171,11 @@ export function createSessionActions(
 
       try {
         await aiSendMessage(currentSessionId, message);
-        set({ isInterrupted: false });
       } catch (error) {
         set({
           error: getErrorMessage(error, "Failed to send message"),
           isStreaming: false,
           isThinking: false,
-          isInterrupted: false,
         });
       }
     },

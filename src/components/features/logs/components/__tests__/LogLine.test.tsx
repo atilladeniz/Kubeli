@@ -41,4 +41,15 @@ describe("LogLine highlighting", () => {
     const marks = container.querySelectorAll("mark");
     expect(marks).toHaveLength(3);
   });
+
+  // Regression: split() with user capture groups injected the captures into
+  // the parts array, duplicating text and marking the wrong spans.
+  it("handles regex patterns with capture groups without corrupting the text", () => {
+    const { container } = renderLine("x ERROR y WARN z", "(ERROR|WARN)", true);
+    const marks = container.querySelectorAll("mark");
+    expect(marks).toHaveLength(2);
+    expect(marks[0].textContent).toBe("ERROR");
+    expect(marks[1].textContent).toBe("WARN");
+    expect(container.textContent).toBe("x ERROR y WARN z\n");
+  });
 });

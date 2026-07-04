@@ -77,20 +77,24 @@ function highlightWithRegex(text: string, regex: RegExp): React.ReactNode {
     regex.source,
     regex.flags.includes("g") ? regex.flags : `${regex.flags}g`
   );
-  const parts = text.split(globalRegex);
-  const matches = text.match(globalRegex) || [];
+  // Slice by match indices instead of split(): split() with user capture
+  // groups injects the captures into the parts array and corrupts the output.
   const result: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let key = 0;
 
-  parts.forEach((part, i) => {
-    result.push(part);
-    if (matches[i]) {
-      result.push(
-        <mark key={i} className="bg-yellow-500/30 text-yellow-200">
-          {matches[i]}
-        </mark>
-      );
-    }
-  });
+  for (const match of text.matchAll(globalRegex)) {
+    if (match[0] === "") continue;
+    const index = match.index ?? 0;
+    result.push(text.slice(lastIndex, index));
+    result.push(
+      <mark key={key++} className="bg-yellow-500/30 text-yellow-200">
+        {match[0]}
+      </mark>
+    );
+    lastIndex = index + match[0].length;
+  }
+  result.push(text.slice(lastIndex));
 
   return result;
 }
