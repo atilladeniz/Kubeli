@@ -127,13 +127,18 @@ export function AIAssistant() {
 
   // Handle selecting a saved session from history
   const handleSelectSession = useCallback(
-    (sessionId: string, sessionMessages: MessageRecord[]) => {
+    async (sessionId: string, sessionMessages: MessageRecord[]) => {
       if (currentCluster) {
+        // Stop a running agent first - otherwise the event listener
+        // unsubscribes from the live session and it keeps running unseen.
+        if (isSessionActive || isStreaming) {
+          await stopSession();
+        }
         loadSavedSession(sessionId, sessionMessages, currentCluster.context);
         setShowHistory(false);
       }
     },
-    [currentCluster, loadSavedSession]
+    [currentCluster, isSessionActive, isStreaming, stopSession, loadSavedSession]
   );
 
   // Handle creating a new session

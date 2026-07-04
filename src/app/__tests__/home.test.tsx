@@ -11,6 +11,7 @@ jest.mock("@/lib/stores/cluster-store", () => ({
     currentCluster: null,
     isConnected: false,
     isLoading: false,
+    hasFetchedClusters: true,
     error: null,
     fetchClusters: jest.fn().mockResolvedValue(undefined),
     connect: jest.fn(),
@@ -19,18 +20,19 @@ jest.mock("@/lib/stores/cluster-store", () => ({
   }),
 }));
 
-jest.mock("@/lib/stores/ui-store", () => ({
-  useUIStore: (selector?: (state: Record<string, unknown>) => unknown) => {
-    const state = {
-      setSettingsOpen: jest.fn(),
-      openSettingsTab: jest.fn(),
-      settingsInitialTab: "appearance",
-      settings: { clusterViewLayout: "grid" },
-      updateSettings: jest.fn(),
-    };
-    return selector ? selector(state) : state;
-  },
-}));
+jest.mock("@/lib/stores/ui-store", () => {
+  const state = {
+    setSettingsOpen: jest.fn(),
+    openSettingsTab: jest.fn(),
+    settingsInitialTab: "appearance",
+    settings: { clusterViewLayout: "grid", proxyType: "none" },
+    updateSettings: jest.fn(),
+  };
+  const useUIStore = (selector?: (s: Record<string, unknown>) => unknown) =>
+    selector ? selector(state) : state;
+  useUIStore.getState = () => state;
+  return { useUIStore };
+});
 
 jest.mock("@/lib/hooks/usePortForward", () => ({
   usePortForward: () => ({

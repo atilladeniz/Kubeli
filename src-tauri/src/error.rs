@@ -227,6 +227,9 @@ impl From<anyhow::Error> for KubeliError {
 }
 
 fn is_retryable(kind: &ErrorKind) -> bool {
+    // Unknown is deliberately NOT retryable: deterministic failures (400/422,
+    // parse errors) map to Unknown and would otherwise retry-loop against the
+    // API server. Fail closed; only explicitly transient kinds retry.
     matches!(
         kind,
         ErrorKind::Conflict
@@ -234,7 +237,6 @@ fn is_retryable(kind: &ErrorKind) -> bool {
             | ErrorKind::ServerError
             | ErrorKind::Network
             | ErrorKind::Timeout
-            | ErrorKind::Unknown
     )
 }
 
@@ -291,7 +293,10 @@ mod tests {
     fn unknown_uses_unknown_kind_defaults() {
         let err = KubeliError::unknown("boom");
         assert!(matches!(err.kind, ErrorKind::Unknown));
-        assert!(err.retryable);
+        // Regression: Unknown must not be retryable — deterministic failures
+        // (400/422, parse errors) map to Unknown and the frontend auto-retries
+        // retryable errors, which caused a retry loop against the API server.
+        assert!(!err.retryable);
         assert!(err.suggestions.is_empty());
         assert_eq!(err.to_string(), "boom");
     }

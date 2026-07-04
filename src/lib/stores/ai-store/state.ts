@@ -7,6 +7,7 @@ export const initialAIState: AIStateValues = {
   currentConversationId: null,
   isThinking: false,
   isStreaming: false,
+  isInterrupted: false,
   error: null,
   permissionMode: "default",
   pendingApproval: null,

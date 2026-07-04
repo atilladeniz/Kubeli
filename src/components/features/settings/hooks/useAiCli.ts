@@ -8,12 +8,13 @@ import {
   type CliStatus,
 } from "@/lib/tauri/commands";
 import { useUIStore, type AiCliProvider } from "@/lib/stores/ui-store";
+import { getErrorMessage } from "@/lib/types/errors";
 
 const errorInfo = (err: unknown): CliInfo => ({
   status: "error" as CliStatus,
   version: null,
   cli_path: null,
-  error_message: String(err),
+  error_message: getErrorMessage(err),
 });
 
 export function useAiCli(isOpen: boolean) {

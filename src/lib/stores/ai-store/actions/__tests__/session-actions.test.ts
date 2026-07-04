@@ -55,6 +55,7 @@ type HarnessState = {
   currentConversationId: string | null;
   isThinking: boolean;
   isStreaming: boolean;
+  isInterrupted: boolean;
   error: string | null;
   permissionMode: "default" | "plan" | "acceptedits";
   pendingApproval: unknown;
@@ -69,6 +70,7 @@ function createHarness(overrides: Record<string, unknown> = {}) {
     currentConversationId: null,
     isThinking: false,
     isStreaming: false,
+    isInterrupted: false,
     error: null,
     permissionMode: "default",
     pendingApproval: null,
@@ -182,6 +184,7 @@ describe("createSessionActions", () => {
     const { state, actions } = createHarness({
       currentSessionId: "session-1",
       currentConversationId: "conversation-1",
+      isInterrupted: true,
       conversations: {
         kind: {
           id: "conversation-1",
@@ -215,7 +218,7 @@ describe("createSessionActions", () => {
       "user-1",
       "session-1",
       "user",
-      "raw prompt"
+      "visible prompt"
     );
     expect(aiSaveMessage).toHaveBeenNthCalledWith(
       2,
@@ -227,6 +230,7 @@ describe("createSessionActions", () => {
     expect(aiSendMessage).toHaveBeenCalledWith("session-1", "raw prompt");
     expect(state.isStreaming).toBe(true);
     expect(state.isThinking).toBe(true);
+    expect(state.isInterrupted).toBe(false);
   });
 
   it("warns on save failures and stores an error when sending the message fails", async () => {
@@ -290,6 +294,97 @@ describe("createSessionActions", () => {
     (aiInterrupt as jest.Mock).mockRejectedValueOnce(new Error("interrupt failed"));
     await actions.interrupt();
     expect(state.error).toBe("interrupt failed");
+  });
+
+  it("marks the generation interrupted and finalizes the streaming message on interrupt", async () => {
+    const { state, actions } = createHarness({
+      currentSessionId: "session-1",
+      currentConversationId: "conversation-1",
+      isStreaming: true,
+      isThinking: true,
+      conversations: {
+        kind: {
+          id: "conversation-1",
+          clusterContext: "kind",
+          messages: [
+            {
+              id: "assistant-1",
+              role: "assistant",
+              content: "partial answer",
+              timestamp: 1,
+              isStreaming: true,
+            },
+          ],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+    });
+
+    await actions.interrupt();
+
+    expect(state.isInterrupted).toBe(true);
+    expect(state.isStreaming).toBe(false);
+    expect(state.isThinking).toBe(false);
+    expect(state.conversations.kind.messages[0]).toMatchObject({
+      content: "partial answer",
+      isStreaming: false,
+    });
+  });
+
+  it("marks the session ended and finalizes streaming state", () => {
+    const { state, actions } = createHarness({
+      currentSessionId: "session-1",
+      currentConversationId: "conversation-1",
+      isSessionActive: true,
+      isStreaming: true,
+      isThinking: true,
+      conversations: {
+        kind: {
+          id: "conversation-1",
+          clusterContext: "kind",
+          messages: [
+            {
+              id: "assistant-1",
+              role: "assistant",
+              content: "partial answer",
+              timestamp: 1,
+              isStreaming: true,
+            },
+          ],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+    });
+
+    actions.markSessionEnded();
+
+    expect(state.isSessionActive).toBe(false);
+    expect(state.isStreaming).toBe(false);
+    expect(state.isThinking).toBe(false);
+    expect(state.conversations.kind.messages[0]).toMatchObject({
+      isStreaming: false,
+    });
+  });
+
+  it("resets streaming flags when loading a saved session mid-stream", () => {
+    (generateId as jest.Mock).mockReturnValueOnce("conversation-3");
+    const { state, actions } = createHarness({
+      currentSessionId: "session-1",
+      isSessionActive: true,
+      isStreaming: true,
+      isThinking: true,
+      isInterrupted: true,
+    });
+
+    actions.loadSavedSession("session-3", [], "kind-dev");
+
+    expect(state.currentSessionId).toBe("session-3");
+    expect(state.isSessionActive).toBe(false);
+    expect(state.isStreaming).toBe(false);
+    expect(state.isThinking).toBe(false);
+    expect(state.isInterrupted).toBe(false);
   });
 
   it("no-ops interrupt when there is no active session", async () => {

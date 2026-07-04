@@ -29,6 +29,7 @@ function createHarness(overrides: Record<string, unknown> = {}) {
     },
     isStreaming: false,
     isThinking: false,
+    isInterrupted: false,
     ...overrides,
   };
 
@@ -88,6 +89,34 @@ describe("createMessageActions", () => {
 
     expect(state.conversations.kind.messages[0].content).toBe("Hello!");
     expect(console.warn).toHaveBeenCalled();
+  });
+
+  it("ignores chunks that arrive after an interrupt", () => {
+    const { state, actions } = createHarness({ isInterrupted: true });
+
+    actions.appendMessageChunk(" late chunk", false);
+    actions.appendMessageChunk("!", true);
+
+    expect(state.conversations.kind.messages[0].content).toBe("Hello");
+    expect(state.isStreaming).toBe(false);
+    expect(state.isThinking).toBe(false);
+    expect(aiUpdateMessage).not.toHaveBeenCalled();
+  });
+
+  it("finalizes the in-flight assistant message and resets streaming flags", () => {
+    const { state, actions } = createHarness({
+      isStreaming: true,
+      isThinking: true,
+    });
+
+    actions.finalizeStreaming();
+
+    expect(state.conversations.kind.messages[0]).toMatchObject({
+      content: "Hello",
+      isStreaming: false,
+    });
+    expect(state.isStreaming).toBe(false);
+    expect(state.isThinking).toBe(false);
   });
 
   it("adds tool calls to the active assistant message", () => {

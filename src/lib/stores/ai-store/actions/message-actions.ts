@@ -1,10 +1,11 @@
 import { aiUpdateMessage } from "../../../tauri/commands";
-import { findConversationById } from "../helpers";
+import { finalizeStreamingMessage, findConversationById } from "../helpers";
 import type { AIGetState, AISetState, AIState, ToolCall } from "../types";
 
 type MessageActions = Pick<
   AIState,
   | "appendMessageChunk"
+  | "finalizeStreaming"
   | "setThinking"
   | "addToolCall"
   | "getConversation"
@@ -17,7 +18,17 @@ export function createMessageActions(
 ): MessageActions {
   return {
     appendMessageChunk: (content: string, done: boolean) => {
-      const { currentConversationId, currentSessionId, conversations } = get();
+      const {
+        currentConversationId,
+        currentSessionId,
+        conversations,
+        isInterrupted,
+      } = get();
+      // The backend stop is async - drop chunks that arrive after an
+      // interrupt so they don't resurrect the streaming state.
+      if (isInterrupted) {
+        return;
+      }
       const conversation = findConversationById(conversations, currentConversationId);
       if (!conversation) {
         return;
@@ -26,22 +37,27 @@ export function createMessageActions(
       const messages = [...conversation.messages];
       const lastMessage = messages[messages.length - 1];
 
-      if (lastMessage && lastMessage.role === "assistant" && lastMessage.isStreaming) {
-        const newContent = lastMessage.content + content;
-        messages[messages.length - 1] = {
-          ...lastMessage,
-          content: newContent,
-          isStreaming: !done,
-        };
+      // Only a chunk that lands in an actual streaming assistant message may
+      // drive the global flags — a stray chunk after Error/finalizeStreaming
+      // must not re-disable the input by flipping isStreaming back on.
+      if (!lastMessage || lastMessage.role !== "assistant" || !lastMessage.isStreaming) {
+        return;
+      }
 
-        if (done && currentSessionId) {
-          const toolCallsJson = lastMessage.toolCalls
-            ? JSON.stringify(lastMessage.toolCalls)
-            : undefined;
-          aiUpdateMessage(lastMessage.id, newContent, toolCallsJson).catch((error) => {
-            console.warn("Failed to update message in database:", error);
-          });
-        }
+      const newContent = lastMessage.content + content;
+      messages[messages.length - 1] = {
+        ...lastMessage,
+        content: newContent,
+        isStreaming: !done,
+      };
+
+      if (done && currentSessionId) {
+        const toolCallsJson = lastMessage.toolCalls
+          ? JSON.stringify(lastMessage.toolCalls)
+          : undefined;
+        aiUpdateMessage(lastMessage.id, newContent, toolCallsJson).catch((error) => {
+          console.warn("Failed to update message in database:", error);
+        });
       }
 
       set((state) => ({
@@ -55,6 +71,23 @@ export function createMessageActions(
         },
         isStreaming: !done,
         isThinking: !done,
+      }));
+    },
+
+    finalizeStreaming: () => {
+      const { currentConversationId, conversations } = get();
+      const conversation = findConversationById(conversations, currentConversationId);
+
+      set((state) => ({
+        isStreaming: false,
+        isThinking: false,
+        conversations: conversation
+          ? {
+              ...state.conversations,
+              [conversation.clusterContext]:
+                finalizeStreamingMessage(conversation),
+            }
+          : state.conversations,
       }));
     },
 

@@ -55,13 +55,18 @@ export function useLogs(
   const setSelectedContainer = useCallback(
     (container: string | null) => {
       const s = store();
+      const wasStreaming = s.logTabs[tabId]?.isStreaming ?? false;
       s.setSelectedContainer(tabId, container);
-      // Stop current stream, clear logs, restart with new container
+      // Stop current stream, clear logs, restart with the new container if a
+      // stream was running (otherwise the user lands on a dead, empty view).
       s.stopStream(tabId).then(() => {
         s.clearLogs(tabId);
+        if (wasStreaming) {
+          void s.startStream(tabId, namespace, podName, container ?? undefined);
+        }
       });
     },
-    [tabId, store]
+    [tabId, namespace, podName, store]
   );
 
   const fetchLogs = useCallback(

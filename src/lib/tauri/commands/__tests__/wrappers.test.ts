@@ -57,7 +57,8 @@ const cases: TestCase[] = [
   { name: "listKubeconfigSources", run: () => cluster.listKubeconfigSources(), expectedCommand: "list_kubeconfig_sources" },
   { name: "validateKubeconfigPath", run: () => cluster.validateKubeconfigPath("~/.kube/config"), expectedCommand: "validate_kubeconfig_path", expectedPayload: { path: "~/.kube/config" } },
   { name: "setKubeconfigMergeMode", run: () => cluster.setKubeconfigMergeMode(true), expectedCommand: "set_kubeconfig_merge_mode", expectedPayload: { enabled: true } },
-  { name: "generateDebugLog", run: () => cluster.generateDebugLog("ctx", "boom"), expectedCommand: "generate_debug_log", expectedPayload: { failed_context: "ctx", error_message: "boom" } },
+  // Tauri v2 expects camelCase argument keys for plain #[command] fns (mapped to snake_case Rust params)
+  { name: "generateDebugLog", run: () => cluster.generateDebugLog("ctx", "boom"), expectedCommand: "generate_debug_log", expectedPayload: { failedContext: "ctx", errorMessage: "boom" } },
   { name: "listFluxKustomizations", run: () => flux.listFluxKustomizations("flux-system"), expectedCommand: "list_flux_kustomizations", expectedPayload: { namespace: "flux-system" } },
   { name: "reconcileFluxKustomization", run: () => flux.reconcileFluxKustomization("app", "flux-system"), expectedCommand: "reconcile_flux_kustomization", expectedPayload: { name: "app", namespace: "flux-system" } },
   { name: "suspendFluxKustomization", run: () => flux.suspendFluxKustomization("app", "flux-system"), expectedCommand: "suspend_flux_kustomization", expectedPayload: { name: "app", namespace: "flux-system" } },
@@ -97,6 +98,8 @@ const cases: TestCase[] = [
   { name: "checkMetricsServer", run: () => metrics.checkMetricsServer(), expectedCommand: "check_metrics_server" },
   { name: "setProxyConfig", run: () => network.setProxyConfig("http", "localhost", 3128, "user", "pass"), expectedCommand: "set_proxy_config", expectedPayload: { proxyType: "http", host: "localhost", port: 3128, username: "user", password: "pass" } },
   { name: "getProxyConfig", run: () => network.getProxyConfig(), expectedCommand: "get_proxy_config" },
+  // Regression: proxy settings UI must reach the backend (was a dead binding)
+  { name: "applyProxyFromSettings", run: () => network.applyProxyFromSettings({ proxyType: "socks5", proxyHost: "127.0.0.1", proxyPort: 1080, proxyUsername: "", proxyPassword: "" }), expectedCommand: "set_proxy_config", expectedPayload: { proxyType: "socks5", host: "127.0.0.1", port: 1080, username: "", password: "" } },
   { name: "portforwardStart", run: () => portforward.portforwardStart("forward-1", portOptions as never), expectedCommand: "portforward_start", expectedPayload: { forwardId: "forward-1", options: portOptions } },
   { name: "portforwardStop", run: () => portforward.portforwardStop("forward-1"), expectedCommand: "portforward_stop", expectedPayload: { forwardId: "forward-1" } },
   { name: "portforwardList", run: () => portforward.portforwardList(), expectedCommand: "portforward_list" },

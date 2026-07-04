@@ -1170,6 +1170,34 @@ describe("ClusterStore", () => {
       expect(mockConnectCluster).not.toHaveBeenCalled();
     });
 
+    // Regression: retries re-entered attemptReconnect while isReconnecting was
+    // still true and were swallowed by the reentrancy guard, so only 1 of the
+    // configured attempts ever ran.
+    it("retries up to maxReconnectAttempts when attempts keep failing", async () => {
+      const errorSpy = jest.spyOn(console, "error").mockImplementation(() => {});
+      jest.useFakeTimers();
+      try {
+        mockConnectCluster.mockRejectedValue(new Error("cluster down"));
+        useClusterStore.setState({
+          lastConnectedContext: "test-context",
+          reconnectAttempts: 0,
+          maxReconnectAttempts: 3,
+          isReconnecting: false,
+        });
+
+        const promise = useClusterStore.getState().attemptReconnect();
+        await jest.runAllTimersAsync();
+        const result = await promise;
+
+        expect(result).toBe(false);
+        expect(mockConnectCluster).toHaveBeenCalledTimes(3);
+        expect(useClusterStore.getState().isReconnecting).toBe(false);
+      } finally {
+        jest.useRealTimers();
+        errorSpy.mockRestore();
+      }
+    });
+
     it("should toggle auto-reconnect setting", () => {
       expect(useClusterStore.getState().autoReconnectEnabled).toBe(true);
 

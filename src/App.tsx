@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { applyProxyFromSettings } from "@/lib/tauri/commands/network";
 import { useKubeconfigWatcher } from "@/lib/hooks/useKubeconfigWatcher";
 import { useStartupDeepLinks } from "@/lib/hooks/useStartupDeepLinks";
 import { Dashboard } from "@/components/features/dashboard";
@@ -47,6 +49,13 @@ export default function Home() {
       // Fetch clusters before showing UI
       if (!initialFetchDone.current) {
         initialFetchDone.current = true;
+        // Re-apply persisted proxy settings before the first cluster connection
+        const { settings } = useUIStore.getState();
+        if (settings.proxyType !== "none") {
+          await applyProxyFromSettings(settings).catch((e) =>
+            console.error("Failed to apply proxy config on startup:", e)
+          );
+        }
         await fetchClusters();
       }
 

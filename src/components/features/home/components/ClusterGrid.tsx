@@ -46,6 +46,7 @@ export function ClusterGrid() {
     currentCluster,
     isConnected,
     isLoading,
+    hasFetchedClusters,
     fetchClusters,
     connect,
     oidcPendingContext,
@@ -144,12 +145,9 @@ export function ClusterGrid() {
     nsDialogDispatch({ type: "removeConfigured", context });
   }, [clearAccessibleNamespaces]);
 
-  // Track whether the initial fetch has completed to avoid showing
-  // the empty state before we know if clusters exist
-  const hasFetchedRef = useRef(false);
-  if (!isLoading && !hasFetchedRef.current) {
-    hasFetchedRef.current = true;
-  }
+  // The store's hasFetchedClusters flag (set after the first fetch resolves)
+  // gates the empty state; deriving it from !isLoading flashed "no clusters
+  // found" on cold start, before the initial fetch had even started.
 
   const searchLower = searchQuery.toLowerCase();
   const filteredClusters = clusters.filter(
@@ -244,7 +242,7 @@ export function ClusterGrid() {
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6">
-        {clusters.length === 0 && hasFetchedRef.current ? (
+        {clusters.length === 0 && hasFetchedClusters ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">

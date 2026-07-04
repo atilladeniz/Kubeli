@@ -54,8 +54,16 @@ export const MessageRenderer = memo(function MessageRenderer({
 
   // Memoize markdown components to avoid recreation
   const markdownComponents = useMemo(
-    () => createMarkdownComponents({ onKubeliLink }),
-    [onKubeliLink]
+    () =>
+      createMarkdownComponents({
+        onKubeliLink,
+        labels: {
+          navigatingTo: (target) => t("navigatingTo", { target }),
+          switchToPodsView: t("switchToPodsView"),
+          linkCopied: t("linkCopied"),
+        },
+      }),
+    [onKubeliLink, t]
   );
 
   // Copy message to clipboard

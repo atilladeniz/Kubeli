@@ -32,6 +32,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { getErrorMessage } from "@/lib/types/errors";
 import {
   getKubeconfigSources,
   addKubeconfigSource,
@@ -63,7 +64,7 @@ export function KubeconfigTab() {
       setSourceInfos(infos);
       setError(null);
     } catch (e) {
-      setError(String(e));
+      setError(getErrorMessage(e));
     }
   }, []);
 
@@ -97,7 +98,7 @@ export function KubeconfigTab() {
         await reloadSourcesAndClusters();
       }
     } catch (e) {
-      setError(String(e));
+      setError(getErrorMessage(e));
     }
   };
 
@@ -110,7 +111,7 @@ export function KubeconfigTab() {
         await reloadSourcesAndClusters();
       }
     } catch (e) {
-      setError(String(e));
+      setError(getErrorMessage(e));
     }
   };
 
@@ -122,7 +123,7 @@ export function KubeconfigTab() {
       setShowPathInput(false);
       await reloadSourcesAndClusters();
     } catch (e) {
-      setError(String(e));
+      setError(getErrorMessage(e));
     }
   };
 
@@ -131,7 +132,7 @@ export function KubeconfigTab() {
       await removeKubeconfigSource(path);
       await reloadSourcesAndClusters();
     } catch (e) {
-      setError(String(e));
+      setError(getErrorMessage(e));
     }
   };
 
@@ -141,7 +142,7 @@ export function KubeconfigTab() {
       setConfig(updated);
       await fetchClusters();
     } catch (e) {
-      setError(String(e));
+      setError(getErrorMessage(e));
     }
   };
 

@@ -5,6 +5,7 @@ use std::collections::HashMap;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
@@ -134,6 +135,68 @@ pub enum AgentInput {
     Message(String),
     /// Interrupt current generation
     Interrupt,
+}
+
+/// Maximum wall-clock time a single CLI generation may run before the child
+/// process is killed and an error is reported to the frontend.
+const MESSAGE_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+
+/// Outcome of racing a running CLI child against interrupt/stop/timeout.
+enum ChildOutcome {
+    /// Child exited on its own (successfully or not).
+    Exited(std::io::Result<std::process::ExitStatus>),
+    /// User interrupted the current generation; the session stays alive.
+    Interrupted,
+    /// Session was stopped (input channel closed); the loop should end.
+    Stopped,
+    /// Child exceeded MESSAGE_TIMEOUT.
+    TimedOut,
+}
+
+/// Race child output streaming + exit against a user interrupt, session stop
+/// (input channel closed) and the per-message timeout. This is what keeps
+/// `ai_interrupt`/`stop_session` responsive while a CLI process is running.
+async fn await_child_outcome<F>(
+    stream_and_wait: F,
+    input_rx: &mut mpsc::Receiver<AgentInput>,
+    timeout: Duration,
+    session_id: &str,
+) -> ChildOutcome
+where
+    F: std::future::Future<Output = std::io::Result<std::process::ExitStatus>>,
+{
+    tokio::pin!(stream_and_wait);
+    let sleep = tokio::time::sleep(timeout);
+    tokio::pin!(sleep);
+
+    loop {
+        tokio::select! {
+            result = &mut stream_and_wait => break ChildOutcome::Exited(result),
+            input = input_rx.recv() => match input {
+                Some(AgentInput::Interrupt) => break ChildOutcome::Interrupted,
+                // send_message rejects new messages while is_processing is
+                // set; a stray one that lost that race is dropped, not queued.
+                Some(AgentInput::Message(_)) => {
+                    tracing::warn!(
+                        "Dropping message received while session {} is processing",
+                        session_id
+                    );
+                }
+                None => break ChildOutcome::Stopped,
+            },
+            () = &mut sleep => break ChildOutcome::TimedOut,
+        }
+    }
+}
+
+/// Kill a CLI child process and reap it so it cannot linger as a zombie.
+async fn kill_child(child: &mut tokio::process::Child, provider_name: &str) {
+    // tokio's kill() sends SIGKILL and waits for exit; the extra wait() is a
+    // no-op safety net for the start_kill-succeeded-but-wait-failed case.
+    if let Err(e) = child.kill().await {
+        tracing::warn!("Failed to kill {} process: {}", provider_name, e);
+    }
+    let _ = child.wait().await;
 }
 
 /// AI CLI provider type
@@ -542,6 +605,7 @@ impl AgentManager {
                     // Spawn CLI process with retry for transient errors
                     let extended_path = super::cli_detector::get_extended_path();
                     let max_attempts = 2u32;
+                    let mut was_interrupted = false;
 
                     for attempt in 1..=max_attempts {
                         let stderr_capture = Arc::new(tokio::sync::Mutex::new(String::new()));
@@ -574,50 +638,66 @@ impl AgentManager {
                                     });
                                 }
 
-                                if let Some(stdout) = stdout {
-                                    match provider {
-                                        AiCliProvider::Claude => {
-                                            Self::process_claude_output(
-                                                &app,
-                                                &event_name,
-                                                stdout,
-                                                None, // stderr already captured above
-                                            )
-                                            .await;
+                                // Stream output and wait for exit while staying
+                                // responsive to Interrupt, session stop and the
+                                // per-message timeout. The async block borrows
+                                // `child`, so the kill paths below run after the
+                                // block (and its borrow) is dropped.
+                                let outcome = {
+                                    let stream_and_wait = async {
+                                        if let Some(stdout) = stdout {
+                                            match provider {
+                                                AiCliProvider::Claude => {
+                                                    Self::process_claude_output(
+                                                        &app,
+                                                        &event_name,
+                                                        stdout,
+                                                        None, // stderr already captured above
+                                                    )
+                                                    .await;
+                                                }
+                                                AiCliProvider::Codex => {
+                                                    Self::process_codex_output(
+                                                        &app,
+                                                        &event_name,
+                                                        stdout,
+                                                        None,
+                                                    )
+                                                    .await;
+                                                }
+                                                AiCliProvider::OpenCode => {
+                                                    Self::process_opencode_output(
+                                                        &app,
+                                                        &event_name,
+                                                        stdout,
+                                                        None,
+                                                    )
+                                                    .await;
+                                                }
+                                                AiCliProvider::Droid => {
+                                                    Self::process_droid_output(
+                                                        &app,
+                                                        &event_name,
+                                                        stdout,
+                                                        None,
+                                                    )
+                                                    .await;
+                                                }
+                                            }
                                         }
-                                        AiCliProvider::Codex => {
-                                            Self::process_codex_output(
-                                                &app,
-                                                &event_name,
-                                                stdout,
-                                                None,
-                                            )
-                                            .await;
-                                        }
-                                        AiCliProvider::OpenCode => {
-                                            Self::process_opencode_output(
-                                                &app,
-                                                &event_name,
-                                                stdout,
-                                                None,
-                                            )
-                                            .await;
-                                        }
-                                        AiCliProvider::Droid => {
-                                            Self::process_droid_output(
-                                                &app,
-                                                &event_name,
-                                                stdout,
-                                                None,
-                                            )
-                                            .await;
-                                        }
-                                    }
-                                }
+                                        child.wait().await
+                                    };
+                                    await_child_outcome(
+                                        stream_and_wait,
+                                        &mut input_rx,
+                                        MESSAGE_TIMEOUT,
+                                        &session_id,
+                                    )
+                                    .await
+                                };
 
-                                // Wait for process to finish
-                                match child.wait().await {
-                                    Ok(status) => {
+                                match outcome {
+                                    ChildOutcome::Exited(Ok(status)) => {
                                         tracing::debug!(
                                             "{} process exited with: {} (attempt {}/{})",
                                             provider_name,
@@ -652,11 +732,57 @@ impl AgentManager {
                                             }
                                         }
                                     }
-                                    Err(e) => {
+                                    ChildOutcome::Exited(Err(e)) => {
                                         tracing::error!(
                                             "Failed to wait for {} process: {}",
                                             provider_name,
                                             e
+                                        );
+                                    }
+                                    ChildOutcome::Interrupted => {
+                                        tracing::info!(
+                                            "Interrupt for session {}: killing {} process",
+                                            session_id,
+                                            provider_name
+                                        );
+                                        kill_child(&mut child, provider_name).await;
+                                        was_interrupted = true;
+                                        // No MessageChunk here: the frontend finalizes the
+                                        // message locally on interrupt, and any chunk emitted
+                                        // after the kill can race into the user's NEXT message
+                                        // once the interrupt flag is cleared.
+                                        let _ = app
+                                            .emit(&event_name, AIEvent::Thinking { active: false });
+                                    }
+                                    ChildOutcome::Stopped => {
+                                        tracing::info!(
+                                            "Session {} stopped: killing {} process",
+                                            session_id,
+                                            provider_name
+                                        );
+                                        kill_child(&mut child, provider_name).await;
+                                        let _ = app
+                                            .emit(&event_name, AIEvent::Thinking { active: false });
+                                    }
+                                    ChildOutcome::TimedOut => {
+                                        tracing::warn!(
+                                            "{} process for session {} exceeded {}s timeout, killing",
+                                            provider_name,
+                                            session_id,
+                                            MESSAGE_TIMEOUT.as_secs()
+                                        );
+                                        kill_child(&mut child, provider_name).await;
+                                        let _ = app
+                                            .emit(&event_name, AIEvent::Thinking { active: false });
+                                        let _ = app.emit(
+                                            &event_name,
+                                            AIEvent::Error {
+                                                message: format!(
+                                                    "{} did not finish within {} minutes and was terminated",
+                                                    provider_name,
+                                                    MESSAGE_TIMEOUT.as_secs() / 60
+                                                ),
+                                            },
                                         );
                                     }
                                 }
@@ -677,19 +803,27 @@ impl AgentManager {
                         break;
                     }
 
-                    // Done processing, emit final message chunk
-                    let _ = app.emit(
-                        &event_name,
-                        AIEvent::MessageChunk {
-                            content: String::new(),
-                            done: true,
-                        },
-                    );
+                    // Done processing, emit final message chunk — except after an
+                    // interrupt, where the frontend already finalized locally and a
+                    // late done chunk could prematurely finalize the next message.
+                    if !was_interrupted {
+                        let _ = app.emit(
+                            &event_name,
+                            AIEvent::MessageChunk {
+                                content: String::new(),
+                                done: true,
+                            },
+                        );
+                    }
                     is_processing.store(false, Ordering::SeqCst);
                 }
                 AgentInput::Interrupt => {
-                    tracing::info!("Interrupt requested for session {}", session_id);
-                    // Process will be killed when child goes out of scope
+                    // Interrupt while a generation is running is handled inside
+                    // await_child_outcome; reaching here means nothing is running.
+                    tracing::info!(
+                        "Interrupt requested for session {} with no generation in progress",
+                        session_id
+                    );
                 }
             }
         }
@@ -1435,5 +1569,102 @@ mod tests {
         let json: Value = serde_json::from_str(result).unwrap();
         assert_eq!(json.get("isError").and_then(|v| v.as_bool()), Some(false));
         assert_eq!(json.get("value").and_then(|v| v.as_str()), Some("output"));
+    }
+
+    // Regression tests for interrupt/stop/timeout while a CLI child is
+    // running (previously input_rx was only polled between messages, so
+    // ai_interrupt could not stop a running generation and a hung CLI
+    // wedged the session forever). Unix-only: they rely on `sleep`.
+    #[cfg(unix)]
+    mod child_race {
+        use super::super::*;
+
+        fn spawn_sleep(secs: u32) -> tokio::process::Child {
+            tokio::process::Command::new("sleep")
+                .arg(secs.to_string())
+                .kill_on_drop(true)
+                .spawn()
+                .expect("failed to spawn sleep")
+        }
+
+        #[tokio::test]
+        async fn interrupt_is_received_while_child_is_running() {
+            let mut child = spawn_sleep(30);
+            let (tx, mut rx) = mpsc::channel::<AgentInput>(4);
+
+            tx.send(AgentInput::Interrupt).await.unwrap();
+
+            let outcome = await_child_outcome(
+                child.wait(),
+                &mut rx,
+                Duration::from_secs(30),
+                "test-session",
+            )
+            .await;
+            assert!(matches!(outcome, ChildOutcome::Interrupted));
+
+            // The interrupt path must kill the child so it does not linger.
+            let start = std::time::Instant::now();
+            kill_child(&mut child, "test").await;
+            assert!(start.elapsed() < Duration::from_secs(5));
+            // Reaped: try_wait reports an exit status, no zombie left behind.
+            let status = child.try_wait().expect("try_wait failed");
+            assert!(status.is_some(), "child should have been reaped");
+        }
+
+        #[tokio::test]
+        async fn closed_input_channel_signals_stop_while_child_is_running() {
+            let mut child = spawn_sleep(30);
+            let (tx, mut rx) = mpsc::channel::<AgentInput>(4);
+            drop(tx); // stop_session drops the session (and its input_tx)
+
+            let outcome = await_child_outcome(
+                child.wait(),
+                &mut rx,
+                Duration::from_secs(30),
+                "test-session",
+            )
+            .await;
+            assert!(matches!(outcome, ChildOutcome::Stopped));
+
+            kill_child(&mut child, "test").await;
+        }
+
+        #[tokio::test]
+        async fn hung_child_times_out() {
+            let mut child = spawn_sleep(30);
+            let (_tx, mut rx) = mpsc::channel::<AgentInput>(4);
+
+            let outcome = await_child_outcome(
+                child.wait(),
+                &mut rx,
+                Duration::from_millis(100),
+                "test-session",
+            )
+            .await;
+            assert!(matches!(outcome, ChildOutcome::TimedOut));
+
+            kill_child(&mut child, "test").await;
+        }
+
+        #[tokio::test]
+        async fn normal_exit_yields_exited_and_stray_messages_are_dropped() {
+            let mut child = spawn_sleep(0);
+            let (tx, mut rx) = mpsc::channel::<AgentInput>(4);
+            // A stray Message must not abort the child; it is logged and dropped.
+            tx.send(AgentInput::Message("stray".into())).await.unwrap();
+
+            let outcome = await_child_outcome(
+                child.wait(),
+                &mut rx,
+                Duration::from_secs(30),
+                "test-session",
+            )
+            .await;
+            match outcome {
+                ChildOutcome::Exited(Ok(status)) => assert!(status.success()),
+                _ => panic!("expected ChildOutcome::Exited(Ok(_))"),
+            }
+        }
     }
 }
