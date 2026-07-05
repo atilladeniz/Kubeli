@@ -95,7 +95,7 @@
   },
   "devDependencies": {
     "@dotenvx/dotenvx": "^1.51.4",
-    "@playwright/test": "^1.51.1",
+    "@playwright/test": "^1.61.1",
     "@swc/jest": "^0.2.39",
     "@tailwindcss/vite": "^4.2.2",
     "@tauri-apps/cli": "^2.11.0",

@@ -4,6 +4,9 @@ test("updates lint state from Monaco markers in create resource panel", async ({
   await page.goto("/");
 
   await page.getByRole("button", { name: "Connect" }).first().click();
+  // The dashboard is code-split: its shortcut handler mounts only after the
+  // lazy chunk loads, so wait for the sidebar before sending the shortcut.
+  await expect(page.getByRole("complementary")).toBeVisible();
   await page.keyboard.press("Meta+n");
 
   await expect(page.getByRole("heading", { name: "Create Resource" })).toBeVisible();
