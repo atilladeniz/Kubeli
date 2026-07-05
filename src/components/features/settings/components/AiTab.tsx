@@ -26,7 +26,8 @@ interface AiTabProps {
 export function AiTab({ aiCli }: AiTabProps) {
   const t = useTranslations("settings");
   const tc = useTranslations("common");
-  const { settings, updateSettings } = useUIStore();
+  const settings = useUIStore((s) => s.settings);
+  const updateSettings = useUIStore((s) => s.updateSettings);
   const { isWindows } = usePlatform();
 
   const cliTranslations = {

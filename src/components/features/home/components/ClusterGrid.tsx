@@ -41,19 +41,17 @@ export function ClusterGrid() {
   const updateSettings = useUIStore((s) => s.updateSettings);
   const openSettingsTab = useUIStore((s) => s.openSettingsTab);
 
-  const {
-    clusters,
-    currentCluster,
-    isConnected,
-    isLoading,
-    hasFetchedClusters,
-    fetchClusters,
-    connect,
-    oidcPendingContext,
-    cancelConnect,
-    saveAccessibleNamespaces,
-    clearAccessibleNamespaces,
-  } = useClusterStore();
+  const clusters = useClusterStore((s) => s.clusters);
+  const currentCluster = useClusterStore((s) => s.currentCluster);
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const isLoading = useClusterStore((s) => s.isLoading);
+  const hasFetchedClusters = useClusterStore((s) => s.hasFetchedClusters);
+  const fetchClusters = useClusterStore((s) => s.fetchClusters);
+  const connect = useClusterStore((s) => s.connect);
+  const oidcPendingContext = useClusterStore((s) => s.oidcPendingContext);
+  const cancelConnect = useClusterStore((s) => s.cancelConnect);
+  const saveAccessibleNamespaces = useClusterStore((s) => s.saveAccessibleNamespaces);
+  const clearAccessibleNamespaces = useClusterStore((s) => s.clearAccessibleNamespaces);
   const { forwards } = usePortForward();
 
   // Configure namespaces dialog state

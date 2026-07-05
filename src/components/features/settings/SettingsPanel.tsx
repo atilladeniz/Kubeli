@@ -25,7 +25,9 @@ import {
 
 export function SettingsPanel() {
   const t = useTranslations("settings");
-  const { isSettingsOpen, setSettingsOpen, settingsInitialTab } = useUIStore();
+  const isSettingsOpen = useUIStore((s) => s.isSettingsOpen);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const settingsInitialTab = useUIStore((s) => s.settingsInitialTab);
   const [activeTab, setActiveTab] = useState("appearance");
   const [appVersion, setAppVersion] = useState<string>("0.1.0");
 

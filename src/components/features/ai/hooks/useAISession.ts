@@ -19,15 +19,14 @@ interface UseAISessionOptions {
 export function useAISession(options: UseAISessionOptions = {}) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
-  const {
-    isSessionActive,
-    isStreaming,
-    startSession,
-    sendMessage,
-    setError,
-  } = useAIStore();
+  const isSessionActive = useAIStore((s) => s.isSessionActive);
+  const isStreaming = useAIStore((s) => s.isStreaming);
+  const startSession = useAIStore((s) => s.startSession);
+  const sendMessage = useAIStore((s) => s.sendMessage);
+  const setError = useAIStore((s) => s.setError);
 
-  const { currentCluster, currentNamespace } = useClusterStore();
+  const currentCluster = useClusterStore((s) => s.currentCluster);
+  const currentNamespace = useClusterStore((s) => s.currentNamespace);
 
   const handleSend = useCallback(
     async (input: string) => {

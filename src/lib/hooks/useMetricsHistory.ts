@@ -92,7 +92,7 @@ export function useMetricsHistory(
   podName: string,
   namespace: string,
 ): MetricsHistoryResult {
-  const { isConnected } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
   const key = `${namespace}/${podName}`;
   const [history, setHistory] = useState<MetricsSnapshot[]>(() => [...getHistory(key)]);
   const [polled, setPolled] = useState(() => getHistory(key).length > 0);

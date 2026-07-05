@@ -15,14 +15,12 @@ export function ConnectionErrorAlert() {
   const tc = useTranslations("cluster");
   const [isDownloading, setIsDownloading] = useState(false);
 
-  const {
-    error,
-    lastConnectionErrorContext,
-    lastConnectionErrorMessage,
-    oidcTimedOutContext,
-    setError,
-    fallbackToKubeconfigAuth,
-  } = useClusterStore();
+  const error = useClusterStore((s) => s.error);
+  const lastConnectionErrorContext = useClusterStore((s) => s.lastConnectionErrorContext);
+  const lastConnectionErrorMessage = useClusterStore((s) => s.lastConnectionErrorMessage);
+  const oidcTimedOutContext = useClusterStore((s) => s.oidcTimedOutContext);
+  const setError = useClusterStore((s) => s.setError);
+  const fallbackToKubeconfigAuth = useClusterStore((s) => s.fallbackToKubeconfigAuth);
 
   const canDownloadDebugLog = Boolean(
     error &&

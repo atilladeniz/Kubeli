@@ -21,7 +21,10 @@ import { ThemeSelector } from "./ThemeSelector";
 
 export function AppearanceTab() {
   const t = useTranslations("settings");
-  const { settings, setTheme, setLocale, updateSettings } = useUIStore();
+  const settings = useUIStore((s) => s.settings);
+  const setTheme = useUIStore((s) => s.setTheme);
+  const setLocale = useUIStore((s) => s.setLocale);
+  const updateSettings = useUIStore((s) => s.updateSettings);
 
   const vibrancyLevel = useMemo((): VibrancyLevel => {
     const validLevels: VibrancyLevel[] = ["off", "standard", "more", "extra"];

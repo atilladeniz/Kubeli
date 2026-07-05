@@ -18,7 +18,8 @@ const errorInfo = (err: unknown): CliInfo => ({
 });
 
 export function useAiCli(isOpen: boolean) {
-  const { settings, updateSettings } = useUIStore();
+  const settings = useUIStore((s) => s.settings);
+  const updateSettings = useUIStore((s) => s.updateSettings);
   const [claudeCliInfo, setClaudeCliInfo] = useState<CliInfo | null>(null);
   const [codexCliInfo, setCodexCliInfo] = useState<CliInfo | null>(null);
   const [opencodeCliInfo, setOpencodeCliInfo] = useState<CliInfo | null>(null);

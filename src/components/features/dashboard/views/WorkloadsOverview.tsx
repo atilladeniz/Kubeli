@@ -18,7 +18,7 @@ import { StatusRow } from "../components/StatusRow";
 
 export function WorkloadsOverview() {
   const t = useTranslations("workloads");
-  const { currentNamespace } = useClusterStore();
+  const currentNamespace = useClusterStore((s) => s.currentNamespace);
   const { data: pods } = usePods();
   const { data: deployments } = useDeployments();
   const { data: replicaSets } = useReplicaSets();

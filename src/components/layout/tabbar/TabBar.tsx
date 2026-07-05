@@ -30,8 +30,12 @@ import { useTabTitle } from "./hooks/useTabTitle";
 export { useTabTitle };
 
 export function TabBar() {
-  const { tabs, activeTabId, setActiveTab, closeTab, openTab, reorderTabs } =
-    useTabsStore();
+  const tabs = useTabsStore((s) => s.tabs);
+  const activeTabId = useTabsStore((s) => s.activeTabId);
+  const setActiveTab = useTabsStore((s) => s.setActiveTab);
+  const closeTab = useTabsStore((s) => s.closeTab);
+  const openTab = useTabsStore((s) => s.openTab);
+  const reorderTabs = useTabsStore((s) => s.reorderTabs);
   const scrollRef = useRef<HTMLDivElement>(null);
   const t = useTranslations("tabs");
   const getTabTitle = useTabTitle();

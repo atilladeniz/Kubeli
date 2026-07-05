@@ -66,7 +66,13 @@ export const useUpdaterStore = create<UpdaterState>((set) => ({
 
   setDownloading: (downloading) => set({ downloading }),
 
-  setProgress: (progress) => set({ progress }),
+  // Quantize to whole percent: download events fire per chunk; sub-percent
+  // writes would re-render every subscriber hundreds of times per download.
+  setProgress: (progress) =>
+    set((state) => {
+      const rounded = Math.round(progress);
+      return rounded === state.progress ? state : { progress: rounded };
+    }),
 
   setError: (error) => set({ error, checking: false, downloading: false }),
 

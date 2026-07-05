@@ -16,11 +16,15 @@ export function useOptionalNamespaceResource<T>(
   listFn: (namespace?: string) => Promise<T[]>,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
-  const { isConnected, selectedNamespaces, namespaceSource, namespaces: configuredNamespaces } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const selectedNamespaces = useClusterStore((s) => s.selectedNamespaces);
+  const namespaceSource = useClusterStore((s) => s.namespaceSource);
+  const configuredNamespaces = useClusterStore((s) => s.namespaces);
   const isMultiNs = !options.namespace && selectedNamespaces.length > 1;
   const isConfiguredAllNs = namespaceSource === "configured" && !options.namespace && selectedNamespaces.length === 0;
   const namespace = options.namespace ?? (selectedNamespaces.length === 1 ? selectedNamespaces[0] : "");
-  const { getCache, setCache } = useResourceCacheStore();
+  const getCache = useResourceCacheStore((s) => s.getCache);
+  const setCache = useResourceCacheStore((s) => s.setCache);
   const cacheKey = `${displayName}:${options.namespace ?? (isConfiguredAllNs ? `configured:${configuredNamespaces.slice().sort().join(",")}` : isMultiNs ? selectedNamespaces.slice().sort().join(",") : namespace)}`;
 
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));

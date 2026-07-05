@@ -37,9 +37,10 @@ export function useLogAnalysis({
 }: UseLogAnalysisOptions): UseLogAnalysisReturn {
   const [isAICliAvailable, setIsAICliAvailable] = useState<boolean | null>(null);
 
-  const { setPendingAnalysis } = useAIStore();
-  const { currentCluster, currentNamespace } = useClusterStore();
-  const { setAIAssistantOpen } = useUIStore();
+  const setPendingAnalysis = useAIStore((s) => s.setPendingAnalysis);
+  const currentCluster = useClusterStore((s) => s.currentCluster);
+  const currentNamespace = useClusterStore((s) => s.currentNamespace);
+  const setAIAssistantOpen = useUIStore((s) => s.setAIAssistantOpen);
 
   // Check AI CLI availability on mount
   useEffect(() => {

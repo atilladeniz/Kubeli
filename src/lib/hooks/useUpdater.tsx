@@ -46,29 +46,27 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
   }
   const toastStrings = toastStringsRef.current;
 
-  const {
-    checking,
-    available,
-    downloading,
-    progress,
-    error,
-    update,
-    isSimulated,
-    readyToRestart,
-    downloadComplete,
-    checkerDismissed,
-    setChecking,
-    setAvailable,
-    setDownloading,
-    setProgress,
-    setError,
-    setReadyToRestart,
-    setDownloadComplete,
-    setCheckerDismissed,
-    setHasAutoChecked,
-    simulateUpdate,
-    clearSimulation,
-  } = useUpdaterStore();
+  const checking = useUpdaterStore((s) => s.checking);
+  const available = useUpdaterStore((s) => s.available);
+  const downloading = useUpdaterStore((s) => s.downloading);
+  const progress = useUpdaterStore((s) => s.progress);
+  const error = useUpdaterStore((s) => s.error);
+  const update = useUpdaterStore((s) => s.update);
+  const isSimulated = useUpdaterStore((s) => s.isSimulated);
+  const readyToRestart = useUpdaterStore((s) => s.readyToRestart);
+  const downloadComplete = useUpdaterStore((s) => s.downloadComplete);
+  const checkerDismissed = useUpdaterStore((s) => s.checkerDismissed);
+  const setChecking = useUpdaterStore((s) => s.setChecking);
+  const setAvailable = useUpdaterStore((s) => s.setAvailable);
+  const setDownloading = useUpdaterStore((s) => s.setDownloading);
+  const setProgress = useUpdaterStore((s) => s.setProgress);
+  const setError = useUpdaterStore((s) => s.setError);
+  const setReadyToRestart = useUpdaterStore((s) => s.setReadyToRestart);
+  const setDownloadComplete = useUpdaterStore((s) => s.setDownloadComplete);
+  const setCheckerDismissed = useUpdaterStore((s) => s.setCheckerDismissed);
+  const setHasAutoChecked = useUpdaterStore((s) => s.setHasAutoChecked);
+  const simulateUpdate = useUpdaterStore((s) => s.simulateUpdate);
+  const clearSimulation = useUpdaterStore((s) => s.clearSimulation);
   const isTauriReady = useCallback(() => {
     if (typeof window === "undefined") return false;
     return "__TAURI_INTERNALS__" in window || "__TAURI__" in window;

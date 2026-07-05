@@ -51,17 +51,15 @@ const nodeTypes = {
 } as const;
 
 function ResourceDiagramInner() {
-  const { isConnected } = useClusterStore();
-  const { resolvedTheme } = useUIStore();
-  const {
-    nodes: storeNodes,
-    edges: storeEdges,
-    isLoading,
-    error,
-    selectedNodeId,
-    setSelectedNode,
-    setSearchQuery,
-  } = useDiagramStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const resolvedTheme = useUIStore((s) => s.resolvedTheme);
+  const storeNodes = useDiagramStore((s) => s.nodes);
+  const storeEdges = useDiagramStore((s) => s.edges);
+  const isLoading = useDiagramStore((s) => s.isLoading);
+  const error = useDiagramStore((s) => s.error);
+  const selectedNodeId = useDiagramStore((s) => s.selectedNodeId);
+  const setSelectedNode = useDiagramStore((s) => s.setSelectedNode);
+  const setSearchQuery = useDiagramStore((s) => s.setSearchQuery);
 
   const colorMode = resolvedTheme === "light" ? "light" : "dark";
 

@@ -28,7 +28,7 @@ function SectionHeader({ title }: { title: string }) {
 
 export function PodMetricsSection({ podName, namespace }: PodMetricsSectionProps) {
   const t = useTranslations();
-  const { isConnected } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
   const { available: metricsAvailable } = useMetricsAvailability();
   const { history } = useMetricsHistory(podName, namespace);
   const sectionTitle = t("resourceDetail.metrics");

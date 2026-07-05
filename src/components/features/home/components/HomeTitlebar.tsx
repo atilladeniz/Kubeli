@@ -6,7 +6,7 @@ import { useUpdater } from "@/lib/hooks/useUpdater";
 
 export function HomeTitlebar() {
   const tu = useTranslations("updates");
-  const { setSettingsOpen } = useUIStore();
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const {
     available,
     update,

@@ -14,7 +14,7 @@ const STYLES: Record<AiCliProvider, { className: string; label: string }> = {
  * Badge showing which AI CLI provider is being used.
  */
 export function ProviderBadge() {
-  const { settings } = useUIStore();
+  const settings = useUIStore((s) => s.settings);
   const provider: AiCliProvider = settings.aiCliProvider || "claude";
   const style = STYLES[provider] ?? STYLES.claude;
 

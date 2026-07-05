@@ -96,7 +96,13 @@ function isNotFoundError(error: unknown): boolean {
 function DashboardContent() {
   useDeepLinkNavigation();
   const t = useTranslations();
-  const { tabs: resourceTabs, activeTabId, navigateCurrentTab, openTab, closeTab, setActiveTab, restoreTabs } = useTabsStore();
+  const resourceTabs = useTabsStore((s) => s.tabs);
+  const activeTabId = useTabsStore((s) => s.activeTabId);
+  const navigateCurrentTab = useTabsStore((s) => s.navigateCurrentTab);
+  const openTab = useTabsStore((s) => s.openTab);
+  const closeTab = useTabsStore((s) => s.closeTab);
+  const setActiveTab = useTabsStore((s) => s.setActiveTab);
+  const restoreTabs = useTabsStore((s) => s.restoreTabs);
   const getTabTitle = useTabTitle();
   const activeTab = resourceTabs.find((t) => t.id === activeTabId) || resourceTabs[0];
   const activeResource = activeTab?.type ?? "cluster-overview";
@@ -106,7 +112,9 @@ function DashboardContent() {
     },
     [navigateCurrentTab, getTabTitle]
   );
-  const { isConnected, currentCluster, setCurrentNamespace } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const currentCluster = useClusterStore((s) => s.currentCluster);
+  const setCurrentNamespace = useClusterStore((s) => s.setCurrentNamespace);
   const { tabs, isOpen, closePanel } = useTerminalTabs();
   const [selectedResource, setSelectedResource] = useState<{ data: ResourceData; type: string } | null>(null);
   const [navigationHistory, setNavigationHistory] = useState<Array<{ data: ResourceData; type: string }>>([]);
@@ -115,9 +123,18 @@ function DashboardContent() {
   const [uninstallDialog, setUninstallDialog] = useState<UninstallDialogState | null>(null);
   const [scaleDialog, setScaleDialog] = useState<ScaleDialogState | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
-  const { getFavorites, removeFavorite } = useFavoritesStore();
-  const { setSettingsOpen, isAIAssistantOpen, toggleAIAssistant, pendingPodLogs, triggerRefresh, triggerSearchFocus, isCreateResourceOpen, setCreateResourceOpen } = useUIStore();
-  const { isThinking, isStreaming } = useAIStore();
+  const getFavorites = useFavoritesStore((s) => s.getFavorites);
+  const removeFavorite = useFavoritesStore((s) => s.removeFavorite);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const isAIAssistantOpen = useUIStore((s) => s.isAIAssistantOpen);
+  const toggleAIAssistant = useUIStore((s) => s.toggleAIAssistant);
+  const pendingPodLogs = useUIStore((s) => s.pendingPodLogs);
+  const triggerRefresh = useUIStore((s) => s.triggerRefresh);
+  const triggerSearchFocus = useUIStore((s) => s.triggerSearchFocus);
+  const isCreateResourceOpen = useUIStore((s) => s.isCreateResourceOpen);
+  const setCreateResourceOpen = useUIStore((s) => s.setCreateResourceOpen);
+  const isThinking = useAIStore((s) => s.isThinking);
+  const isStreaming = useAIStore((s) => s.isStreaming);
   const isAIProcessing = isThinking || isStreaming;
   const detailRequestIdRef = useRef(0);
 
@@ -381,7 +398,7 @@ function DashboardContent() {
     }
   };
 
-  const { triggerResourceDeleteRefresh } = useUIStore();
+  const triggerResourceDeleteRefresh = useUIStore((s) => s.triggerResourceDeleteRefresh);
 
   const handleDeleteResource = async () => {
     if (!selectedResource) return;

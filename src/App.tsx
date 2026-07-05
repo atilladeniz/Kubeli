@@ -34,7 +34,9 @@ export default function Home() {
   // Dispatch any deep link that launched the app (cold start), once Tauri is ready
   useStartupDeepLinks(isTauri);
 
-  const { isConnected, fetchClusters, connect } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const fetchClusters = useClusterStore((s) => s.fetchClusters);
+  const connect = useClusterStore((s) => s.connect);
 
   // Initialize app: detect Tauri, then stream the cluster list in. isReady is
   // set before fetchClusters resolves — first paint must not wait on disk I/O

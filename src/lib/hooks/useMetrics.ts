@@ -49,7 +49,7 @@ export function useClusterMetrics(options: UseMetricsOptions = {}): UseClusterMe
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [metricsAvailable, setMetricsAvailable] = useState(false);
-  const { isConnected } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -96,7 +96,7 @@ export function useNodeMetrics(options: UseMetricsOptions = {}): UseNodeMetricsR
   const [data, setData] = useState<NodeMetrics[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { isConnected } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -139,7 +139,8 @@ export function usePodMetrics(
   const [data, setData] = useState<PodMetrics[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const { isConnected, currentNamespace } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const currentNamespace = useClusterStore((s) => s.currentNamespace);
   const ns = namespace ?? currentNamespace;
   const pollCount = useRef(0);
   /** Track whether kubelet direct endpoint is available */
@@ -212,7 +213,7 @@ export function usePodMetrics(
 export function useMetricsAvailability(): { available: boolean; checking: boolean } {
   const [available, setAvailable] = useState(false);
   const [checking, setChecking] = useState(true);
-  const { isConnected } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
 
   useEffect(() => {
     if (!isConnected) {

@@ -5,7 +5,11 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { usePlatform } from "@/lib/hooks/usePlatform";
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const { settings, resolvedTheme, setResolvedTheme, setSettingsOpen, isSettingsOpen } = useUIStore();
+  const settings = useUIStore((s) => s.settings);
+  const resolvedTheme = useUIStore((s) => s.resolvedTheme);
+  const setResolvedTheme = useUIStore((s) => s.setResolvedTheme);
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
+  const isSettingsOpen = useUIStore((s) => s.isSettingsOpen);
   const { platform } = usePlatform();
 
   // Global keyboard shortcuts

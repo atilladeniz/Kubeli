@@ -18,7 +18,7 @@ import { MetricsProgressBar } from "../components/MetricsProgressBar";
 
 export function ClusterOverview() {
   const t = useTranslations();
-  const { currentCluster } = useClusterStore();
+  const currentCluster = useClusterStore((s) => s.currentCluster);
   const { data: pods } = usePods();
   const { data: deployments } = useDeployments();
   const { data: services } = useServices();

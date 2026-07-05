@@ -17,7 +17,8 @@ import { SettingSection } from "./SettingSection";
 export function NetworkTab() {
   const t = useTranslations("settings");
   const tc = useTranslations("common");
-  const { settings, updateSettings } = useUIStore();
+  const settings = useUIStore((s) => s.settings);
+  const updateSettings = useUIStore((s) => s.updateSettings);
   const skippedInitialApply = useRef(false);
 
   // Push proxy changes to the backend (debounced); startup re-apply happens in App.tsx.
