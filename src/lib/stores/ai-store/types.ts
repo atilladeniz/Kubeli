@@ -1,10 +1,5 @@
 import type { StateCreator } from "zustand";
-import type {
-  ApprovalRequest,
-  MessageRecord,
-  PermissionMode,
-  SessionInfo,
-} from "../../tauri/commands";
+import type { MessageRecord, SessionInfo } from "../../tauri/commands";
 
 export type MessageRole = "user" | "assistant" | "system";
 
@@ -46,8 +41,6 @@ export interface AIState {
   isStreaming: boolean;
   isInterrupted: boolean;
   error: string | null;
-  permissionMode: PermissionMode;
-  pendingApproval: ApprovalRequest | null;
   pendingAnalysis: PendingAnalysis | null;
 
   startSession: (clusterContext: string, currentNamespace?: string) => Promise<string>;
@@ -72,13 +65,6 @@ export interface AIState {
   ) => void;
   updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
 
-  getPermissionMode: () => Promise<PermissionMode>;
-  setPermissionMode: (mode: PermissionMode) => Promise<void>;
-
-  setApprovalRequest: (request: ApprovalRequest | null) => void;
-  approveAction: (requestId: string) => Promise<void>;
-  rejectAction: (requestId: string, reason?: string) => Promise<void>;
-
   setPendingAnalysis: (analysis: PendingAnalysis | null) => void;
   clearPendingAnalysis: () => void;
   getPendingAnalysis: () => PendingAnalysis | null;
@@ -97,8 +83,6 @@ export type AIStateValues = Pick<
   | "isStreaming"
   | "isInterrupted"
   | "error"
-  | "permissionMode"
-  | "pendingApproval"
   | "pendingAnalysis"
 >;
 

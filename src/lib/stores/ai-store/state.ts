@@ -9,7 +9,5 @@ export const initialAIState: AIStateValues = {
   isStreaming: false,
   isInterrupted: false,
   error: null,
-  permissionMode: "default",
-  pendingApproval: null,
   pendingAnalysis: null,
 };

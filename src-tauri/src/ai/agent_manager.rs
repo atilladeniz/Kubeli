@@ -1,4 +1,3 @@
-use crate::ai::permissions::{ApprovalRequest, PermissionMode, SharedPermissionChecker};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -28,18 +27,6 @@ pub enum AIEvent {
         status: String,
         output: Option<String>,
     },
-    /// Tool execution requires approval
-    ApprovalRequired {
-        request_id: String,
-        tool_name: String,
-        command_preview: String,
-        reason: String,
-        severity: String,
-    },
-    /// Approval response (for UI feedback)
-    ApprovalResponse { request_id: String, approved: bool },
-    /// Tool was blocked by permission system
-    ToolBlocked { tool_name: String, reason: String },
     /// Error occurred
     Error { message: String },
     /// Session ended
@@ -248,8 +235,6 @@ pub struct AgentManager {
     opencode_cli_path: RwLock<Option<String>>,
     /// Droid CLI path cache
     droid_cli_path: RwLock<Option<String>>,
-    /// Permission checker for tool executions
-    permission_checker: SharedPermissionChecker,
 }
 
 impl AgentManager {
@@ -260,60 +245,7 @@ impl AgentManager {
             codex_cli_path: RwLock::new(None),
             opencode_cli_path: RwLock::new(None),
             droid_cli_path: RwLock::new(None),
-            permission_checker: crate::ai::permissions::create_permission_checker(),
         }
-    }
-
-    /// Get the permission checker (for future tool-level integration)
-    #[allow(dead_code)]
-    pub fn permission_checker(&self) -> &SharedPermissionChecker {
-        &self.permission_checker
-    }
-
-    /// Set permission mode
-    pub async fn set_permission_mode(&self, mode: PermissionMode) {
-        self.permission_checker.set_mode(mode).await;
-    }
-
-    /// Get current permission mode
-    pub async fn get_permission_mode(&self) -> PermissionMode {
-        self.permission_checker.get_mode().await
-    }
-
-    /// Add sandboxed namespace for AcceptEdits mode
-    pub async fn add_sandboxed_namespace(&self, namespace: String) {
-        self.permission_checker
-            .add_sandboxed_namespace(namespace)
-            .await;
-    }
-
-    /// Remove sandboxed namespace
-    pub async fn remove_sandboxed_namespace(&self, namespace: &str) {
-        self.permission_checker
-            .remove_sandboxed_namespace(namespace)
-            .await;
-    }
-
-    /// Get sandboxed namespaces
-    pub async fn get_sandboxed_namespaces(&self) -> Vec<String> {
-        self.permission_checker.get_sandboxed_namespaces().await
-    }
-
-    /// Submit approval for a pending request
-    pub async fn submit_approval(
-        &self,
-        request_id: &str,
-        approved: bool,
-        reason: Option<String>,
-    ) -> Result<(), String> {
-        self.permission_checker
-            .submit_approval(request_id, approved, reason)
-            .await
-    }
-
-    /// List pending approvals
-    pub async fn list_pending_approvals(&self) -> Vec<ApprovalRequest> {
-        self.permission_checker.list_pending_approvals().await
     }
 
     /// Get or detect CLI path for the specified provider
@@ -493,6 +425,22 @@ impl AgentManager {
         is_processing: Arc<AtomicBool>,
         provider: AiCliProvider,
     ) {
+        // OpenCode enforces read-only permissions via an opencode.json in a
+        // Kubeli-managed working directory; without it the user's own config
+        // (default: allow everything) would apply. Fail closed below if this
+        // could not be created.
+        let opencode_workdir = if provider == AiCliProvider::OpenCode {
+            match ensure_opencode_workspace(&app) {
+                Ok(dir) => Some(dir),
+                Err(e) => {
+                    tracing::error!("Failed to create OpenCode workspace: {e}");
+                    None
+                }
+            }
+        } else {
+            None
+        };
+
         while let Some(input) = input_rx.recv().await {
             if stop_flag.load(Ordering::SeqCst) {
                 break;
@@ -500,103 +448,27 @@ impl AgentManager {
 
             match input {
                 AgentInput::Message(user_message) => {
+                    if provider == AiCliProvider::OpenCode && opencode_workdir.is_none() {
+                        let _ = app.emit(
+                            &event_name,
+                            AIEvent::Error {
+                                message: "OpenCode workspace could not be created; refusing to run without permission config".to_string(),
+                            },
+                        );
+                        continue;
+                    }
                     is_processing.store(true, Ordering::SeqCst);
 
                     // Emit thinking indicator
                     let _ = app.emit(&event_name, AIEvent::Thinking { active: true });
 
                     // Build command arguments based on provider
-                    let args = match provider {
-                        AiCliProvider::Claude => {
-                            // Claude CLI args
-                            // --verbose is required when using -p with --output-format stream-json
-                            // --dangerously-skip-permissions allows tools to run without asking
-                            let mut args = vec![
-                                "-p".to_string(),
-                                "--verbose".to_string(),
-                                "--output-format".to_string(),
-                                "stream-json".to_string(),
-                                "--dangerously-skip-permissions".to_string(),
-                            ];
-
-                            // Add system prompt if provided
-                            if let Some(ref prompt) = system_prompt {
-                                args.push("--system-prompt".to_string());
-                                args.push(prompt.clone());
-                            }
-
-                            // Add the user message as the prompt argument
-                            args.push(user_message.clone());
-                            args
-                        }
-                        AiCliProvider::Codex => {
-                            // Codex CLI uses 'exec' subcommand for non-interactive mode
-                            // --json outputs JSONL events
-                            // --dangerously-bypass-approvals-and-sandbox skips confirmations
-                            // --skip-git-repo-check allows running outside a git repo (prod app)
-                            // --ephemeral avoids persisting session files (we handle persistence)
-                            let mut args = vec![
-                                "exec".to_string(),
-                                "--json".to_string(),
-                                "--dangerously-bypass-approvals-and-sandbox".to_string(),
-                                "--skip-git-repo-check".to_string(),
-                                "--ephemeral".to_string(),
-                            ];
-
-                            // Combine system prompt with user message if provided
-                            let full_message = if let Some(ref prompt) = system_prompt {
-                                format!("{}\n\nUser request: {}", prompt, user_message)
-                            } else {
-                                user_message.clone()
-                            };
-
-                            // Add the combined message as the prompt
-                            args.push(full_message);
-                            args
-                        }
-                        AiCliProvider::OpenCode => {
-                            // OpenCode: `opencode run --format json --dangerously-skip-permissions <prompt>`
-                            // emits JSONL on stdout; system prompt is concatenated into the prompt
-                            // because `opencode run` has no dedicated --system-prompt flag.
-                            let mut args = vec![
-                                "run".to_string(),
-                                "--format".to_string(),
-                                "json".to_string(),
-                                "--dangerously-skip-permissions".to_string(),
-                            ];
-
-                            let full_message = if let Some(ref prompt) = system_prompt {
-                                format!("{}\n\nUser request: {}", prompt, user_message)
-                            } else {
-                                user_message.clone()
-                            };
-
-                            args.push(full_message);
-                            args
-                        }
-                        AiCliProvider::Droid => {
-                            // Droid (Factory.ai): `droid exec --output-format stream-json
-                            //   --auto high --skip-permissions-unsafe <prompt>`
-                            // emits Claude-Code-shaped JSONL events.
-                            let mut args = vec![
-                                "exec".to_string(),
-                                "--output-format".to_string(),
-                                "stream-json".to_string(),
-                                "--auto".to_string(),
-                                "high".to_string(),
-                                "--skip-permissions-unsafe".to_string(),
-                            ];
-
-                            let full_message = if let Some(ref prompt) = system_prompt {
-                                format!("{}\n\nUser request: {}", prompt, user_message)
-                            } else {
-                                user_message.clone()
-                            };
-
-                            args.push(full_message);
-                            args
-                        }
-                    };
+                    let args = build_provider_args(
+                        provider,
+                        system_prompt.as_deref(),
+                        &user_message,
+                        opencode_workdir.as_deref(),
+                    );
 
                     let provider_name = provider.display_name();
 
@@ -1426,11 +1298,174 @@ impl AgentManager {
 /// Check if an error message indicates a transient API error worth retrying
 fn is_transient_error(text: &str) -> bool {
     let lower = text.to_lowercase();
-    lower.contains("500")
-        || lower.contains("529")
+    // Status codes must stand alone ("HTTP 500"), not appear inside another
+    // token ("pod-5000", "1500 items") — a false positive here auto-re-runs
+    // a possibly mutating command.
+    contains_standalone(&lower, "500")
+        || contains_standalone(&lower, "529")
         || lower.contains("overloaded")
         || lower.contains("internal server error")
         || lower.contains("rate limit")
+}
+
+/// True if `needle` occurs in `text` without alphanumeric neighbors
+/// (equivalent to a \b...\b regex match, without the regex dependency).
+fn contains_standalone(text: &str, needle: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut start = 0;
+    while let Some(pos) = text[start..].find(needle) {
+        let abs = start + pos;
+        let end = abs + needle.len();
+        let before_ok = abs == 0 || !bytes[abs - 1].is_ascii_alphanumeric();
+        let after_ok = end >= bytes.len() || !bytes[end].is_ascii_alphanumeric();
+        if before_ok && after_ok {
+            return true;
+        }
+        start = abs + 1;
+    }
+    false
+}
+
+/// kubectl subcommands the AI may run — read-only inspection only. This backs
+/// the read-only promise in the system prompt; everything else is denied at
+/// the CLI permission layer, so prompt injection via cluster data cannot
+/// execute arbitrary commands.
+const READ_ONLY_KUBECTL: &[&str] = &[
+    "kubectl get",
+    "kubectl describe",
+    "kubectl logs",
+    "kubectl top",
+    "kubectl explain",
+    "kubectl api-resources",
+    "kubectl api-versions",
+    "kubectl version",
+    "kubectl cluster-info",
+    "kubectl events",
+    "kubectl auth can-i",
+];
+
+/// Build CLI arguments for one message. No provider runs with permission
+/// checks disabled: Claude and OpenCode get a read-only kubectl whitelist,
+/// Codex a read-only sandbox, Droid low autonomy.
+fn build_provider_args(
+    provider: AiCliProvider,
+    system_prompt: Option<&str>,
+    user_message: &str,
+    opencode_workdir: Option<&std::path::Path>,
+) -> Vec<String> {
+    // Codex/OpenCode/Droid have no dedicated system prompt flag
+    let concat_prompt = |user_message: &str| match system_prompt {
+        Some(prompt) => format!("{}\n\nUser request: {}", prompt, user_message),
+        None => user_message.to_string(),
+    };
+
+    match provider {
+        AiCliProvider::Claude => {
+            // --verbose is required when using -p with --output-format stream-json.
+            // --allowedTools whitelists read-only kubectl; in -p mode every other
+            // tool request is denied without prompting (no bypass flag).
+            // Comma-joined single value: the variadic form would swallow the
+            // trailing prompt positional.
+            let allowed = READ_ONLY_KUBECTL
+                .iter()
+                .map(|c| format!("Bash({c}:*)"))
+                .collect::<Vec<_>>()
+                .join(",");
+            let mut args = vec![
+                "-p".to_string(),
+                "--verbose".to_string(),
+                "--output-format".to_string(),
+                "stream-json".to_string(),
+                "--allowedTools".to_string(),
+                allowed,
+            ];
+            if let Some(prompt) = system_prompt {
+                args.push("--system-prompt".to_string());
+                args.push(prompt.to_string());
+            }
+            args.push(user_message.to_string());
+            args
+        }
+        AiCliProvider::Codex => {
+            // Read-only sandbox: model-generated commands get no writes and no
+            // network. Codex analyzes the injected cluster context only.
+            let mut args = vec![
+                "exec".to_string(),
+                "--json".to_string(),
+                "--sandbox".to_string(),
+                "read-only".to_string(),
+                "--skip-git-repo-check".to_string(),
+                "--ephemeral".to_string(),
+            ];
+            args.push(concat_prompt(user_message));
+            args
+        }
+        AiCliProvider::OpenCode => {
+            // Runs inside the Kubeli-managed workspace whose opencode.json
+            // denies everything except read-only kubectl (see
+            // ensure_opencode_workspace); the caller fails closed when the
+            // workspace is missing.
+            let mut args = vec![
+                "run".to_string(),
+                "--format".to_string(),
+                "json".to_string(),
+            ];
+            if let Some(dir) = opencode_workdir {
+                args.push("--dir".to_string());
+                args.push(dir.to_string_lossy().to_string());
+            }
+            args.push(concat_prompt(user_message));
+            args
+        }
+        AiCliProvider::Droid => {
+            // --auto low: only low-risk (read-only) commands run automatically;
+            // in non-interactive exec mode everything above is denied.
+            let mut args = vec![
+                "exec".to_string(),
+                "--output-format".to_string(),
+                "stream-json".to_string(),
+                "--auto".to_string(),
+                "low".to_string(),
+            ];
+            args.push(concat_prompt(user_message));
+            args
+        }
+    }
+}
+
+/// Permission config for the OpenCode workspace: deny everything except
+/// read-only kubectl.
+fn opencode_permission_config() -> String {
+    let mut bash = serde_json::Map::new();
+    for cmd in READ_ONLY_KUBECTL {
+        bash.insert(format!("{cmd} *"), serde_json::Value::from("allow"));
+    }
+    bash.insert("*".to_string(), serde_json::Value::from("deny"));
+    serde_json::json!({
+        "$schema": "https://opencode.ai/config.json",
+        "permission": {
+            "edit": "deny",
+            "webfetch": "deny",
+            "bash": bash,
+        }
+    })
+    .to_string()
+}
+
+/// Create (or refresh) the OpenCode working directory with the restrictive
+/// permission config. Rewritten every session so a stale or tampered config
+/// cannot widen access.
+fn ensure_opencode_workspace(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    use tauri::Manager;
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("opencode-workspace");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join("opencode.json"), opencode_permission_config())
+        .map_err(|e| e.to_string())?;
+    Ok(dir)
 }
 
 impl Default for AgentManager {
@@ -1666,5 +1701,94 @@ mod tests {
                 _ => panic!("expected ChildOutcome::Exited(Ok(_))"),
             }
         }
+    }
+
+    #[test]
+    fn no_provider_runs_with_permission_bypass_flags() {
+        let workdir = std::path::Path::new("/data/opencode-workspace");
+        for provider in [
+            AiCliProvider::Claude,
+            AiCliProvider::Codex,
+            AiCliProvider::OpenCode,
+            AiCliProvider::Droid,
+        ] {
+            let args = build_provider_args(provider, Some("sys"), "hello", Some(workdir));
+            for arg in &args {
+                assert!(
+                    !arg.contains("--dangerously-skip-permissions")
+                        && !arg.contains("--dangerously-bypass-approvals-and-sandbox")
+                        && !arg.contains("--skip-permissions-unsafe"),
+                    "{:?} must not bypass permissions: {arg}",
+                    provider
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn claude_args_whitelist_read_only_kubectl_only() {
+        let args = build_provider_args(AiCliProvider::Claude, None, "hi", None);
+        let idx = args.iter().position(|a| a == "--allowedTools").unwrap();
+        let allowed = &args[idx + 1];
+        assert!(allowed.contains("Bash(kubectl get:*)"));
+        assert!(allowed.contains("Bash(kubectl logs:*)"));
+        assert!(!allowed.contains("delete"));
+        assert!(!allowed.contains("apply"));
+        assert!(!allowed.contains("edit"));
+        // Prompt stays the trailing positional (comma-joined value must not
+        // swallow it via the variadic form)
+        assert_eq!(args.last().unwrap(), "hi");
+    }
+
+    #[test]
+    fn codex_args_use_read_only_sandbox() {
+        let args = build_provider_args(AiCliProvider::Codex, None, "hi", None);
+        let idx = args.iter().position(|a| a == "--sandbox").unwrap();
+        assert_eq!(args[idx + 1], "read-only");
+    }
+
+    #[test]
+    fn droid_args_use_low_autonomy() {
+        let args = build_provider_args(AiCliProvider::Droid, None, "hi", None);
+        let idx = args.iter().position(|a| a == "--auto").unwrap();
+        assert_eq!(args[idx + 1], "low");
+    }
+
+    #[test]
+    fn opencode_args_pin_managed_workdir() {
+        let args = build_provider_args(
+            AiCliProvider::OpenCode,
+            None,
+            "hi",
+            Some(std::path::Path::new("/data/oc")),
+        );
+        let idx = args.iter().position(|a| a == "--dir").unwrap();
+        assert_eq!(args[idx + 1], "/data/oc");
+    }
+
+    #[test]
+    fn opencode_permission_config_denies_by_default() {
+        let cfg: Value = serde_json::from_str(&opencode_permission_config()).unwrap();
+        assert_eq!(cfg["permission"]["bash"]["*"], "deny");
+        assert_eq!(cfg["permission"]["edit"], "deny");
+        assert_eq!(cfg["permission"]["webfetch"], "deny");
+        assert_eq!(cfg["permission"]["bash"]["kubectl get *"], "allow");
+        let allows = cfg["permission"]["bash"]
+            .as_object()
+            .unwrap()
+            .values()
+            .filter(|v| *v == "allow")
+            .count();
+        assert_eq!(allows, READ_ONLY_KUBECTL.len());
+    }
+
+    #[test]
+    fn transient_error_requires_standalone_status_codes() {
+        assert!(is_transient_error("HTTP 500 Internal Server Error"));
+        assert!(is_transient_error("error: 529"));
+        assert!(is_transient_error("Overloaded, retry later"));
+        assert!(!is_transient_error("deleted 1500 items"));
+        assert!(!is_transient_error("pod-5290 restarted"));
+        assert!(!is_transient_error("error500x"));
     }
 }

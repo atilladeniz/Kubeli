@@ -88,7 +88,8 @@ export function createSessionActions(
         });
 
         try {
-          await aiSaveSession(sessionId, clusterContext, get().permissionMode);
+          // permission_mode column kept for schema compat; approval layer removed
+          await aiSaveSession(sessionId, clusterContext, "default");
         } catch (error) {
           console.warn("Failed to save session to database:", error);
         }

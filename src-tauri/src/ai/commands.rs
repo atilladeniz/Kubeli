@@ -10,8 +10,6 @@ use tauri::{AppHandle, State};
 
 /// AI configuration state
 pub struct AIConfigState {
-    /// Stored API key (encrypted in production)
-    api_key: RwLock<Option<String>>,
     /// Cached Claude CLI info
     claude_cli_info: RwLock<Option<ClaudeCliInfo>>,
     /// Cached Codex CLI info
@@ -25,21 +23,10 @@ pub struct AIConfigState {
 impl AIConfigState {
     pub fn new() -> Self {
         Self {
-            api_key: RwLock::new(None),
             claude_cli_info: RwLock::new(None),
             codex_cli_info: RwLock::new(None),
             opencode_cli_info: RwLock::new(None),
             droid_cli_info: RwLock::new(None),
-        }
-    }
-
-    pub fn get_api_key(&self) -> Option<String> {
-        self.api_key.read().ok().and_then(|k| k.clone())
-    }
-
-    pub fn set_api_key(&self, key: Option<String>) {
-        if let Ok(mut api_key) = self.api_key.write() {
-            *api_key = key;
         }
     }
 
@@ -103,7 +90,6 @@ impl Default for AIConfigState {
 pub struct AIAuthStatus {
     pub cli_available: bool,
     pub cli_authenticated: bool,
-    pub has_api_key: bool,
     pub cli_version: Option<String>,
     pub cli_path: Option<String>,
     pub error: Option<String>,
@@ -127,8 +113,6 @@ pub async fn ai_verify_authentication(
     let cli_info = CliDetector::check_cli_available().await;
     ai_state.set_cached_cli_info(cli_info.clone());
 
-    let has_api_key = ai_state.get_api_key().is_some();
-
     let cli_authenticated = if let Some(ref path) = cli_info.cli_path {
         CliDetector::verify_authentication(path)
             .await
@@ -140,34 +124,20 @@ pub async fn ai_verify_authentication(
     Ok(AIAuthStatus {
         cli_available: cli_info.cli_path.is_some(),
         cli_authenticated,
-        has_api_key,
         cli_version: cli_info.version,
         cli_path: cli_info.cli_path,
         error: cli_info.error_message,
     })
 }
 
-/// Set API key (fallback when CLI is not available)
-#[tauri::command]
-pub fn ai_set_api_key(
-    ai_state: State<'_, AIConfigState>,
-    api_key: Option<String>,
-) -> Result<(), String> {
-    ai_state.set_api_key(api_key);
-    Ok(())
-}
-
 /// Get current authentication status
 #[tauri::command]
 pub fn ai_get_auth_status(ai_state: State<'_, AIConfigState>) -> Result<AIAuthStatus, String> {
     let cli_info = ai_state.get_cached_cli_info();
-    let has_api_key = ai_state.get_api_key().is_some();
-
     match cli_info {
         Some(info) => Ok(AIAuthStatus {
             cli_available: info.cli_path.is_some(),
             cli_authenticated: info.status == CliStatus::Authenticated,
-            has_api_key,
             cli_version: info.version,
             cli_path: info.cli_path,
             error: info.error_message,
@@ -175,7 +145,6 @@ pub fn ai_get_auth_status(ai_state: State<'_, AIConfigState>) -> Result<AIAuthSt
         None => Ok(AIAuthStatus {
             cli_available: false,
             cli_authenticated: false,
-            has_api_key,
             cli_version: None,
             cli_path: None,
             error: Some("CLI status not checked yet".to_string()),
@@ -205,8 +174,6 @@ pub async fn ai_verify_codex_authentication(
     let cli_info = CliDetector::check_codex_cli_available().await;
     ai_state.set_cached_codex_cli_info(cli_info.clone());
 
-    let has_api_key = ai_state.get_api_key().is_some();
-
     let cli_authenticated = if let Some(ref path) = cli_info.cli_path {
         CliDetector::verify_codex_authentication(path)
             .await
@@ -218,7 +185,6 @@ pub async fn ai_verify_codex_authentication(
     Ok(AIAuthStatus {
         cli_available: cli_info.cli_path.is_some(),
         cli_authenticated,
-        has_api_key,
         cli_version: cli_info.version,
         cli_path: cli_info.cli_path,
         error: cli_info.error_message,
@@ -231,13 +197,10 @@ pub fn ai_get_codex_auth_status(
     ai_state: State<'_, AIConfigState>,
 ) -> Result<AIAuthStatus, String> {
     let cli_info = ai_state.get_cached_codex_cli_info();
-    let has_api_key = ai_state.get_api_key().is_some();
-
     match cli_info {
         Some(info) => Ok(AIAuthStatus {
             cli_available: info.cli_path.is_some(),
             cli_authenticated: info.status == CliStatus::Authenticated,
-            has_api_key,
             cli_version: info.version,
             cli_path: info.cli_path,
             error: info.error_message,
@@ -245,7 +208,6 @@ pub fn ai_get_codex_auth_status(
         None => Ok(AIAuthStatus {
             cli_available: false,
             cli_authenticated: false,
-            has_api_key,
             cli_version: None,
             cli_path: None,
             error: Some("Codex CLI status not checked yet".to_string()),
@@ -275,8 +237,6 @@ pub async fn ai_verify_opencode_authentication(
     let cli_info = CliDetector::check_opencode_cli_available().await;
     ai_state.set_cached_opencode_cli_info(cli_info.clone());
 
-    let has_api_key = ai_state.get_api_key().is_some();
-
     let cli_authenticated = if let Some(ref path) = cli_info.cli_path {
         CliDetector::verify_opencode_authentication(path)
             .await
@@ -288,7 +248,6 @@ pub async fn ai_verify_opencode_authentication(
     Ok(AIAuthStatus {
         cli_available: cli_info.cli_path.is_some(),
         cli_authenticated,
-        has_api_key,
         cli_version: cli_info.version,
         cli_path: cli_info.cli_path,
         error: cli_info.error_message,
@@ -301,13 +260,10 @@ pub fn ai_get_opencode_auth_status(
     ai_state: State<'_, AIConfigState>,
 ) -> Result<AIAuthStatus, String> {
     let cli_info = ai_state.get_cached_opencode_cli_info();
-    let has_api_key = ai_state.get_api_key().is_some();
-
     match cli_info {
         Some(info) => Ok(AIAuthStatus {
             cli_available: info.cli_path.is_some(),
             cli_authenticated: info.status == CliStatus::Authenticated,
-            has_api_key,
             cli_version: info.version,
             cli_path: info.cli_path,
             error: info.error_message,
@@ -315,7 +271,6 @@ pub fn ai_get_opencode_auth_status(
         None => Ok(AIAuthStatus {
             cli_available: false,
             cli_authenticated: false,
-            has_api_key,
             cli_version: None,
             cli_path: None,
             error: Some("OpenCode CLI status not checked yet".to_string()),
@@ -345,8 +300,6 @@ pub async fn ai_verify_droid_authentication(
     let cli_info = CliDetector::check_droid_cli_available().await;
     ai_state.set_cached_droid_cli_info(cli_info.clone());
 
-    let has_api_key = ai_state.get_api_key().is_some();
-
     let cli_authenticated = if let Some(ref path) = cli_info.cli_path {
         CliDetector::verify_droid_authentication(path)
             .await
@@ -358,7 +311,6 @@ pub async fn ai_verify_droid_authentication(
     Ok(AIAuthStatus {
         cli_available: cli_info.cli_path.is_some(),
         cli_authenticated,
-        has_api_key,
         cli_version: cli_info.version,
         cli_path: cli_info.cli_path,
         error: cli_info.error_message,
@@ -371,13 +323,10 @@ pub fn ai_get_droid_auth_status(
     ai_state: State<'_, AIConfigState>,
 ) -> Result<AIAuthStatus, String> {
     let cli_info = ai_state.get_cached_droid_cli_info();
-    let has_api_key = ai_state.get_api_key().is_some();
-
     match cli_info {
         Some(info) => Ok(AIAuthStatus {
             cli_available: info.cli_path.is_some(),
             cli_authenticated: info.status == CliStatus::Authenticated,
-            has_api_key,
             cli_version: info.version,
             cli_path: info.cli_path,
             error: info.error_message,
@@ -385,7 +334,6 @@ pub fn ai_get_droid_auth_status(
         None => Ok(AIAuthStatus {
             cli_available: false,
             cli_authenticated: false,
-            has_api_key,
             cli_version: None,
             cli_path: None,
             error: Some("Droid CLI status not checked yet".to_string()),
@@ -500,122 +448,6 @@ pub async fn ai_get_system_prompt(
 ) -> Result<String, String> {
     let context = ContextBuilder::build(&state, &context_name, current_namespace).await?;
     Ok(context.to_system_prompt())
-}
-
-// ============================================================================
-// Permission System Commands
-// ============================================================================
-
-use super::permissions::{ApprovalRequest, PermissionMode};
-
-/// Permission status response
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct PermissionStatus {
-    pub mode: PermissionMode,
-    pub sandboxed_namespaces: Vec<String>,
-    pub pending_approvals_count: usize,
-}
-
-/// Get current permission mode
-#[tauri::command]
-pub async fn ai_get_permission_mode(
-    agent_manager: State<'_, Arc<AgentManager>>,
-) -> Result<PermissionMode, String> {
-    Ok(agent_manager.get_permission_mode().await)
-}
-
-/// Set permission mode
-#[tauri::command]
-pub async fn ai_set_permission_mode(
-    agent_manager: State<'_, Arc<AgentManager>>,
-    mode: PermissionMode,
-) -> Result<(), String> {
-    agent_manager.set_permission_mode(mode).await;
-    tracing::info!("Permission mode changed to {:?}", mode);
-    Ok(())
-}
-
-/// Get full permission status
-#[tauri::command]
-pub async fn ai_get_permission_status(
-    agent_manager: State<'_, Arc<AgentManager>>,
-) -> Result<PermissionStatus, String> {
-    let mode = agent_manager.get_permission_mode().await;
-    let sandboxed_namespaces = agent_manager.get_sandboxed_namespaces().await;
-    let pending_approvals = agent_manager.list_pending_approvals().await;
-
-    Ok(PermissionStatus {
-        mode,
-        sandboxed_namespaces,
-        pending_approvals_count: pending_approvals.len(),
-    })
-}
-
-/// Add sandboxed namespace for AcceptEdits mode
-#[tauri::command]
-pub async fn ai_add_sandboxed_namespace(
-    agent_manager: State<'_, Arc<AgentManager>>,
-    namespace: String,
-) -> Result<(), String> {
-    agent_manager
-        .add_sandboxed_namespace(namespace.clone())
-        .await;
-    tracing::info!("Added sandboxed namespace: {}", namespace);
-    Ok(())
-}
-
-/// Remove sandboxed namespace
-#[tauri::command]
-pub async fn ai_remove_sandboxed_namespace(
-    agent_manager: State<'_, Arc<AgentManager>>,
-    namespace: String,
-) -> Result<(), String> {
-    agent_manager.remove_sandboxed_namespace(&namespace).await;
-    tracing::info!("Removed sandboxed namespace: {}", namespace);
-    Ok(())
-}
-
-/// Get sandboxed namespaces
-#[tauri::command]
-pub async fn ai_get_sandboxed_namespaces(
-    agent_manager: State<'_, Arc<AgentManager>>,
-) -> Result<Vec<String>, String> {
-    Ok(agent_manager.get_sandboxed_namespaces().await)
-}
-
-/// List pending approval requests
-#[tauri::command]
-pub async fn ai_list_pending_approvals(
-    agent_manager: State<'_, Arc<AgentManager>>,
-) -> Result<Vec<ApprovalRequest>, String> {
-    Ok(agent_manager.list_pending_approvals().await)
-}
-
-/// Approve a pending action
-#[tauri::command]
-pub async fn ai_approve_action(
-    agent_manager: State<'_, Arc<AgentManager>>,
-    request_id: String,
-) -> Result<(), String> {
-    agent_manager
-        .submit_approval(&request_id, true, None)
-        .await?;
-    tracing::info!("Approved action: {}", request_id);
-    Ok(())
-}
-
-/// Reject a pending action
-#[tauri::command]
-pub async fn ai_reject_action(
-    agent_manager: State<'_, Arc<AgentManager>>,
-    request_id: String,
-    reason: Option<String>,
-) -> Result<(), String> {
-    agent_manager
-        .submit_approval(&request_id, false, reason)
-        .await?;
-    tracing::info!("Rejected action: {}", request_id);
-    Ok(())
 }
 
 // ============================================================================
