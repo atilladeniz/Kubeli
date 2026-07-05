@@ -211,21 +211,29 @@ pub fn detect_installed_ides() -> Vec<IdeStatus> {
         .collect()
 }
 
+/// Check ~/.claude.json for a user-scope `mcpServers.kubeli` entry
+fn claude_json_has_kubeli(path: &PathBuf) -> bool {
+    let Ok(content) = std::fs::read_to_string(path) else {
+        return false;
+    };
+    let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) else {
+        return false;
+    };
+    json.get("mcpServers")
+        .and_then(|servers| servers.get("kubeli"))
+        .is_some()
+}
+
 /// Check if MCP is already configured for an IDE
 fn check_mcp_configured(ide: IdeType, path: &PathBuf) -> bool {
     match ide {
         IdeType::ClaudeCode => {
-            // Use Claude CLI to check if kubeli is configured
-            let Some(claude) = find_claude_binary() else {
-                return false;
-            };
-            if let Ok(output) = std::process::Command::new(&claude)
-                .args(["mcp", "get", "kubeli"])
-                .output()
-            {
-                return output.status.success();
-            }
-            false
+            // Install writes user-scope config to ~/.claude.json, so read it
+            // directly. Spawning `claude mcp get` here costs a full Node CLI
+            // startup (1-2s) and used to freeze the first MCP tab open.
+            // Must be a real JSON lookup: ~/.claude.json also stores project
+            // history, so a plain substring match can false-positive.
+            claude_json_has_kubeli(path)
         }
         IdeType::Cursor => {
             // JSON format - check for "kubeli" in mcpServers
@@ -521,6 +529,36 @@ fn uninstall_cursor_config(path: &PathBuf) -> Result<(), String> {
 mod tests {
     use super::*;
     use tempfile::tempdir;
+
+    #[test]
+    fn test_claude_json_detection_reads_config_without_spawning_cli() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join(".claude.json");
+
+        // No file yet -> not configured
+        assert!(!claude_json_has_kubeli(&path));
+
+        // Configured under user-scope mcpServers
+        std::fs::write(
+            &path,
+            r#"{"mcpServers":{"kubeli":{"type":"stdio","command":"/Applications/Kubeli.app/Contents/MacOS/Kubeli"}}}"#,
+        )
+        .unwrap();
+        assert!(claude_json_has_kubeli(&path));
+
+        // "kubeli" mentioned elsewhere (project history) must NOT count —
+        // this is why the check parses JSON instead of substring matching
+        std::fs::write(
+            &path,
+            r#"{"mcpServers":{"other":{}},"projects":{"/Users/x/kubeli":{"history":["kubeli"]}}}"#,
+        )
+        .unwrap();
+        assert!(!claude_json_has_kubeli(&path));
+
+        // Malformed JSON -> false, no panic
+        std::fs::write(&path, "{not json").unwrap();
+        assert!(!claude_json_has_kubeli(&path));
+    }
 
     #[test]
     fn test_ide_metadata_and_paths() {

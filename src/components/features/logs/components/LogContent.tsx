@@ -1,6 +1,7 @@
 "use client";
 
 import { forwardRef, useState, useCallback, useRef, useEffect } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { Loader2, Copy, Check, Sparkles, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LogEntry } from "@/lib/types";
@@ -73,6 +74,28 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
     const [menuPos, setMenuPos] = useState<{ x: number; y: number } | null>(null);
     const [contextMenuSelection, setContextMenuSelection] = useState("");
     const [copied, setCopied] = useState(false);
+
+    // Internal ref for the virtualizer; merged with the forwarded ref so the
+    // parent's scroll-position save/restore keeps working on the same element.
+    const scrollRef = useRef<HTMLDivElement | null>(null);
+    const setScrollRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        scrollRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
+      },
+      [ref]
+    );
+
+    // React Compiler skips memoizing this component because useVirtualizer
+    // returns unmemoizable functions; line children stay memoized via LogLine.
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const virtualizer = useVirtualizer({
+      count: logs.length,
+      getScrollElement: () => scrollRef.current,
+      estimateSize: () => 20, // leading-5 = 20px
+      overscan: 20,
+    });
 
     // Show custom context menu on right-click when text is selected
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
@@ -152,29 +175,42 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
     return (
       <>
         <div
-          ref={ref}
+          ref={setScrollRef}
           tabIndex={0}
           onScroll={onScroll}
           onContextMenu={handleContextMenu}
-          className="flex-1 overflow-auto outline-none"
+          className="flex-1 overflow-auto p-2 outline-none"
           data-allow-context-menu
         >
-          <pre className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-words" : ""}`}>
-            {logs.map((log, index) => (
-              <LogLine
-                key={`${log.timestamp}-${index}`}
-                log={log}
-                showTimestamp={showTimestamps}
-                timestampLocal={timestampLocal}
-                logColoring={logColoring}
-                searchQuery={searchQuery}
-                useRegex={useRegex}
-                searchRegex={searchRegex}
-              />
-            ))}
-            {/* Scroll target for auto-scroll */}
-            {endRef && <span ref={endRef as React.RefObject<HTMLSpanElement>} />}
+          <pre
+            className={`relative m-0 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-words" : ""}`}
+            style={{ height: virtualizer.getTotalSize() }}
+          >
+            {virtualizer.getVirtualItems().map((item) => {
+              const log = logs[item.index];
+              return (
+                <div
+                  key={log.seq ?? item.index}
+                  data-index={item.index}
+                  ref={virtualizer.measureElement}
+                  className="absolute top-0 left-0 w-full"
+                  style={{ transform: `translateY(${item.start}px)` }}
+                >
+                  <LogLine
+                    log={log}
+                    showTimestamp={showTimestamps}
+                    timestampLocal={timestampLocal}
+                    logColoring={logColoring}
+                    searchQuery={searchQuery}
+                    useRegex={useRegex}
+                    searchRegex={searchRegex}
+                  />
+                </div>
+              );
+            })}
           </pre>
+          {/* Scroll target for auto-scroll (after the total-height container) */}
+          {endRef && <span ref={endRef as React.RefObject<HTMLSpanElement>} />}
         </div>
 
         {/* Custom context menu — no portal/focus-steal so selection stays visible */}

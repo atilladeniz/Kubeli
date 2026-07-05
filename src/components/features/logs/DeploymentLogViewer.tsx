@@ -8,6 +8,7 @@ import React, {
   useCallback,
   useRef,
 } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { AlertCircle, Layers, Loader2, Copy, Check, SearchX, Maximize2 } from "lucide-react";
 import { useDeploymentLogs, type PodColorEntry } from "@/lib/hooks/useDeploymentLogs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -377,6 +378,29 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
     const [contextMenuSelection, setContextMenuSelection] = useState("");
     const [copied, setCopied] = useState(false);
 
+    // Internal ref for the virtualizer; merged with the forwarded ref so the
+    // parent's auto-scroll handling keeps working on the same element.
+    const scrollRef = useRef<HTMLDivElement | null>(null);
+    const setScrollRef = useCallback(
+      (node: HTMLDivElement | null) => {
+        scrollRef.current = node;
+        if (typeof ref === "function") ref(node);
+        else if (ref) ref.current = node;
+      },
+      [ref]
+    );
+
+    // React Compiler skips memoizing this component because useVirtualizer
+    // returns unmemoizable functions; line children stay memoized via
+    // DeploymentLogLine.
+    // eslint-disable-next-line react-hooks/incompatible-library
+    const virtualizer = useVirtualizer({
+      count: logs.length,
+      getScrollElement: () => scrollRef.current,
+      estimateSize: () => 20, // leading-5 = 20px
+      overscan: 20,
+    });
+
     const handleContextMenu = useCallback((e: React.MouseEvent) => {
       const sel = window.getSelection();
       const text = sel?.toString() ?? "";
@@ -449,29 +473,43 @@ const DeploymentLogContent = forwardRef<HTMLDivElement, DeploymentLogContentProp
     return (
       <>
         <div
-          ref={ref}
+          ref={setScrollRef}
           tabIndex={0}
           onScroll={onScroll}
           onContextMenu={handleContextMenu}
-          className="flex-1 overflow-auto outline-none"
+          className="flex-1 overflow-auto p-2 outline-none"
           data-allow-context-menu
         >
-          <pre className={`m-0 p-2 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-words" : ""}`}>
-            {logs.map((log, index) => (
-              <DeploymentLogLine
-                key={`${log.pod}-${log.timestamp}-${index}`}
-                log={log}
-                showTimestamp={showTimestamps}
-                timestampLocal={timestampLocal}
-                logColoring={logColoring}
-                searchQuery={searchQuery}
-                useRegex={useRegex}
-                searchRegex={searchRegex}
-                podColor={podColorMap.get(log.pod)?.text}
-              />
-            ))}
-            {endRef && <span ref={endRef as React.RefObject<HTMLSpanElement>} />}
+          <pre
+            className={`relative m-0 font-mono text-sm leading-5 ${lineWrap ? "whitespace-pre-wrap break-words" : ""}`}
+            style={{ height: virtualizer.getTotalSize() }}
+          >
+            {virtualizer.getVirtualItems().map((item) => {
+              const log = logs[item.index];
+              return (
+                <div
+                  key={log.seq ?? item.index}
+                  data-index={item.index}
+                  ref={virtualizer.measureElement}
+                  className="absolute top-0 left-0 w-full"
+                  style={{ transform: `translateY(${item.start}px)` }}
+                >
+                  <DeploymentLogLine
+                    log={log}
+                    showTimestamp={showTimestamps}
+                    timestampLocal={timestampLocal}
+                    logColoring={logColoring}
+                    searchQuery={searchQuery}
+                    useRegex={useRegex}
+                    searchRegex={searchRegex}
+                    podColor={podColorMap.get(log.pod)?.text}
+                  />
+                </div>
+              );
+            })}
           </pre>
+          {/* Scroll target for auto-scroll (after the total-height container) */}
+          {endRef && <span ref={endRef as React.RefObject<HTMLSpanElement>} />}
         </div>
 
         {menuPos && (

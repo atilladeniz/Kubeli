@@ -44,13 +44,19 @@ fn parse_ide_type(id: &str) -> Result<IdeType, String> {
     }
 }
 
-/// Detect all installed IDEs and their MCP configuration status
+/// Detect all installed IDEs and their MCP configuration status.
+/// Async so the filesystem probing runs off the main thread — sync commands
+/// block the UI thread and froze the first MCP tab open.
 #[tauri::command]
-pub fn mcp_detect_ides() -> Vec<IdeInfo> {
-    detect_installed_ides()
-        .into_iter()
-        .map(IdeInfo::from)
-        .collect()
+pub async fn mcp_detect_ides() -> Vec<IdeInfo> {
+    tauri::async_runtime::spawn_blocking(|| {
+        detect_installed_ides()
+            .into_iter()
+            .map(IdeInfo::from)
+            .collect()
+    })
+    .await
+    .unwrap_or_default()
 }
 
 /// Install MCP configuration for a specific IDE
