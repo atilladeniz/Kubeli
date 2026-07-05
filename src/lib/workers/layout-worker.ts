@@ -1,20 +1,41 @@
-import ELK, { ElkNode } from "elkjs/lib/elk.bundled.js";
+import type ElkConstructor from "elkjs/lib/elk-api";
+import type { ElkNode } from "elkjs/lib/elk-api";
 import type { GraphNode, GraphEdge } from "../types";
 
-export interface LayoutRequest {
-  type: "layout";
-  /** Request token — echoed back so stale responses can be dropped */
-  id: number;
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-}
+/**
+ * ELK layout via elkjs's supported worker mode: elk-api runs here (main
+ * thread, cheap orchestration only), the heavy layout solving happens in
+ * ELK's own worker (elk-worker.min.js). Running elk.bundled.js INSIDE a
+ * custom worker does not work — its FakeWorker export is unavailable in
+ * worker contexts by design ("o is not a constructor" on load).
+ */
+let elkPromise: Promise<InstanceType<typeof ElkConstructor>> | null = null;
 
-export interface LayoutResponse {
-  type: "complete" | "error";
-  id: number;
-  positions?: Record<string, { x: number; y: number }>;
-  sizes?: Record<string, { width: number; height: number }>;
-  error?: string;
+function getElk(): Promise<InstanceType<typeof ElkConstructor>> {
+  if (!elkPromise) {
+    elkPromise = (async () => {
+      if (typeof Worker !== "undefined") {
+        const [{ default: ELK }, { default: workerUrl }] = await Promise.all([
+          import("elkjs/lib/elk-api.js"),
+          import("elkjs/lib/elk-worker.min.js?url"),
+        ]);
+        // ponytail: one shared worker for the app lifetime; terminate/respawn
+        // only worth it if idle memory ever becomes a complaint.
+        // elk-worker.min.js is UMD — must stay a classic worker, never module.
+        return new ELK({
+          workerFactory: () => new Worker(workerUrl, { type: "classic" }),
+        });
+      }
+      // jsdom/SSR: no Worker — synchronous bundled fallback (tests).
+      // @vite-ignore keeps the 1.4 MB bundle out of dist; this path never
+      // runs in the browser.
+      const { default: ELKBundled } = await import(
+        /* @vite-ignore */ "elkjs/lib/elk.bundled.js"
+      );
+      return new ELKBundled();
+    })();
+  }
+  return elkPromise;
 }
 
 // Node dimensions for leaf nodes (matching the new card-style design)
@@ -32,8 +53,6 @@ const GROUP_PADDING = {
 
 const NAMESPACE_SPACING = 80; // Horizontal space between namespaces
 
-const elk = new ELK();
-
 interface LayoutResult {
   positions: Map<string, { x: number; y: number }>;
   sizes: Map<string, { width: number; height: number }>;
@@ -49,6 +68,8 @@ export async function calculateLayout(
   if (nodes.length === 0) {
     return { positions, sizes };
   }
+
+  const elk = await getElk();
 
   // Separate nodes by type
   const namespaces = nodes.filter((n) => n.node_type === "namespace");
@@ -269,41 +290,4 @@ export async function calculateLayout(
   }
 
   return { positions, sizes };
-}
-
-// For use as a Web Worker
-if (typeof self !== "undefined" && typeof window === "undefined") {
-  self.onmessage = async (event: MessageEvent<LayoutRequest>) => {
-    const { type, id, nodes, edges } = event.data;
-
-    if (type === "layout") {
-      try {
-        const { positions, sizes } = await calculateLayout(nodes, edges);
-
-        // Convert Maps to objects for postMessage
-        const positionsObj: Record<string, { x: number; y: number }> = {};
-        positions.forEach((value, key) => {
-          positionsObj[key] = value;
-        });
-
-        const sizesObj: Record<string, { width: number; height: number }> = {};
-        sizes.forEach((value, key) => {
-          sizesObj[key] = value;
-        });
-
-        self.postMessage({
-          type: "complete",
-          id,
-          positions: positionsObj,
-          sizes: sizesObj,
-        } as LayoutResponse);
-      } catch (error) {
-        self.postMessage({
-          type: "error",
-          id,
-          error: error instanceof Error ? error.message : "Layout failed",
-        } as LayoutResponse);
-      }
-    }
-  };
 }

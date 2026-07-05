@@ -184,6 +184,39 @@ const mockPods: PodInfo[] = mockPodDefs.map((d) => ({
   ready_containers: "1/1",
 }));
 
+function buildMockGraph() {
+  const g = (
+    id: string,
+    name: string,
+    node_type: string,
+    parent_id: string | null,
+    is_group: boolean,
+    child_count: number | null = null
+  ) => ({
+    id,
+    uid: id,
+    name,
+    namespace: "kubeli-demo",
+    node_type,
+    status: "healthy",
+    labels: {},
+    parent_id,
+    ready_status: is_group ? null : "1/1",
+    replicas: null,
+    is_group,
+    child_count,
+  });
+
+  const nodes = [g("ns-demo", "kubeli-demo", "namespace", null, true, 3)];
+  for (const dep of ["demo-web", "demo-api", "demo-frontend"]) {
+    nodes.push(g(`deploy-${dep}`, dep, "deployment", "ns-demo", true, 2));
+    for (let i = 0; i < 2; i++) {
+      nodes.push(g(`pod-${dep}-${i}`, `${dep}-pod-${i}`, "pod", `deploy-${dep}`, false));
+    }
+  }
+  return { nodes, edges: [], errors: [] };
+}
+
 export function mockInvoke(command: string, payload?: Record<string, unknown>) {
   switch (command) {
     case "list_clusters":
@@ -215,6 +248,8 @@ export function mockInvoke(command: string, payload?: Record<string, unknown>) {
       return Promise.resolve(mockKubeconfigSourceInfos[0]);
     case "list_pods":
       return Promise.resolve(mockPods);
+    case "generate_resource_graph":
+      return Promise.resolve(buildMockGraph());
     case "restart_app":
       return Promise.resolve();
     case "take_startup_deep_links":
