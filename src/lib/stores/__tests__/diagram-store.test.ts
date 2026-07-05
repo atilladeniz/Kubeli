@@ -1,5 +1,5 @@
 import { act } from "@testing-library/react";
-import { useDiagramStore, type LODLevel } from "../diagram-store";
+import { useDiagramStore } from "../diagram-store";
 
 // Mock Tauri commands
 const mockGenerateResourceGraph = jest.fn();
@@ -32,7 +32,6 @@ describe("DiagramStore", () => {
       edges: [],
       isLoading: false,
       error: null,
-      lodLevel: "high",
       selectedNodeId: null,
       searchQuery: "",
       highlightedNodeIds: new Set(),
@@ -49,10 +48,6 @@ describe("DiagramStore", () => {
       expect(state.edges).toEqual([]);
     });
 
-    it("should have high LOD level by default", () => {
-      expect(useDiagramStore.getState().lodLevel).toBe("high");
-    });
-
     it("should have all node types visible by default", () => {
       const visibleTypes = useDiagramStore.getState().visibleNodeTypes;
       expect(visibleTypes.has("namespace")).toBe(true);
@@ -62,6 +57,40 @@ describe("DiagramStore", () => {
   });
 
   describe("fetchGraph", () => {
+    it("carries over positions and sizes by id on refetch (no layout blanking)", async () => {
+      mockGenerateResourceGraph.mockResolvedValue(mockGraphData);
+      await act(async () => {
+        await useDiagramStore.getState().fetchGraph();
+      });
+
+      // Simulate a completed layout
+      act(() => {
+        useDiagramStore.getState().setNodePositionsAndSizes(
+          new Map([
+            ["ns-1", { x: 10, y: 20 }],
+            ["pod-1", { x: 30, y: 40 }],
+          ]),
+          new Map([["ns-1", { width: 300, height: 200 }]])
+        );
+      });
+
+      // Refetch same topology plus one new node
+      mockGenerateResourceGraph.mockResolvedValue({
+        ...mockGraphData,
+        nodes: [...mockGraphData.nodes, { id: "pod-3", name: "nginx-new", node_type: "pod", parent_id: "deploy-1" }],
+      });
+      await act(async () => {
+        await useDiagramStore.getState().fetchGraph();
+      });
+
+      const nodes = useDiagramStore.getState().nodes;
+      expect(nodes.find((n) => n.id === "ns-1")?.position).toEqual({ x: 10, y: 20 });
+      expect(nodes.find((n) => n.id === "ns-1")?.width).toBe(300);
+      expect(nodes.find((n) => n.id === "pod-1")?.position).toEqual({ x: 30, y: 40 });
+      // Unknown node starts at origin until the layout worker places it
+      expect(nodes.find((n) => n.id === "pod-3")?.position).toEqual({ x: 0, y: 0 });
+    });
+
     it("should fetch and set graph data", async () => {
       mockGenerateResourceGraph.mockResolvedValue(mockGraphData);
 
@@ -174,16 +203,6 @@ describe("DiagramStore", () => {
       expect(ns1?.height).toBe(300);
       expect(pod1?.width).toBe(100);
       expect(pod1?.height).toBe(50);
-    });
-  });
-
-  describe("setLODLevel", () => {
-    it.each<LODLevel>(["high", "medium", "low"])("should set LOD level to %s", (level) => {
-      act(() => {
-        useDiagramStore.getState().setLODLevel(level);
-      });
-
-      expect(useDiagramStore.getState().lodLevel).toBe(level);
     });
   });
 

@@ -18,35 +18,39 @@ interface UseLayoutResult {
   error: string | null;
 }
 
+const EMPTY_RESULT: LayoutResult = { positions: new Map(), sizes: new Map() };
+
+/**
+ * Layout orchestration runs here (cheap); the ELK solver runs in ELK's own
+ * worker (see layout-worker.ts). Each request carries an incrementing token;
+ * a slow stale calculation resolves empty and is dropped by the caller's
+ * `positions.size > 0` guard, so it can never overwrite a newer layout.
+ */
 export function useLayout(): UseLayoutResult {
   const [isCalculating, setIsCalculating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const abortRef = useRef(false);
+  const requestIdRef = useRef(0);
 
   const calculatePositions = useCallback(
-    async (
-      nodes: GraphNode[],
-      edges: GraphEdge[]
-    ): Promise<LayoutResult> => {
+    async (nodes: GraphNode[], edges: GraphEdge[]): Promise<LayoutResult> => {
       setIsCalculating(true);
       setError(null);
-      abortRef.current = false;
+      const requestId = ++requestIdRef.current;
 
       try {
         const result = await calculateLayout(nodes, edges);
-
-        if (abortRef.current) {
-          return { positions: new Map(), sizes: new Map() };
+        if (requestId !== requestIdRef.current) {
+          return EMPTY_RESULT;
         }
-
         setIsCalculating(false);
         return result;
       } catch (e) {
-        const errorMessage =
-          e instanceof Error ? e.message : "Layout calculation failed";
-        setError(errorMessage);
+        if (requestId !== requestIdRef.current) {
+          return EMPTY_RESULT;
+        }
         setIsCalculating(false);
-        return { positions: new Map(), sizes: new Map() };
+        setError(e instanceof Error ? e.message : "Layout calculation failed");
+        return EMPTY_RESULT;
       }
     },
     []

@@ -315,7 +315,6 @@ Namespace (GroupNode)
 | `src/components/features/visualization/ResourceDiagram.tsx` | Main diagram component |
 | `src/components/features/visualization/nodes/GroupNode.tsx` | Namespace/Deployment container node |
 | `src/components/features/visualization/nodes/ResourceNode.tsx` | Pod/resource node |
-| `src/components/features/visualization/nodes/DotNode.tsx` | Minimal node for low LOD |
 | `src/lib/workers/layout-worker.ts` | ELK.js layout calculation |
 | `src/lib/hooks/useLayout.ts` | Layout hook with Web Worker |
 | `src/lib/stores/diagram-store.ts` | Diagram state (Zustand) |
@@ -335,13 +334,6 @@ Namespace (GroupNode)
 - **No fitView on navigation**: Component uses defaultViewport when mounted
 - **No fitView on refresh**: Keeps current viewport position
 - **translateExtent**: Limits panning to node bounds + 500px padding
-
-### LOD (Level of Detail)
-
-Based on zoom level:
-- `zoom >= 0.8`: High LOD (full ResourceNode)
-- `zoom >= 0.4`: Medium LOD
-- `zoom < 0.4`: Low LOD (DotNode)
 
 ### Preventing Flicker/Shifting
 
