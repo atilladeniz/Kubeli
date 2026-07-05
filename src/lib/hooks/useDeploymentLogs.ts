@@ -124,14 +124,25 @@ export function useDeploymentLogs(
     if (batch.length === 0 || !mountedRef.current) return;
 
     const maxLines = getMaxLines();
+    const cmp = (a: LogEntry, b: LogEntry) => {
+      if (!a.timestamp && !b.timestamp) return 0;
+      if (!a.timestamp) return -1;
+      if (!b.timestamp) return 1;
+      return a.timestamp.localeCompare(b.timestamp);
+    };
     setLogs((prev) => {
-      const next = [...prev, ...batch];
-      next.sort((a, b) => {
-        if (!a.timestamp && !b.timestamp) return 0;
-        if (!a.timestamp) return -1;
-        if (!b.timestamp) return 1;
-        return a.timestamp.localeCompare(b.timestamp);
-      });
+      // prev is already sorted - only sort the incoming batch, then merge.
+      // Full re-sort per flush is O(n log n) on the whole buffer and made
+      // busy multi-pod streams CPU-bound.
+      batch.sort(cmp);
+      const next: LogEntry[] = [];
+      let i = 0;
+      let j = 0;
+      while (i < prev.length && j < batch.length) {
+        next.push(cmp(prev[i], batch[j]) <= 0 ? prev[i++] : batch[j++]);
+      }
+      while (i < prev.length) next.push(prev[i++]);
+      while (j < batch.length) next.push(batch[j++]);
       if (next.length > maxLines) {
         next.splice(0, next.length - maxLines);
       }
@@ -251,6 +262,10 @@ export function useDeploymentLogs(
             switch (logEvent.type) {
               case "Line":
                 pendingLogsRef.current.push(logEvent.data);
+                scheduleFlush();
+                break;
+              case "Lines":
+                pendingLogsRef.current.push(...logEvent.data);
                 scheduleFlush();
                 break;
               case "Error":

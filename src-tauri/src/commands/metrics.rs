@@ -108,6 +108,18 @@ pub struct ClusterMemorySummary {
     pub percentage: f64,
 }
 
+/// Map a metrics API error to a user-facing message: a 404/NotFound means
+/// metrics-server is simply not installed; anything else is a real error.
+fn classify_metrics_error(context: &str, e: &kube::Error) -> String {
+    if let kube::Error::Api(ae) = e {
+        if ae.code == 404 {
+            return "Metrics server not available. Please install metrics-server in your cluster."
+                .to_string();
+        }
+    }
+    format!("{context}: {e}")
+}
+
 /// Check if metrics-server is available
 async fn check_metrics_available(client: &Client) -> bool {
     let ar = ApiResource {
@@ -122,43 +134,45 @@ async fn check_metrics_available(client: &Client) -> bool {
     api.list(&ListParams::default().limit(1)).await.is_ok()
 }
 
-/// Parse CPU quantity string to nanocores
+/// Parse CPU quantity string to nanocores. Parses the numeric part as f64:
+/// quantities like "1.5" cores or "2.5m" are valid and must not become 0.
 fn parse_cpu_to_nanocores(cpu: &str) -> u64 {
     let cpu = cpu.trim();
-    if cpu.ends_with('n') {
-        cpu.trim_end_matches('n').parse().unwrap_or(0)
-    } else if cpu.ends_with('u') {
-        cpu.trim_end_matches('u').parse::<u64>().unwrap_or(0) * 1000
-    } else if cpu.ends_with('m') {
-        cpu.trim_end_matches('m').parse::<u64>().unwrap_or(0) * 1_000_000
+    let (num, mult) = if let Some(v) = cpu.strip_suffix('n') {
+        (v, 1.0)
+    } else if let Some(v) = cpu.strip_suffix('u') {
+        (v, 1e3)
+    } else if let Some(v) = cpu.strip_suffix('m') {
+        (v, 1e6)
     } else {
         // Whole cores
-        (cpu.parse::<f64>().unwrap_or(0.0) * 1_000_000_000.0) as u64
-    }
+        (cpu, 1e9)
+    };
+    (num.parse::<f64>().unwrap_or(0.0) * mult).round() as u64
 }
 
-/// Parse memory quantity string to bytes
+/// Parse memory quantity string to bytes. Parses the numeric part as f64:
+/// "1.5Gi" is a valid quantity and must not become 0.
 fn parse_memory_to_bytes(mem: &str) -> u64 {
     let mem = mem.trim();
-    if mem.ends_with("Ki") {
-        mem.trim_end_matches("Ki").parse::<u64>().unwrap_or(0) * 1024
-    } else if mem.ends_with("Mi") {
-        mem.trim_end_matches("Mi").parse::<u64>().unwrap_or(0) * 1024 * 1024
-    } else if mem.ends_with("Gi") {
-        mem.trim_end_matches("Gi").parse::<u64>().unwrap_or(0) * 1024 * 1024 * 1024
-    } else if mem.ends_with("Ti") {
-        mem.trim_end_matches("Ti").parse::<u64>().unwrap_or(0) * 1024 * 1024 * 1024 * 1024
-    } else if mem.ends_with('K') || mem.ends_with('k') {
-        mem.trim_end_matches(['K', 'k']).parse::<u64>().unwrap_or(0) * 1000
-    } else if mem.ends_with('M') {
-        mem.trim_end_matches('M').parse::<u64>().unwrap_or(0) * 1000 * 1000
-    } else if mem.ends_with('G') {
-        mem.trim_end_matches('G').parse::<u64>().unwrap_or(0) * 1000 * 1000 * 1000
-    } else if mem.ends_with('T') {
-        mem.trim_end_matches('T').parse::<u64>().unwrap_or(0) * 1000 * 1000 * 1000 * 1000
-    } else {
-        mem.parse().unwrap_or(0)
+    // Binary suffixes must be checked before their decimal prefixes
+    const UNITS: &[(&str, f64)] = &[
+        ("Ki", 1024.0),
+        ("Mi", 1048576.0),
+        ("Gi", 1073741824.0),
+        ("Ti", 1099511627776.0),
+        ("K", 1e3),
+        ("k", 1e3),
+        ("M", 1e6),
+        ("G", 1e9),
+        ("T", 1e12),
+    ];
+    for (suffix, mult) in UNITS {
+        if let Some(v) = mem.strip_suffix(suffix) {
+            return (v.parse::<f64>().unwrap_or(0.0) * mult).round() as u64;
+        }
     }
+    mem.parse::<f64>().unwrap_or(0.0).round() as u64
 }
 
 /// Format nanocores to human readable string
@@ -206,14 +220,8 @@ pub async fn get_node_metrics(
 ) -> Result<Vec<NodeMetrics>, String> {
     let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
 
-    if !check_metrics_available(&client).await {
-        return Err(
-            "Metrics server not available. Please install metrics-server in your cluster."
-                .to_string(),
-        );
-    }
-
-    // Get node metrics from metrics API
+    // No pre-check probe: the real query below fails with a classifiable
+    // 404 when metrics-server is missing - probing first doubles latency.
     let ar = ApiResource {
         group: "metrics.k8s.io".to_string(),
         version: "v1beta1".to_string(),
@@ -255,13 +263,13 @@ pub async fn get_node_metrics(
     let metrics_list = if let Some(name) = node_name {
         match metrics_api.get(&name).await {
             Ok(m) => vec![m],
-            Err(e) => return Err(format!("Failed to get node metrics: {}", e)),
+            Err(e) => return Err(classify_metrics_error("Failed to get node metrics", &e)),
         }
     } else {
         metrics_api
             .list(&ListParams::default())
             .await
-            .map_err(|e| format!("Failed to list node metrics: {}", e))?
+            .map_err(|e| classify_metrics_error("Failed to list node metrics", &e))?
             .items
     };
 
@@ -330,13 +338,8 @@ pub async fn get_pod_metrics(
 ) -> Result<Vec<PodMetrics>, String> {
     let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
 
-    if !check_metrics_available(&client).await {
-        return Err(
-            "Metrics server not available. Please install metrics-server in your cluster."
-                .to_string(),
-        );
-    }
-
+    // No pre-check probe: the real query below fails with a classifiable
+    // 404 when metrics-server is missing.
     let ar = ApiResource {
         group: "metrics.k8s.io".to_string(),
         version: "v1beta1".to_string(),
@@ -356,13 +359,13 @@ pub async fn get_pod_metrics(
         let api: Api<DynamicObject> = Api::namespaced_with(client.clone(), &ns, &ar);
         match api.get(&name).await {
             Ok(m) => vec![m],
-            Err(e) => return Err(format!("Failed to get pod metrics: {}", e)),
+            Err(e) => return Err(classify_metrics_error("Failed to get pod metrics", &e)),
         }
     } else {
         metrics_api
             .list(&ListParams::default())
             .await
-            .map_err(|e| format!("Failed to list pod metrics: {}", e))?
+            .map_err(|e| classify_metrics_error("Failed to list pod metrics", &e))?
             .items
     };
 
@@ -733,32 +736,44 @@ pub async fn get_pod_metrics_direct(
         .await
         .map_err(|e| format!("Failed to list nodes: {}", e))?;
 
+    // Query all kubelets concurrently; a single unreachable node must not
+    // fail (or serialize) the whole scrape - its pods are simply skipped.
+    let summaries = futures::future::join_all(nodes.items.iter().filter_map(|node| {
+        let node_name = node.metadata.name.clone()?;
+        let client = client.clone();
+        Some(async move {
+            // Query kubelet via API server proxy: /api/v1/nodes/{node}/proxy/stats/summary
+            let url = format!("/api/v1/nodes/{}/proxy/stats/summary", node_name);
+            let req = hyper::Request::builder()
+                .uri(&url)
+                .body(Vec::new())
+                .map_err(|e| format!("Failed to build request: {}", e))?;
+
+            let resp = client
+                .request::<Vec<u8>>(req)
+                .await
+                .map_err(|e| format!("Failed to query kubelet on node {}: {}", node_name, e))?;
+
+            serde_json::from_slice::<kubelet_stats::Summary>(&resp).map_err(|e| {
+                format!(
+                    "Failed to parse kubelet stats from node {}: {}",
+                    node_name, e
+                )
+            })
+        })
+    }))
+    .await;
+
     let mut all_pods: Vec<PodMetrics> = Vec::new();
 
-    for node in &nodes.items {
-        let node_name = match &node.metadata.name {
-            Some(n) => n.clone(),
-            None => continue,
+    for summary in summaries {
+        let summary = match summary {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::warn!("Skipping node in kubelet metrics: {e}");
+                continue;
+            }
         };
-
-        // Query kubelet via API server proxy: /api/v1/nodes/{node}/proxy/stats/summary
-        let url = format!("/api/v1/nodes/{}/proxy/stats/summary", node_name);
-        let req = hyper::Request::builder()
-            .uri(&url)
-            .body(Vec::new())
-            .map_err(|e| format!("Failed to build request: {}", e))?;
-
-        let resp = client
-            .request::<Vec<u8>>(req)
-            .await
-            .map_err(|e| format!("Failed to query kubelet on node {}: {}", node_name, e))?;
-
-        let summary: kubelet_stats::Summary = serde_json::from_slice(&resp).map_err(|e| {
-            format!(
-                "Failed to parse kubelet stats from node {}: {}",
-                node_name, e
-            )
-        })?;
 
         for pod in summary.pods {
             // Filter by namespace if specified
@@ -833,4 +848,32 @@ pub async fn get_pod_metrics_direct(
 
     tracing::info!("Got direct kubelet metrics for {} pods", all_pods.len());
     Ok(all_pods)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{parse_cpu_to_nanocores, parse_memory_to_bytes};
+
+    #[test]
+    fn parses_fractional_quantities() {
+        // Regression: fractional values parsed as u64 silently became 0
+        assert_eq!(parse_memory_to_bytes("1.5Gi"), 1_610_612_736);
+        assert_eq!(parse_cpu_to_nanocores("2.5m"), 2_500_000);
+        assert_eq!(parse_cpu_to_nanocores("1.5"), 1_500_000_000);
+    }
+
+    #[test]
+    fn parses_integer_quantities() {
+        assert_eq!(parse_cpu_to_nanocores("250m"), 250_000_000);
+        assert_eq!(parse_cpu_to_nanocores("100n"), 100);
+        assert_eq!(parse_memory_to_bytes("128Mi"), 134_217_728);
+        assert_eq!(parse_memory_to_bytes("1G"), 1_000_000_000);
+        assert_eq!(parse_memory_to_bytes("128974848"), 128_974_848);
+    }
+
+    #[test]
+    fn invalid_quantities_fall_back_to_zero() {
+        assert_eq!(parse_cpu_to_nanocores("garbage"), 0);
+        assert_eq!(parse_memory_to_bytes(""), 0);
+    }
 }

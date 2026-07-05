@@ -59,18 +59,24 @@ pub async fn mcp_detect_ides() -> Vec<IdeInfo> {
     .unwrap_or_default()
 }
 
-/// Install MCP configuration for a specific IDE
+/// Install MCP configuration for a specific IDE.
+/// Async + blocking pool: config writes do file I/O and must not run on the
+/// main thread (same reasoning as mcp_detect_ides).
 #[tauri::command]
-pub fn mcp_install_ide(ide_id: String) -> Result<(), String> {
+pub async fn mcp_install_ide(ide_id: String) -> Result<(), String> {
     let ide = parse_ide_type(&ide_id)?;
-    install_mcp_config(ide)
+    tauri::async_runtime::spawn_blocking(move || install_mcp_config(ide))
+        .await
+        .map_err(|e| format!("Install task failed: {e}"))?
 }
 
 /// Uninstall MCP configuration for a specific IDE
 #[tauri::command]
-pub fn mcp_uninstall_ide(ide_id: String) -> Result<(), String> {
+pub async fn mcp_uninstall_ide(ide_id: String) -> Result<(), String> {
     let ide = parse_ide_type(&ide_id)?;
-    uninstall_mcp_config(ide)
+    tauri::async_runtime::spawn_blocking(move || uninstall_mcp_config(ide))
+        .await
+        .map_err(|e| format!("Uninstall task failed: {e}"))?
 }
 
 /// Check if running in debug/development mode

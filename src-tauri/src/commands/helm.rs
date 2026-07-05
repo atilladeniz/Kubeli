@@ -146,6 +146,10 @@ struct HelmChartMetadataData {
 /// Helm stores data as: base64 -> base64 -> gzip compressed JSON
 /// Note: k8s-openapi's ByteString may or may not decode the outer base64 layer,
 /// so we try both approaches for robustness.
+/// Cap on decompressed release size - protects against gzip bombs in
+/// hostile release secrets.
+const MAX_HELM_RELEASE_BYTES: u64 = 64 * 1024 * 1024;
+
 fn decode_helm_release(data: &str) -> Result<HelmReleaseData, KubeliError> {
     // First base64 decode
     let decoded1 = BASE64.decode(data)?;
@@ -160,14 +164,22 @@ fn decode_helm_release(data: &str) -> Result<HelmReleaseData, KubeliError> {
         BASE64.decode(&decoded1)?
     };
 
-    // Gzip decompress
-    let mut decoder = GzDecoder::new(&gzip_data[..]);
+    // Gzip decompress (bounded)
+    let mut decoder = GzDecoder::new(&gzip_data[..]).take(MAX_HELM_RELEASE_BYTES);
     let mut decompressed = String::new();
     decoder.read_to_string(&mut decompressed)?;
 
     // Parse JSON
     serde_json::from_str(&decompressed)
         .map_err(|e| KubeliError::unknown(format!("Failed to parse helm release JSON: {}", e)))
+}
+
+/// Decode on the blocking pool - decompress + JSON parse of multi-MB
+/// releases must not stall the async runtime.
+async fn decode_helm_release_blocking(data: String) -> Result<HelmReleaseData, KubeliError> {
+    tauri::async_runtime::spawn_blocking(move || decode_helm_release(&data))
+        .await
+        .map_err(|e| KubeliError::unknown(format!("Helm decode task failed: {e}")))?
 }
 
 /// Get the latest revision number for a release from a list of secrets
@@ -238,7 +250,8 @@ pub async fn list_helm_releases(
         {
             if let Some(data) = secret.data.as_ref().and_then(|d| d.get("release")) {
                 let data_str = String::from_utf8_lossy(&data.0);
-                if let Ok(release_data) = decode_helm_release(&data_str) {
+                if let Ok(release_data) = decode_helm_release_blocking(data_str.into_owned()).await
+                {
                     let info = HelmReleaseInfo {
                         name: release_data.name.clone(),
                         namespace: ns.clone(),
@@ -459,7 +472,9 @@ pub async fn get_helm_release(
     let client = state.k8s.get_client().await?;
 
     let api: Api<Secret> = Api::namespaced(client.clone(), &namespace);
-    let lp = ListParams::default().labels("owner=helm");
+    // Server-side filter on the release name - avoids downloading every
+    // release secret in the namespace just to pick one.
+    let lp = ListParams::default().labels(&format!("owner=helm,name={}", name));
 
     let secrets: Vec<Secret> = api.list(&lp).await?.items;
 
@@ -476,7 +491,7 @@ pub async fn get_helm_release(
         .ok_or("Release data not found")?;
 
     let data_str = String::from_utf8_lossy(&data.0);
-    let release_data = decode_helm_release(&data_str)?;
+    let release_data = decode_helm_release_blocking(data_str.into_owned()).await?;
 
     Ok(HelmReleaseDetail {
         name: release_data.name,
@@ -506,7 +521,7 @@ pub async fn get_helm_release_history(
     let client = state.k8s.get_client().await?;
 
     let api: Api<Secret> = Api::namespaced(client, &namespace);
-    let lp = ListParams::default().labels("owner=helm");
+    let lp = ListParams::default().labels(&format!("owner=helm,name={}", name));
 
     let secrets: Vec<Secret> = api.list(&lp).await?.items;
 
@@ -521,7 +536,7 @@ pub async fn get_helm_release_history(
 
         if let Some(data) = secret.data.as_ref().and_then(|d| d.get("release")) {
             let data_str = String::from_utf8_lossy(&data.0);
-            if let Ok(release_data) = decode_helm_release(&data_str) {
+            if let Ok(release_data) = decode_helm_release_blocking(data_str.into_owned()).await {
                 history.push(HelmReleaseHistoryEntry {
                     revision: release_data.version,
                     status: HelmReleaseStatus::from(release_data.info.status.as_str()),
@@ -576,7 +591,7 @@ pub async fn uninstall_helm_release(
     let api: Api<Secret> = Api::namespaced(client, &namespace);
 
     // Find all secrets for this release (all revisions)
-    let lp = ListParams::default().labels("owner=helm");
+    let lp = ListParams::default().labels(&format!("owner=helm,name={}", name));
     let secrets: Vec<Secret> = api.list(&lp).await?.items;
 
     let prefix = format!("sh.helm.release.v1.{}.", name);

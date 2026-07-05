@@ -2,8 +2,7 @@ use chrono::{DateTime, Utc};
 use rusqlite::{params, Connection, Result as SqliteResult};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// Session metadata stored in database
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -110,76 +109,108 @@ impl SessionStore {
         Ok(())
     }
 
+    /// Run a closure against the connection on the blocking pool
+    async fn with_conn<T, F>(&self, f: F) -> SqliteResult<T>
+    where
+        F: FnOnce(&Connection) -> SqliteResult<T> + Send + 'static,
+        T: Send + 'static,
+    {
+        let conn = Arc::clone(&self.conn);
+        tauri::async_runtime::spawn_blocking(move || {
+            let conn = conn.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+            f(&conn)
+        })
+        .await
+        .unwrap_or_else(|e| {
+            Err(rusqlite::Error::InvalidParameterName(format!(
+                "session store task panicked: {e}"
+            )))
+        })
+    }
+
     /// Save a new session
     pub async fn save_session(&self, session: &SessionRecord) -> SqliteResult<()> {
-        let conn = self.conn.lock().await;
-        conn.execute(
-            "INSERT OR REPLACE INTO sessions
-             (session_id, cluster_context, created_at, last_active_at, permission_mode, title)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                session.session_id,
-                session.cluster_context,
-                session.created_at.to_rfc3339(),
-                session.last_active_at.to_rfc3339(),
-                session.permission_mode,
-                session.title,
-            ],
-        )?;
-        Ok(())
+        let session = session.clone();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "INSERT OR REPLACE INTO sessions
+                 (session_id, cluster_context, created_at, last_active_at, permission_mode, title)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    session.session_id,
+                    session.cluster_context,
+                    session.created_at.to_rfc3339(),
+                    session.last_active_at.to_rfc3339(),
+                    session.permission_mode,
+                    session.title,
+                ],
+            )?;
+            Ok(())
+        })
+        .await
     }
 
     /// Update session's last active timestamp
     #[allow(dead_code)]
     pub async fn update_session_activity(&self, session_id: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().await;
-        let now = Utc::now().to_rfc3339();
-        conn.execute(
-            "UPDATE sessions SET last_active_at = ?1 WHERE session_id = ?2",
-            params![now, session_id],
-        )?;
-        Ok(())
+        let session_id = session_id.to_string();
+        self.with_conn(move |conn| {
+            let now = Utc::now().to_rfc3339();
+            conn.execute(
+                "UPDATE sessions SET last_active_at = ?1 WHERE session_id = ?2",
+                params![now, session_id],
+            )?;
+            Ok(())
+        })
+        .await
     }
 
     /// Update session title
     pub async fn update_session_title(&self, session_id: &str, title: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().await;
-        conn.execute(
-            "UPDATE sessions SET title = ?1 WHERE session_id = ?2",
-            params![title, session_id],
-        )?;
-        Ok(())
+        let session_id = session_id.to_string();
+        let title = title.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "UPDATE sessions SET title = ?1 WHERE session_id = ?2",
+                params![title, session_id],
+            )?;
+            Ok(())
+        })
+        .await
     }
 
     /// Load a session by ID
     #[allow(dead_code)]
     pub async fn load_session(&self, session_id: &str) -> SqliteResult<Option<SessionRecord>> {
-        let conn = self.conn.lock().await;
-        let mut stmt = conn.prepare(
-            "SELECT session_id, cluster_context, created_at, last_active_at, permission_mode, title
-             FROM sessions WHERE session_id = ?1",
-        )?;
+        let session_id = session_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT session_id, cluster_context, created_at, last_active_at, permission_mode, title
+                 FROM sessions WHERE session_id = ?1",
+            )?;
 
-        let result = stmt.query_row(params![session_id], |row| {
-            Ok(SessionRecord {
-                session_id: row.get(0)?,
-                cluster_context: row.get(1)?,
-                created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
-                    .unwrap_or_default()
-                    .with_timezone(&Utc),
-                last_active_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
-                    .unwrap_or_default()
-                    .with_timezone(&Utc),
-                permission_mode: row.get(4)?,
-                title: row.get(5)?,
-            })
-        });
+            let result = stmt.query_row(params![session_id], |row| {
+                Ok(SessionRecord {
+                    session_id: row.get(0)?,
+                    cluster_context: row.get(1)?,
+                    created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
+                        .unwrap_or_default()
+                        .with_timezone(&Utc),
+                    last_active_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
+                        .unwrap_or_default()
+                        .with_timezone(&Utc),
+                    permission_mode: row.get(4)?,
+                    title: row.get(5)?,
+                })
+            });
 
-        match result {
-            Ok(session) => Ok(Some(session)),
-            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
-            Err(e) => Err(e),
-        }
+            match result {
+                Ok(session) => Ok(Some(session)),
+                Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+                Err(e) => Err(e),
+            }
+        })
+        .await
     }
 
     /// List all sessions for a cluster
@@ -187,85 +218,97 @@ impl SessionStore {
         &self,
         cluster_context: &str,
     ) -> SqliteResult<Vec<SessionSummary>> {
-        let conn = self.conn.lock().await;
-        let mut stmt = conn.prepare(
-            "SELECT s.session_id, s.cluster_context, s.created_at, s.last_active_at, s.title,
-                    COUNT(m.message_id) as message_count
-             FROM sessions s
-             LEFT JOIN messages m ON s.session_id = m.session_id
-             WHERE s.cluster_context = ?1
-             GROUP BY s.session_id
-             ORDER BY s.last_active_at DESC",
-        )?;
+        let cluster_context = cluster_context.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT s.session_id, s.cluster_context, s.created_at, s.last_active_at, s.title,
+                        COUNT(m.message_id) as message_count
+                 FROM sessions s
+                 LEFT JOIN messages m ON s.session_id = m.session_id
+                 WHERE s.cluster_context = ?1
+                 GROUP BY s.session_id
+                 ORDER BY s.last_active_at DESC",
+            )?;
 
-        let rows = stmt.query_map(params![cluster_context], |row| {
-            Ok(SessionSummary {
-                session_id: row.get(0)?,
-                cluster_context: row.get(1)?,
-                created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
-                    .unwrap_or_default()
-                    .with_timezone(&Utc),
-                last_active_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
-                    .unwrap_or_default()
-                    .with_timezone(&Utc),
-                title: row.get(4)?,
-                message_count: row.get(5)?,
-            })
-        })?;
+            let rows = stmt.query_map(params![cluster_context], |row| {
+                Ok(SessionSummary {
+                    session_id: row.get(0)?,
+                    cluster_context: row.get(1)?,
+                    created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
+                        .unwrap_or_default()
+                        .with_timezone(&Utc),
+                    last_active_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
+                        .unwrap_or_default()
+                        .with_timezone(&Utc),
+                    title: row.get(4)?,
+                    message_count: row.get(5)?,
+                })
+            })?;
 
-        let mut sessions = Vec::new();
-        for row in rows {
-            sessions.push(row?);
-        }
-        Ok(sessions)
+            let mut sessions = Vec::new();
+            for row in rows {
+                sessions.push(row?);
+            }
+            Ok(sessions)
+        })
+        .await
     }
 
     /// Delete a session and all its messages
     pub async fn delete_session(&self, session_id: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().await;
-        // Messages will be deleted by CASCADE
-        conn.execute(
-            "DELETE FROM sessions WHERE session_id = ?1",
-            params![session_id],
-        )?;
-        Ok(())
+        let session_id = session_id.to_string();
+        self.with_conn(move |conn| {
+            // Messages will be deleted by CASCADE
+            conn.execute(
+                "DELETE FROM sessions WHERE session_id = ?1",
+                params![session_id],
+            )?;
+            Ok(())
+        })
+        .await
     }
 
     /// Delete all sessions for a cluster
     pub async fn delete_sessions_for_cluster(&self, cluster_context: &str) -> SqliteResult<()> {
-        let conn = self.conn.lock().await;
-        conn.execute(
-            "DELETE FROM sessions WHERE cluster_context = ?1",
-            params![cluster_context],
-        )?;
-        Ok(())
+        let cluster_context = cluster_context.to_string();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "DELETE FROM sessions WHERE cluster_context = ?1",
+                params![cluster_context],
+            )?;
+            Ok(())
+        })
+        .await
     }
 
     /// Save a message
     pub async fn save_message(&self, message: &MessageRecord) -> SqliteResult<()> {
-        let conn = self.conn.lock().await;
-        conn.execute(
-            "INSERT INTO messages
-             (message_id, session_id, role, content, tool_calls, timestamp)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            params![
-                message.message_id,
-                message.session_id,
-                message.role,
-                message.content,
-                message.tool_calls,
-                message.timestamp.to_rfc3339(),
-            ],
-        )?;
+        let message = message.clone();
+        self.with_conn(move |conn| {
+            conn.execute(
+                "INSERT INTO messages
+                 (message_id, session_id, role, content, tool_calls, timestamp)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    message.message_id,
+                    message.session_id,
+                    message.role,
+                    message.content,
+                    message.tool_calls,
+                    message.timestamp.to_rfc3339(),
+                ],
+            )?;
 
-        // Update session activity
-        let now = Utc::now().to_rfc3339();
-        conn.execute(
-            "UPDATE sessions SET last_active_at = ?1 WHERE session_id = ?2",
-            params![now, message.session_id],
-        )?;
+            // Update session activity
+            let now = Utc::now().to_rfc3339();
+            conn.execute(
+                "UPDATE sessions SET last_active_at = ?1 WHERE session_id = ?2",
+                params![now, message.session_id],
+            )?;
 
-        Ok(())
+            Ok(())
+        })
+        .await
     }
 
     /// Update a message (e.g., when streaming completes)
@@ -275,42 +318,50 @@ impl SessionStore {
         content: &str,
         tool_calls: Option<&str>,
     ) -> SqliteResult<()> {
-        let conn = self.conn.lock().await;
-        conn.execute(
-            "UPDATE messages SET content = ?1, tool_calls = ?2 WHERE message_id = ?3",
-            params![content, tool_calls, message_id],
-        )?;
-        Ok(())
+        let message_id = message_id.to_string();
+        let content = content.to_string();
+        let tool_calls = tool_calls.map(|s| s.to_string());
+        self.with_conn(move |conn| {
+            conn.execute(
+                "UPDATE messages SET content = ?1, tool_calls = ?2 WHERE message_id = ?3",
+                params![content, tool_calls, message_id],
+            )?;
+            Ok(())
+        })
+        .await
     }
 
     /// Get all messages for a session
     pub async fn get_messages(&self, session_id: &str) -> SqliteResult<Vec<MessageRecord>> {
-        let conn = self.conn.lock().await;
-        let mut stmt = conn.prepare(
-            "SELECT message_id, session_id, role, content, tool_calls, timestamp
-             FROM messages
-             WHERE session_id = ?1
-             ORDER BY timestamp ASC",
-        )?;
+        let session_id = session_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT message_id, session_id, role, content, tool_calls, timestamp
+                 FROM messages
+                 WHERE session_id = ?1
+                 ORDER BY timestamp ASC",
+            )?;
 
-        let rows = stmt.query_map(params![session_id], |row| {
-            Ok(MessageRecord {
-                message_id: row.get(0)?,
-                session_id: row.get(1)?,
-                role: row.get(2)?,
-                content: row.get(3)?,
-                tool_calls: row.get(4)?,
-                timestamp: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                    .unwrap_or_default()
-                    .with_timezone(&Utc),
-            })
-        })?;
+            let rows = stmt.query_map(params![session_id], |row| {
+                Ok(MessageRecord {
+                    message_id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    role: row.get(2)?,
+                    content: row.get(3)?,
+                    tool_calls: row.get(4)?,
+                    timestamp: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                        .unwrap_or_default()
+                        .with_timezone(&Utc),
+                })
+            })?;
 
-        let mut messages = Vec::new();
-        for row in rows {
-            messages.push(row?);
-        }
-        Ok(messages)
+            let mut messages = Vec::new();
+            for row in rows {
+                messages.push(row?);
+            }
+            Ok(messages)
+        })
+        .await
     }
 
     /// Get recent messages for context (last N messages)
@@ -319,35 +370,38 @@ impl SessionStore {
         session_id: &str,
         limit: usize,
     ) -> SqliteResult<Vec<MessageRecord>> {
-        let conn = self.conn.lock().await;
-        let mut stmt = conn.prepare(
-            "SELECT message_id, session_id, role, content, tool_calls, timestamp
-             FROM messages
-             WHERE session_id = ?1
-             ORDER BY timestamp DESC
-             LIMIT ?2",
-        )?;
+        let session_id = session_id.to_string();
+        self.with_conn(move |conn| {
+            let mut stmt = conn.prepare(
+                "SELECT message_id, session_id, role, content, tool_calls, timestamp
+                 FROM messages
+                 WHERE session_id = ?1
+                 ORDER BY timestamp DESC
+                 LIMIT ?2",
+            )?;
 
-        let rows = stmt.query_map(params![session_id, limit as i64], |row| {
-            Ok(MessageRecord {
-                message_id: row.get(0)?,
-                session_id: row.get(1)?,
-                role: row.get(2)?,
-                content: row.get(3)?,
-                tool_calls: row.get(4)?,
-                timestamp: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                    .unwrap_or_default()
-                    .with_timezone(&Utc),
-            })
-        })?;
+            let rows = stmt.query_map(params![session_id, limit as i64], |row| {
+                Ok(MessageRecord {
+                    message_id: row.get(0)?,
+                    session_id: row.get(1)?,
+                    role: row.get(2)?,
+                    content: row.get(3)?,
+                    tool_calls: row.get(4)?,
+                    timestamp: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
+                        .unwrap_or_default()
+                        .with_timezone(&Utc),
+                })
+            })?;
 
-        let mut messages = Vec::new();
-        for row in rows {
-            messages.push(row?);
-        }
-        // Reverse to get chronological order
-        messages.reverse();
-        Ok(messages)
+            let mut messages = Vec::new();
+            for row in rows {
+                messages.push(row?);
+            }
+            // Reverse to get chronological order
+            messages.reverse();
+            Ok(messages)
+        })
+        .await
     }
 
     /// Build conversation history string for resuming context
@@ -372,25 +426,29 @@ impl SessionStore {
     /// Get database statistics
     #[allow(dead_code)]
     pub async fn get_stats(&self) -> SqliteResult<(i64, i64)> {
-        let conn = self.conn.lock().await;
-        let session_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))?;
-        let message_count: i64 =
-            conn.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?;
-        Ok((session_count, message_count))
+        self.with_conn(|conn| {
+            let session_count: i64 =
+                conn.query_row("SELECT COUNT(*) FROM sessions", [], |row| row.get(0))?;
+            let message_count: i64 =
+                conn.query_row("SELECT COUNT(*) FROM messages", [], |row| row.get(0))?;
+            Ok((session_count, message_count))
+        })
+        .await
     }
 
     /// Clean up old sessions (older than N days)
     pub async fn cleanup_old_sessions(&self, days: i64) -> SqliteResult<usize> {
-        let conn = self.conn.lock().await;
-        let cutoff = Utc::now() - chrono::Duration::days(days);
-        let cutoff_str = cutoff.to_rfc3339();
+        self.with_conn(move |conn| {
+            let cutoff = Utc::now() - chrono::Duration::days(days);
+            let cutoff_str = cutoff.to_rfc3339();
 
-        let count = conn.execute(
-            "DELETE FROM sessions WHERE last_active_at < ?1",
-            params![cutoff_str],
-        )?;
-        Ok(count)
+            let count = conn.execute(
+                "DELETE FROM sessions WHERE last_active_at < ?1",
+                params![cutoff_str],
+            )?;
+            Ok(count)
+        })
+        .await
     }
 }
 

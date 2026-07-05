@@ -44,13 +44,18 @@ export function ForwardTab() {
     return `${selectedNamespaces.length} namespaces`;
   }, [selectedNamespaces]);
 
+  const fetchSeq = useRef(0);
+
   const fetchResources = useCallback(async () => {
+    const seq = ++fetchSeq.current;
     setIsRefreshing(true);
     try {
       const [pods, services] = await Promise.all([
         listPods().catch(() => [] as PodInfo[]),
         listServices().catch(() => [] as ServiceInfo[]),
       ]);
+      // A newer fetch superseded this one - drop the stale result
+      if (seq !== fetchSeq.current) return;
 
       const forwardable: ForwardableItem[] = [];
 
@@ -86,21 +91,15 @@ export function ForwardTab() {
     } catch (err) {
       console.error("Failed to fetch resources:", err);
     } finally {
-      setIsRefreshing(false);
+      if (seq === fetchSeq.current) {
+        setIsRefreshing(false);
+      }
     }
   }, []);
 
   useEffect(() => {
     fetchResources();
   }, [fetchResources]);
-
-  // Refetch when namespace selection changes
-  useEffect(() => {
-    if (hasLoaded.current) {
-      fetchResources();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedNamespaces]);
 
   const filtered = useMemo(() => {
     let result = items;

@@ -25,9 +25,16 @@ pub struct LogEntry {
 #[serde(tag = "type", content = "data")]
 pub enum LogEvent {
     Line(LogEntry),
+    /// Batch of lines flushed together (every 50 ms or 100 lines) so a busy
+    /// pod does not cause one IPC event per line.
+    Lines(Vec<LogEntry>),
     Error(KubeliError),
-    Started { stream_id: String },
-    Stopped { stream_id: String },
+    Started {
+        stream_id: String,
+    },
+    Stopped {
+        stream_id: String,
+    },
 }
 
 /// Options for streaming logs
@@ -213,22 +220,47 @@ pub async fn stream_pod_logs(
                 use futures::StreamExt;
                 let mut lines_stream = stream.lines();
 
-                while let Some(result) = lines_stream.next().await {
-                    // Check stop flag
+                // Batch lines: flush every FLUSH_INTERVAL or MAX_BATCH lines,
+                // whichever comes first. One IPC event per line would flood
+                // the webview on busy pods.
+                const FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(50);
+                const MAX_BATCH: usize = 100;
+                let mut batch: Vec<LogEntry> = Vec::new();
+                let flush = |batch: &mut Vec<LogEntry>| {
+                    if !batch.is_empty() {
+                        let _ = app.emit(&event_name, LogEvent::Lines(std::mem::take(batch)));
+                    }
+                };
+
+                loop {
                     if stop_flag.load(Ordering::SeqCst) {
                         tracing::info!("Log stream {} stopped by user", stream_id_clone);
+                        flush(&mut batch);
                         break;
                     }
 
-                    match result {
-                        Ok(line) => {
-                            let entry =
-                                parse_log_line(&line, &container_name, &pod_name, &namespace);
-                            let _ = app.emit(&event_name, LogEvent::Line(entry));
+                    match tokio::time::timeout(FLUSH_INTERVAL, lines_stream.next()).await {
+                        // Flush interval elapsed without a new line
+                        Err(_) => flush(&mut batch),
+                        Ok(Some(Ok(line))) => {
+                            batch.push(parse_log_line(
+                                &line,
+                                &container_name,
+                                &pod_name,
+                                &namespace,
+                            ));
+                            if batch.len() >= MAX_BATCH {
+                                flush(&mut batch);
+                            }
                         }
-                        Err(e) => {
+                        Ok(Some(Err(e))) => {
                             tracing::error!("Log stream read error: {}", e);
+                            flush(&mut batch);
                             let _ = app.emit(&event_name, LogEvent::Error(KubeliError::from(e)));
+                            break;
+                        }
+                        Ok(None) => {
+                            flush(&mut batch);
                             break;
                         }
                     }
