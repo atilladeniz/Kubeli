@@ -16,7 +16,6 @@ import {
   MessageRenderer,
   NotConnectedState,
 } from "./components";
-import { ApprovalModal } from "./dialogs";
 import {
   useAIEvents,
   useAISession,
@@ -30,7 +29,6 @@ import type { MessageRecord } from "@/lib/tauri/commands";
 export function AIAssistant() {
   const t = useTranslations();
   const [input, setInput] = useState("");
-  const [approvalModalOpen, setApprovalModalOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -83,26 +81,11 @@ export function AIAssistant() {
   const thinkingMessage = useThinkingMessage(isProcessing, thinkingMessages);
 
   // Subscribe to AI events
-  const eventCallbacks = useMemo(
-    () => ({
-      onApprovalRequired: () => setApprovalModalOpen(true),
-      onApprovalResponse: () => setApprovalModalOpen(false),
-    }),
-    []
-  );
   const eventI18n = useMemo(
-    () => ({
-      actionApproved: t("ai.actionApproved"),
-      actionDenied: t("ai.actionDenied"),
-      blocked: t("ai.blocked"),
-      noPermission: t("ai.noPermission"),
-      actionRequiresApproval: t("ai.actionRequiresApproval"),
-      actionBlockedByPermission: t("ai.actionBlockedByPermission"),
-      unknownError: t("ai.unknownError"),
-    }),
+    () => ({ unknownError: t("ai.unknownError") }),
     [t]
   );
-  useAIEvents(currentSessionId, eventCallbacks, eventI18n);
+  useAIEvents(currentSessionId, eventI18n);
 
   // Auto-scroll to bottom when new messages arrive. Keyed on count, not the
   // array: every streaming chunk replaces the array and would re-scroll,
@@ -247,11 +230,6 @@ export function AIAssistant() {
         placeholder={t("ai.placeholder")}
         isStreaming={isStreaming}
         isThinking={isThinking}
-      />
-
-      <ApprovalModal
-        open={approvalModalOpen}
-        onOpenChange={setApprovalModalOpen}
       />
     </div>
   );

@@ -29,21 +29,9 @@ describe("useAIEvents", () => {
   const setThinking = jest.fn();
   const setError = jest.fn();
   const addToolCall = jest.fn();
-  const setApprovalRequest = jest.fn();
   const markSessionEnded = jest.fn();
 
-  const callbacks = {
-    onApprovalRequired: jest.fn(),
-    onApprovalResponse: jest.fn(),
-  };
-
   const i18n = {
-    actionApproved: "Approved",
-    actionDenied: "Denied",
-    blocked: "Blocked",
-    noPermission: "No permission",
-    actionRequiresApproval: "Requires approval",
-    actionBlockedByPermission: "Blocked by permission",
     unknownError: "Unknown error",
   };
 
@@ -61,13 +49,12 @@ describe("useAIEvents", () => {
       setThinking,
       setError,
       addToolCall,
-      setApprovalRequest,
       markSessionEnded,
     });
   });
 
   it("sets the error and finalizes streaming state on an Error event", () => {
-    renderHook(() => useAIEvents("session-1", callbacks, i18n));
+    renderHook(() => useAIEvents("session-1", i18n));
 
     emit({ payload: { type: "Error", data: { message: "agent crashed" } } });
 
@@ -76,7 +63,7 @@ describe("useAIEvents", () => {
   });
 
   it("falls back to the unknown error label when the Error event has no message", () => {
-    renderHook(() => useAIEvents("session-1", callbacks, i18n));
+    renderHook(() => useAIEvents("session-1", i18n));
 
     emit({ payload: { type: "Error", data: {} } });
 
@@ -85,7 +72,7 @@ describe("useAIEvents", () => {
   });
 
   it("marks the session ended when the backend terminates it", () => {
-    renderHook(() => useAIEvents("session-1", callbacks, i18n));
+    renderHook(() => useAIEvents("session-1", i18n));
 
     emit({ payload: { type: "SessionEnded", data: {} } });
 
@@ -94,7 +81,7 @@ describe("useAIEvents", () => {
   });
 
   it("does not subscribe without a session id", () => {
-    renderHook(() => useAIEvents(null, callbacks, i18n));
+    renderHook(() => useAIEvents(null, i18n));
 
     expect(listen).not.toHaveBeenCalled();
   });

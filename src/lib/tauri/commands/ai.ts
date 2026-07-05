@@ -26,7 +26,6 @@ export type DroidCliInfo = CliInfo;
 export interface AIAuthStatus {
   cli_available: boolean;
   cli_authenticated: boolean;
-  has_api_key: boolean;
   cli_version: string | null;
   cli_path: string | null;
   error: string | null;
@@ -39,10 +38,6 @@ export async function aiCheckCliAvailable(): Promise<ClaudeCliInfo> {
 
 export async function aiVerifyAuthentication(): Promise<AIAuthStatus> {
   return invoke<AIAuthStatus>("ai_verify_authentication");
-}
-
-export async function aiSetApiKey(apiKey: string | null): Promise<void> {
-  return invoke("ai_set_api_key", { apiKey });
 }
 
 export async function aiGetAuthStatus(): Promise<AIAuthStatus> {
@@ -157,66 +152,6 @@ export async function aiGetSystemPrompt(
   currentNamespace?: string
 ): Promise<string> {
   return invoke<string>("ai_get_system_prompt", { contextName, currentNamespace });
-}
-
-// AI Permission commands
-export type PermissionMode = "plan" | "default" | "acceptedits";
-
-export interface PermissionStatus {
-  mode: PermissionMode;
-  sandboxed_namespaces: string[];
-  pending_approvals_count: number;
-}
-
-export interface ApprovalRequest {
-  request_id: string;
-  session_id: string;
-  tool_name: string;
-  tool_input: unknown;
-  command_preview: string;
-  reason: string;
-  severity: "low" | "medium" | "high" | "critical";
-}
-
-export async function aiGetPermissionMode(): Promise<PermissionMode> {
-  return invoke<PermissionMode>("ai_get_permission_mode");
-}
-
-export async function aiSetPermissionMode(mode: PermissionMode): Promise<void> {
-  return invoke<void>("ai_set_permission_mode", { mode });
-}
-
-export async function aiGetPermissionStatus(): Promise<PermissionStatus> {
-  return invoke<PermissionStatus>("ai_get_permission_status");
-}
-
-export async function aiAddSandboxedNamespace(namespace: string): Promise<void> {
-  return invoke<void>("ai_add_sandboxed_namespace", { namespace });
-}
-
-export async function aiRemoveSandboxedNamespace(
-  namespace: string
-): Promise<void> {
-  return invoke<void>("ai_remove_sandboxed_namespace", { namespace });
-}
-
-export async function aiGetSandboxedNamespaces(): Promise<string[]> {
-  return invoke<string[]>("ai_get_sandboxed_namespaces");
-}
-
-export async function aiListPendingApprovals(): Promise<ApprovalRequest[]> {
-  return invoke<ApprovalRequest[]>("ai_list_pending_approvals");
-}
-
-export async function aiApproveAction(requestId: string): Promise<void> {
-  return invoke<void>("ai_approve_action", { requestId });
-}
-
-export async function aiRejectAction(
-  requestId: string,
-  reason?: string
-): Promise<void> {
-  return invoke<void>("ai_reject_action", { requestId, reason });
 }
 
 // AI Session Persistence commands
