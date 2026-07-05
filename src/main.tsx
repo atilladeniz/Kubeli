@@ -1,12 +1,18 @@
 import ReactDOM from "react-dom/client";
+import { lazy, Suspense } from "react";
 import "@fontsource-variable/inter/wght.css";
 import App from "./App";
-import { TrayApp } from "@/components/features/tray/TrayApp";
 import { ThemeProvider } from "@/components/providers/ThemeProvider";
 import { I18nProvider } from "@/components/providers/I18nProvider";
 import { Toaster } from "@/components/ui/sonner";
 import { UpdateChecker } from "@/components/features/updater/UpdateChecker";
 import "./app/globals.css";
+
+// Loaded only in the tray-popup window; the main window skips this chunk and
+// the tray window skips the main app tree.
+const TrayApp = lazy(() =>
+  import("@/components/features/tray/TrayApp").then((m) => ({ default: m.TrayApp }))
+);
 
 // Detect if this is the tray popup window
 function isTrayPopup(): boolean {
@@ -38,7 +44,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <ThemeProvider>
     <I18nProvider>
       {isTray ? (
-        <TrayApp />
+        <Suspense fallback={null}>
+          <TrayApp />
+        </Suspense>
       ) : (
         <>
           <App />

@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState, useEffect, useRef, useCallback } from "react";
+import { getErrorMessage } from "@/lib/types/errors";
 import {
   X,
   Trash2,
@@ -134,7 +135,6 @@ export function ResourceDetail({
       await onSave(yamlContent);
       setOriginalYaml(yamlContent);
     } catch (err) {
-      const { getErrorMessage } = await import("@/lib/types/errors");
       setError(getErrorMessage(err));
       throw err;
     } finally {
@@ -155,7 +155,6 @@ export function ResourceDetail({
       setShowDeleteDialog(false);
       onClose();
     } catch (err) {
-      const { getErrorMessage } = await import("@/lib/types/errors");
       setError(getErrorMessage(err));
       setShowDeleteDialog(false);
     }

@@ -1,11 +1,18 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { applyProxyFromSettings } from "@/lib/tauri/commands/network";
 import { useKubeconfigWatcher } from "@/lib/hooks/useKubeconfigWatcher";
 import { useStartupDeepLinks } from "@/lib/hooks/useStartupDeepLinks";
-import { Dashboard } from "@/components/features/dashboard";
 import { HomePage } from "@/components/features/home";
+
+// The dashboard (and everything it pulls in: Monaco, the diagram stack, AI
+// chat) only renders after a cluster connection — keep it out of the startup
+// bundle so first paint ships the home page alone.
+const Dashboard = lazy(() =>
+  import("@/components/features/dashboard").then((m) => ({ default: m.Dashboard }))
+);
 
 function checkIsTauri(): boolean {
   if (typeof window === "undefined") return false;
@@ -29,7 +36,10 @@ export default function Home() {
 
   const { isConnected, fetchClusters, connect } = useClusterStore();
 
-  // Initialize app: detect Tauri, then fetch clusters before showing UI
+  // Initialize app: detect Tauri, then stream the cluster list in. isReady is
+  // set before fetchClusters resolves — first paint must not wait on disk I/O
+  // and kubeconfig parsing; HomePage gates its empty state on
+  // hasFetchedClusters instead.
   useEffect(() => {
     const initialize = async () => {
       const tauriAvailable = checkIsTauri();
@@ -46,7 +56,8 @@ export default function Home() {
         setIsTauri(true);
       }
 
-      // Fetch clusters before showing UI
+      setIsReady(true);
+
       if (!initialFetchDone.current) {
         initialFetchDone.current = true;
         // Re-apply persisted proxy settings before the first cluster connection
@@ -58,8 +69,6 @@ export default function Home() {
         }
         await fetchClusters();
       }
-
-      setIsReady(true);
     };
 
     initialize();
@@ -98,7 +107,6 @@ export default function Home() {
     let cancelled = false;
     import("@tauri-apps/api/event").then(({ listen }) => {
       listen("oidc-token-refreshed", async () => {
-        const { usePortForwardStore } = await import("@/lib/stores/portforward-store");
         const pfStore = usePortForwardStore.getState();
         const activeForwards = pfStore.forwards.filter((f) => f.status === "connected");
         for (const fwd of activeForwards) {
@@ -203,7 +211,13 @@ export default function Home() {
   }, [isConnected]);
 
   if (showDashboard && isConnected) {
-    return <Dashboard />;
+    return (
+      // Keep the home page visible while the dashboard chunk loads — a blank
+      // flash here would read as a crash right after connecting.
+      <Suspense fallback={<HomePage isTauri={isTauri} isReady={isReady} />}>
+        <Dashboard />
+      </Suspense>
+    );
   }
 
   return <HomePage isTauri={isTauri} isReady={isReady} />;
