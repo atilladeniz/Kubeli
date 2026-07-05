@@ -62,15 +62,24 @@ export function useKubeconfigWatcher() {
 
       if (watchPaths.size === 0) return;
 
-      const unwatch = await watch(
-        Array.from(watchPaths),
-        () => {
-          fetchClusters();
-        },
-        { recursive: false, delayMs: 2000 },
+      // Watch each path separately: one denied/missing path (e.g. outside
+      // the fs scope) must not take down the watchers for the others.
+      const results = await Promise.allSettled(
+        Array.from(watchPaths).map((path) =>
+          watch(path, () => fetchClusters(), { recursive: false, delayMs: 2000 }),
+        ),
       );
 
-      unwatchRef.current = unwatch;
+      const unwatchers = results
+        .filter((r): r is PromiseFulfilledResult<() => void> => r.status === "fulfilled")
+        .map((r) => r.value);
+      results.forEach((r, i) => {
+        if (r.status === "rejected") {
+          console.warn(`Kubeconfig watch failed for ${Array.from(watchPaths)[i]}:`, r.reason);
+        }
+      });
+
+      unwatchRef.current = () => unwatchers.forEach((u) => u());
     } catch (e) {
       console.error("Failed to setup kubeconfig watcher:", e);
     }
