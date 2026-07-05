@@ -66,6 +66,10 @@ interface LogStoreState {
 }
 
 // External state not in Zustand (no re-renders needed)
+// Monotonic ID for stable React keys across ring-buffer trims.
+let logSeq = 0;
+const stampSeq = (entry: LogEntry): LogEntry => ({ ...entry, seq: ++logSeq });
+
 const listeners = new Map<string, UnlistenFn>();
 const pendingLogs = new Map<string, LogEntry[]>();
 const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
@@ -250,7 +254,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
               pending = [];
               pendingLogs.set(tabId, pending);
             }
-            pending.push(logEvent.data);
+            pending.push(stampSeq(logEvent.data));
             scheduleFlush(tabId, set);
             break;
           }
@@ -382,7 +386,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
       }
       pendingLogs.delete(tabId);
 
-      const nextLogs = fetchedLogs.slice(-maxLines);
+      const nextLogs = fetchedLogs.slice(-maxLines).map(stampSeq);
 
       set((s) => {
         const t = s.logTabs[tabId];

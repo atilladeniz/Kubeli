@@ -82,6 +82,8 @@ export const MessageRenderer = memo(function MessageRenderer({
     <div
       className={cn(
         "group flex gap-3 p-4",
+        // Skip layout/paint for off-screen messages in long conversations.
+        "[content-visibility:auto] [contain-intrinsic-size:auto_120px]",
         isUser ? "bg-muted/40" : "bg-background"
       )}
     >

@@ -125,6 +125,9 @@ export interface LogEntry {
   container: string;
   pod: string;
   namespace: string;
+  /** Monotonic ingest ID, stamped frontend-side (not part of the Rust payload).
+   * Stable React key — timestamp+index shifts when the ring buffer trims. */
+  seq?: number;
 }
 
 export interface LogOptions {

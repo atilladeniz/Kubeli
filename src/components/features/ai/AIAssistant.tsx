@@ -104,10 +104,12 @@ export function AIAssistant() {
   );
   useAIEvents(currentSessionId, eventCallbacks, eventI18n);
 
-  // Auto-scroll to bottom when new messages arrive
+  // Auto-scroll to bottom when new messages arrive. Keyed on count, not the
+  // array: every streaming chunk replaces the array and would re-scroll,
+  // fighting the user's own scroll position mid-generation.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isThinking]);
+  }, [messages.length, isThinking]);
 
   // Handle send message
   const handleSend = useCallback(async () => {
@@ -222,8 +224,11 @@ export function AIAssistant() {
                 <MessageRenderer
                   key={message.id}
                   message={message}
-                  isStreaming={isStreaming}
-                  thinkingMessage={thinkingMessage}
+                  // Scope volatile props to the streaming message so the
+                  // memoized finished messages keep stable props and skip
+                  // re-rendering on every thinking-message tick.
+                  isStreaming={isStreaming && message.isStreaming === true}
+                  thinkingMessage={message.isStreaming ? thinkingMessage : ""}
                   onKubeliLink={handleKubeliLink}
                 />
               ))}
