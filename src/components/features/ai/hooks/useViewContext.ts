@@ -26,9 +26,10 @@ export interface ViewContext {
 }
 
 export function useViewContext(): ViewContext {
-  const { tabs, activeTabId } = useTabsStore();
-  const { logTabs } = useLogStore();
-  const { selectedNamespaces } = useClusterStore();
+  const tabs = useTabsStore((s) => s.tabs);
+  const activeTabId = useTabsStore((s) => s.activeTabId);
+  const logTabs = useLogStore((s) => s.logTabs);
+  const selectedNamespaces = useClusterStore((s) => s.selectedNamespaces);
 
   let selectedResource: ViewContext["selectedResource"] | undefined;
   try {

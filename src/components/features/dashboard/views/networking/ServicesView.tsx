@@ -32,8 +32,10 @@ export function ServicesView() {
   const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const { currentCluster } = useClusterStore();
-  const { addFavorite, removeFavorite, isFavorite } = useFavoritesStore();
+  const currentCluster = useClusterStore((s) => s.currentCluster);
+  const addFavorite = useFavoritesStore((s) => s.addFavorite);
+  const removeFavorite = useFavoritesStore((s) => s.removeFavorite);
+  const isFavorite = useFavoritesStore((s) => s.isFavorite);
   const clusterContext = currentCluster?.context || "";
 
   // Refresh when a resource is deleted from detail panel

@@ -34,15 +34,13 @@ export function useAIEvents(
   callbacks: AIEventsCallbacks,
   i18n: AIEventsI18n
 ) {
-  const {
-    appendMessageChunk,
-    finalizeStreaming,
-    setThinking,
-    setError,
-    addToolCall,
-    setApprovalRequest,
-    markSessionEnded,
-  } = useAIStore();
+  const appendMessageChunk = useAIStore((s) => s.appendMessageChunk);
+  const finalizeStreaming = useAIStore((s) => s.finalizeStreaming);
+  const setThinking = useAIStore((s) => s.setThinking);
+  const setError = useAIStore((s) => s.setError);
+  const addToolCall = useAIStore((s) => s.addToolCall);
+  const setApprovalRequest = useAIStore((s) => s.setApprovalRequest);
+  const markSessionEnded = useAIStore((s) => s.markSessionEnded);
 
   useEffect(() => {
     if (!sessionId) return;

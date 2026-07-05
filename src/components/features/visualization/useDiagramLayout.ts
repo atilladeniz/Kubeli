@@ -25,18 +25,17 @@ const DEFAULT_EXTENT: [[number, number], [number, number]] = [
 export function useDiagramLayout(
   setNodes: (nodes: Node<FlowNodeData>[]) => void,
 ) {
-  const { selectedNamespaces, isConnected } = useClusterStore();
-  const {
-    nodes: storeNodes,
-    edges: storeEdges,
-    lodLevel,
-    selectedNodeId,
-    highlightedNodeIds,
-    visibleNodeTypes,
-    fetchGraph,
-    setNodePositionsAndSizes,
-    setLODLevel,
-  } = useDiagramStore();
+  const selectedNamespaces = useClusterStore((s) => s.selectedNamespaces);
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const storeNodes = useDiagramStore((s) => s.nodes);
+  const storeEdges = useDiagramStore((s) => s.edges);
+  const lodLevel = useDiagramStore((s) => s.lodLevel);
+  const selectedNodeId = useDiagramStore((s) => s.selectedNodeId);
+  const highlightedNodeIds = useDiagramStore((s) => s.highlightedNodeIds);
+  const visibleNodeTypes = useDiagramStore((s) => s.visibleNodeTypes);
+  const fetchGraph = useDiagramStore((s) => s.fetchGraph);
+  const setNodePositionsAndSizes = useDiagramStore((s) => s.setNodePositionsAndSizes);
+  const setLODLevel = useDiagramStore((s) => s.setLODLevel);
 
   const { calculatePositions, isCalculating } = useLayout();
 

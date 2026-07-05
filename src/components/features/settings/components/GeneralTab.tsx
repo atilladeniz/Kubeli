@@ -14,7 +14,8 @@ import { SettingSection } from "./SettingSection";
 
 export function GeneralTab() {
   const t = useTranslations("settings");
-  const { settings, updateSettings } = useUIStore();
+  const settings = useUIStore((s) => s.settings);
+  const updateSettings = useUIStore((s) => s.updateSettings);
 
   return (
     <div className="space-y-6">

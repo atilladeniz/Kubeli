@@ -11,7 +11,7 @@ import { useUIStore } from "@/lib/stores/ui-store"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 
 const Toaster = ({ ...props }: ToasterProps) => {
-  const { resolvedTheme } = useUIStore()
+  const resolvedTheme = useUIStore((s) => s.resolvedTheme)
 
   return (
     <Sonner

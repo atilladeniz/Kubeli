@@ -1,6 +1,7 @@
 import { renderHook, act, waitFor } from "@testing-library/react";
 import { useLogAnalysis } from "../useLogAnalysis";
 import type { LogEntry } from "@/lib/types";
+import type { ExtractState } from "zustand";
 
 // Mock stores
 jest.mock("@/lib/stores/ai-store", () => ({
@@ -31,6 +32,22 @@ const mockUseClusterStore = useClusterStore as jest.MockedFunction<typeof useClu
 const mockUseUIStore = useUIStore as jest.MockedFunction<typeof useUIStore>;
 const mockAiCheckCliAvailable = aiCheckCliAvailable as jest.MockedFunction<typeof aiCheckCliAvailable>;
 const mockAiCheckCodexCliAvailable = aiCheckCodexCliAvailable as jest.MockedFunction<typeof aiCheckCodexCliAvailable>;
+
+type AIState = ExtractState<typeof useAIStore>;
+type ClusterState = ExtractState<typeof useClusterStore>;
+type UIState = ExtractState<typeof useUIStore>;
+
+const setAIStoreState = (state: Partial<Record<keyof AIState, unknown>>) =>
+  mockUseAIStore.mockImplementation(((selector: (s: AIState) => unknown) =>
+    selector(state as AIState)) as unknown as typeof useAIStore);
+
+const setClusterStoreState = (state: Partial<Record<keyof ClusterState, unknown>>) =>
+  mockUseClusterStore.mockImplementation(((selector: (s: ClusterState) => unknown) =>
+    selector(state as ClusterState)) as unknown as typeof useClusterStore);
+
+const setUIStoreState = (state: Partial<Record<keyof UIState, unknown>>) =>
+  mockUseUIStore.mockImplementation(((selector: (s: UIState) => unknown) =>
+    selector(state as UIState)) as unknown as typeof useUIStore);
 
 const createLogEntry = (message: string, timestamp: string): LogEntry => ({
   message,
@@ -70,18 +87,18 @@ describe("useLogAnalysis", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       setPendingAnalysis: mockSetPendingAnalysis,
-    } as unknown as ReturnType<typeof useAIStore>);
+    });
 
-    mockUseClusterStore.mockReturnValue({
+    setClusterStoreState({
       currentCluster: { context: "test-cluster" },
       currentNamespace: "default",
-    } as unknown as ReturnType<typeof useClusterStore>);
+    });
 
-    mockUseUIStore.mockReturnValue({
+    setUIStoreState({
       setAIAssistantOpen: mockSetAIAssistantOpen,
-    } as unknown as ReturnType<typeof useUIStore>);
+    });
 
     // Default: CLI available
     mockAiCheckCliAvailable.mockResolvedValue(createCliInfo("authenticated"));
@@ -161,10 +178,10 @@ describe("useLogAnalysis", () => {
   });
 
   it("analyzeWithAI does nothing when no cluster", async () => {
-    mockUseClusterStore.mockReturnValue({
+    setClusterStoreState({
       currentCluster: null,
       currentNamespace: null,
-    } as unknown as ReturnType<typeof useClusterStore>);
+    });
 
     const { result } = renderHook(() => useLogAnalysis(defaultOptions));
 

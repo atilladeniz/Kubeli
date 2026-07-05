@@ -44,7 +44,8 @@ interface CreateResourcePanelProps {
 export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelProps) {
   const t = useTranslations("createResource");
   const tCommon = useTranslations("common");
-  const { resolvedTheme, settings } = useUIStore();
+  const resolvedTheme = useUIStore((s) => s.resolvedTheme);
+  const settings = useUIStore((s) => s.settings);
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);
   const validationDispose = useRef<(() => void) | null>(null);

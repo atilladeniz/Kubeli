@@ -56,7 +56,7 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
   resourceKey,
 }: YamlTabProps, ref: Ref<YamlTabHandle>) {
   const t = useTranslations();
-  const { resolvedTheme } = useUIStore();
+  const resolvedTheme = useUIStore((s) => s.resolvedTheme);
   const { modKeySymbol } = usePlatform();
   const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
   const monacoRef = useRef<Monaco | null>(null);

@@ -9,16 +9,14 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
  * Used when user triggers AI analysis from resource context menus.
  */
 export function usePendingAnalysis() {
-  const {
-    isSessionActive,
-    startSession,
-    sendMessage,
-    setError,
-    pendingAnalysis,
-    clearPendingAnalysis,
-  } = useAIStore();
+  const isSessionActive = useAIStore((s) => s.isSessionActive);
+  const startSession = useAIStore((s) => s.startSession);
+  const sendMessage = useAIStore((s) => s.sendMessage);
+  const setError = useAIStore((s) => s.setError);
+  const pendingAnalysis = useAIStore((s) => s.pendingAnalysis);
+  const clearPendingAnalysis = useAIStore((s) => s.clearPendingAnalysis);
 
-  const { currentCluster } = useClusterStore();
+  const currentCluster = useClusterStore((s) => s.currentCluster);
 
   useEffect(() => {
     if (!pendingAnalysis || !currentCluster) return;

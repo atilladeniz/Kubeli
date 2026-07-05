@@ -34,21 +34,20 @@ export function AIAssistant() {
   const [showHistory, setShowHistory] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  const {
-    currentSessionId,
-    isSessionActive,
-    isThinking,
-    isStreaming,
-    error,
-    interrupt,
-    stopSession,
-    clearError,
-    getConversation,
-    clearConversation,
-    loadSavedSession,
-  } = useAIStore();
+  const currentSessionId = useAIStore((s) => s.currentSessionId);
+  const isSessionActive = useAIStore((s) => s.isSessionActive);
+  const isThinking = useAIStore((s) => s.isThinking);
+  const isStreaming = useAIStore((s) => s.isStreaming);
+  const error = useAIStore((s) => s.error);
+  const interrupt = useAIStore((s) => s.interrupt);
+  const stopSession = useAIStore((s) => s.stopSession);
+  const clearError = useAIStore((s) => s.clearError);
+  const getConversation = useAIStore((s) => s.getConversation);
+  const clearConversation = useAIStore((s) => s.clearConversation);
+  const loadSavedSession = useAIStore((s) => s.loadSavedSession);
 
-  const { currentCluster, isConnected } = useClusterStore();
+  const currentCluster = useClusterStore((s) => s.currentCluster);
+  const isConnected = useClusterStore((s) => s.isConnected);
 
   // View context for AI awareness
   const viewContext = useViewContext();
@@ -63,7 +62,8 @@ export function AIAssistant() {
     [t, viewContext]
   );
   const { textareaRef, handleSend: sendMessage } = useAISession(sessionOptions);
-  const { setPendingPodLogs, setAIAssistantOpen } = useUIStore();
+  const setPendingPodLogs = useUIStore((s) => s.setPendingPodLogs);
+  const setAIAssistantOpen = useUIStore((s) => s.setAIAssistantOpen);
 
   // Handle pending analysis from context menus
   usePendingAnalysis();

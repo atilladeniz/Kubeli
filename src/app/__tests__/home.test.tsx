@@ -5,8 +5,8 @@ jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
 }));
 
-jest.mock("@/lib/stores/cluster-store", () => ({
-  useClusterStore: () => ({
+jest.mock("@/lib/stores/cluster-store", () => {
+  const state = {
     clusters: [],
     currentCluster: null,
     isConnected: false,
@@ -17,8 +17,12 @@ jest.mock("@/lib/stores/cluster-store", () => ({
     connect: jest.fn(),
     lastConnectionErrorContext: null,
     lastConnectionErrorMessage: null,
-  }),
-}));
+  };
+  const useClusterStore = (selector?: (s: Record<string, unknown>) => unknown) =>
+    selector ? selector(state) : state;
+  useClusterStore.getState = () => state;
+  return { useClusterStore };
+});
 
 jest.mock("@/lib/stores/ui-store", () => {
   const state = {

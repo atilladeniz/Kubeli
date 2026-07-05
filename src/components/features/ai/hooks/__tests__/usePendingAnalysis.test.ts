@@ -2,6 +2,7 @@ import { renderHook, waitFor } from "@testing-library/react";
 import { usePendingAnalysis } from "../usePendingAnalysis";
 import { useAIStore } from "@/lib/stores/ai-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import type { ExtractState } from "zustand";
 
 // Mock the stores
 jest.mock("@/lib/stores/ai-store");
@@ -9,6 +10,17 @@ jest.mock("@/lib/stores/cluster-store");
 
 const mockUseAIStore = useAIStore as jest.MockedFunction<typeof useAIStore>;
 const mockUseClusterStore = useClusterStore as jest.MockedFunction<typeof useClusterStore>;
+
+type AIState = ExtractState<typeof useAIStore>;
+type ClusterState = ExtractState<typeof useClusterStore>;
+
+const setAIStoreState = (state: Partial<Record<keyof AIState, unknown>>) =>
+  mockUseAIStore.mockImplementation(((selector: (s: AIState) => unknown) =>
+    selector(state as AIState)) as unknown as typeof useAIStore);
+
+const setClusterStoreState = (state: Partial<Record<keyof ClusterState, unknown>>) =>
+  mockUseClusterStore.mockImplementation(((selector: (s: ClusterState) => unknown) =>
+    selector(state as ClusterState)) as unknown as typeof useClusterStore);
 
 describe("usePendingAnalysis", () => {
   const mockStartSession = jest.fn();
@@ -21,18 +33,18 @@ describe("usePendingAnalysis", () => {
     jest.useFakeTimers();
 
     // Default mock implementations
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
       setError: mockSetError,
       pendingAnalysis: null,
       clearPendingAnalysis: mockClearPendingAnalysis,
-    } as ReturnType<typeof useAIStore>);
+    });
 
-    mockUseClusterStore.mockReturnValue({
+    setClusterStoreState({
       currentCluster: null,
-    } as ReturnType<typeof useClusterStore>);
+    });
   });
 
   afterEach(() => {
@@ -50,7 +62,7 @@ describe("usePendingAnalysis", () => {
   });
 
   it("does nothing when currentCluster is null", () => {
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
@@ -61,7 +73,7 @@ describe("usePendingAnalysis", () => {
         namespace: "default",
       },
       clearPendingAnalysis: mockClearPendingAnalysis,
-    } as ReturnType<typeof useAIStore>);
+    });
 
     renderHook(() => usePendingAnalysis());
 
@@ -71,7 +83,7 @@ describe("usePendingAnalysis", () => {
   });
 
   it("does nothing when cluster context does not match", () => {
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
@@ -82,11 +94,11 @@ describe("usePendingAnalysis", () => {
         namespace: "default",
       },
       clearPendingAnalysis: mockClearPendingAnalysis,
-    } as ReturnType<typeof useAIStore>);
+    });
 
-    mockUseClusterStore.mockReturnValue({
+    setClusterStoreState({
       currentCluster: { context: "test-cluster" },
-    } as ReturnType<typeof useClusterStore>);
+    });
 
     renderHook(() => usePendingAnalysis());
 
@@ -99,7 +111,7 @@ describe("usePendingAnalysis", () => {
     mockStartSession.mockResolvedValue(undefined);
     mockSendMessage.mockResolvedValue(undefined);
 
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
@@ -110,11 +122,11 @@ describe("usePendingAnalysis", () => {
         namespace: "default",
       },
       clearPendingAnalysis: mockClearPendingAnalysis,
-    } as ReturnType<typeof useAIStore>);
+    });
 
-    mockUseClusterStore.mockReturnValue({
+    setClusterStoreState({
       currentCluster: { context: "test-cluster" },
-    } as ReturnType<typeof useClusterStore>);
+    });
 
     renderHook(() => usePendingAnalysis());
 
@@ -130,7 +142,7 @@ describe("usePendingAnalysis", () => {
   it("skips starting session when already active", async () => {
     mockSendMessage.mockResolvedValue(undefined);
 
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: true,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
@@ -141,11 +153,11 @@ describe("usePendingAnalysis", () => {
         namespace: "default",
       },
       clearPendingAnalysis: mockClearPendingAnalysis,
-    } as ReturnType<typeof useAIStore>);
+    });
 
-    mockUseClusterStore.mockReturnValue({
+    setClusterStoreState({
       currentCluster: { context: "test-cluster" },
-    } as ReturnType<typeof useClusterStore>);
+    });
 
     renderHook(() => usePendingAnalysis());
 
@@ -162,7 +174,7 @@ describe("usePendingAnalysis", () => {
   it("sets error when sendMessage fails", async () => {
     mockSendMessage.mockRejectedValue(new Error("Send failed"));
 
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: true,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
@@ -173,11 +185,11 @@ describe("usePendingAnalysis", () => {
         namespace: "default",
       },
       clearPendingAnalysis: mockClearPendingAnalysis,
-    } as ReturnType<typeof useAIStore>);
+    });
 
-    mockUseClusterStore.mockReturnValue({
+    setClusterStoreState({
       currentCluster: { context: "test-cluster" },
-    } as ReturnType<typeof useClusterStore>);
+    });
 
     renderHook(() => usePendingAnalysis());
 

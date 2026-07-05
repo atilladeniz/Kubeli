@@ -33,7 +33,9 @@ const SEVERITY_STYLES = {
  */
 export function ApprovalModal({ open, onOpenChange }: ApprovalModalProps) {
   const t = useTranslations("ai");
-  const { pendingApproval, approveAction, rejectAction } = useAIStore();
+  const pendingApproval = useAIStore((s) => s.pendingApproval);
+  const approveAction = useAIStore((s) => s.approveAction);
+  const rejectAction = useAIStore((s) => s.rejectAction);
 
   if (!pendingApproval) return null;
 

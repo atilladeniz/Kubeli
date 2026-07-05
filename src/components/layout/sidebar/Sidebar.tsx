@@ -52,30 +52,29 @@ export function Sidebar({
   const tNav = useTranslations("navigation");
   const tCluster = useTranslations("cluster");
 
-  const {
-    currentCluster,
-    selectedNamespaces,
-    namespaces,
-    namespaceSource,
-    toggleNamespace,
-    selectAllNamespaces,
-    isConnected,
-    disconnect,
-    latencyMs,
-    isReconnecting,
-    reconnectAttempts,
-    isHealthy,
-    saveAccessibleNamespaces,
-    clearAccessibleNamespaces,
-  } = useClusterStore();
+  const currentCluster = useClusterStore((s) => s.currentCluster);
+  const selectedNamespaces = useClusterStore((s) => s.selectedNamespaces);
+  const namespaces = useClusterStore((s) => s.namespaces);
+  const namespaceSource = useClusterStore((s) => s.namespaceSource);
+  const toggleNamespace = useClusterStore((s) => s.toggleNamespace);
+  const selectAllNamespaces = useClusterStore((s) => s.selectAllNamespaces);
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const disconnect = useClusterStore((s) => s.disconnect);
+  const latencyMs = useClusterStore((s) => s.latencyMs);
+  const isReconnecting = useClusterStore((s) => s.isReconnecting);
+  const reconnectAttempts = useClusterStore((s) => s.reconnectAttempts);
+  const isHealthy = useClusterStore((s) => s.isHealthy);
+  const saveAccessibleNamespaces = useClusterStore((s) => s.saveAccessibleNamespaces);
+  const clearAccessibleNamespaces = useClusterStore((s) => s.clearAccessibleNamespaces);
 
   const [configureNsOpen, setConfigureNsOpen] = useState(false);
   const handleConfigureNamespaces = useCallback(() => setConfigureNsOpen(true), []);
 
-  const { setSettingsOpen } = useUIStore();
+  const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const { forwards, stopForward } = usePortForward();
-  const { getFavorites, removeFavorite, getRecentResources } =
-    useFavoritesStore();
+  const getFavorites = useFavoritesStore((s) => s.getFavorites);
+  const removeFavorite = useFavoritesStore((s) => s.removeFavorite);
+  const getRecentResources = useFavoritesStore((s) => s.getRecentResources);
   const {
     namespaceOpen,
     setNamespaceOpen,

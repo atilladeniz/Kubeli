@@ -2,6 +2,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useAISession } from "../useAISession";
 import { useAIStore } from "@/lib/stores/ai-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import type { ExtractState } from "zustand";
 
 // Mock the stores
 jest.mock("@/lib/stores/ai-store");
@@ -9,6 +10,17 @@ jest.mock("@/lib/stores/cluster-store");
 
 const mockUseAIStore = useAIStore as jest.MockedFunction<typeof useAIStore>;
 const mockUseClusterStore = useClusterStore as jest.MockedFunction<typeof useClusterStore>;
+
+type AIState = ExtractState<typeof useAIStore>;
+type ClusterState = ExtractState<typeof useClusterStore>;
+
+const setAIStoreState = (state: Partial<Record<keyof AIState, unknown>>) =>
+  mockUseAIStore.mockImplementation(((selector: (s: AIState) => unknown) =>
+    selector(state as AIState)) as unknown as typeof useAIStore);
+
+const setClusterStoreState = (state: Partial<Record<keyof ClusterState, unknown>>) =>
+  mockUseClusterStore.mockImplementation(((selector: (s: ClusterState) => unknown) =>
+    selector(state as ClusterState)) as unknown as typeof useClusterStore);
 
 describe("useAISession", () => {
   const mockStartSession = jest.fn();
@@ -18,18 +30,18 @@ describe("useAISession", () => {
   beforeEach(() => {
     jest.clearAllMocks();
 
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: false,
       isStreaming: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
       setError: mockSetError,
-    } as ReturnType<typeof useAIStore>);
+    });
 
-    mockUseClusterStore.mockReturnValue({
+    setClusterStoreState({
       currentCluster: { context: "test-cluster" },
       currentNamespace: "default",
-    } as ReturnType<typeof useClusterStore>);
+    });
   });
 
   it("returns textareaRef", () => {
@@ -44,23 +56,23 @@ describe("useAISession", () => {
   });
 
   it("returns canSend as false when no cluster", () => {
-    mockUseClusterStore.mockReturnValue({
+    setClusterStoreState({
       currentCluster: null,
       currentNamespace: null,
-    } as ReturnType<typeof useClusterStore>);
+    });
 
     const { result } = renderHook(() => useAISession());
     expect(result.current.canSend).toBe(false);
   });
 
   it("returns canSend as false when streaming", () => {
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: true,
       isStreaming: true,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
       setError: mockSetError,
-    } as ReturnType<typeof useAIStore>);
+    });
 
     const { result } = renderHook(() => useAISession());
     expect(result.current.canSend).toBe(false);
@@ -91,13 +103,13 @@ describe("useAISession", () => {
   });
 
   it("handleSend returns false when streaming", async () => {
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: true,
       isStreaming: true,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
       setError: mockSetError,
-    } as ReturnType<typeof useAIStore>);
+    });
 
     const { result } = renderHook(() => useAISession());
 
@@ -125,13 +137,13 @@ describe("useAISession", () => {
   });
 
   it("handleSend skips starting session when already active", async () => {
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: true,
       isStreaming: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
       setError: mockSetError,
-    } as ReturnType<typeof useAIStore>);
+    });
     mockSendMessage.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAISession());
@@ -145,13 +157,13 @@ describe("useAISession", () => {
   });
 
   it("handleSend returns true on success", async () => {
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: true,
       isStreaming: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
       setError: mockSetError,
-    } as ReturnType<typeof useAIStore>);
+    });
     mockSendMessage.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAISession());
@@ -165,13 +177,13 @@ describe("useAISession", () => {
   });
 
   it("handleSend sets error and returns false on failure", async () => {
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: true,
       isStreaming: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
       setError: mockSetError,
-    } as ReturnType<typeof useAIStore>);
+    });
     mockSendMessage.mockRejectedValue(new Error("Network error"));
 
     const { result } = renderHook(() => useAISession());
@@ -186,13 +198,13 @@ describe("useAISession", () => {
   });
 
   it("handleSend calls onError callback on failure", async () => {
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: true,
       isStreaming: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
       setError: mockSetError,
-    } as ReturnType<typeof useAIStore>);
+    });
     mockSendMessage.mockRejectedValue(new Error("Network error"));
 
     const onError = jest.fn();
@@ -206,13 +218,13 @@ describe("useAISession", () => {
   });
 
   it("handleSend trims input message", async () => {
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       isSessionActive: true,
       isStreaming: false,
       startSession: mockStartSession,
       sendMessage: mockSendMessage,
       setError: mockSetError,
-    } as ReturnType<typeof useAIStore>);
+    });
     mockSendMessage.mockResolvedValue(undefined);
 
     const { result } = renderHook(() => useAISession());

@@ -54,12 +54,10 @@ export function useCustomResources(
   definition: CustomResourceDefinitionRef,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<CustomResourceInfo> {
-  const {
-    isConnected,
-    selectedNamespaces,
-    namespaceSource,
-    namespaces: configuredNamespaces,
-  } = useClusterStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const selectedNamespaces = useClusterStore((s) => s.selectedNamespaces);
+  const namespaceSource = useClusterStore((s) => s.namespaceSource);
+  const configuredNamespaces = useClusterStore((s) => s.namespaces);
   const namespace =
     options.namespace ?? (selectedNamespaces.length === 1 ? selectedNamespaces[0] : "");
   const isMultiNs = !options.namespace && selectedNamespaces.length > 1;
@@ -68,7 +66,8 @@ export function useCustomResources(
     !options.namespace &&
     selectedNamespaces.length === 0;
   const displayName = `Custom Resources:${definition.group}:${definition.kind}`;
-  const { getCache, setCache } = useResourceCacheStore();
+  const getCache = useResourceCacheStore((s) => s.getCache);
+  const setCache = useResourceCacheStore((s) => s.setCache);
   const cacheKey = `${displayName}:${options.namespace ?? (isConfiguredAllNs
     ? `configured:${configuredNamespaces.slice().sort().join(",")}`
     : isMultiNs

@@ -15,8 +15,9 @@ export function useClusterScopedResource<T>(
   listFn: () => Promise<T[]>,
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
-  const { isConnected } = useClusterStore();
-  const { getCache, setCache } = useResourceCacheStore();
+  const isConnected = useClusterStore((s) => s.isConnected);
+  const getCache = useResourceCacheStore((s) => s.getCache);
+  const setCache = useResourceCacheStore((s) => s.setCache);
   const cacheKey = `${displayName}:`;
 
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
@@ -36,7 +37,7 @@ export function useClusterScopedResource<T>(
     } finally {
       setIsLoading(false);
     }
-  }, [isConnected, listFn, displayName, cacheKey, setCache]);
+  }, [isConnected, listFn, cacheKey, setCache]);
 
   useEffect(() => {
     if (isConnected) {

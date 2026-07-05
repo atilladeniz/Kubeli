@@ -122,9 +122,10 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
   });
 
   // Send selected log text to AI
-  const { setPendingAnalysis } = useAIStore();
-  const { currentCluster, currentNamespace } = useClusterStore();
-  const { setAIAssistantOpen } = useUIStore();
+  const setPendingAnalysis = useAIStore((s) => s.setPendingAnalysis);
+  const currentCluster = useClusterStore((s) => s.currentCluster);
+  const currentNamespace = useClusterStore((s) => s.currentNamespace);
+  const setAIAssistantOpen = useUIStore((s) => s.setAIAssistantOpen);
 
   const handleSendSelectionToAI = useCallback(
     (selectedText: string) => {

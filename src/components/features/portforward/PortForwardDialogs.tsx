@@ -23,8 +23,10 @@ const PORT_MAX = 65535;
 function ForwardPortContent() {
   const t = useTranslations("portForward");
   const tc = useTranslations("common");
-  const { pendingForwardRequest, confirmForward, dismissForwardDialog, checkPort } =
-    usePortForwardStore();
+  const pendingForwardRequest = usePortForwardStore((s) => s.pendingForwardRequest);
+  const confirmForward = usePortForwardStore((s) => s.confirmForward);
+  const dismissForwardDialog = usePortForwardStore((s) => s.dismissForwardDialog);
+  const checkPort = usePortForwardStore((s) => s.checkPort);
   const [localPortValue, setLocalPortValue] = useState("");
   const [portError, setPortError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -156,8 +158,9 @@ function ForwardPortContent() {
 
 function BrowserOpenContent() {
   const t = useTranslations("portForward");
-  const { pendingBrowserOpen, confirmOpenBrowser, dismissBrowserDialog } =
-    usePortForwardStore();
+  const pendingBrowserOpen = usePortForwardStore((s) => s.pendingBrowserOpen);
+  const confirmOpenBrowser = usePortForwardStore((s) => s.confirmOpenBrowser);
+  const dismissBrowserDialog = usePortForwardStore((s) => s.dismissBrowserDialog);
   const [rememberChoice, setRememberChoice] = useState(false);
 
   if (!pendingBrowserOpen) {

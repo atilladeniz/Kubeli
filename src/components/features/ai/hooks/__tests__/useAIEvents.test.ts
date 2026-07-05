@@ -2,6 +2,7 @@ import { renderHook } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
 import { useAIEvents } from "../useAIEvents";
 import { useAIStore } from "@/lib/stores/ai-store";
+import type { ExtractState } from "zustand";
 import type { AIEventData } from "../../types";
 
 jest.mock("@tauri-apps/api/event", () => ({
@@ -15,6 +16,12 @@ jest.mock("sonner", () => ({
 jest.mock("@/lib/stores/ai-store");
 
 const mockUseAIStore = useAIStore as jest.MockedFunction<typeof useAIStore>;
+
+type AIState = ExtractState<typeof useAIStore>;
+
+const setAIStoreState = (state: Partial<Record<keyof AIState, unknown>>) =>
+  mockUseAIStore.mockImplementation(((selector: (s: AIState) => unknown) =>
+    selector(state as AIState)) as unknown as typeof useAIStore);
 
 describe("useAIEvents", () => {
   const appendMessageChunk = jest.fn();
@@ -48,7 +55,7 @@ describe("useAIEvents", () => {
       emit = handler;
       return Promise.resolve(jest.fn());
     });
-    mockUseAIStore.mockReturnValue({
+    setAIStoreState({
       appendMessageChunk,
       finalizeStreaming,
       setThinking,
@@ -56,7 +63,7 @@ describe("useAIEvents", () => {
       addToolCall,
       setApprovalRequest,
       markSessionEnded,
-    } as unknown as ReturnType<typeof useAIStore>);
+    });
   });
 
   it("sets the error and finalizes streaming state on an Error event", () => {

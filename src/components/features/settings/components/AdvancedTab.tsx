@@ -31,7 +31,9 @@ interface AdvancedTabProps {
 export function AdvancedTab({ appVersion }: AdvancedTabProps) {
   const t = useTranslations("settings");
   const tc = useTranslations("common");
-  const { settings, updateSettings, resetSettings } = useUIStore();
+  const settings = useUIStore((s) => s.settings);
+  const updateSettings = useUIStore((s) => s.updateSettings);
+  const resetSettings = useUIStore((s) => s.resetSettings);
   const { available, isDev, simulateUpdate, clearSimulation } = useUpdater();
 
   return (
