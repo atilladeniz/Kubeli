@@ -10,9 +10,6 @@ export interface DiagramNode extends GraphNode {
   height?: number;
 }
 
-// LOD (Level of Detail) levels
-export type LODLevel = "high" | "medium" | "low";
-
 interface DiagramState {
   // Graph data
   nodes: DiagramNode[];
@@ -21,7 +18,6 @@ interface DiagramState {
   // UI state
   isLoading: boolean;
   error: KubeliError | null;
-  lodLevel: LODLevel;
   selectedNodeId: string | null;
   searchQuery: string;
   highlightedNodeIds: Set<string>;
@@ -35,7 +31,6 @@ interface DiagramState {
     positions: Map<string, { x: number; y: number }>,
     sizes: Map<string, { width: number; height: number }>
   ) => void;
-  setLODLevel: (level: LODLevel) => void;
   setSelectedNode: (nodeId: string | null) => void;
   setSearchQuery: (query: string) => void;
   toggleNodeTypeFilter: (nodeType: string) => void;
@@ -51,7 +46,6 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
   edges: [],
   isLoading: false,
   error: null,
-  lodLevel: "high",
   selectedNodeId: null,
   searchQuery: "",
   highlightedNodeIds: new Set(),
@@ -62,12 +56,19 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     try {
       const data: GraphData = await generateResourceGraph(namespaces ?? []);
 
-      // Convert GraphNodes to DiagramNodes with initial positions (0,0)
-      // Layout will be calculated by the Web Worker
-      const diagramNodes: DiagramNode[] = data.nodes.map((node) => ({
-        ...node,
-        position: { x: 0, y: 0 },
-      }));
+      // Carry over known positions/sizes by ID so a refresh keeps the old
+      // layout on screen instead of blanking; new nodes start at (0,0) until
+      // the layout worker places them.
+      const prevById = new Map(get().nodes.map((n) => [n.id, n]));
+      const diagramNodes: DiagramNode[] = data.nodes.map((node) => {
+        const prev = prevById.get(node.id);
+        return {
+          ...node,
+          position: prev?.position ?? { x: 0, y: 0 },
+          width: prev?.width,
+          height: prev?.height,
+        };
+      });
 
       // Surface partial errors from RBAC-restricted API calls
       const error = data.errors.length > 0
@@ -114,10 +115,6 @@ export const useDiagramStore = create<DiagramState>((set, get) => ({
     });
 
     set({ nodes: updatedNodes });
-  },
-
-  setLODLevel: (level: LODLevel) => {
-    set({ lodLevel: level });
   },
 
   setSelectedNode: (nodeId: string | null) => {

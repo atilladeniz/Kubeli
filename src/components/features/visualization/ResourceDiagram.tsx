@@ -23,7 +23,6 @@ import {
   useEdgesState,
   type Node,
   type Edge,
-  type Viewport,
   ConnectionLineType,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -32,7 +31,6 @@ import { useDiagramStore } from "@/lib/stores/diagram-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { ResourceNode, type ResourceNodeData } from "./nodes/ResourceNode";
-import { DotNode, type DotNodeData } from "./nodes/DotNode";
 import { GroupNode, type GroupNodeData } from "./nodes/GroupNode";
 import { Card } from "@/components/ui/card";
 import { ResourceError } from "@/components/features/resources/ResourceError";
@@ -42,11 +40,10 @@ import { DiagramLegend } from "./DiagramLegend";
 import { useDiagramLayout } from "./useDiagramLayout";
 
 type FlowNodeData = Record<string, unknown> &
-  (ResourceNodeData | DotNodeData | GroupNodeData);
+  (ResourceNodeData | GroupNodeData);
 
 const nodeTypes = {
   resource: ResourceNode,
-  dot: DotNode,
   group: GroupNode,
 } as const;
 
@@ -67,43 +64,32 @@ function ResourceDiagramInner() {
   const [edges, , onEdgesChange] = useEdgesState<Edge>([]);
   const [searchInput, setSearchInput] = useState("");
 
-  const { handleRefresh, updateLODFromZoom, isCalculating, cachedExtent } =
+  const { handleRefresh, isCalculating, cachedExtent } =
     useDiagramLayout(setNodes);
 
   const defaultViewport = useMemo(() => ({ x: 90, y: 70, zoom: 0.7 }), []);
 
-  // Throttled zoom tracking
-  const lastZoomRef = useRef(1);
-  const zoomTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
-  const onViewportChange = useCallback(
-    (viewport: Viewport) => {
-      const zoomDiff = Math.abs(viewport.zoom - lastZoomRef.current);
-      if (zoomDiff < 0.05 || zoomTimeoutRef.current) return;
-
-      zoomTimeoutRef.current = setTimeout(() => {
-        lastZoomRef.current = viewport.zoom;
-        updateLODFromZoom(viewport.zoom);
-        zoomTimeoutRef.current = null;
-      }, 100);
-    },
-    [updateLODFromZoom],
-  );
-
-  useEffect(() => {
-    return () => {
-      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
-    };
-  }, []);
+  // Debounced search — the old version returned a cleanup from the change
+  // handler (which nothing ever calls), so every keystroke fired a store write
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleSearch = useCallback(
     (value: string) => {
       setSearchInput(value);
-      const timeout = setTimeout(() => setSearchQuery(value), 300);
-      return () => clearTimeout(timeout);
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+      searchTimeoutRef.current = setTimeout(() => {
+        searchTimeoutRef.current = null;
+        setSearchQuery(value);
+      }, 300);
     },
     [setSearchQuery],
   );
+
+  useEffect(() => {
+    return () => {
+      if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    };
+  }, []);
 
   const onNodeClick = useCallback(
     (_: React.MouseEvent, node: Node) => {
@@ -146,8 +132,8 @@ function ResourceDiagramInner() {
           onNodesChange={onNodesChange}
           onEdgesChange={onEdgesChange}
           onNodeClick={onNodeClick}
-          onViewportChange={onViewportChange}
           nodeTypes={nodeTypes}
+          onlyRenderVisibleElements
           connectionLineType={ConnectionLineType.SmoothStep}
           colorMode={colorMode}
           defaultViewport={defaultViewport}

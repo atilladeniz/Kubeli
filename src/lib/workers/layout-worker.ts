@@ -3,12 +3,15 @@ import type { GraphNode, GraphEdge } from "../types";
 
 export interface LayoutRequest {
   type: "layout";
+  /** Request token — echoed back so stale responses can be dropped */
+  id: number;
   nodes: GraphNode[];
   edges: GraphEdge[];
 }
 
 export interface LayoutResponse {
   type: "complete" | "error";
+  id: number;
   positions?: Record<string, { x: number; y: number }>;
   sizes?: Record<string, { width: number; height: number }>;
   error?: string;
@@ -66,12 +69,13 @@ export async function calculateLayout(
     }
   }
 
+  const deploymentIds = new Set(deployments.map((d) => d.id));
+
   // Group pods by deployment or namespace (orphans)
   for (const pod of pods) {
     if (pod.parent_id) {
       // Check if parent is a deployment
-      const parentDeploy = deployments.find((d) => d.id === pod.parent_id);
-      if (parentDeploy) {
+      if (deploymentIds.has(pod.parent_id)) {
         const existing = podsByDeployment.get(pod.parent_id) || [];
         existing.push(pod);
         podsByDeployment.set(pod.parent_id, existing);
@@ -84,17 +88,19 @@ export async function calculateLayout(
     }
   }
 
-  // Step 1: Calculate deployment sizes based on their pods
+  // Step 1: Calculate deployment sizes based on their pods.
+  // Sub-layouts are independent — run them concurrently instead of awaiting
+  // each one; each iteration writes only its own deployment's keys.
   const deploymentSizes = new Map<string, { width: number; height: number }>();
 
-  for (const deploy of deployments) {
+  await Promise.all(deployments.map(async (deploy) => {
     const deployPods = podsByDeployment.get(deploy.id) || [];
     const padding = GROUP_PADDING.deployment;
 
     if (deployPods.length === 0) {
       // Empty deployment - minimum size
       deploymentSizes.set(deploy.id, { width: 200, height: 80 });
-      continue;
+      return;
     }
 
     // Create ELK graph for pods inside deployment
@@ -158,7 +164,7 @@ export async function calculateLayout(
       const deployHeight = padding.top + padding.bottom + rows * (NODE_DIMENSIONS.pod.height + 15);
       deploymentSizes.set(deploy.id, { width: deployWidth, height: deployHeight });
     }
-  }
+  }));
 
   // Step 2: Layout each namespace with deployments and orphan pods
   let currentX = 0;
@@ -226,13 +232,11 @@ export async function calculateLayout(
             y: padding.top + (child.y || 0),
           });
 
-          // Store deployment sizes for React Flow
-          const deploy = nsDeployments.find((d) => d.id === child.id);
-          if (deploy) {
-            const deploySize = deploymentSizes.get(deploy.id);
-            if (deploySize) {
-              sizes.set(deploy.id, deploySize);
-            }
+          // Store deployment sizes for React Flow (map lookup; orphan pods
+          // simply have no entry)
+          const deploySize = deploymentSizes.get(child.id);
+          if (deploySize) {
+            sizes.set(child.id, deploySize);
           }
         }
       }
@@ -270,7 +274,7 @@ export async function calculateLayout(
 // For use as a Web Worker
 if (typeof self !== "undefined" && typeof window === "undefined") {
   self.onmessage = async (event: MessageEvent<LayoutRequest>) => {
-    const { type, nodes, edges } = event.data;
+    const { type, id, nodes, edges } = event.data;
 
     if (type === "layout") {
       try {
@@ -289,12 +293,14 @@ if (typeof self !== "undefined" && typeof window === "undefined") {
 
         self.postMessage({
           type: "complete",
+          id,
           positions: positionsObj,
           sizes: sizesObj,
         } as LayoutResponse);
       } catch (error) {
         self.postMessage({
           type: "error",
+          id,
           error: error instanceof Error ? error.message : "Layout failed",
         } as LayoutResponse);
       }
