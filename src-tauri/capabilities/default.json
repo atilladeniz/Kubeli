@@ -24,14 +24,10 @@
     "dialog:default",
     "fs:default",
     "fs:allow-watch",
-    "fs:scope-home-recursive",
-    "fs:scope-desktop-recursive",
-    "fs:scope-document-recursive",
-    "fs:scope-download-recursive",
-    "fs:allow-download-write-recursive",
-    "fs:allow-desktop-write-recursive",
-    "fs:allow-document-write-recursive",
-    "fs:allow-home-write-recursive",
-    "fs:allow-home-read-recursive"
+    "fs:allow-write-text-file",
+    {
+      "identifier": "fs:scope",
+      "allow": [{ "path": "$HOME/.kube" }, { "path": "$HOME/.kube/**" }]
+    }
   ]
 }

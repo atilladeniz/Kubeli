@@ -5,6 +5,7 @@ use crate::k8s::{
     KubeconfigSourcesConfig,
 };
 use tauri::{command, AppHandle};
+use tauri_plugin_fs::FsExt;
 use tauri_plugin_store::StoreExt;
 
 const STORE_FILENAME: &str = "kubeconfig-sources.json";
@@ -21,6 +22,32 @@ pub(crate) fn load_sources_config(app: &AppHandle) -> KubeconfigSourcesConfig {
         Some(value) => serde_json::from_value::<KubeconfigSourcesConfig>(value.clone())
             .unwrap_or_else(|_| KubeConfig::default_sources_config()),
         None => KubeConfig::default_sources_config(),
+    }
+}
+
+/// Allow configured kubeconfig sources in the fs scope so the frontend
+/// watcher can observe them. The static capability scope only covers
+/// ~/.kube; user-added sources elsewhere are granted here at runtime.
+pub(crate) fn allow_sources_in_fs_scope(app: &AppHandle) {
+    let scope = app.fs_scope();
+    for source in &load_sources_config(app).sources {
+        let path = std::path::Path::new(&source.path);
+        let result = match source.source_type {
+            KubeconfigSourceType::Folder => scope.allow_directory(path, true),
+            KubeconfigSourceType::File => {
+                // Watcher also observes the parent dir to catch renames
+                if let Some(parent) = path.parent() {
+                    let _ = scope.allow_directory(parent, false);
+                }
+                scope.allow_file(path)
+            }
+        };
+        if let Err(e) = result {
+            tracing::warn!(
+                "Failed to allow kubeconfig source {} in fs scope: {e}",
+                source.path
+            );
+        }
     }
 }
 
@@ -53,7 +80,9 @@ pub async fn set_kubeconfig_sources(
     app: AppHandle,
     config: KubeconfigSourcesConfig,
 ) -> Result<(), String> {
-    save_sources_config(&app, &config)
+    save_sources_config(&app, &config)?;
+    allow_sources_in_fs_scope(&app);
+    Ok(())
 }
 
 /// Add a kubeconfig source (file or folder)
@@ -82,6 +111,7 @@ pub async fn add_kubeconfig_source(
         source_type: resolved_type,
     });
     save_sources_config(&app, &config)?;
+    allow_sources_in_fs_scope(&app);
 
     Ok(config)
 }
