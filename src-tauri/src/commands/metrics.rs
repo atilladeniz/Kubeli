@@ -764,17 +764,23 @@ pub async fn get_pod_metrics_direct(
     }))
     .await;
 
+    // Partial failures are skipped, but if EVERY node failed the command
+    // must fail: the frontend falls back to metrics-server on error - an
+    // empty Ok would silently disable that fallback.
+    let (oks, errs): (Vec<_>, Vec<_>) = summaries.into_iter().partition(Result::is_ok);
+    if oks.is_empty() {
+        if let Some(Err(e)) = errs.into_iter().next() {
+            return Err(e);
+        }
+    } else {
+        for e in errs.into_iter().flat_map(Result::err) {
+            tracing::warn!("Skipping node in kubelet metrics: {e}");
+        }
+    }
+
     let mut all_pods: Vec<PodMetrics> = Vec::new();
 
-    for summary in summaries {
-        let summary = match summary {
-            Ok(s) => s,
-            Err(e) => {
-                tracing::warn!("Skipping node in kubelet metrics: {e}");
-                continue;
-            }
-        };
-
+    for summary in oks.into_iter().flat_map(Result::ok) {
         for pod in summary.pods {
             // Filter by namespace if specified
             if let Some(ns) = &namespace {
