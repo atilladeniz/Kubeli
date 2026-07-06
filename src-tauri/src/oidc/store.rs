@@ -53,10 +53,18 @@ impl OidcTokenStore {
     }
 
     pub fn save_refresh_token(issuer: &str, client_id: &str, refresh_token: &str) {
+        // A silent failure here means the user re-authenticates in the browser
+        // every session without knowing why - at least leave a trace.
         let service = keyring_service(issuer, client_id);
-        let entry = keyring::Entry::new(&service, "refresh_token");
-        if let Ok(entry) = entry {
-            let _ = entry.set_password(refresh_token);
+        match keyring::Entry::new(&service, "refresh_token") {
+            Ok(entry) => {
+                if let Err(e) = entry.set_password(refresh_token) {
+                    tracing::warn!("Failed to save OIDC refresh token to keyring: {}", e);
+                }
+            }
+            Err(e) => {
+                tracing::warn!("Failed to open keyring entry for OIDC refresh token: {}", e);
+            }
         }
     }
 

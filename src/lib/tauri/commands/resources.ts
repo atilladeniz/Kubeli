@@ -248,6 +248,14 @@ export async function deletePod(name: string, namespace: string): Promise<void> 
   return invoke("delete_pod", { name, namespace });
 }
 
+export async function revealEnvVar(
+  namespace: string,
+  secretName: string,
+  key: string,
+): Promise<string> {
+  return invoke<string>("reveal_env_var", { namespace, secretName, key });
+}
+
 // Resource YAML commands
 export interface ResourceYaml {
   yaml: string;

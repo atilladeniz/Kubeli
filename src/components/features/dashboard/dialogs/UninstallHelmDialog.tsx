@@ -33,7 +33,9 @@ export function UninstallHelmDialog({ state, onClose }: UninstallHelmDialogProps
     if (!state) return;
     try {
       await uninstallHelmRelease(state.name, state.namespace);
-      toast.success("Release uninstalled", { description: state.name });
+      toast.success("Release forgotten", {
+        description: `${state.name} removed from Helm history. Deployed resources are still running.`,
+      });
       state.onSuccess?.();
     } catch (e) {
       toast.error("Failed to uninstall", { description: String(e) });
@@ -45,15 +47,18 @@ export function UninstallHelmDialog({ state, onClose }: UninstallHelmDialogProps
     <AlertDialog open={state?.open} onOpenChange={(open) => !open && onClose()}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Uninstall Helm Release?</AlertDialogTitle>
+          <AlertDialogTitle>Forget Helm Release?</AlertDialogTitle>
           <AlertDialogDescription>
-            {t("messages.confirmDelete", { name: state?.name || "" })}
+            This deletes the Helm release records (secrets) for{" "}
+            <strong>{state?.name}</strong>
             {state?.namespace && (
               <>
                 {" "}
                 ({t("cluster.namespace")}: <strong>{state.namespace}</strong>)
               </>
             )}
+            , so Helm no longer tracks it. The deployed resources stay in the
+            cluster - delete them individually if you want them gone.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -62,7 +67,7 @@ export function UninstallHelmDialog({ state, onClose }: UninstallHelmDialogProps
             onClick={handleUninstall}
             className="bg-destructive text-white hover:bg-destructive/90"
           >
-            Uninstall
+            Forget release
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

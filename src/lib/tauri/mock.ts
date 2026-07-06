@@ -256,6 +256,8 @@ export function mockInvoke(command: string, payload?: Record<string, unknown>) {
       return Promise.resolve([]);
     case "check_metrics_server":
       return Promise.resolve(true);
+    case "reveal_env_var":
+      return Promise.resolve("mock-secret-value");
     case "get_pod_metrics":
     case "get_pod_metrics_direct":
       return Promise.resolve(buildMockPodMetrics());

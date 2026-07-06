@@ -772,10 +772,8 @@ async fn resolve_env_vars(
     containers: &mut [ContainerInfo],
     pod: &PodContext,
 ) {
-    // Cache for ConfigMap and Secret data to avoid redundant fetches
+    // Cache for ConfigMap data to avoid redundant fetches
     let mut configmap_cache: HashMap<String, Option<std::collections::BTreeMap<String, String>>> =
-        HashMap::new();
-    let mut secret_cache: HashMap<String, Option<std::collections::BTreeMap<String, String>>> =
         HashMap::new();
 
     for container in containers.iter_mut() {
@@ -799,33 +797,10 @@ async fn resolve_env_vars(
                             }
                         }
                     }
-                    "secret" => {
-                        if let Some((secret_name, secret_key)) = ref_value.split_once(':') {
-                            let cache_key = secret_name.to_string();
-                            let data = if let Some(cached) = secret_cache.get(&cache_key) {
-                                cached.clone()
-                            } else {
-                                let secrets: Api<Secret> =
-                                    Api::namespaced(client.clone(), namespace);
-                                let fetched = secrets.get(secret_name).await.ok().and_then(|s| {
-                                    s.data.map(|d| {
-                                        d.into_iter()
-                                            .map(|(k, v)| {
-                                                let decoded = String::from_utf8(v.0)
-                                                    .unwrap_or_else(|_| "<binary>".to_string());
-                                                (k, decoded)
-                                            })
-                                            .collect()
-                                    })
-                                });
-                                secret_cache.insert(cache_key, fetched.clone());
-                                fetched
-                            };
-                            if let Some(data) = data {
-                                env_var.resolved_value = data.get(secret_key).cloned();
-                            }
-                        }
-                    }
+                    // Secret-backed values are deliberately NOT resolved here:
+                    // they would sit decoded in every pod-detail payload. The
+                    // UI calls `reveal_env_var` when the user explicitly asks.
+                    "secret" => {}
                     "field" => {
                         env_var.resolved_value = resolve_field_ref(ref_value, pod);
                     }
@@ -939,6 +914,27 @@ pub async fn get_pod(
         restart_count: total_restarts,
         ready_containers: format!("{}/{}", ready_count, total_count),
     })
+}
+
+/// Fetch one secret-backed env var value on demand. `get_pod` never resolves
+/// secret values, so they only leave the cluster when the user reveals them.
+#[command]
+pub async fn reveal_env_var(
+    state: State<'_, AppState>,
+    namespace: String,
+    secret_name: String,
+    key: String,
+) -> Result<String, KubeliError> {
+    let client = state.k8s.get_client().await?;
+
+    let secrets: Api<Secret> = Api::namespaced(client, &namespace);
+    let secret = secrets.get(&secret_name).await?;
+    let data = secret.data.unwrap_or_default();
+    let value = data
+        .get(&key)
+        .ok_or_else(|| format!("Key '{}' not found in secret '{}'", key, secret_name))?;
+
+    Ok(String::from_utf8(value.0.clone()).unwrap_or_else(|_| "<binary>".to_string()))
 }
 
 /// Delete a pod
@@ -1452,13 +1448,21 @@ pub async fn apply_resource_yaml(
         ("", api_version)
     };
 
-    // Create ApiResource for dynamic API
-    let ar = ApiResource {
-        group: group.to_string(),
-        version: version.to_string(),
-        kind: kind.to_string(),
-        api_version: api_version.to_string(),
-        plural: get_plural(kind),
+    // Resolve the plural via API discovery - guessing it breaks kinds like
+    // StorageClass ("storageclasss"). Fall back to the heuristic offline.
+    let gvk = kube::core::GroupVersionKind::gvk(group, version, kind);
+    let ar = match kube::discovery::oneshot::pinned_kind(&client, &gvk).await {
+        Ok((ar, _caps)) => ar,
+        Err(e) => {
+            tracing::warn!("Discovery failed for {}/{} {}: {}", group, version, kind, e);
+            ApiResource {
+                group: group.to_string(),
+                version: version.to_string(),
+                kind: kind.to_string(),
+                api_version: api_version.to_string(),
+                plural: get_plural(kind),
+            }
+        }
     };
 
     // Create dynamic API
@@ -1658,7 +1662,28 @@ fn get_plural(kind: &str) -> String {
         "cronjob" => "cronjobs".to_string(),
         "event" => "events".to_string(),
         "lease" => "leases".to_string(),
-        _ => format!("{}s", kind.to_lowercase()),
+        "endpoints" => "endpoints".to_string(),
+        other => fallback_plural(other),
+    }
+}
+
+/// English pluralization heuristic for kinds not in the table above.
+/// Matches how Kubernetes derives plurals for built-ins and most CRDs.
+fn fallback_plural(lower_kind: &str) -> String {
+    if lower_kind.ends_with('s')
+        || lower_kind.ends_with('x')
+        || lower_kind.ends_with("ch")
+        || lower_kind.ends_with("sh")
+    {
+        format!("{}es", lower_kind)
+    } else if let Some(stem) = lower_kind.strip_suffix('y') {
+        if stem.ends_with(|c: char| "aeiou".contains(c)) {
+            format!("{}s", lower_kind)
+        } else {
+            format!("{}ies", stem)
+        }
+    } else {
+        format!("{}s", lower_kind)
     }
 }
 
@@ -4489,5 +4514,67 @@ mod tests {
             summarize_dynamic_status(&resource),
             Some("Active".to_string())
         );
+    }
+
+    #[tokio::test]
+    async fn test_resolve_env_vars_never_resolves_secret_values() {
+        // Regression (security): secret values used to be fetched and decoded
+        // into every get_pod payload. They must stay unresolved until the user
+        // explicitly calls reveal_env_var. The client points at an unroutable
+        // address - if this test hangs or errors, the secret arm hit the API.
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let config = kube::Config::new("http://127.0.0.1:1".parse().unwrap());
+        let client = kube::Client::try_from(config).expect("client");
+
+        let mut containers = vec![ContainerInfo {
+            name: "app".into(),
+            image: "img".into(),
+            ready: true,
+            restart_count: 0,
+            state: "Running".into(),
+            state_reason: None,
+            last_state: None,
+            last_state_reason: None,
+            last_exit_code: None,
+            last_finished_at: None,
+            env_vars: vec![ContainerEnvVar {
+                name: "DB_PASSWORD".into(),
+                value: None,
+                value_from_kind: Some("secret".into()),
+                value_from: Some("db-secret:password".into()),
+                resolved_value: None,
+            }],
+            ports: vec![],
+        }];
+        let pod = PodContext {
+            name: "pod".into(),
+            namespace: "default".into(),
+            uid: "uid".into(),
+            node_name: None,
+            pod_ip: None,
+            host_ip: None,
+            service_account: None,
+            labels: HashMap::new(),
+            annotations: HashMap::new(),
+        };
+
+        resolve_env_vars(&client, "default", &mut containers, &pod).await;
+
+        assert_eq!(containers[0].env_vars[0].resolved_value, None);
+    }
+
+    #[test]
+    fn test_get_plural_handles_irregular_kinds() {
+        // Regression: the old fallback appended a bare "s", producing
+        // "storageclasss" / "ingressclasss" and failing every apply.
+        assert_eq!(get_plural("StorageClass"), "storageclasses");
+        assert_eq!(get_plural("IngressClass"), "ingressclasses");
+        assert_eq!(get_plural("Ingress"), "ingresses");
+        assert_eq!(get_plural("NetworkPolicy"), "networkpolicies");
+        assert_eq!(get_plural("PriorityClass"), "priorityclasses");
+        assert_eq!(get_plural("Endpoints"), "endpoints");
+        assert_eq!(get_plural("Pod"), "pods");
+        assert_eq!(get_plural("Gateway"), "gateways");
+        assert_eq!(get_plural("MyCrd"), "mycrds");
     }
 }
