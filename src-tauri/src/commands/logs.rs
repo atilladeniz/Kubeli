@@ -91,6 +91,16 @@ impl LogStreamManager {
         let streams = self.active_streams.read().await;
         streams.contains_key(id)
     }
+
+    /// Stop every active log stream. Called on disconnect/context switch so
+    /// no stream keeps reading from the previous cluster.
+    pub async fn stop_all(&self) {
+        let mut streams = self.active_streams.write().await;
+        for session in streams.values() {
+            session.stop_flag.store(true, Ordering::SeqCst);
+        }
+        streams.clear();
+    }
 }
 
 impl Default for LogStreamManager {
@@ -593,5 +603,21 @@ mod tests {
         let manager = LogStreamManager::default();
         // Just verify it doesn't panic and creates properly
         assert!(std::mem::size_of_val(&manager) > 0);
+    }
+
+    #[tokio::test]
+    async fn stop_all_flags_every_stream_and_clears_the_map() {
+        let manager = LogStreamManager::new();
+        let flag_a = Arc::new(AtomicBool::new(false));
+        let flag_b = Arc::new(AtomicBool::new(false));
+        manager.add_stream("a".into(), flag_a.clone()).await;
+        manager.add_stream("b".into(), flag_b.clone()).await;
+
+        manager.stop_all().await;
+
+        assert!(flag_a.load(Ordering::SeqCst));
+        assert!(flag_b.load(Ordering::SeqCst));
+        assert!(!manager.is_active("a").await);
+        assert!(!manager.is_active("b").await);
     }
 }

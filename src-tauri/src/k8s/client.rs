@@ -38,6 +38,9 @@ pub struct KubeClientManager {
     current_context: Arc<RwLock<Option<String>>>,
     kubeconfig: Arc<RwLock<Option<ParsedKubeConfig>>>,
     connection_log: Arc<RwLock<Option<String>>>,
+    /// Serializes connect attempts: two racing connect_cluster calls would
+    /// otherwise interleave init/test and leave client+context mismatched.
+    connect_lock: Arc<tokio::sync::Mutex<()>>,
 }
 
 #[allow(dead_code)] // Some methods may be used in future features (e.g., Resource Detail Views, Settings)
@@ -125,7 +128,22 @@ impl KubeClientManager {
             current_context: Arc::new(RwLock::new(None)),
             kubeconfig: Arc::new(RwLock::new(None)),
             connection_log: Arc::new(RwLock::new(None)),
+            connect_lock: Arc::new(tokio::sync::Mutex::new(())),
         }
+    }
+
+    /// Take the connect lock for the duration of a connect attempt. Owned
+    /// guard so the caller can hold it across the whole command.
+    pub async fn begin_connect(&self) -> tokio::sync::OwnedMutexGuard<()> {
+        Arc::clone(&self.connect_lock).lock_owned().await
+    }
+
+    /// Drop the active connection. Called when a connect attempt fails so
+    /// the stored client/context never point at a cluster that did not pass
+    /// the connection test (the UI treats a failed connect as disconnected).
+    pub async fn clear_connection(&self) {
+        *self.client.write().await = None;
+        *self.current_context.write().await = None;
     }
 
     /// Initialize the client from the default kubeconfig.
@@ -476,5 +494,85 @@ mod tests {
             config.write_timeout.is_none(),
             "write_timeout must be unset so idle exec sessions are not torn down (issue #292)"
         );
+    }
+
+    fn test_kubeconfig(server: &str) -> Kubeconfig {
+        let yaml = format!(
+            r#"
+apiVersion: v1
+kind: Config
+current-context: test-ctx
+contexts:
+  - name: test-ctx
+    context:
+      cluster: test-cluster
+      user: test-user
+clusters:
+  - name: test-cluster
+    cluster:
+      server: {server}
+users:
+  - name: test-user
+    user:
+      token: dummy-token
+"#
+        );
+        serde_yaml::from_str(&yaml).expect("valid test kubeconfig")
+    }
+
+    #[tokio::test]
+    async fn init_with_unknown_context_fails_and_leaves_state_untouched() {
+        let manager = KubeClientManager::new();
+        let result = manager
+            .init_with_context(
+                "does-not-exist",
+                test_kubeconfig("https://127.0.0.1:1"),
+                None,
+            )
+            .await;
+        assert!(result.is_err());
+        assert!(!manager.is_connected().await);
+        assert!(manager.get_current_context().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn failed_connection_test_can_be_cleared() {
+        // Client creation needs a rustls provider (installed at app startup)
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let manager = KubeClientManager::new();
+        // init succeeds (no I/O yet) even though nothing listens on port 1
+        manager
+            .init_with_context("test-ctx", test_kubeconfig("https://127.0.0.1:1"), None)
+            .await
+            .expect("client creation is offline");
+        assert!(manager.is_connected().await);
+
+        // the connection test must fail fast against a closed port
+        let ok = manager.test_connection().await.unwrap_or(false);
+        assert!(!ok, "closed port must not pass the connection test");
+
+        // connect_cluster clears on failure - state no longer claims a
+        // connection that never passed its test
+        manager.clear_connection().await;
+        assert!(!manager.is_connected().await);
+        assert!(manager.get_current_context().await.is_none());
+    }
+
+    #[tokio::test]
+    async fn connect_lock_serializes_concurrent_attempts() {
+        let manager = Arc::new(KubeClientManager::new());
+        let guard = manager.begin_connect().await;
+        let m2 = Arc::clone(&manager);
+        let second = tokio::spawn(async move {
+            let _g = m2.begin_connect().await;
+        });
+        // second attempt must be blocked while the first guard is held
+        tokio::time::sleep(Duration::from_millis(50)).await;
+        assert!(!second.is_finished());
+        drop(guard);
+        tokio::time::timeout(Duration::from_secs(1), second)
+            .await
+            .expect("second connect proceeds after the first releases the lock")
+            .unwrap();
     }
 }

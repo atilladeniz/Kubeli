@@ -8,16 +8,19 @@ use rand::RngExt;
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 use std::net::SocketAddr;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{command, AppHandle, Emitter, State};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio::sync::RwLock;
+use tokio::sync::{watch, RwLock};
+use tokio_util::sync::CancellationToken;
 
 /// Port forward session state
 struct PortForwardSession {
-    stop_flag: Arc<AtomicBool>,
+    cancel: CancellationToken,
+    /// Becomes true once the forward task has exited and dropped its listener,
+    /// i.e. the local port is free again.
+    finished: watch::Receiver<bool>,
     local_port: u16,
     target_port: u16,
     target_type: PortForwardTargetType,
@@ -147,21 +150,45 @@ impl PortForwardManager {
     async fn stop_session(&self, id: &str) -> bool {
         let sessions = self.sessions.read().await;
         if let Some(session) = sessions.get(id) {
-            session.stop_flag.store(true, Ordering::SeqCst);
+            session.cancel.cancel();
             true
         } else {
             false
         }
     }
 
-    async fn remove_session(&self, id: &str) {
+    /// Remove a session. Returns the removed entry so callers can release
+    /// resources tied to it exactly once (see `cleanup_session`).
+    async fn remove_session(&self, id: &str) -> Option<PortForwardSession> {
         let mut sessions = self.sessions.write().await;
-        sessions.remove(id);
+        sessions.remove(id)
     }
 
     async fn is_active(&self, id: &str) -> bool {
         let sessions = self.sessions.read().await;
         sessions.contains_key(id)
+    }
+
+    /// Stop every port-forward session. Called on disconnect/context switch
+    /// so no forward keeps tunneling into the previous cluster.
+    pub async fn stop_all(&self) {
+        let mut sessions = self.sessions.write().await;
+        for session in sessions.values() {
+            session.cancel.cancel();
+        }
+        sessions.clear();
+    }
+
+    /// Wait (bounded) until a session's forward task has exited and dropped
+    /// its listener. No-op when the session is already gone.
+    async fn wait_finished(&self, id: &str, timeout: tokio::time::Duration) {
+        let rx = {
+            let sessions = self.sessions.read().await;
+            sessions.get(id).map(|s| s.finished.clone())
+        };
+        if let Some(mut rx) = rx {
+            let _ = tokio::time::timeout(timeout, rx.wait_for(|done| *done)).await;
+        }
     }
 
     async fn list_sessions(&self) -> Vec<PortForwardInfo> {
@@ -195,13 +222,15 @@ impl PortForwardManager {
         id: &str,
         new_pod_name: String,
         new_pod_uid: String,
-        new_stop_flag: Arc<AtomicBool>,
+        new_cancel: CancellationToken,
+        new_finished: watch::Receiver<bool>,
     ) {
         let mut sessions = self.sessions.write().await;
         if let Some(session) = sessions.get_mut(id) {
             session.pod_name = new_pod_name;
             session.pod_uid = new_pod_uid;
-            session.stop_flag = new_stop_flag;
+            session.cancel = new_cancel;
+            session.finished = new_finished;
         }
     }
 
@@ -251,8 +280,26 @@ impl Default for PortForwardManager {
     }
 }
 
-/// Find an available random port in the high range (30000-60000)
-async fn find_available_port() -> Result<u16, String> {
+/// Remove a session and release its namespace-watcher ref. Idempotent per
+/// forward: only the caller that actually removes the entry releases the ref,
+/// so racing cleanup paths (stop command, forward task exit, pod watcher)
+/// cannot double-release.
+async fn cleanup_session(
+    pf_manager: &Arc<PortForwardManager>,
+    pf_watch_manager: &Arc<PortForwardWatchManager>,
+    forward_id: &str,
+) {
+    if let Some(session) = pf_manager.remove_session(forward_id).await {
+        pf_watch_manager
+            .release_namespace_watcher(&session.namespace)
+            .await;
+    }
+}
+
+/// Bind a listener on a random high port (30000-60000). Returns the bound
+/// listener so the caller keeps ownership of the port; a check-then-bind-later
+/// pattern would let another process grab it in between.
+async fn bind_available_port() -> Result<TcpListener, String> {
     // Generate random ports upfront to avoid Send issues with rng
     let random_ports: Vec<u16> = {
         let mut rng = rand::rng();
@@ -262,16 +309,14 @@ async fn find_available_port() -> Result<u16, String> {
     // Try random ports first
     for port in random_ports {
         if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", port)).await {
-            drop(listener);
-            return Ok(port);
+            return Ok(listener);
         }
     }
 
     // Fallback: try sequential from 30000
     for port in 30000..65535 {
         if let Ok(listener) = TcpListener::bind(format!("127.0.0.1:{}", port)).await {
-            drop(listener);
-            return Ok(port);
+            return Ok(listener);
         }
     }
 
@@ -294,22 +339,24 @@ pub async fn portforward_start(
 
     let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
 
-    // Determine local port
-    let local_port = match options.local_port {
+    // Bind the listener once and hand it to the forward task; re-binding
+    // inside the task would leave a window where another process takes the
+    // port and the failure only surfaces asynchronously.
+    let listener = match options.local_port {
         Some(port) => {
             if pf_manager.is_port_in_use(port).await {
                 return Err(format!("Port {} is already in use", port));
             }
-            match TcpListener::bind(format!("127.0.0.1:{}", port)).await {
-                Ok(listener) => {
-                    drop(listener);
-                    port
-                }
-                Err(_) => return Err(format!("Port {} is not available", port)),
-            }
+            TcpListener::bind(format!("127.0.0.1:{}", port))
+                .await
+                .map_err(|_| format!("Port {} is not available", port))?
         }
-        None => find_available_port().await?,
+        None => bind_available_port().await?,
     };
+    let local_port = listener
+        .local_addr()
+        .map_err(|e| format!("Failed to read local address: {}", e))?
+        .port();
 
     // Verify target exists and get pod + resolved target port + UID + selector
     let (pod_name, pod_uid, resolved_target_port, service_selector) = match &options.target_type {
@@ -374,11 +421,13 @@ pub async fn portforward_start(
         }
     };
 
-    let stop_flag = Arc::new(AtomicBool::new(false));
+    let cancel = CancellationToken::new();
+    let (finished_tx, finished_rx) = watch::channel(false);
     let status = Arc::new(RwLock::new(PortForwardStatus::Connecting));
 
     let session = PortForwardSession {
-        stop_flag: stop_flag.clone(),
+        cancel: cancel.clone(),
+        finished: finished_rx,
         local_port,
         target_port: resolved_target_port,
         target_type: options.target_type.clone(),
@@ -402,11 +451,14 @@ pub async fn portforward_start(
         pod_uid: Some(pod_uid.clone()),
     };
 
+    // All fallible setup is done; inserting last means a failed start never
+    // leaves a phantom session in the manager.
     pf_manager.add_session(forward_id.clone(), session).await;
 
     let event_name = format!("portforward-{}", forward_id);
     let forward_id_clone = forward_id.clone();
     let pf_manager_clone = Arc::clone(&pf_manager);
+    let pf_watch_manager_clone = Arc::clone(&pf_watch_manager);
     let namespace = options.namespace.clone();
     let target_port = resolved_target_port;
 
@@ -419,15 +471,12 @@ pub async fn portforward_start(
     );
 
     // Start the pod health watcher for this namespace
-    let pf_watch_manager_clone = Arc::clone(&pf_watch_manager);
-    let pf_manager_for_watch = Arc::clone(&pf_manager);
-    let watch_client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
-    pf_watch_manager_clone
+    Arc::clone(&pf_watch_manager)
         .ensure_namespace_watcher(
-            watch_client,
+            client.clone(),
             app.clone(),
             options.namespace.clone(),
-            pf_manager_for_watch,
+            Arc::clone(&pf_manager),
         )
         .await;
 
@@ -438,7 +487,8 @@ pub async fn portforward_start(
             app.clone(),
             &event_name,
             &forward_id_clone,
-            stop_flag,
+            listener,
+            cancel,
             status,
             local_port,
             target_port,
@@ -447,10 +497,19 @@ pub async fn portforward_start(
         )
         .await;
 
+        // Listener is dropped once run_port_forward returns; unblock waiters
+        // (stop command, reconnect) that need the port free.
+        let _ = finished_tx.send(true);
+
         // Only cleanup if not being reconnected by the watcher
         let current_status = status_for_check.read().await.clone();
         if current_status != PortForwardStatus::Reconnecting {
-            pf_manager_clone.remove_session(&forward_id_clone).await;
+            cleanup_session(
+                &pf_manager_clone,
+                &pf_watch_manager_clone,
+                &forward_id_clone,
+            )
+            .await;
             let _ = app.emit(
                 &event_name,
                 PortForwardEvent::Stopped {
@@ -472,35 +531,22 @@ pub async fn portforward_start(
     Ok(info)
 }
 
-/// Run the port forward session
+/// Run the port forward session. Takes ownership of the pre-bound listener
+/// and drops it on return, freeing the local port.
 #[allow(clippy::too_many_arguments)]
 async fn run_port_forward(
     client: kube::Client,
     app: AppHandle,
     event_name: &str,
     forward_id: &str,
-    stop_flag: Arc<AtomicBool>,
+    listener: TcpListener,
+    cancel: CancellationToken,
     status: Arc<RwLock<PortForwardStatus>>,
     local_port: u16,
     target_port: u16,
     namespace: &str,
     pod_name: &str,
 ) {
-    let listener = match TcpListener::bind(format!("127.0.0.1:{}", local_port)).await {
-        Ok(l) => l,
-        Err(e) => {
-            let _ = app.emit(
-                event_name,
-                PortForwardEvent::Error {
-                    forward_id: forward_id.to_string(),
-                    message: format!("Failed to bind to port {}: {}", local_port, e),
-                },
-            );
-            *status.write().await = PortForwardStatus::Error;
-            return;
-        }
-    };
-
     *status.write().await = PortForwardStatus::Connected;
     let _ = app.emit(
         event_name,
@@ -516,20 +562,14 @@ async fn run_port_forward(
     );
 
     let pods: Api<Pod> = Api::namespaced(client.clone(), namespace);
-    let pod_name = pod_name.to_string();
-    let forward_id = forward_id.to_string();
 
     loop {
-        if stop_flag.load(Ordering::SeqCst) {
-            tracing::info!("Port forward {} stopped by user", forward_id);
-            break;
-        }
-
         tokio::select! {
-            _ = tokio::time::sleep(tokio::time::Duration::from_millis(100)) => {
-                if stop_flag.load(Ordering::SeqCst) {
-                    break;
-                }
+            // Stop must cut the accept loop immediately, not on the next
+            // poll tick.
+            _ = cancel.cancelled() => {
+                tracing::info!("Port forward {} stopped by user", forward_id);
+                break;
             }
             result = listener.accept() => {
                 match result {
@@ -537,9 +577,9 @@ async fn run_port_forward(
                         tracing::debug!("New connection from {} for forward {}", addr, forward_id);
 
                         let pods_clone = pods.clone();
-                        let pod_name_clone = pod_name.clone();
-                        let forward_id_clone = forward_id.clone();
-                        let stop_flag_clone = stop_flag.clone();
+                        let pod_name_clone = pod_name.to_string();
+                        let forward_id_clone = forward_id.to_string();
+                        let cancel_clone = cancel.clone();
                         let app_clone = app.clone();
                         let event_name_clone = event_name.to_string();
 
@@ -550,7 +590,7 @@ async fn run_port_forward(
                                 target_port,
                                 tcp_stream,
                                 addr,
-                                stop_flag_clone,
+                                cancel_clone,
                                 &forward_id_clone,
                                 app_clone,
                                 &event_name_clone,
@@ -587,7 +627,7 @@ async fn handle_connection(
     target_port: u16,
     mut tcp_stream: tokio::net::TcpStream,
     addr: SocketAddr,
-    stop_flag: Arc<AtomicBool>,
+    cancel: CancellationToken,
     forward_id: &str,
     app: AppHandle,
     event_name: &str,
@@ -623,15 +663,9 @@ async fn handle_connection(
     let (mut tcp_read, mut tcp_write) = tcp_stream.split();
     let (mut upstream_read, mut upstream_write) = tokio::io::split(upstream);
 
-    let forward_id_clone = forward_id.to_string();
-    let stop_flag_clone = stop_flag.clone();
-
     let tcp_to_upstream = async {
         let mut buf = vec![0u8; 8192];
         loop {
-            if stop_flag_clone.load(Ordering::SeqCst) {
-                break;
-            }
             match tcp_read.read(&mut buf).await {
                 Ok(0) => break,
                 Ok(n) => {
@@ -647,9 +681,6 @@ async fn handle_connection(
     let upstream_to_tcp = async {
         let mut buf = vec![0u8; 8192];
         loop {
-            if stop_flag.load(Ordering::SeqCst) {
-                break;
-            }
             match upstream_read.read(&mut buf).await {
                 Ok(0) => break,
                 Ok(n) => {
@@ -662,16 +693,15 @@ async fn handle_connection(
         }
     };
 
+    // The cancelled() arm lets stop cut idle connections that are parked in
+    // read() with no data flowing.
     tokio::select! {
+        _ = cancel.cancelled() => {}
         _ = tcp_to_upstream => {}
         _ = upstream_to_tcp => {}
     }
 
-    tracing::debug!(
-        "Connection from {} closed for forward {}",
-        addr,
-        forward_id_clone
-    );
+    tracing::debug!("Connection from {} closed for forward {}", addr, forward_id);
 }
 
 fn resolve_service_target_port(
@@ -761,7 +791,7 @@ async fn find_replacement_pod(
 
 /// Per-namespace pod watcher for port forward health monitoring
 struct NamespaceWatchHandle {
-    stop_flag: Arc<AtomicBool>,
+    cancel: CancellationToken,
     ref_count: usize,
 }
 
@@ -779,7 +809,7 @@ impl PortForwardWatchManager {
 
     /// Ensure a watcher exists for the given namespace. If one already exists, increment ref count.
     async fn ensure_namespace_watcher(
-        &self,
+        self: Arc<Self>,
         client: kube::Client,
         app: AppHandle,
         namespace: String,
@@ -791,11 +821,11 @@ impl PortForwardWatchManager {
             return;
         }
 
-        let stop_flag = Arc::new(AtomicBool::new(false));
+        let cancel = CancellationToken::new();
         watchers.insert(
             namespace.clone(),
             NamespaceWatchHandle {
-                stop_flag: stop_flag.clone(),
+                cancel: cancel.clone(),
                 ref_count: 1,
             },
         );
@@ -803,9 +833,13 @@ impl PortForwardWatchManager {
 
         let ns = namespace.clone();
         let client_clone = client.clone();
+        // The watcher needs the watch manager itself so auto-cleanup paths
+        // can release namespace refs for the forwards they remove.
+        let watch_manager = Arc::clone(&self);
 
         tokio::spawn(async move {
-            watch_pods_for_portforwards(client_clone, app, ns, pf_manager, stop_flag).await;
+            watch_pods_for_portforwards(client_clone, app, ns, pf_manager, watch_manager, cancel)
+                .await;
         });
 
         tracing::info!(
@@ -814,13 +848,22 @@ impl PortForwardWatchManager {
         );
     }
 
+    /// Stop all namespace watchers regardless of ref counts (disconnect).
+    pub async fn stop_all(&self) {
+        let mut watchers = self.watchers.write().await;
+        for handle in watchers.values() {
+            handle.cancel.cancel();
+        }
+        watchers.clear();
+    }
+
     /// Decrement ref count for a namespace watcher. Stop it if ref count reaches 0.
     async fn release_namespace_watcher(&self, namespace: &str) {
         let mut watchers = self.watchers.write().await;
         let should_remove = if let Some(handle) = watchers.get_mut(namespace) {
             handle.ref_count = handle.ref_count.saturating_sub(1);
             if handle.ref_count == 0 {
-                handle.stop_flag.store(true, Ordering::SeqCst);
+                handle.cancel.cancel();
                 true
             } else {
                 false
@@ -851,23 +894,30 @@ async fn watch_pods_for_portforwards(
     app: AppHandle,
     namespace: String,
     pf_manager: Arc<PortForwardManager>,
-    stop_flag: Arc<AtomicBool>,
+    watch_manager: Arc<PortForwardWatchManager>,
+    cancel: CancellationToken,
 ) {
     let pods: Api<Pod> = Api::namespaced(client.clone(), &namespace);
     let watcher_config = Config::default();
     let mut stream = watcher(pods, watcher_config).boxed();
 
-    while let Some(event) = stream.next().await {
-        if stop_flag.load(Ordering::SeqCst) {
-            break;
-        }
+    loop {
+        // A plain stream.next() would only notice the stop after the next
+        // pod event arrives; select makes release/stop_all take effect now.
+        let event = tokio::select! {
+            _ = cancel.cancelled() => break,
+            maybe_event = stream.next() => match maybe_event {
+                Some(event) => event,
+                None => break,
+            },
+        };
 
         match event {
             Ok(Event::Delete(pod)) => {
-                let pod_uid = pod.metadata.uid.as_deref().unwrap_or_default();
-                let pod_name = pod.metadata.name.as_deref().unwrap_or_default();
+                let pod_uid = pod.metadata.uid.clone().unwrap_or_default();
+                let pod_name = pod.metadata.name.clone().unwrap_or_default();
 
-                let affected = pf_manager.get_forwards_for_pod_uid(pod_uid).await;
+                let affected = pf_manager.get_forwards_for_pod_uid(&pod_uid).await;
                 if affected.is_empty() {
                     continue;
                 }
@@ -881,76 +931,94 @@ async fn watch_pods_for_portforwards(
 
                 for (forward_id, target_type, selector) in affected {
                     let event_name = format!("portforward-{}", forward_id);
+                    let client = client.clone();
+                    let app = app.clone();
+                    let pf_manager = Arc::clone(&pf_manager);
+                    let watch_manager = Arc::clone(&watch_manager);
+                    let namespace = namespace.clone();
+                    let pod_name = pod_name.clone();
+                    let pod_uid = pod_uid.clone();
 
-                    match target_type {
-                        PortForwardTargetType::Service => {
-                            if let Some(sel) = &selector {
-                                handle_service_reconnect(
-                                    &client,
-                                    &app,
-                                    &pf_manager,
-                                    &forward_id,
-                                    &event_name,
-                                    &namespace,
-                                    pod_name,
-                                    sel,
-                                )
-                                .await;
+                    // Reconnects retry for up to 30s; run them off the watch
+                    // loop so other pod events keep flowing meanwhile.
+                    tokio::spawn(async move {
+                        match target_type {
+                            PortForwardTargetType::Service => {
+                                if let Some(sel) = &selector {
+                                    handle_service_reconnect(
+                                        &client,
+                                        &app,
+                                        &pf_manager,
+                                        &watch_manager,
+                                        &forward_id,
+                                        &event_name,
+                                        &namespace,
+                                        &pod_name,
+                                        sel,
+                                    )
+                                    .await;
+                                }
                             }
-                        }
-                        PortForwardTargetType::Pod => {
-                            // For pod-type forwards: check if same-name pod exists (StatefulSet pattern)
-                            let pod_api: Api<Pod> = Api::namespaced(client.clone(), &namespace);
-                            match pod_api.get(pod_name).await {
-                                Ok(new_pod) => {
-                                    let new_uid =
-                                        new_pod.metadata.uid.as_deref().unwrap_or_default();
-                                    if new_uid != pod_uid {
-                                        // Same name, new UID - StatefulSet replacement
-                                        handle_pod_reconnect(
-                                            &client,
-                                            &app,
-                                            &pf_manager,
-                                            &forward_id,
+                            PortForwardTargetType::Pod => {
+                                // For pod-type forwards: check if same-name pod exists (StatefulSet pattern)
+                                let pod_api: Api<Pod> = Api::namespaced(client.clone(), &namespace);
+                                match pod_api.get(&pod_name).await {
+                                    Ok(new_pod) => {
+                                        let new_uid =
+                                            new_pod.metadata.uid.as_deref().unwrap_or_default();
+                                        if new_uid != pod_uid {
+                                            // Same name, new UID - StatefulSet replacement
+                                            handle_pod_reconnect(
+                                                &client,
+                                                &app,
+                                                &pf_manager,
+                                                &watch_manager,
+                                                &forward_id,
+                                                &event_name,
+                                                &namespace,
+                                                &pod_name,
+                                            )
+                                            .await;
+                                        }
+                                    }
+                                    Err(_) => {
+                                        // Pod gone with different name expected (Deployment) - auto-cleanup
+                                        let _ = app.emit(
                                             &event_name,
-                                            &namespace,
-                                            pod_name,
-                                        )
-                                        .await;
+                                            PortForwardEvent::PodDied {
+                                                forward_id: forward_id.clone(),
+                                                pod_name: pod_name.clone(),
+                                            },
+                                        );
+                                        // Stop and remove the forward
+                                        pf_manager.stop_session(&forward_id).await;
+                                        pf_manager
+                                            .wait_finished(
+                                                &forward_id,
+                                                tokio::time::Duration::from_secs(5),
+                                            )
+                                            .await;
+                                        cleanup_session(&pf_manager, &watch_manager, &forward_id)
+                                            .await;
+                                        let _ = app.emit(
+                                            &event_name,
+                                            PortForwardEvent::Stopped {
+                                                forward_id: forward_id.clone(),
+                                            },
+                                        );
                                     }
                                 }
-                                Err(_) => {
-                                    // Pod gone with different name expected (Deployment) - auto-cleanup
-                                    let _ = app.emit(
-                                        &event_name,
-                                        PortForwardEvent::PodDied {
-                                            forward_id: forward_id.clone(),
-                                            pod_name: pod_name.to_string(),
-                                        },
-                                    );
-                                    // Stop and remove the forward
-                                    pf_manager.stop_session(&forward_id).await;
-                                    tokio::time::sleep(tokio::time::Duration::from_millis(100))
-                                        .await;
-                                    pf_manager.remove_session(&forward_id).await;
-                                    let _ = app.emit(
-                                        &event_name,
-                                        PortForwardEvent::Stopped {
-                                            forward_id: forward_id.clone(),
-                                        },
-                                    );
-                                }
                             }
                         }
-                    }
+                    });
                 }
             }
             Ok(Event::Apply(pod)) => {
                 // Check if this pod has a deletion_timestamp (terminating)
                 if pod.metadata.deletion_timestamp.is_some() {
-                    let pod_uid = pod.metadata.uid.as_deref().unwrap_or_default();
-                    let pod_name = pod.metadata.name.as_deref().unwrap_or_default();
-                    let affected = pf_manager.get_forwards_for_pod_uid(pod_uid).await;
+                    let pod_uid = pod.metadata.uid.clone().unwrap_or_default();
+                    let pod_name = pod.metadata.name.clone().unwrap_or_default();
+                    let affected = pf_manager.get_forwards_for_pod_uid(&pod_uid).await;
                     if affected.is_empty() {
                         continue;
                     }
@@ -958,19 +1026,29 @@ async fn watch_pods_for_portforwards(
                     // Pod is terminating - for service-type, start proactive reconnect
                     for (forward_id, target_type, selector) in affected {
                         if target_type == PortForwardTargetType::Service {
-                            if let Some(sel) = &selector {
+                            if let Some(sel) = selector {
                                 let event_name = format!("portforward-{}", forward_id);
-                                handle_service_reconnect(
-                                    &client,
-                                    &app,
-                                    &pf_manager,
-                                    &forward_id,
-                                    &event_name,
-                                    &namespace,
-                                    pod_name,
-                                    sel,
-                                )
-                                .await;
+                                let client = client.clone();
+                                let app = app.clone();
+                                let pf_manager = Arc::clone(&pf_manager);
+                                let watch_manager = Arc::clone(&watch_manager);
+                                let namespace = namespace.clone();
+                                let pod_name = pod_name.clone();
+
+                                tokio::spawn(async move {
+                                    handle_service_reconnect(
+                                        &client,
+                                        &app,
+                                        &pf_manager,
+                                        &watch_manager,
+                                        &forward_id,
+                                        &event_name,
+                                        &namespace,
+                                        &pod_name,
+                                        &sel,
+                                    )
+                                    .await;
+                                });
                             }
                         }
                     }
@@ -996,6 +1074,7 @@ async fn handle_service_reconnect(
     client: &kube::Client,
     app: &AppHandle,
     pf_manager: &Arc<PortForwardManager>,
+    pf_watch_manager: &Arc<PortForwardWatchManager>,
     forward_id: &str,
     event_name: &str,
     namespace: &str,
@@ -1046,6 +1125,7 @@ async fn handle_service_reconnect(
                 client,
                 app,
                 pf_manager,
+                pf_watch_manager,
                 forward_id,
                 event_name,
                 namespace,
@@ -1055,7 +1135,9 @@ async fn handle_service_reconnect(
             .await;
         }
         None => {
-            // No replacement found - auto-cleanup
+            // No replacement found - auto-cleanup. The forward task skips its
+            // own cleanup while status is Reconnecting, so this path must
+            // remove the session and release the watcher ref itself.
             let _ = app.emit(
                 event_name,
                 PortForwardEvent::PodDied {
@@ -1064,8 +1146,10 @@ async fn handle_service_reconnect(
                 },
             );
             pf_manager.stop_session(forward_id).await;
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-            pf_manager.remove_session(forward_id).await;
+            pf_manager
+                .wait_finished(forward_id, tokio::time::Duration::from_secs(5))
+                .await;
+            cleanup_session(pf_manager, pf_watch_manager, forward_id).await;
             let _ = app.emit(
                 event_name,
                 PortForwardEvent::Stopped {
@@ -1077,10 +1161,12 @@ async fn handle_service_reconnect(
 }
 
 /// Handle reconnection for pod-type forwards (StatefulSet same-name pattern)
+#[allow(clippy::too_many_arguments)]
 async fn handle_pod_reconnect(
     client: &kube::Client,
     app: &AppHandle,
     pf_manager: &Arc<PortForwardManager>,
+    pf_watch_manager: &Arc<PortForwardWatchManager>,
     forward_id: &str,
     event_name: &str,
     namespace: &str,
@@ -1122,7 +1208,15 @@ async fn handle_pod_reconnect(
             if is_running && is_ready {
                 let new_uid = pod.metadata.uid.as_deref().unwrap_or_default();
                 reconnect_forward(
-                    client, app, pf_manager, forward_id, event_name, namespace, pod_name, new_uid,
+                    client,
+                    app,
+                    pf_manager,
+                    pf_watch_manager,
+                    forward_id,
+                    event_name,
+                    namespace,
+                    pod_name,
+                    new_uid,
                 )
                 .await;
                 ready = true;
@@ -1133,6 +1227,8 @@ async fn handle_pod_reconnect(
     }
 
     if !ready {
+        // Same as the service path: status is Reconnecting, so the forward
+        // task will not clean up - do it here, releasing the watcher ref.
         let _ = app.emit(
             event_name,
             PortForwardEvent::PodDied {
@@ -1141,8 +1237,10 @@ async fn handle_pod_reconnect(
             },
         );
         pf_manager.stop_session(forward_id).await;
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        pf_manager.remove_session(forward_id).await;
+        pf_manager
+            .wait_finished(forward_id, tokio::time::Duration::from_secs(5))
+            .await;
+        cleanup_session(pf_manager, pf_watch_manager, forward_id).await;
         let _ = app.emit(
             event_name,
             PortForwardEvent::Stopped {
@@ -1158,6 +1256,7 @@ async fn reconnect_forward(
     client: &kube::Client,
     app: &AppHandle,
     pf_manager: &Arc<PortForwardManager>,
+    pf_watch_manager: &Arc<PortForwardWatchManager>,
     forward_id: &str,
     event_name: &str,
     namespace: &str,
@@ -1170,18 +1269,23 @@ async fn reconnect_forward(
         None => return,
     };
 
-    // Stop old listener
+    // Stop the old forward and wait until its listener is actually released;
+    // a fixed sleep here would race the rebind below.
     pf_manager.stop_session(forward_id).await;
-    tokio::time::sleep(tokio::time::Duration::from_millis(200)).await;
+    pf_manager
+        .wait_finished(forward_id, tokio::time::Duration::from_secs(5))
+        .await;
 
-    // Create new stop flag for reconnected session
-    let new_stop_flag = Arc::new(AtomicBool::new(false));
+    // Fresh cancel token and completion signal for the reconnected session
+    let new_cancel = CancellationToken::new();
+    let (finished_tx, finished_rx) = watch::channel(false);
     pf_manager
         .update_pod_target(
             forward_id,
             new_pod_name.to_string(),
             new_pod_uid.to_string(),
-            new_stop_flag.clone(),
+            new_cancel.clone(),
+            finished_rx,
         )
         .await;
 
@@ -1194,26 +1298,49 @@ async fn reconnect_forward(
     let status_clone = status.clone();
     let status_for_check = status.clone();
     let pf_manager_clone = Arc::clone(pf_manager);
+    let pf_watch_manager_clone = Arc::clone(pf_watch_manager);
 
     tokio::spawn(async move {
-        run_port_forward(
-            client_clone,
-            app_clone.clone(),
-            &event_name_clone,
-            &forward_id_clone,
-            new_stop_flag,
-            status_clone,
-            local_port,
-            target_port,
-            &namespace_clone,
-            &pod_name_clone,
-        )
-        .await;
+        match TcpListener::bind(format!("127.0.0.1:{}", local_port)).await {
+            Ok(listener) => {
+                run_port_forward(
+                    client_clone,
+                    app_clone.clone(),
+                    &event_name_clone,
+                    &forward_id_clone,
+                    listener,
+                    new_cancel,
+                    status_clone,
+                    local_port,
+                    target_port,
+                    &namespace_clone,
+                    &pod_name_clone,
+                )
+                .await;
+            }
+            Err(e) => {
+                let _ = app_clone.emit(
+                    &event_name_clone,
+                    PortForwardEvent::Error {
+                        forward_id: forward_id_clone.clone(),
+                        message: format!("Failed to bind to port {}: {}", local_port, e),
+                    },
+                );
+                *status_clone.write().await = PortForwardStatus::Error;
+            }
+        }
+
+        let _ = finished_tx.send(true);
 
         // Only cleanup if not being reconnected again
         let current_status = status_for_check.read().await.clone();
         if current_status != PortForwardStatus::Reconnecting {
-            pf_manager_clone.remove_session(&forward_id_clone).await;
+            cleanup_session(
+                &pf_manager_clone,
+                &pf_watch_manager_clone,
+                &forward_id_clone,
+            )
+            .await;
             let _ = app_clone.emit(
                 &event_name_clone,
                 PortForwardEvent::Stopped {
@@ -1249,20 +1376,13 @@ pub async fn portforward_stop(
 ) -> Result<(), String> {
     let event_name = format!("portforward-{}", forward_id);
 
-    // Get namespace before removing
-    let namespace = {
-        let sessions = pf_manager.sessions.read().await;
-        sessions.get(&forward_id).map(|s| s.namespace.clone())
-    };
-
     if pf_manager.stop_session(&forward_id).await {
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        pf_manager.remove_session(&forward_id).await;
-
-        // Release the namespace watcher ref
-        if let Some(ns) = namespace {
-            pf_watch_manager.release_namespace_watcher(&ns).await;
-        }
+        // Wait until the forward task has dropped its listener so the port is
+        // actually free when we report Stopped.
+        pf_manager
+            .wait_finished(&forward_id, tokio::time::Duration::from_secs(5))
+            .await;
+        cleanup_session(&pf_manager, &pf_watch_manager, &forward_id).await;
 
         let _ = app.emit(
             &event_name,
@@ -1391,7 +1511,8 @@ mod tests {
         pod_uid: &str,
     ) -> PortForwardSession {
         PortForwardSession {
-            stop_flag: Arc::new(AtomicBool::new(false)),
+            cancel: CancellationToken::new(),
+            finished: watch::channel(false).1,
             local_port,
             target_port,
             target_type,
@@ -1414,7 +1535,8 @@ mod tests {
         selector: BTreeMap<String, String>,
     ) -> PortForwardSession {
         PortForwardSession {
-            stop_flag: Arc::new(AtomicBool::new(false)),
+            cancel: CancellationToken::new(),
+            finished: watch::channel(false).1,
             local_port,
             target_port,
             target_type: PortForwardTargetType::Service,
@@ -1643,7 +1765,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn manager_stop_sets_flag() {
+    async fn manager_stop_cancels_token() {
         let mgr = PortForwardManager::new();
         let session = make_session(
             8080,
@@ -1654,12 +1776,45 @@ mod tests {
             "web-abc",
             "uid-1",
         );
-        let flag = session.stop_flag.clone();
+        let cancel = session.cancel.clone();
         mgr.add_session("fwd-1".to_string(), session).await;
 
-        assert!(!flag.load(Ordering::SeqCst));
+        assert!(!cancel.is_cancelled());
         assert!(mgr.stop_session("fwd-1").await);
-        assert!(flag.load(Ordering::SeqCst));
+        assert!(cancel.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn manager_stop_all_cancels_and_clears() {
+        let mgr = PortForwardManager::new();
+        let s1 = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "pod-1",
+            "uid-1",
+        );
+        let s2 = make_session(
+            9090,
+            90,
+            PortForwardTargetType::Service,
+            "kube-system",
+            "dns",
+            "pod-2",
+            "uid-2",
+        );
+        let c1 = s1.cancel.clone();
+        let c2 = s2.cancel.clone();
+        mgr.add_session("fwd-1".to_string(), s1).await;
+        mgr.add_session("fwd-2".to_string(), s2).await;
+
+        mgr.stop_all().await;
+
+        assert!(c1.is_cancelled());
+        assert!(c2.is_cancelled());
+        assert!(mgr.list_sessions().await.is_empty());
     }
 
     #[tokio::test]
@@ -1728,12 +1883,12 @@ mod tests {
         );
         mgr.add_session("fwd-1".to_string(), session).await;
 
-        let new_flag = Arc::new(AtomicBool::new(false));
         mgr.update_pod_target(
             "fwd-1",
             "new-pod".to_string(),
             "new-uid".to_string(),
-            new_flag,
+            CancellationToken::new(),
+            watch::channel(false).1,
         )
         .await;
 
@@ -1855,21 +2010,22 @@ mod tests {
 
     // ── PortForwardWatchManager tests ──
 
+    /// Insert a watch handle directly (ensure_namespace_watcher needs a real client)
+    async fn insert_watch_handle(wm: &PortForwardWatchManager, namespace: &str, ref_count: usize) {
+        let mut watchers = wm.watchers.write().await;
+        watchers.insert(
+            namespace.to_string(),
+            NamespaceWatchHandle {
+                cancel: CancellationToken::new(),
+                ref_count,
+            },
+        );
+    }
+
     #[tokio::test]
     async fn watch_manager_release_decrements_ref_count() {
         let wm = PortForwardWatchManager::new();
-
-        // Manually insert a watch handle (we can't use ensure_namespace_watcher without a real client)
-        {
-            let mut watchers = wm.watchers.write().await;
-            watchers.insert(
-                "default".to_string(),
-                NamespaceWatchHandle {
-                    stop_flag: Arc::new(AtomicBool::new(false)),
-                    ref_count: 3,
-                },
-            );
-        }
+        insert_watch_handle(&wm, "default", 3).await;
 
         wm.release_namespace_watcher("default").await;
         {
@@ -1886,23 +2042,23 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn watch_manager_release_sets_stop_flag_at_zero() {
+    async fn watch_manager_release_cancels_at_zero() {
         let wm = PortForwardWatchManager::new();
-        let stop_flag = Arc::new(AtomicBool::new(false));
+        let cancel = CancellationToken::new();
 
         {
             let mut watchers = wm.watchers.write().await;
             watchers.insert(
                 "kube-system".to_string(),
                 NamespaceWatchHandle {
-                    stop_flag: stop_flag.clone(),
+                    cancel: cancel.clone(),
                     ref_count: 1,
                 },
             );
         }
 
         wm.release_namespace_watcher("kube-system").await;
-        assert!(stop_flag.load(Ordering::SeqCst));
+        assert!(cancel.is_cancelled());
     }
 
     #[tokio::test]
@@ -1910,6 +2066,149 @@ mod tests {
         let wm = PortForwardWatchManager::new();
         // Should not panic
         wm.release_namespace_watcher("nonexistent").await;
+    }
+
+    #[tokio::test]
+    async fn watch_manager_stop_all_cancels_and_clears() {
+        let wm = PortForwardWatchManager::new();
+        let cancel = CancellationToken::new();
+        {
+            let mut watchers = wm.watchers.write().await;
+            watchers.insert(
+                "default".to_string(),
+                NamespaceWatchHandle {
+                    cancel: cancel.clone(),
+                    ref_count: 2,
+                },
+            );
+        }
+
+        wm.stop_all().await;
+
+        assert!(cancel.is_cancelled());
+        assert!(wm.watchers.read().await.is_empty());
+    }
+
+    // ── cleanup_session tests ──
+
+    #[tokio::test]
+    async fn cleanup_session_removes_session_and_releases_watcher() {
+        let pf = Arc::new(PortForwardManager::new());
+        let wm = Arc::new(PortForwardWatchManager::new());
+        insert_watch_handle(&wm, "default", 1).await;
+        let session = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "web-abc",
+            "uid-1",
+        );
+        pf.add_session("fwd-1".to_string(), session).await;
+
+        cleanup_session(&pf, &wm, "fwd-1").await;
+
+        assert!(!pf.is_active("fwd-1").await);
+        // Last ref released -> watcher removed
+        assert!(!wm.watchers.read().await.contains_key("default"));
+    }
+
+    /// Racing cleanup paths (stop command, forward task exit, pod watcher) may
+    /// all call cleanup_session for the same forward; only one may release.
+    #[tokio::test]
+    async fn cleanup_session_is_idempotent_no_double_release() {
+        let pf = Arc::new(PortForwardManager::new());
+        let wm = Arc::new(PortForwardWatchManager::new());
+        // Two forwards share the namespace watcher
+        insert_watch_handle(&wm, "default", 2).await;
+        let s1 = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "pod-1",
+            "uid-1",
+        );
+        let s2 = make_session(
+            9090,
+            90,
+            PortForwardTargetType::Pod,
+            "default",
+            "api",
+            "pod-2",
+            "uid-2",
+        );
+        pf.add_session("fwd-1".to_string(), s1).await;
+        pf.add_session("fwd-2".to_string(), s2).await;
+
+        cleanup_session(&pf, &wm, "fwd-1").await;
+        // Second call for the same forward must be a no-op
+        cleanup_session(&pf, &wm, "fwd-1").await;
+
+        let watchers = wm.watchers.read().await;
+        assert_eq!(watchers.get("default").unwrap().ref_count, 1);
+        drop(watchers);
+        assert!(pf.is_active("fwd-2").await);
+    }
+
+    #[tokio::test]
+    async fn cleanup_session_unknown_forward_leaves_watcher_untouched() {
+        let pf = Arc::new(PortForwardManager::new());
+        let wm = Arc::new(PortForwardWatchManager::new());
+        insert_watch_handle(&wm, "default", 1).await;
+
+        cleanup_session(&pf, &wm, "nope").await;
+
+        assert_eq!(
+            wm.watchers.read().await.get("default").unwrap().ref_count,
+            1
+        );
+    }
+
+    // ── wait_finished tests ──
+
+    #[tokio::test]
+    async fn wait_finished_returns_when_task_signals() {
+        let mgr = PortForwardManager::new();
+        let (tx, rx) = watch::channel(false);
+        let mut session = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "web-abc",
+            "uid-1",
+        );
+        session.finished = rx;
+        mgr.add_session("fwd-1".to_string(), session).await;
+
+        let signal = tokio::spawn(async move {
+            tokio::time::sleep(tokio::time::Duration::from_millis(20)).await;
+            let _ = tx.send(true);
+        });
+
+        // Must return once signalled, well before the 5s bound
+        tokio::time::timeout(
+            tokio::time::Duration::from_secs(1),
+            mgr.wait_finished("fwd-1", tokio::time::Duration::from_secs(5)),
+        )
+        .await
+        .expect("wait_finished should return after the task signals");
+        signal.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn wait_finished_missing_session_returns_immediately() {
+        let mgr = PortForwardManager::new();
+        tokio::time::timeout(
+            tokio::time::Duration::from_millis(100),
+            mgr.wait_finished("nope", tokio::time::Duration::from_secs(5)),
+        )
+        .await
+        .expect("wait_finished on a missing session must not block");
     }
 
     // ── Serialization tests ──

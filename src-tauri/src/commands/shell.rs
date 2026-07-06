@@ -97,6 +97,35 @@ impl ShellSessionManager {
         let sessions = self.sessions.read().await;
         sessions.get(id).and_then(|s| s.debug_pod.clone())
     }
+
+    /// Stop every shell session. Node-shell debug pods are deleted best
+    /// effort with the given client (the old cluster's client must still be
+    /// available when this is called on disconnect/context switch).
+    pub async fn stop_all(&self, client: Option<kube::Client>) {
+        let debug_pods: Vec<DebugPodInfo> = {
+            let mut sessions = self.sessions.write().await;
+            let pods = sessions
+                .values()
+                .filter_map(|s| {
+                    s.stop_flag.store(true, Ordering::SeqCst);
+                    s.debug_pod.clone()
+                })
+                .collect();
+            sessions.clear();
+            pods
+        };
+
+        if let Some(client) = client {
+            if !debug_pods.is_empty() {
+                tokio::spawn(async move {
+                    for info in debug_pods {
+                        let pods: Api<Pod> = Api::namespaced(client.clone(), &info.namespace);
+                        let _ = pods.delete(&info.pod_name, &DeleteParams::default()).await;
+                    }
+                });
+            }
+        }
+    }
 }
 
 impl Default for ShellSessionManager {

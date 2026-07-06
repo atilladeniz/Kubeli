@@ -528,9 +528,10 @@ export const usePortForwardStore = create<PortForwardState>()(
   ) => {
     set({ isLoading: true, error: null });
 
+    const forwardId =
+      forwardIdOverride ?? `${targetType}-${namespace}-${name}-${targetPort}-${Date.now()}`;
+
     try {
-      const forwardId =
-        forwardIdOverride ?? `${targetType}-${namespace}-${name}-${targetPort}-${Date.now()}`;
 
       // Add placeholder forward BEFORE calling Rust to avoid race condition
       // The "Connected" event might arrive before portforwardStart returns
@@ -592,14 +593,13 @@ export const usePortForwardStore = create<PortForwardState>()(
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to start port forward";
-      // Remove the placeholder on error
-      const forwardId = `${targetType}-${namespace}-${name}-${targetPort}`;
+      // Remove exactly this attempt's placeholder. The old prefix match
+      // (id without the timestamp suffix) also killed sibling forwards of
+      // the same target and prefix-collided (...-80 matched ...-8080).
       set((state) => ({
         isLoading: false,
         error: errorMessage,
-        forwards: state.forwards.filter(
-          (f) => !f.forward_id.startsWith(forwardId)
-        ),
+        forwards: state.forwards.filter((f) => f.forward_id !== forwardId),
       }));
       return null;
     }

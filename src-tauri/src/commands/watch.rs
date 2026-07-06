@@ -7,10 +7,10 @@ use kube::api::Api;
 use kube::runtime::watcher::{watcher, Config, Event};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::{command, AppHandle, Emitter, State};
 use tokio::sync::RwLock;
+use tokio_util::sync::CancellationToken;
 
 /// Watch event types
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,9 +23,11 @@ pub enum WatchEvent<T> {
     Error(KubeliError),
 }
 
-/// Active watch session
+/// Active watch session. The token is wrapped in an Arc so a watch task can
+/// prove its identity when removing itself (Arc::ptr_eq) - a task must never
+/// remove a session that replaced it under the same id.
 struct WatchSession {
-    stop_flag: Arc<AtomicBool>,
+    token: Arc<CancellationToken>,
 }
 
 /// Watch manager to track active watches
@@ -40,15 +42,27 @@ impl WatchManager {
         }
     }
 
-    async fn add_session(&self, id: String, stop_flag: Arc<AtomicBool>) {
+    /// Register a session. If a session with the same id already exists it
+    /// is cancelled first - otherwise the old task would keep running with
+    /// no one able to stop it.
+    async fn add_session(&self, id: String) -> Arc<CancellationToken> {
+        let token = Arc::new(CancellationToken::new());
         let mut sessions = self.sessions.write().await;
-        sessions.insert(id, WatchSession { stop_flag });
+        if let Some(old) = sessions.insert(
+            id,
+            WatchSession {
+                token: Arc::clone(&token),
+            },
+        ) {
+            old.token.cancel();
+        }
+        token
     }
 
     async fn stop_session(&self, id: &str) -> bool {
         let sessions = self.sessions.read().await;
         if let Some(session) = sessions.get(id) {
-            session.stop_flag.store(true, Ordering::SeqCst);
+            session.token.cancel();
             true
         } else {
             false
@@ -58,6 +72,27 @@ impl WatchManager {
     async fn remove_session(&self, id: &str) {
         let mut sessions = self.sessions.write().await;
         sessions.remove(id);
+    }
+
+    /// Remove the session only if it still belongs to the calling task
+    /// (identity via Arc::ptr_eq). Used by watch tasks on exit.
+    async fn remove_session_if_owned(&self, id: &str, token: &Arc<CancellationToken>) {
+        let mut sessions = self.sessions.write().await;
+        if let Some(session) = sessions.get(id) {
+            if Arc::ptr_eq(&session.token, token) {
+                sessions.remove(id);
+            }
+        }
+    }
+
+    /// Stop every active watch. Called on disconnect/context switch so no
+    /// watch keeps streaming from the previous cluster.
+    pub async fn stop_all(&self) {
+        let mut sessions = self.sessions.write().await;
+        for session in sessions.values() {
+            session.token.cancel();
+        }
+        sessions.clear();
     }
 }
 
@@ -126,6 +161,78 @@ fn pod_to_info(pod: Pod) -> PodInfo {
     }
 }
 
+/// Map a raw watcher event to the frontend event, buffering the initial
+/// listing: Init/InitApply/InitDone become ONE Restarted(Vec) instead of a
+/// flood of Added events (which duplicated existing rows on every watch
+/// resync). Returns None when nothing should be emitted yet.
+fn map_watch_event<K, T>(
+    event: Result<Event<K>, kube::runtime::watcher::Error>,
+    init_buffer: &mut Option<Vec<T>>,
+    to_info: impl Fn(K) -> T,
+) -> Option<WatchEvent<T>> {
+    match event {
+        Ok(Event::Init) => {
+            *init_buffer = Some(Vec::new());
+            None
+        }
+        Ok(Event::InitApply(obj)) => {
+            let info = to_info(obj);
+            match init_buffer {
+                Some(buf) => {
+                    buf.push(info);
+                    None
+                }
+                // Defensive: InitApply without Init
+                None => Some(WatchEvent::Added(info)),
+            }
+        }
+        Ok(Event::InitDone) => init_buffer.take().map(WatchEvent::Restarted),
+        Ok(Event::Apply(obj)) => Some(WatchEvent::Modified(to_info(obj))),
+        Ok(Event::Delete(obj)) => Some(WatchEvent::Deleted(to_info(obj))),
+        Err(e) => Some(WatchEvent::Error(KubeliError::from(e))),
+    }
+}
+
+/// Drive a watch stream until it ends or the session is cancelled. Uses
+/// select! so cancellation takes effect immediately - the old stop-flag was
+/// only polled after the next event, so quiet watches lingered forever.
+async fn run_watch_loop<K, T>(
+    app: AppHandle,
+    manager: Arc<WatchManager>,
+    watch_id: String,
+    event_prefix: &str,
+    stream: impl futures::Stream<Item = Result<Event<K>, kube::runtime::watcher::Error>>,
+    to_info: impl Fn(K) -> T,
+    token: Arc<CancellationToken>,
+) where
+    T: Serialize + Clone,
+{
+    tokio::pin!(stream);
+    let mut init_buffer: Option<Vec<T>> = None;
+    let event_name = format!("{event_prefix}-{watch_id}");
+
+    loop {
+        tokio::select! {
+            _ = token.cancelled() => {
+                tracing::info!("Watch {} cancelled", watch_id);
+                break;
+            }
+            event = stream.next() => {
+                let Some(event) = event else { break };
+                if let Some(watch_event) = map_watch_event(event, &mut init_buffer, &to_info) {
+                    if let Err(e) = app.emit(&event_name, &watch_event) {
+                        tracing::error!("Failed to emit watch event: {}", e);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    manager.remove_session_if_owned(&watch_id, &token).await;
+    tracing::info!("Watch {} ended", watch_id);
+}
+
 /// Start watching pods in a namespace
 #[command]
 pub async fn watch_pods(
@@ -137,11 +244,7 @@ pub async fn watch_pods(
 ) -> Result<(), KubeliError> {
     let client = state.k8s.get_client().await.map_err(KubeliError::from)?;
     let manager = Arc::clone(watch_manager.inner());
-
-    let stop_flag = Arc::new(AtomicBool::new(false));
-    manager
-        .add_session(watch_id.clone(), stop_flag.clone())
-        .await;
+    let token = manager.add_session(watch_id.clone()).await;
 
     let pods: Api<Pod> = if let Some(ns) = &namespace {
         Api::namespaced(client, ns)
@@ -149,52 +252,19 @@ pub async fn watch_pods(
         Api::all(client)
     };
 
-    let watcher_config = Config::default();
     let watch_id_clone = watch_id.clone();
-
-    // Spawn the watch task
     tokio::spawn(async move {
-        let mut stream = watcher(pods, watcher_config).boxed();
-
-        while let Some(event) = stream.next().await {
-            if stop_flag.load(Ordering::SeqCst) {
-                tracing::info!("Watch {} stopped by user", watch_id_clone);
-                break;
-            }
-
-            let watch_event = match event {
-                Ok(Event::Apply(pod)) => {
-                    let info = pod_to_info(pod);
-                    WatchEvent::Modified(info)
-                }
-                Ok(Event::Delete(pod)) => {
-                    let info = pod_to_info(pod);
-                    WatchEvent::Deleted(info)
-                }
-                Ok(Event::Init) => {
-                    // Initial list event - skip
-                    continue;
-                }
-                Ok(Event::InitApply(pod)) => {
-                    let info = pod_to_info(pod);
-                    WatchEvent::Added(info)
-                }
-                Ok(Event::InitDone) => {
-                    // Initial list done - skip
-                    continue;
-                }
-                Err(e) => WatchEvent::Error(KubeliError::from(e)),
-            };
-
-            let event_name = format!("pods-watch-{}", watch_id_clone);
-            if let Err(e) = app.emit(&event_name, &watch_event) {
-                tracing::error!("Failed to emit watch event: {}", e);
-                break;
-            }
-        }
-
-        manager.remove_session(&watch_id_clone).await;
-        tracing::info!("Watch {} ended", watch_id_clone);
+        let stream = watcher(pods, Config::default()).boxed();
+        run_watch_loop(
+            app,
+            manager,
+            watch_id_clone,
+            "pods-watch",
+            stream,
+            pod_to_info,
+            token,
+        )
+        .await;
     });
 
     tracing::info!("Started pods watch: {}", watch_id);
@@ -230,53 +300,23 @@ pub async fn watch_namespaces(
 ) -> Result<(), KubeliError> {
     let client = state.k8s.get_client().await.map_err(KubeliError::from)?;
     let manager = Arc::clone(watch_manager.inner());
-
-    let stop_flag = Arc::new(AtomicBool::new(false));
-    manager
-        .add_session(watch_id.clone(), stop_flag.clone())
-        .await;
+    let token = manager.add_session(watch_id.clone()).await;
 
     let namespaces: Api<Namespace> = Api::all(client);
 
-    let watcher_config = Config::default();
     let watch_id_clone = watch_id.clone();
-
     tokio::spawn(async move {
-        let mut stream = watcher(namespaces, watcher_config).boxed();
-
-        while let Some(event) = stream.next().await {
-            if stop_flag.load(Ordering::SeqCst) {
-                tracing::info!("Watch {} stopped by user", watch_id_clone);
-                break;
-            }
-
-            let watch_event = match event {
-                Ok(Event::Apply(ns)) => {
-                    let info = namespace_to_info(ns);
-                    WatchEvent::Modified(info)
-                }
-                Ok(Event::Delete(ns)) => {
-                    let info = namespace_to_info(ns);
-                    WatchEvent::Deleted(info)
-                }
-                Ok(Event::Init) => continue,
-                Ok(Event::InitApply(ns)) => {
-                    let info = namespace_to_info(ns);
-                    WatchEvent::Added(info)
-                }
-                Ok(Event::InitDone) => continue,
-                Err(e) => WatchEvent::Error(KubeliError::from(e)),
-            };
-
-            let event_name = format!("namespaces-watch-{}", watch_id_clone);
-            if let Err(e) = app.emit(&event_name, &watch_event) {
-                tracing::error!("Failed to emit namespace watch event: {}", e);
-                break;
-            }
-        }
-
-        manager.remove_session(&watch_id_clone).await;
-        tracing::info!("Namespace watch {} ended", watch_id_clone);
+        let stream = watcher(namespaces, Config::default()).boxed();
+        run_watch_loop(
+            app,
+            manager,
+            watch_id_clone,
+            "namespaces-watch",
+            stream,
+            namespace_to_info,
+            token,
+        )
+        .await;
     });
 
     tracing::info!("Started namespaces watch: {}", watch_id);
@@ -296,4 +336,88 @@ pub async fn stop_watch(
         tracing::debug!("Watch {} already stopped or not found", watch_id);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn apply(n: u32) -> Result<Event<u32>, kube::runtime::watcher::Error> {
+        Ok(Event::Apply(n))
+    }
+
+    #[test]
+    fn init_listing_becomes_one_restarted_event() {
+        let mut buf: Option<Vec<u32>> = None;
+        let id = |v: u32| v;
+
+        assert!(map_watch_event(Ok(Event::Init), &mut buf, id).is_none());
+        assert!(map_watch_event(Ok(Event::InitApply(1)), &mut buf, id).is_none());
+        assert!(map_watch_event(Ok(Event::InitApply(2)), &mut buf, id).is_none());
+
+        match map_watch_event(Ok(Event::InitDone), &mut buf, id) {
+            Some(WatchEvent::Restarted(items)) => assert_eq!(items, vec![1, 2]),
+            other => panic!("expected Restarted, got {:?}", other.map(|_| ())),
+        }
+        // Buffer is consumed - a second InitDone emits nothing
+        assert!(map_watch_event(Ok(Event::InitDone), &mut buf, id).is_none());
+    }
+
+    #[test]
+    fn init_apply_without_init_falls_back_to_added() {
+        let mut buf: Option<Vec<u32>> = None;
+        match map_watch_event(Ok(Event::InitApply(7)), &mut buf, |v| v) {
+            Some(WatchEvent::Added(7)) => {}
+            other => panic!("expected Added(7), got {:?}", other.map(|_| ())),
+        }
+    }
+
+    #[test]
+    fn live_events_map_directly() {
+        let mut buf: Option<Vec<u32>> = None;
+        assert!(matches!(
+            map_watch_event(apply(5), &mut buf, |v| v),
+            Some(WatchEvent::Modified(5))
+        ));
+        assert!(matches!(
+            map_watch_event(Ok(Event::Delete(5)), &mut buf, |v| v),
+            Some(WatchEvent::Deleted(5))
+        ));
+    }
+
+    #[tokio::test]
+    async fn add_session_cancels_a_session_it_replaces() {
+        let manager = WatchManager::new();
+        let old_token = manager.add_session("w1".into()).await;
+        assert!(!old_token.is_cancelled());
+
+        let new_token = manager.add_session("w1".into()).await;
+        assert!(
+            old_token.is_cancelled(),
+            "replaced session must be cancelled"
+        );
+        assert!(!new_token.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn task_cannot_remove_a_session_that_replaced_it() {
+        let manager = WatchManager::new();
+        let old_token = manager.add_session("w1".into()).await;
+        let new_token = manager.add_session("w1".into()).await;
+
+        // Old task exits and tries to clean up - must NOT remove the new session
+        manager.remove_session_if_owned("w1", &old_token).await;
+        assert!(manager.stop_session("w1").await, "new session must survive");
+        assert!(new_token.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn stop_all_cancels_every_session() {
+        let manager = WatchManager::new();
+        let t1 = manager.add_session("a".into()).await;
+        let t2 = manager.add_session("b".into()).await;
+        manager.stop_all().await;
+        assert!(t1.is_cancelled() && t2.is_cancelled());
+        assert!(!manager.stop_session("a").await);
+    }
 }
