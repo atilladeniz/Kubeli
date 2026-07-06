@@ -607,6 +607,16 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
               set(updates);
               break;
             }
+            case "Restarted": {
+              // Watch (re)synced: backend now sends the initial/resync
+              // listing as one batch instead of per-item Added events
+              const names = (watchEvent.data as { name: string }[]).map((n) => n.name);
+              const merged = Array.from(new Set([...namespaces, ...names])).sort();
+              if (merged.length !== namespaces.length) {
+                set({ namespaces: merged });
+              }
+              break;
+            }
             case "Error": {
               debug("Namespace watch error:", watchEvent.data);
               break;

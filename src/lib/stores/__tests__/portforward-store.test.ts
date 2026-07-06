@@ -119,6 +119,40 @@ describe("PortForwardStore", () => {
     jest.clearAllMocks();
   });
 
+  describe("startForward error cleanup", () => {
+    it("removes only the failed attempt's placeholder, not sibling forwards", async () => {
+      // Existing healthy forward to a *prefix-colliding* target port (80 vs 8080)
+      const sibling: PortForwardInfo = {
+        ...mockForward,
+        forward_id: "pod-demo-web-8080-111",
+        target_port: 8080,
+      };
+      // Existing healthy forward to the SAME target (different attempt)
+      const sameTarget: PortForwardInfo = {
+        ...mockForward,
+        forward_id: "pod-demo-web-80-222",
+        target_port: 80,
+      };
+      usePortForwardStore.setState({ forwards: [sibling, sameTarget] });
+
+      mockPortforwardStart.mockRejectedValue(new Error("port busy"));
+
+      await act(async () => {
+        await usePortForwardStore
+          .getState()
+          .startForward("demo", "web", "pod", 80);
+      });
+
+      const ids = usePortForwardStore.getState().forwards.map((f) => f.forward_id);
+      // The failed placeholder is gone...
+      expect(ids).toHaveLength(2);
+      // ...but both pre-existing forwards survive (old prefix-match killed them)
+      expect(ids).toContain("pod-demo-web-8080-111");
+      expect(ids).toContain("pod-demo-web-80-222");
+      expect(usePortForwardStore.getState().error).toBe("port busy");
+    });
+  });
+
   describe("updateForwardStatus", () => {
     it("should update forward status by id", () => {
       usePortForwardStore.setState({ forwards: [{ ...mockForward }] });

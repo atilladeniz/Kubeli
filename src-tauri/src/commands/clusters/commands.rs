@@ -19,6 +19,29 @@ use super::types::{
     ClusterInfo, ConnectionStatus, HealthCheckResult, NamespaceResult, OidcAuthInfo,
 };
 
+/// Stop every session (watches, log streams, shells, port-forwards) that
+/// belongs to the current connection. Called before switching contexts and
+/// on disconnect - otherwise streams keep running against the old cluster.
+async fn teardown_active_sessions(app: &AppHandle, state: &AppState) {
+    let old_client = state.k8s.get_client().await.ok();
+
+    let watches: State<'_, Arc<crate::commands::watch::WatchManager>> = app.state();
+    watches.stop_all().await;
+
+    let logs: State<'_, Arc<crate::commands::logs::LogStreamManager>> = app.state();
+    logs.stop_all().await;
+
+    let forwards: State<'_, Arc<crate::commands::portforward::PortForwardManager>> = app.state();
+    forwards.stop_all().await;
+
+    let pf_watches: State<'_, Arc<crate::commands::portforward::PortForwardWatchManager>> =
+        app.state();
+    pf_watches.stop_all().await;
+
+    let shells: State<'_, Arc<crate::commands::shell::ShellSessionManager>> = app.state();
+    shells.stop_all(old_client).await;
+}
+
 /// List all available clusters from kubeconfig
 #[command]
 pub async fn list_clusters(
@@ -134,6 +157,21 @@ pub async fn connect_cluster(
     context: String,
 ) -> Result<ConnectionStatus, KubeliError> {
     tracing::info!("Connecting to cluster with context: {}", context);
+
+    // Serialize connect attempts - two racing connects would interleave
+    // init/test and could leave client and context mismatched.
+    let _connect_guard = state.k8s.begin_connect().await;
+
+    // Stop a previous connection's OIDC refresh loop before switching; a
+    // non-OIDC target would otherwise keep the old task alive forever.
+    {
+        let oidc_state: State<'_, Arc<OidcState>> = app.state();
+        oidc_state.cancel_refresh();
+    }
+
+    // Tear down all sessions of the previous connection before the client
+    // is replaced.
+    teardown_active_sessions(&app, &state).await;
 
     // Resolve source_file for this context before building the kubeconfig
     let source_file = load_kubeconfig_from_sources(&app).await.and_then(|cfg| {
@@ -255,78 +293,104 @@ pub async fn connect_cluster(
         }
     }
 
-    match state
-        .k8s
-        .init_with_context(&context, kubeconfig.clone(), source_file.as_deref())
-        .await
-    {
-        Ok(_) => {
-            // Test the connection with latency measurement
-            let start = std::time::Instant::now();
-            match state.k8s.test_connection().await {
-                Ok(true) => {
-                    let latency = start.elapsed().as_millis() as u64;
-                    tracing::info!(
-                        "Successfully connected to cluster: {} (latency: {}ms)",
-                        context,
-                        latency
-                    );
-                    // Keep the OIDC token fresh for the lifetime of the connection
-                    if let (Some(oidc_config), Some(ref user)) = (active_oidc, &user_name) {
-                        let oidc_state: State<'_, Arc<OidcState>> = app.state();
-                        spawn_oidc_refresh_task(
-                            app.clone(),
-                            state.k8s.client_handle(),
-                            state.k8s.context_handle(),
-                            Arc::clone(&oidc_state),
-                            oidc_config,
-                            context.clone(),
-                            kubeconfig,
-                            user.clone(),
-                        );
-                    }
+    // Hard timeout: exec-plugin based configs can hang indefinitely (e.g.
+    // waiting for a device-code login that never happens).
+    let init_result = tokio::time::timeout(
+        std::time::Duration::from_secs(30),
+        state
+            .k8s
+            .init_with_context(&context, kubeconfig.clone(), source_file.as_deref()),
+    )
+    .await;
 
-                    Ok(ConnectionStatus {
-                        connected: true,
-                        context: Some(context),
-                        error: None,
-                        latency_ms: Some(latency),
-                        oidc_auth_required: None,
-                    })
-                }
-                Ok(false) => {
-                    let latency = start.elapsed().as_millis() as u64;
-                    tracing::warn!("Connection test failed for context: {}", context);
-                    Ok(ConnectionStatus {
-                        connected: false,
-                        context: Some(context),
-                        error: Some("Connection test failed - unable to reach cluster".to_string()),
-                        latency_ms: Some(latency),
-                        oidc_auth_required: None,
-                    })
-                }
-                Err(e) => {
-                    tracing::error!("Connection test error: {}", e);
-                    Ok(ConnectionStatus {
-                        connected: false,
-                        context: Some(context),
-                        error: Some(format!("Connection test failed: {}", e)),
-                        latency_ms: None,
-                        oidc_auth_required: None,
-                    })
-                }
-            }
-        }
-        Err(e) => {
-            tracing::error!("Failed to connect to cluster: {}", e);
-            Ok(ConnectionStatus {
+    match init_result {
+        Err(_) => {
+            tracing::error!("Connection init timed out for context: {}", context);
+            state.k8s.clear_connection().await;
+            return Ok(ConnectionStatus {
                 connected: false,
                 context: Some(context),
-                error: Some(format!("Failed to connect: {}", e)),
+                error: Some("Connection attempt timed out after 30s".to_string()),
                 latency_ms: None,
                 oidc_auth_required: None,
-            })
+            });
         }
+        Ok(init_result) => match init_result {
+            Ok(_) => {
+                // Test the connection with latency measurement
+                let start = std::time::Instant::now();
+                match state.k8s.test_connection().await {
+                    Ok(true) => {
+                        let latency = start.elapsed().as_millis() as u64;
+                        tracing::info!(
+                            "Successfully connected to cluster: {} (latency: {}ms)",
+                            context,
+                            latency
+                        );
+                        // Keep the OIDC token fresh for the lifetime of the connection
+                        if let (Some(oidc_config), Some(ref user)) = (active_oidc, &user_name) {
+                            let oidc_state: State<'_, Arc<OidcState>> = app.state();
+                            spawn_oidc_refresh_task(
+                                app.clone(),
+                                state.k8s.client_handle(),
+                                state.k8s.context_handle(),
+                                Arc::clone(&oidc_state),
+                                oidc_config,
+                                context.clone(),
+                                kubeconfig,
+                                user.clone(),
+                            );
+                        }
+
+                        Ok(ConnectionStatus {
+                            connected: true,
+                            context: Some(context),
+                            error: None,
+                            latency_ms: Some(latency),
+                            oidc_auth_required: None,
+                        })
+                    }
+                    Ok(false) => {
+                        let latency = start.elapsed().as_millis() as u64;
+                        tracing::warn!("Connection test failed for context: {}", context);
+                        state.k8s.clear_connection().await;
+                        Ok(ConnectionStatus {
+                            connected: false,
+                            context: Some(context),
+                            error: Some(
+                                "Connection test failed - unable to reach cluster".to_string(),
+                            ),
+                            latency_ms: Some(latency),
+                            oidc_auth_required: None,
+                        })
+                    }
+                    Err(e) => {
+                        tracing::error!("Connection test error: {}", e);
+                        state.k8s.clear_connection().await;
+                        Ok(ConnectionStatus {
+                            connected: false,
+                            context: Some(context),
+                            error: Some(format!("Connection test failed: {}", e)),
+                            latency_ms: None,
+                            oidc_auth_required: None,
+                        })
+                    }
+                }
+            }
+            Err(e) => {
+                tracing::error!("Failed to connect to cluster: {}", e);
+                // A failed init may have overwritten (or half-replaced) the
+                // previous connection - never keep a client that did not pass.
+                state.k8s.clear_connection().await;
+                Ok(ConnectionStatus {
+                    connected: false,
+                    context: Some(context),
+                    error: Some(format!("Failed to connect: {}", e)),
+                    latency_ms: None,
+                    oidc_auth_required: None,
+                })
+            }
+        },
     }
 }
 
@@ -349,8 +413,8 @@ pub async fn disconnect_cluster(
     tracing::info!("Disconnecting from cluster");
     let oidc_state: State<'_, Arc<OidcState>> = app.state();
     oidc_state.cancel_refresh();
-    *state.k8s.client_handle().write().await = None;
-    *state.k8s.context_handle().write().await = None;
+    teardown_active_sessions(&app, &state).await;
+    state.k8s.clear_connection().await;
     Ok(())
 }
 
@@ -466,7 +530,7 @@ async fn sleep_cancellable(seconds: u64, stop_flag: &std::sync::atomic::AtomicBo
     let check_interval = seconds.clamp(1, 5);
     let mut elapsed = 0u64;
     while elapsed < seconds {
-        if stop_flag.load(Ordering::Relaxed) {
+        if stop_flag.load(std::sync::atomic::Ordering::Relaxed) {
             return false;
         }
         let step = std::cmp::min(check_interval, seconds - elapsed);
@@ -555,9 +619,15 @@ fn spawn_oidc_refresh_task(
                     // matches, a newer client either is or will be installed and
                     // we must not clobber it with this stale one.
                     let mut client_guard = k8s_manager.write().await;
-                    if !refresh_target_is_current(&k8s_connected, &context_name).await {
+                    // Check the stop flag under the same lock: a reconnect to
+                    // the SAME context arms a new refresh task - the context
+                    // check alone would not stop this superseded one from
+                    // clobbering the new connection's client.
+                    if stop_flag.load(std::sync::atomic::Ordering::Relaxed)
+                        || !refresh_target_is_current(&k8s_connected, &context_name).await
+                    {
                         tracing::debug!(
-                            "OIDC refresh: context changed during refresh, discarding stale client"
+                            "OIDC refresh: superseded during refresh, discarding stale client"
                         );
                         break;
                     }

@@ -3,16 +3,7 @@
 import { useEffect } from "react";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 
-export interface UsePortForwardOptions {
-  onStarted?: (forwardId: string, localPort: number) => void;
-  onConnected?: (forwardId: string) => void;
-  onDisconnected?: (forwardId: string) => void;
-  onError?: (forwardId: string, message: string) => void;
-  onStopped?: (forwardId: string) => void;
-}
-
- 
-export function usePortForward(_options?: UsePortForwardOptions) {
+export function usePortForward() {
   const forwards = usePortForwardStore((s) => s.forwards);
   const isLoading = usePortForwardStore((s) => s.isLoading);
   const error = usePortForwardStore((s) => s.error);

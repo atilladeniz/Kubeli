@@ -58,11 +58,7 @@ export function PortForwardPanel({ onClose }: PortForwardPanelProps) {
     startForward,
     stopForward,
     stopAllForwards,
-  } = usePortForward({
-    onError: (forwardId, message) => {
-      console.error(`Port forward ${forwardId} error:`, message);
-    },
-  });
+  } = usePortForward();
 
   const history = usePortForwardStore((s) => s.history);
   const removeHistoryItem = usePortForwardStore((s) => s.removeHistoryItem);
