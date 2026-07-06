@@ -307,13 +307,13 @@ pub async fn connect_cluster(
         Err(_) => {
             tracing::error!("Connection init timed out for context: {}", context);
             state.k8s.clear_connection().await;
-            return Ok(ConnectionStatus {
+            Ok(ConnectionStatus {
                 connected: false,
                 context: Some(context),
                 error: Some("Connection attempt timed out after 30s".to_string()),
                 latency_ms: None,
                 oidc_auth_required: None,
-            });
+            })
         }
         Ok(init_result) => match init_result {
             Ok(_) => {
