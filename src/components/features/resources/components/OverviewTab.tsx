@@ -123,7 +123,11 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner }: Overv
 
         {/* Container Status Section (for Pods only) */}
         {resourceType === "pod" && (initContainers.length > 0 || containers.length > 0) && (
-          <ContainerStatusSection initContainers={initContainers} containers={containers} />
+          <ContainerStatusSection
+            initContainers={initContainers}
+            containers={containers}
+            namespace={resource.namespace ?? ""}
+          />
         )}
 
         {/* Labels Section */}

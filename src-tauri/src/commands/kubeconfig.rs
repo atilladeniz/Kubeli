@@ -11,6 +11,17 @@ use tauri_plugin_store::StoreExt;
 const STORE_FILENAME: &str = "kubeconfig-sources.json";
 const STORE_KEY: &str = "sources_config";
 
+/// Serializes load-modify-save cycles: two concurrent commands would
+/// otherwise both read the same state and the second save wins, silently
+/// dropping the first change.
+static SOURCES_WRITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn lock_sources() -> std::sync::MutexGuard<'static, ()> {
+    SOURCES_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// Load sources config from Tauri store
 pub(crate) fn load_sources_config(app: &AppHandle) -> KubeconfigSourcesConfig {
     let store = match app.store(STORE_FILENAME) {
@@ -81,6 +92,7 @@ pub async fn set_kubeconfig_sources(
     app: AppHandle,
     config: KubeconfigSourcesConfig,
 ) -> Result<(), String> {
+    let _guard = lock_sources();
     save_sources_config(&app, &config)?;
     allow_sources_in_fs_scope(&app);
     Ok(())
@@ -93,6 +105,7 @@ pub async fn add_kubeconfig_source(
     path: String,
     source_type: KubeconfigSourceType,
 ) -> Result<KubeconfigSourcesConfig, String> {
+    let _guard = lock_sources();
     let mut config = load_sources_config(&app);
 
     // Check for duplicates
@@ -127,6 +140,7 @@ pub async fn remove_kubeconfig_source(
         return Err("Cannot remove the default kubeconfig source".to_string());
     }
 
+    let _guard = lock_sources();
     let mut config = load_sources_config(&app);
     config.sources.retain(|s| s.path != path);
     save_sources_config(&app, &config)?;
@@ -172,6 +186,7 @@ pub async fn set_kubeconfig_merge_mode(
     app: AppHandle,
     enabled: bool,
 ) -> Result<KubeconfigSourcesConfig, String> {
+    let _guard = lock_sources();
     let mut config = load_sources_config(&app);
     config.merge_mode = enabled;
     save_sources_config(&app, &config)?;

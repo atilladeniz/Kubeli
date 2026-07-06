@@ -127,7 +127,7 @@ export function HelmReleasesView() {
       });
     } else {
       items.push({
-        label: "Uninstall",
+        label: "Forget release",
         icon: <Trash2 className="size-4" />,
         onClick: () => handleUninstallFromContext(release.name, release.namespace, refresh),
         variant: "destructive",

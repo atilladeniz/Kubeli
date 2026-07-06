@@ -45,6 +45,17 @@ pub async fn get_cluster_settings(
     }
 }
 
+/// Serializes read-modify-write cycles on the settings store: two concurrent
+/// partial updates (namespaces vs. auth flag) would otherwise both read the
+/// same snapshot and the second save would drop the first change.
+static SETTINGS_WRITE_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+fn lock_settings() -> std::sync::MutexGuard<'static, ()> {
+    SETTINGS_WRITE_LOCK
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 /// Read the current settings for a context, falling back to defaults so other
 /// fields are preserved across partial updates.
 fn current_settings(
@@ -88,6 +99,7 @@ pub async fn set_cluster_accessible_namespaces(
         .store("cluster-settings.json")
         .map_err(|e| format!("Failed to open cluster settings store: {}", e))?;
 
+    let _guard = lock_settings();
     let mut settings = current_settings(&store, &context);
     settings.accessible_namespaces = namespaces;
     persist_settings(&store, &context, &settings)?;
@@ -112,6 +124,7 @@ pub async fn set_cluster_prefer_kubeconfig_auth(
         .store("cluster-settings.json")
         .map_err(|e| format!("Failed to open cluster settings store: {}", e))?;
 
+    let _guard = lock_settings();
     let mut settings = current_settings(&store, &context);
     settings.prefer_kubeconfig_auth = prefer;
     persist_settings(&store, &context, &settings)?;
@@ -132,6 +145,7 @@ pub async fn clear_cluster_settings(app: AppHandle, context: String) -> Result<(
         .store("cluster-settings.json")
         .map_err(|e| format!("Failed to open cluster settings store: {}", e))?;
 
+    let _guard = lock_settings();
     store.delete(&context);
 
     store

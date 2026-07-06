@@ -3,7 +3,7 @@
 //! Handles installation and removal of MCP server configuration for various IDEs.
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::ai::cli_detector::get_extended_path;
 
@@ -370,69 +370,93 @@ fn uninstall_claude_code_config(_path: &PathBuf) -> Result<(), String> {
     Ok(())
 }
 
+/// Write via temp file + rename so a crash mid-write can't truncate the config.
+fn write_atomic(path: &Path, content: &str) -> Result<(), String> {
+    let tmp = path.with_extension("kubeli-tmp");
+    std::fs::write(&tmp, content).map_err(|e| format!("Failed to write config: {}", e))?;
+    std::fs::rename(&tmp, path).map_err(|e| format!("Failed to write config: {}", e))
+}
+
 // --- Codex (TOML) ---
+// Uses toml_edit so user comments and formatting in config.toml survive edits.
 
 fn install_codex_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String> {
-    let mut content = if path.exists() {
-        std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?
+    let mut doc = if path.exists() {
+        let content =
+            std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
+        content.parse::<toml_edit::DocumentMut>().map_err(|e| {
+            format!(
+                "Cannot parse {} as TOML ({}); refusing to modify it",
+                path.display(),
+                e
+            )
+        })?
     } else {
-        String::new()
+        toml_edit::DocumentMut::new()
     };
 
-    // Check if already configured
-    if content.contains("[mcp_servers.kubeli]") {
+    let servers = doc
+        .entry("mcp_servers")
+        .or_insert(toml_edit::table())
+        .as_table_mut()
+        .ok_or_else(|| "mcp_servers in config.toml is not a table".to_string())?;
+    servers.set_implicit(true);
+
+    if servers.contains_key("kubeli") {
         return Ok(()); // Already configured
     }
 
-    // Add Kubeli config
-    let kubeli_config = format!(
-        r#"
-[mcp_servers.kubeli]
-command = "{}"
-args = ["--mcp"]
-startup_timeout_sec = 15
-tool_timeout_sec = 120
-"#,
-        kubeli_path
-    );
+    let mut kubeli = toml_edit::Table::new();
+    kubeli["command"] = toml_edit::value(kubeli_path);
+    let mut args = toml_edit::Array::new();
+    args.push("--mcp");
+    kubeli["args"] = toml_edit::value(args);
+    kubeli["startup_timeout_sec"] = toml_edit::value(15);
+    kubeli["tool_timeout_sec"] = toml_edit::value(120);
+    servers.insert("kubeli", toml_edit::Item::Table(kubeli));
 
-    content.push_str(&kubeli_config);
-
-    std::fs::write(path, content).map_err(|e| format!("Failed to write config: {}", e))?;
-
-    Ok(())
+    write_atomic(path, &doc.to_string())
 }
 
 fn uninstall_codex_config(path: &PathBuf) -> Result<(), String> {
     let content =
         std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
 
-    // Parse TOML and remove kubeli section
-    let mut doc: toml::Table =
-        toml::from_str(&content).map_err(|e| format!("Failed to parse TOML: {}", e))?;
+    let mut doc = content
+        .parse::<toml_edit::DocumentMut>()
+        .map_err(|e| format!("Failed to parse TOML: {}", e))?;
 
     if let Some(servers) = doc.get_mut("mcp_servers").and_then(|v| v.as_table_mut()) {
         servers.remove("kubeli");
     }
 
+    write_atomic(path, &doc.to_string())
+}
+
+/// Read an existing JSON config, or start fresh if the file doesn't exist.
+/// A file that exists but doesn't parse is a hard error: silently replacing it
+/// with `{}` would wipe the user's settings (VS Code settings.json may contain
+/// JSONC comments, which we can't safely rewrite).
+fn read_json_config(path: &Path) -> Result<serde_json::Value, String> {
+    if !path.exists() {
+        return Ok(serde_json::json!({}));
+    }
     let content =
-        toml::to_string_pretty(&doc).map_err(|e| format!("Failed to serialize TOML: {}", e))?;
-
-    std::fs::write(path, content).map_err(|e| format!("Failed to write config: {}", e))?;
-
-    Ok(())
+        std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
+    serde_json::from_str(&content).map_err(|e| {
+        format!(
+            "Cannot parse {} as JSON ({}); refusing to modify it. \
+             If the file uses comments, please add the Kubeli MCP entry manually.",
+            path.display(),
+            e
+        )
+    })
 }
 
 // --- VS Code (JSON) ---
 
-fn install_vscode_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String> {
-    let mut config: serde_json::Value = if path.exists() {
-        let content =
-            std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
-        serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({}))
-    } else {
-        serde_json::json!({})
-    };
+fn install_vscode_config(path: &Path, kubeli_path: &str) -> Result<(), String> {
+    let mut config = read_json_config(path)?;
 
     // Ensure mcp.servers exists
     if config.get("mcp.servers").is_none() {
@@ -448,9 +472,7 @@ fn install_vscode_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String
     let content = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-    std::fs::write(path, content).map_err(|e| format!("Failed to write config: {}", e))?;
-
-    Ok(())
+    write_atomic(path, &content)
 }
 
 fn uninstall_vscode_config(path: &PathBuf) -> Result<(), String> {
@@ -469,21 +491,13 @@ fn uninstall_vscode_config(path: &PathBuf) -> Result<(), String> {
     let content = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-    std::fs::write(path, content).map_err(|e| format!("Failed to write config: {}", e))?;
-
-    Ok(())
+    write_atomic(path, &content)
 }
 
 // --- Cursor (JSON) ---
 
-fn install_cursor_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String> {
-    let mut config: serde_json::Value = if path.exists() {
-        let content =
-            std::fs::read_to_string(path).map_err(|e| format!("Failed to read config: {}", e))?;
-        serde_json::from_str(&content).unwrap_or_else(|_| serde_json::json!({}))
-    } else {
-        serde_json::json!({})
-    };
+fn install_cursor_config(path: &Path, kubeli_path: &str) -> Result<(), String> {
+    let mut config = read_json_config(path)?;
 
     // Ensure mcpServers exists
     if config.get("mcpServers").is_none() {
@@ -499,9 +513,7 @@ fn install_cursor_config(path: &PathBuf, kubeli_path: &str) -> Result<(), String
     let content = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-    std::fs::write(path, content).map_err(|e| format!("Failed to write config: {}", e))?;
-
-    Ok(())
+    write_atomic(path, &content)
 }
 
 fn uninstall_cursor_config(path: &PathBuf) -> Result<(), String> {
@@ -520,9 +532,7 @@ fn uninstall_cursor_config(path: &PathBuf) -> Result<(), String> {
     let content = serde_json::to_string_pretty(&config)
         .map_err(|e| format!("Failed to serialize config: {}", e))?;
 
-    std::fs::write(path, content).map_err(|e| format!("Failed to write config: {}", e))?;
-
-    Ok(())
+    write_atomic(path, &content)
 }
 
 #[cfg(test)]
@@ -651,6 +661,71 @@ mod tests {
         assert!(uninstalled.contains("\"mcpServers\": {}"));
         assert!(!uninstalled.contains("\"kubeli\""));
         assert!(!check_mcp_configured(IdeType::Cursor, &path));
+    }
+
+    #[test]
+    fn test_codex_windows_path_survives_toml_roundtrip() {
+        // A raw backslash path interpolated into a TOML basic string used to
+        // produce invalid escapes (\U, \P) and a broken config on Windows.
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        let win_path = r"C:\Program Files\Kubeli\Kubeli.exe";
+
+        install_codex_config(&path, win_path).unwrap();
+
+        let doc: toml_edit::DocumentMut = std::fs::read_to_string(&path).unwrap().parse().unwrap();
+        assert_eq!(
+            doc["mcp_servers"]["kubeli"]["command"].as_str(),
+            Some(win_path)
+        );
+    }
+
+    #[test]
+    fn test_codex_install_preserves_comments() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, "# my note\nmodel = \"o3\"\n").unwrap();
+
+        install_codex_config(&path, "/tmp/kubeli").unwrap();
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("# my note"));
+        assert!(content.contains("model = \"o3\""));
+        assert!(content.contains("[mcp_servers.kubeli]"));
+
+        uninstall_codex_config(&path).unwrap();
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("# my note"));
+        assert!(!content.contains("kubeli"));
+    }
+
+    #[test]
+    fn test_codex_install_refuses_invalid_toml() {
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("config.toml");
+        std::fs::write(&path, "not [ valid toml").unwrap();
+
+        assert!(install_codex_config(&path, "/tmp/kubeli").is_err());
+        // File untouched
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "not [ valid toml");
+    }
+
+    #[test]
+    fn test_json_install_refuses_unparseable_config_instead_of_wiping() {
+        // VS Code settings.json is JSONC: comments are legal for the editor
+        // but unparseable for serde_json. Install used to replace the whole
+        // file with just the kubeli entry - the user's settings were gone.
+        let dir = tempdir().unwrap();
+        let jsonc = "{\n  // my editor settings\n  \"editor.fontSize\": 14\n}";
+
+        let vscode = dir.path().join("settings.json");
+        std::fs::write(&vscode, jsonc).unwrap();
+        assert!(install_vscode_config(&vscode, "/tmp/kubeli").is_err());
+        assert_eq!(std::fs::read_to_string(&vscode).unwrap(), jsonc);
+
+        let cursor = dir.path().join("mcp.json");
+        std::fs::write(&cursor, jsonc).unwrap();
+        assert!(install_cursor_config(&cursor, "/tmp/kubeli").is_err());
+        assert_eq!(std::fs::read_to_string(&cursor).unwrap(), jsonc);
     }
 
     #[test]

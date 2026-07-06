@@ -580,7 +580,9 @@ pub async fn get_helm_release_manifest(
     Ok(detail.manifest)
 }
 
-/// Uninstall a native Helm release by deleting all its release secrets
+/// Forget a native Helm release by deleting all its release secrets.
+/// Deployed manifest resources are intentionally left running - the UI
+/// presents this as "Forget release", not a full `helm uninstall`.
 #[command]
 pub async fn uninstall_helm_release(
     state: State<'_, AppState>,

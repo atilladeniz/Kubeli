@@ -8,11 +8,13 @@ import { Separator } from "@/components/ui/separator";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { revealEnvVar } from "@/lib/tauri/commands";
 import type { ContainerInfo } from "@/lib/types";
 
 interface ContainerStatusSectionProps {
   initContainers?: ContainerInfo[];
   containers: ContainerInfo[];
+  namespace: string;
 }
 
 function formatTimestamp(timestamp: string | null): string {
@@ -91,31 +93,67 @@ function EnvVarSourceBadge({ kind }: { kind: string }) {
   );
 }
 
-function EnvVarRow({ env, t }: { env: ContainerInfo["env_vars"][number]; t: ReturnType<typeof useTranslations> }) {
+function EnvVarRow({
+  env,
+  namespace,
+  t,
+}: {
+  env: ContainerInfo["env_vars"][number];
+  namespace: string;
+  t: ReturnType<typeof useTranslations>;
+}) {
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [secretValue, setSecretValue] = useState<string | null>(null);
 
   const isRef = !!env.value_from_kind;
+  const isSecret = env.value_from_kind === "secret";
   const hasResolvedValue = isRef && env.resolved_value != null;
-  const displayValue = hasResolvedValue ? env.resolved_value! : (env.value_from ?? env.value ?? "");
-  const canReveal = !isRef || hasResolvedValue;
+  const resolvedDisplay = isSecret ? secretValue : hasResolvedValue ? env.resolved_value! : null;
+  const displayValue = resolvedDisplay ?? env.value_from ?? env.value ?? "";
+  const canReveal = !isRef || hasResolvedValue || isSecret;
 
-  const toggleReveal = useCallback(() => {
+  // Secret values are never included in the pod payload; fetch on explicit
+  // reveal/copy only.
+  const loadValue = useCallback(async () => {
+    if (!isSecret) return displayValue;
+    if (secretValue != null) return secretValue;
+    const ref = env.value_from ?? "";
+    const idx = ref.indexOf(":");
+    const value = await revealEnvVar(namespace, ref.slice(0, idx), ref.slice(idx + 1));
+    setSecretValue(value);
+    return value;
+  }, [isSecret, displayValue, secretValue, env.value_from, namespace]);
+
+  const toggleReveal = useCallback(async () => {
     if (revealed) {
       setRevealed(false);
-    } else {
-      setRevealed(true);
-      // Auto-hide after 10 seconds (like secrets)
-      setTimeout(() => setRevealed(false), 10000);
+      return;
     }
-  }, [revealed]);
+    try {
+      await loadValue();
+    } catch (e) {
+      toast.error("Failed to reveal value", { description: String(e) });
+      return;
+    }
+    setRevealed(true);
+    // Auto-hide after 10 seconds (like secrets)
+    setTimeout(() => setRevealed(false), 10000);
+  }, [revealed, loadValue]);
 
   const copyValue = useCallback(async () => {
-    await navigator.clipboard.writeText(displayValue);
+    let value = displayValue;
+    try {
+      value = await loadValue();
+    } catch (e) {
+      toast.error("Failed to copy value", { description: String(e) });
+      return;
+    }
+    await navigator.clipboard.writeText(value);
     setCopied(true);
     toast.success(t("messages.copySuccess"));
     setTimeout(() => setCopied(false), 2000);
-  }, [displayValue, t]);
+  }, [displayValue, loadValue, t]);
 
   return (
     <div className="space-y-1">
@@ -150,7 +188,7 @@ function EnvVarRow({ env, t }: { env: ContainerInfo["env_vars"][number]; t: Retu
           userSelect: revealed ? "text" : "none",
         } : undefined}
       >
-        <span className={cn("break-all", isRef && !hasResolvedValue && "text-blue-400 italic text-[11px]")}>
+        <span className={cn("break-all", isRef && !hasResolvedValue && !isSecret && "text-blue-400 italic text-[11px]")}>
           {canReveal ? (revealed ? displayValue : "••••••••") : displayValue}
         </span>
       </div>
@@ -160,9 +198,11 @@ function EnvVarRow({ env, t }: { env: ContainerInfo["env_vars"][number]; t: Retu
 
 function EnvVarsSection({
   envVars,
+  namespace,
   t,
 }: {
   envVars: ContainerInfo["env_vars"];
+  namespace: string;
   t: ReturnType<typeof useTranslations>;
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -196,7 +236,7 @@ function EnvVarsSection({
         {expanded && (
           <div className="px-3 pb-3 space-y-2">
             {envVars.map((env) => (
-              <EnvVarRow key={env.name} env={env} t={t} />
+              <EnvVarRow key={env.name} env={env} namespace={namespace} t={t} />
             ))}
           </div>
         )}
@@ -207,9 +247,11 @@ function EnvVarsSection({
 
 function ContainerCard({
   container,
+  namespace,
   t,
 }: {
   container: ContainerInfo;
+  namespace: string;
   t: ReturnType<typeof useTranslations>;
 }) {
   return (
@@ -291,12 +333,12 @@ function ContainerCard({
         </div>
       )}
 
-      <EnvVarsSection envVars={container.env_vars} t={t} />
+      <EnvVarsSection envVars={container.env_vars} namespace={namespace} t={t} />
     </div>
   );
 }
 
-export function ContainerStatusSection({ initContainers, containers }: ContainerStatusSectionProps) {
+export function ContainerStatusSection({ initContainers, containers, namespace }: ContainerStatusSectionProps) {
   const t = useTranslations();
 
   const hasInitContainers = initContainers && initContainers.length > 0;
@@ -316,7 +358,7 @@ export function ContainerStatusSection({ initContainers, containers }: Container
           </h3>
           <div className="space-y-3">
             {initContainers.map((container) => (
-              <ContainerCard key={container.name} container={container} t={t} />
+              <ContainerCard key={container.name} container={container} namespace={namespace} t={t} />
             ))}
           </div>
         </div>
@@ -330,7 +372,7 @@ export function ContainerStatusSection({ initContainers, containers }: Container
           </h3>
           <div className="space-y-3">
             {containers.map((container) => (
-              <ContainerCard key={container.name} container={container} t={t} />
+              <ContainerCard key={container.name} container={container} namespace={namespace} t={t} />
             ))}
           </div>
         </div>
