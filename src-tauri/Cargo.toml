@@ -33,7 +33,9 @@ jsonpath-rust = "1.0"
 dirs = "6.0"
 
 # Async Runtime
-tokio = { version = "1.52", features = ["full"] }
+# Enumerated features instead of "full": drops unused subsystems (signal,
+# parking_lot, test-util, ...) from the build
+tokio = { version = "1.52", features = ["rt-multi-thread", "macros", "sync", "time", "process", "io-util", "net", "fs"] }
 tokio-util = { version = "0.7", features = ["io", "compat"] }
 futures = "0.3"
 futures-util = "0.3"
@@ -114,3 +116,5 @@ debug = 0
 lto = true
 opt-level = "s"
 strip = true
+codegen-units = 1
+panic = "abort"

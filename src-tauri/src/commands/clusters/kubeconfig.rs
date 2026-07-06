@@ -5,8 +5,35 @@ use tauri_plugin_store::StoreExt;
 
 use crate::commands::cluster_settings::ClusterSettings;
 
-/// Load kubeconfig using configured sources (or default)
+/// Short-lived cache of the parsed sources: list_clusters and a subsequent
+/// connect_cluster both need the same parse - without this every connect
+/// re-reads and re-parses every configured kubeconfig file.
+static SOURCES_CACHE: tokio::sync::Mutex<Option<(std::time::Instant, Option<KubeConfig>)>> =
+    tokio::sync::Mutex::const_new(None);
+const SOURCES_CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(3);
+
+/// Drop the cached parse - called whenever the configured sources change so
+/// an add/remove is visible immediately.
+pub fn invalidate_sources_cache() {
+    if let Ok(mut cache) = SOURCES_CACHE.try_lock() {
+        *cache = None;
+    }
+}
+
+/// Load kubeconfig using configured sources (or default), cached briefly.
 pub(super) async fn load_kubeconfig_from_sources(app: &AppHandle) -> Option<KubeConfig> {
+    let mut cache = SOURCES_CACHE.lock().await;
+    if let Some((at, cfg)) = cache.as_ref() {
+        if at.elapsed() < SOURCES_CACHE_TTL {
+            return cfg.clone();
+        }
+    }
+    let fresh = load_kubeconfig_from_sources_uncached(app).await;
+    *cache = Some((std::time::Instant::now(), fresh.clone()));
+    fresh
+}
+
+async fn load_kubeconfig_from_sources_uncached(app: &AppHandle) -> Option<KubeConfig> {
     // Try to load sources config from store
     let sources_config = {
         let store = app.store("kubeconfig-sources.json").ok()?;

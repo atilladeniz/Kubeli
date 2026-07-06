@@ -1,5 +1,5 @@
 mod commands;
-mod kubeconfig;
+pub(crate) mod kubeconfig;
 mod types;
 
 pub use commands::*;

@@ -208,6 +208,48 @@ pub async fn shell_start(
     Ok(())
 }
 
+/// Max bytes accumulated before a shell output batch is flushed regardless
+/// of timing.
+const MAX_SHELL_BATCH: usize = 64 * 1024;
+/// How long to keep draining further reads before flushing a batch.
+const SHELL_BATCH_WINDOW: std::time::Duration = std::time::Duration::from_millis(8);
+
+/// Emit the decodable prefix of `pending`; an incomplete trailing UTF-8
+/// sequence stays buffered for the next read unless `take_all` is set
+/// (EOF - nothing more will arrive to complete it).
+fn flush_shell_output(app: &AppHandle, event_name: &str, pending: &mut Vec<u8>, take_all: bool) {
+    let output = take_valid_utf8(pending, take_all);
+    if !output.is_empty() {
+        let _ = app.emit(event_name, ShellEvent::Output(output));
+    }
+}
+
+/// Split the valid UTF-8 prefix out of `pending`. A truncated multi-byte
+/// sequence at the end is kept for the next chunk; genuinely invalid bytes
+/// are lossy-decoded so the stream cannot stall on binary output.
+fn take_valid_utf8(pending: &mut Vec<u8>, take_all: bool) -> String {
+    match std::str::from_utf8(pending) {
+        Ok(s) => {
+            let out = s.to_string();
+            pending.clear();
+            out
+        }
+        Err(e) if e.error_len().is_none() && !take_all => {
+            // Incomplete trailing sequence: emit the valid part, keep the tail
+            let valid = e.valid_up_to();
+            let out = String::from_utf8_lossy(&pending[..valid]).into_owned();
+            pending.drain(..valid);
+            out
+        }
+        Err(_) => {
+            // Invalid bytes mid-stream (or EOF with a truncated tail)
+            let out = String::from_utf8_lossy(pending).into_owned();
+            pending.clear();
+            out
+        }
+    }
+}
+
 /// Run the shell session handling stdin/stdout
 async fn run_shell_session(
     mut attached: AttachedProcess,
@@ -224,6 +266,10 @@ async fn run_shell_session(
     let mut terminal_size_tx = attached.terminal_size();
 
     let mut stdout_buf = vec![0u8; 4096];
+    // Carries bytes across reads: an incomplete trailing UTF-8 sequence from
+    // one chunk is completed by the next instead of being lossy-decoded into
+    // replacement characters mid-glyph.
+    let mut pending: Vec<u8> = Vec::new();
 
     loop {
         if stop_flag.load(Ordering::SeqCst) {
@@ -260,11 +306,34 @@ async fn run_shell_session(
                 match result {
                     Ok(0) => {
                         // EOF
+                        flush_shell_output(&app, event_name, &mut pending, true);
                         break;
                     }
                     Ok(n) => {
-                        let output = String::from_utf8_lossy(&stdout_buf[..n]).to_string();
-                        let _ = app.emit(event_name, ShellEvent::Output(output));
+                        pending.extend_from_slice(&stdout_buf[..n]);
+                        // Batch: keep draining for a few ms so fast producers
+                        // (e.g. `cat` of a large file) emit one IPC event per
+                        // ~batch instead of one per 4 KB read.
+                        let mut eof = false;
+                        while pending.len() < MAX_SHELL_BATCH {
+                            match tokio::time::timeout(
+                                SHELL_BATCH_WINDOW,
+                                stdout.read(&mut stdout_buf),
+                            )
+                            .await
+                            {
+                                Ok(Ok(0)) => {
+                                    eof = true;
+                                    break;
+                                }
+                                Ok(Ok(n)) => pending.extend_from_slice(&stdout_buf[..n]),
+                                Ok(Err(_)) | Err(_) => break,
+                            }
+                        }
+                        flush_shell_output(&app, event_name, &mut pending, eof);
+                        if eof {
+                            break;
+                        }
                     }
                     Err(e) => {
                         let _ = app.emit(event_name, ShellEvent::Error(format!("Read error: {}", e)));
@@ -637,4 +706,38 @@ pub async fn node_shell_cleanup(
         tracing::info!("Closed node shell session {}", session_id);
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::take_valid_utf8;
+
+    #[test]
+    fn keeps_incomplete_utf8_tail_for_next_chunk() {
+        // "ä" (0xC3 0xA4) split across two reads
+        let mut pending = vec![b'a', 0xC3];
+        assert_eq!(take_valid_utf8(&mut pending, false), "a");
+        assert_eq!(pending, vec![0xC3]);
+
+        pending.push(0xA4);
+        assert_eq!(take_valid_utf8(&mut pending, false), "ä");
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn lossy_decodes_genuinely_invalid_bytes_without_stalling() {
+        let mut pending = vec![b'a', 0xFF, b'b'];
+        let out = take_valid_utf8(&mut pending, false);
+        assert!(out.starts_with('a') && out.ends_with('b'));
+        assert!(out.contains('\u{FFFD}'));
+        assert!(pending.is_empty());
+    }
+
+    #[test]
+    fn final_flush_emits_truncated_tail_as_replacement() {
+        let mut pending = vec![b'a', 0xC3];
+        let out = take_valid_utf8(&mut pending, true);
+        assert_eq!(out, "a\u{FFFD}");
+        assert!(pending.is_empty());
+    }
 }

@@ -103,16 +103,19 @@ export function ClusterGrid() {
   useEffect(() => {
     let cancelled = false;
     async function loadConfigured() {
-      const configured = new Set<string>();
-      for (const cluster of clusters) {
-        try {
+      // One call per cluster, all in parallel - sequential awaits made the
+      // grid wait clusters x RTT before showing namespace badges
+      const results = await Promise.allSettled(
+        clusters.map(async (cluster) => {
           const settings = await getClusterSettings(cluster.context);
-          if (settings && settings.accessible_namespaces.length > 0) {
-            configured.add(cluster.context);
-          }
-        } catch {
-          // Ignore errors
-        }
+          return settings && settings.accessible_namespaces.length > 0
+            ? cluster.context
+            : null;
+        }),
+      );
+      const configured = new Set<string>();
+      for (const r of results) {
+        if (r.status === "fulfilled" && r.value) configured.add(r.value);
       }
       if (!cancelled) nsDialogDispatch({ type: "setConfigured", contexts: configured });
     }

@@ -8,7 +8,7 @@ import {
   stopLogStream,
   getPodContainers,
 } from "../tauri/commands";
-import type { LogEntry, LogOptions, LogEvent } from "../types";
+import type { LogEntry, LogOptions, LogEvent, PodInfo, WatchEvent } from "../types";
 import { type KubeliError, toKubeliError, getErrorMessage } from "../types/errors";
 import { useUIStore } from "./ui-store";
 
@@ -73,7 +73,7 @@ const stampSeq = (entry: LogEntry): LogEntry => ({ ...entry, seq: ++logSeq });
 const listeners = new Map<string, UnlistenFn>();
 const pendingLogs = new Map<string, LogEntry[]>();
 const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
-const podWatchers = new Map<string, ReturnType<typeof setInterval>>();
+const podWatchers = new Map<string, () => void>();
 
 const podWatchInfo = new Map<string, PodWatchInfo>();
 
@@ -82,47 +82,71 @@ interface PodWatchInfo {
   podName: string;
 }
 
-const POD_CHECK_INTERVAL = 2000;
+/** Mark a log tab as errored because its pod disappeared. */
+function markPodGone(
+  tabId: string,
+  pod: string,
+  set: (fn: (s: LogStoreState) => Partial<LogStoreState>) => void
+) {
+  set((s) => {
+    const t = s.logTabs[tabId];
+    if (!t) return {};
+    return {
+      logTabs: {
+        ...s.logTabs,
+        [tabId]: {
+          ...t,
+          error: toKubeliError(`Pod ${pod} not found (deleted?)`),
+          isStreaming: false,
+        },
+      },
+    };
+  });
+  stopPodWatcher(tabId);
+}
 
-function startPodWatcher(tabId: string, ns: string, pod: string, set: (fn: (s: LogStoreState) => Partial<LogStoreState>) => void, get: () => LogStoreState) {
+// Watch-based pod-existence tracking: a Deleted watch event flags the tab
+// instead of polling the API every 2 s per open log tab.
+async function startPodWatcher(
+  tabId: string,
+  ns: string,
+  pod: string,
+  set: (fn: (s: LogStoreState) => Partial<LogStoreState>) => void
+) {
   stopPodWatcher(tabId);
   podWatchInfo.set(tabId, { namespace: ns, podName: pod });
 
-  const check = async () => {
-    const tab = get().logTabs[tabId];
-    if (!tab || tab.error) return;
-
-    // Skip API call for inactive tabs to reduce unnecessary polling
-    const activeTabId = get().activeTabId;
-    if (activeTabId && tabId !== activeTabId) return;
-
-    try {
-      await getPodContainers(ns, pod);
-    } catch (e) {
-      const msg = getErrorMessage(e);
-      if (msg.includes("NotFound") || msg.includes("not found")) {
-        set((s) => {
-          const t = s.logTabs[tabId];
-          if (!t) return {};
-          return {
-            logTabs: {
-              ...s.logTabs,
-              [tabId]: { ...t, error: toKubeliError(e), isStreaming: false },
-            },
-          };
-        });
-        stopPodWatcher(tabId);
+  const watchId = `log-pod-${tabId}-${Date.now()}`;
+  try {
+    const { watchPods, stopWatch } = await import("../tauri/commands");
+    const unlisten = await listen<WatchEvent<PodInfo>>(
+      `pods-watch-${watchId}`,
+      (event) => {
+        const we = event.payload;
+        if (we.type === "Deleted") {
+          const p = we.data as PodInfo;
+          if (p.name === pod) markPodGone(tabId, pod, set);
+        } else if (we.type === "Restarted") {
+          // Watch resynced - pod may have vanished while we were not looking
+          const all = we.data as PodInfo[];
+          if (!all.some((p) => p.name === pod)) markPodGone(tabId, pod, set);
+        }
       }
-    }
-  };
-
-  podWatchers.set(tabId, setInterval(check, POD_CHECK_INTERVAL));
+    );
+    podWatchers.set(tabId, () => {
+      unlisten();
+      stopWatch(watchId).catch(() => {});
+    });
+    await watchPods(watchId, ns);
+  } catch {
+    // Watch unavailable - the log stream itself will surface errors
+  }
 }
 
 function stopPodWatcher(tabId: string) {
-  const timer = podWatchers.get(tabId);
-  if (timer) {
-    clearInterval(timer);
+  const cleanup = podWatchers.get(tabId);
+  if (cleanup) {
+    cleanup();
     podWatchers.delete(tabId);
   }
   podWatchInfo.delete(tabId);
@@ -217,8 +241,8 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
       }
     }
 
-    // Start polling for pod existence
-    startPodWatcher(tabId, ns, pod, set, get);
+    // Watch pod existence (Deleted event flags the tab)
+    startPodWatcher(tabId, ns, pod, set);
   },
 
   async startStream(tabId, ns, pod, container, tailLines) {
@@ -255,6 +279,18 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
               pendingLogs.set(tabId, pending);
             }
             pending.push(stampSeq(logEvent.data));
+            scheduleFlush(tabId, set);
+            break;
+          }
+          case "Lines": {
+            let pending = pendingLogs.get(tabId);
+            if (!pending) {
+              pending = [];
+              pendingLogs.set(tabId, pending);
+            }
+            for (const entry of logEvent.data) {
+              pending.push(stampSeq(entry));
+            }
             scheduleFlush(tabId, set);
             break;
           }

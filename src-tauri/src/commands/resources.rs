@@ -1140,7 +1140,9 @@ async fn get_helm_release_yaml(
 ) -> Result<ResourceYaml, KubeliError> {
     let ns = namespace.ok_or("Namespace required for helm releases")?;
     let api: Api<Secret> = Api::namespaced(client, &ns);
-    let lp = ListParams::default().labels("owner=helm");
+    // Server-side filter on the release name - avoids downloading every
+    // release secret in the namespace.
+    let lp = ListParams::default().labels(&format!("owner=helm,name={}", name));
     let secrets: Vec<Secret> = api.list(&lp).await?.items;
 
     let prefix = format!("sh.helm.release.v1.{}.v", name);
@@ -1166,23 +1168,29 @@ async fn get_helm_release_yaml(
         .and_then(|d| d.get("release"))
         .ok_or("Release data not found in secret")?;
 
-    // Decode: base64 -> (maybe base64) -> gzip -> json
-    let data_str = String::from_utf8_lossy(&data.0);
-    let decoded1 = BASE64.decode(data_str.as_ref())?;
+    // Decode: base64 -> (maybe base64) -> gzip -> json. Runs on the blocking
+    // pool with a decompression cap - multi-MB releases must not stall the
+    // async runtime, gzip bombs must not OOM it.
+    const MAX_HELM_RELEASE_BYTES: u64 = 64 * 1024 * 1024;
+    let data_str = String::from_utf8_lossy(&data.0).into_owned();
+    let yaml = tauri::async_runtime::spawn_blocking(move || -> Result<String, KubeliError> {
+        let decoded1 = BASE64.decode(&data_str)?;
 
-    let gzip_data = if decoded1.len() >= 2 && decoded1[0] == 0x1f && decoded1[1] == 0x8b {
-        decoded1
-    } else {
-        BASE64.decode(&decoded1)?
-    };
+        let gzip_data = if decoded1.len() >= 2 && decoded1[0] == 0x1f && decoded1[1] == 0x8b {
+            decoded1
+        } else {
+            BASE64.decode(&decoded1)?
+        };
 
-    let mut decoder = GzDecoder::new(&gzip_data[..]);
-    let mut decompressed = String::new();
-    decoder.read_to_string(&mut decompressed)?;
+        let mut decoder = GzDecoder::new(&gzip_data[..]).take(MAX_HELM_RELEASE_BYTES);
+        let mut decompressed = String::new();
+        decoder.read_to_string(&mut decompressed)?;
 
-    let release_data: Value = serde_json::from_str(&decompressed)?;
-
-    let yaml = serde_yaml::to_string(&release_data)?;
+        let release_data: Value = serde_json::from_str(&decompressed)?;
+        Ok(serde_yaml::to_string(&release_data)?)
+    })
+    .await
+    .map_err(|e| KubeliError::unknown(format!("Helm decode task failed: {e}")))??;
 
     Ok(ResourceYaml {
         yaml,

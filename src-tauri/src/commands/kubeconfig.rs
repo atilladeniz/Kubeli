@@ -53,6 +53,7 @@ pub(crate) fn allow_sources_in_fs_scope(app: &AppHandle) {
 
 /// Save sources config to Tauri store
 fn save_sources_config(app: &AppHandle, config: &KubeconfigSourcesConfig) -> Result<(), String> {
+    crate::commands::clusters::kubeconfig::invalidate_sources_cache();
     let store = app
         .store(STORE_FILENAME)
         .map_err(|e| format!("Failed to open store: {}", e))?;

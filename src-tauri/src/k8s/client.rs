@@ -374,21 +374,34 @@ impl KubeClientManager {
         }
     }
 
-    /// List all namespaces
+    /// List all namespaces (metadata only - names are all we need) with a
+    /// hard timeout so a hanging API server cannot stall the caller.
     pub async fn list_namespaces(&self) -> Result<Vec<String>> {
         let client = self.get_client().await?;
         let namespaces: Api<Namespace> = Api::all(client);
 
-        let list = namespaces
-            .list(&ListParams::default())
-            .await
-            .context("Failed to list namespaces")?;
+        // Page through results (500/page) so huge clusters neither truncate
+        // nor produce one giant response.
+        let mut names = Vec::new();
+        let mut continue_token: Option<String> = None;
+        loop {
+            let mut params = ListParams::default().limit(500).timeout(10);
+            if let Some(token) = &continue_token {
+                params = params.continue_token(token);
+            }
+            let list =
+                tokio::time::timeout(Duration::from_secs(15), namespaces.list_metadata(&params))
+                    .await
+                    .context("Timed out listing namespaces")?
+                    .context("Failed to list namespaces")?;
 
-        Ok(list
-            .items
-            .into_iter()
-            .filter_map(|ns| ns.metadata.name)
-            .collect())
+            continue_token = list.metadata.continue_.clone().filter(|t| !t.is_empty());
+            names.extend(list.items.into_iter().filter_map(|ns| ns.metadata.name));
+            if continue_token.is_none() {
+                break;
+            }
+        }
+        Ok(names)
     }
 }
 
