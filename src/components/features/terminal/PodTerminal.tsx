@@ -68,23 +68,28 @@ export function PodTerminal({
     }
   }, [autoConnect, selectedContainer, isConnected, isConnecting, connect]);
 
-  const handleData = useCallback(
-    (data: string) => {
-      if (isConnected) {
-        sendInput(data);
-      }
-    },
-    [isConnected, sendInput]
-  );
+  // Keep latest connection state/handlers in refs so handleData/handleResize
+  // stay referentially stable and never force the xterm instance to recreate.
+  const isConnectedRef = useRef(isConnected);
+  const sendInputRef = useRef(sendInput);
+  const resizeRef = useRef(resize);
+  useEffect(() => {
+    isConnectedRef.current = isConnected;
+    sendInputRef.current = sendInput;
+    resizeRef.current = resize;
+  });
 
-  const handleResize = useCallback(
-    (cols: number, rows: number) => {
-      if (isConnected) {
-        resize(cols, rows);
-      }
-    },
-    [isConnected, resize]
-  );
+  const handleData = useCallback((data: string) => {
+    if (isConnectedRef.current) {
+      sendInputRef.current(data);
+    }
+  }, []);
+
+  const handleResize = useCallback((cols: number, rows: number) => {
+    if (isConnectedRef.current) {
+      resizeRef.current(cols, rows);
+    }
+  }, []);
 
   const handleTerminalReady = useCallback((terminal: XTermType) => {
     terminalRef.current = terminal;

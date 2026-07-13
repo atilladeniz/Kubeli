@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useClusterStore } from "../../stores/cluster-store";
 import { useResourceCacheStore } from "../../stores/resource-cache-store";
 import { type KubeliError, toKubeliError } from "../../types/errors";
@@ -23,19 +23,28 @@ export function useClusterScopedResource<T>(
   const [data, setData] = useState<T[]>(() => getCache<T>(cacheKey));
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<KubeliError | null>(null);
+  // Generation counter: a stale (older, slower) refresh must not overwrite
+  // the state written by a newer one
+  const refreshSeq = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
+    const seq = ++refreshSeq.current;
     setIsLoading(true);
     setError(null);
     try {
       const result = await listFn();
+      // A newer refresh superseded this one - drop the stale result
+      if (seq !== refreshSeq.current) return;
       setData(result);
       setCache(cacheKey, result);
     } catch (e) {
+      if (seq !== refreshSeq.current) return;
       setError(toKubeliError(e));
     } finally {
-      setIsLoading(false);
+      if (seq === refreshSeq.current) {
+        setIsLoading(false);
+      }
     }
   }, [isConnected, listFn, cacheKey, setCache]);
 

@@ -219,6 +219,10 @@ export const runtimeClassColumns: Column<RuntimeClassInfo>[] = [
     key: "scheduling_node_selector",
     label: "NODE SELECTOR",
     sortable: false,
+    getSearchText: (rc) =>
+      Object.entries(rc.scheduling_node_selector ?? {})
+        .map(([k, v]) => `${k}=${v}`)
+        .join(", "),
     render: (rc) => {
       if (!rc.scheduling_node_selector) return "-";
       const count = Object.keys(rc.scheduling_node_selector).length;

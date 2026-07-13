@@ -4,6 +4,11 @@ export interface Column<T> {
   sortable?: boolean;
   render?: (item: T) => React.ReactNode;
   width?: string;
+  /**
+   * Text used by the search filter for this column. Needed for columns whose
+   * underlying value is an object (which would stringify to "[object Object]").
+   */
+  getSearchText?: (item: T) => string;
 }
 
 export interface FilterOption<T> {

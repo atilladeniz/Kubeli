@@ -327,6 +327,10 @@ pub async fn connect_cluster(
                             context,
                             latency
                         );
+                        // Remove debug pods orphaned by a previous run/crash
+                        if let Ok(client) = state.k8s.get_client().await {
+                            crate::commands::shell::sweep_orphaned_debug_pods(client);
+                        }
                         // Keep the OIDC token fresh for the lifetime of the connection
                         if let (Some(oidc_config), Some(ref user)) = (active_oidc, &user_name) {
                             let oidc_state: State<'_, Arc<OidcState>> = app.state();
@@ -453,9 +457,15 @@ pub async fn get_namespaces(
             source: "auto".to_string(),
         }),
         Err(e) => {
-            let err_str = format!("{}", e);
-            // Check if this is a 403 Forbidden (RBAC restriction)
-            if err_str.contains("403") || err_str.to_lowercase().contains("forbidden") {
+            // Structural check for 403 Forbidden (RBAC restriction) instead of
+            // message sniffing: walk the anyhow chain for the kube API error.
+            let forbidden = e.chain().any(|cause| {
+                matches!(
+                    cause.downcast_ref::<kube::Error>(),
+                    Some(kube::Error::Api(resp)) if resp.code == 403
+                )
+            });
+            if forbidden {
                 tracing::info!(
                     "Namespace listing forbidden for context '{}', RBAC restricted",
                     context

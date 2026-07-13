@@ -44,11 +44,15 @@ export function useK8sResource<T>(
   const watchStartingRef = useRef(false);
   // Track whether auto-refresh is paused due to non-retryable error
   const autoRefreshPausedRef = useRef(false);
+  // Generation counter: a stale (older, slower) refresh must not overwrite
+  // the state written by a newer one
+  const refreshSeq = useRef(0);
 
   // ── Fetching ──────────────────────────────────────────────────────
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
+    const seq = ++refreshSeq.current;
     setIsLoading(true);
     setError(null);
     autoRefreshPausedRef.current = false;
@@ -102,9 +106,13 @@ export function useK8sResource<T>(
         result = config.postProcess(result);
       }
 
+      // A newer refresh superseded this one - drop the stale result
+      if (seq !== refreshSeq.current) return;
+
       setData(result);
       setCache(cacheKey, result);
     } catch (e) {
+      if (seq !== refreshSeq.current) return;
       const kubeliError = toKubeliError(e);
       setError(kubeliError);
 
@@ -113,7 +121,9 @@ export function useK8sResource<T>(
         autoRefreshPausedRef.current = true;
       }
     } finally {
-      setIsLoading(false);
+      if (seq === refreshSeq.current) {
+        setIsLoading(false);
+      }
     }
   }, [isConnected, namespace, isMultiNs, isConfiguredAllNs, configuredNamespaces, selectedNamespaces, config, cacheKey, setCache]);
 

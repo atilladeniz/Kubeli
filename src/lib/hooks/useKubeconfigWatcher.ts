@@ -11,6 +11,7 @@ import { getKubeconfigSources } from "../tauri/commands";
 export function useKubeconfigWatcher() {
   const fetchClusters = useClusterStore((s) => s.fetchClusters);
   const unwatchRef = useRef<(() => void) | null>(null);
+  const disposedRef = useRef(false);
 
   const setupWatcher = useCallback(async () => {
     // Clean up previous watcher
@@ -79,13 +80,22 @@ export function useKubeconfigWatcher() {
         }
       });
 
-      unwatchRef.current = () => unwatchers.forEach((u) => u());
+      const unwatch = () => unwatchers.forEach((u) => u());
+
+      // Unmounted while the watches were being set up - the effect cleanup
+      // already ran, so release them immediately
+      if (disposedRef.current) {
+        unwatch();
+        return;
+      }
+      unwatchRef.current = unwatch;
     } catch (e) {
       console.error("Failed to setup kubeconfig watcher:", e);
     }
   }, [fetchClusters]);
 
   useEffect(() => {
+    disposedRef.current = false;
     setupWatcher();
 
     // Restart watcher when sources are added/removed in settings
@@ -93,6 +103,7 @@ export function useKubeconfigWatcher() {
     window.addEventListener("kubeconfig-sources-changed", handleSourcesChanged);
 
     return () => {
+      disposedRef.current = true;
       window.removeEventListener("kubeconfig-sources-changed", handleSourcesChanged);
       if (unwatchRef.current) {
         unwatchRef.current();

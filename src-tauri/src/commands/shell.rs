@@ -1,7 +1,9 @@
 use crate::k8s::AppState;
 use futures::SinkExt;
 use k8s_openapi::api::core::v1::Pod;
-use kube::api::{Api, AttachParams, AttachedProcess, DeleteParams, PostParams, TerminalSize};
+use kube::api::{
+    Api, AttachParams, AttachedProcess, DeleteParams, ListParams, PostParams, TerminalSize,
+};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -287,8 +289,14 @@ async fn run_shell_session(
     stop_flag: Arc<AtomicBool>,
     input_rx: &mut mpsc::Receiver<ShellInput>,
 ) {
-    let mut stdin = attached.stdin().expect("stdin available after attach");
-    let mut stdout = attached.stdout().expect("stdout available after attach");
+    let (Some(mut stdin), Some(mut stdout)) = (attached.stdin(), attached.stdout()) else {
+        tracing::error!("Shell attach did not provide stdin/stdout streams");
+        let _ = app.emit(
+            event_name,
+            ShellEvent::Error("Failed to open shell I/O streams".to_string()),
+        );
+        return;
+    };
     // terminal_size() takes the sender out of AttachedProcess (kube 4.0), so it
     // must be called exactly once and reused — calling it per resize returns
     // None after the first call and silently drops every later resize.
@@ -449,6 +457,34 @@ pub struct NodeShellOptions {
 
 const DEFAULT_NODE_SHELL_IMAGE: &str = "docker.io/alpine:3.21";
 const NODE_SHELL_NAMESPACE: &str = "kube-system";
+/// Label selector matching the node-shell debug pods created by Kubeli.
+const DEBUG_POD_SELECTOR: &str = "app.kubernetes.io/managed-by=kubeli,kubeli/purpose=node-shell";
+
+/// Delete leftover node-shell debug pods from earlier runs (e.g. after an
+/// app crash). Best effort, runs in the background. Called after a successful
+/// connect, when no node-shell session can be active yet.
+pub fn sweep_orphaned_debug_pods(client: kube::Client) {
+    tokio::spawn(async move {
+        let pods: Api<Pod> = Api::namespaced(client, NODE_SHELL_NAMESPACE);
+        let lp = ListParams::default().labels(DEBUG_POD_SELECTOR);
+        let list = match pods.list(&lp).await {
+            Ok(list) => list,
+            Err(e) => {
+                tracing::debug!("Debug pod sweep skipped: {}", e);
+                return;
+            }
+        };
+        for pod in list {
+            let Some(name) = pod.metadata.name else {
+                continue;
+            };
+            match pods.delete(&name, &DeleteParams::default()).await {
+                Ok(_) => tracing::info!("Swept orphaned debug pod {}", name),
+                Err(e) => tracing::warn!("Failed to sweep debug pod {}: {}", name, e),
+            }
+        }
+    });
+}
 
 /// Start an interactive shell session on a node via a debug pod
 #[command]
@@ -481,7 +517,7 @@ pub async fn node_shell_start(
     // Create debug pod name
     let debug_pod_name = format!(
         "kubeli-node-shell-{}",
-        &session_id
+        session_id
             .chars()
             .filter(|c| c.is_alphanumeric() || *c == '-')
             .collect::<String>()
@@ -517,6 +553,8 @@ pub async fn node_shell_start(
             "hostNetwork": true,
             "restartPolicy": "Never",
             "terminationGracePeriodSeconds": 0,
+            // Orphaned debug pods (app crash, lost session) self-terminate
+            "activeDeadlineSeconds": 3600,
             "priorityClassName": "system-node-critical",
             "tolerations": [{
                 "operator": "Exists"

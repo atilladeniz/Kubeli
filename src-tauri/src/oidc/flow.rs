@@ -4,12 +4,14 @@ use base64::engine::general_purpose::{STANDARD, URL_SAFE, URL_SAFE_NO_PAD};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use openidconnect::core::{
-    CoreAuthenticationFlow, CoreClient, CoreIdToken, CoreProviderMetadata, CoreTokenResponse,
+    CoreAuthenticationFlow, CoreClient, CoreErrorResponseType, CoreIdToken, CoreProviderMetadata,
+    CoreTokenResponse,
 };
 use openidconnect::reqwest;
 use openidconnect::{
     AuthorizationCode, ClientId, CsrfToken, IssuerUrl, Nonce, OAuth2TokenResponse,
-    PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, RefreshToken, Scope,
+    PkceCodeChallenge, PkceCodeVerifier, RedirectUrl, RefreshToken, RequestTokenError, Scope,
+    StandardErrorResponse,
 };
 
 use super::config::OidcExecConfig;
@@ -90,7 +92,14 @@ impl OidcFlowManager {
         Ok(auth_url.to_string())
     }
 
-    pub async fn exchange_code(&self, code: &str, state: &str) -> Result<OidcTokens, String> {
+    /// Exchange the authorization code for tokens. Returns the tokens together
+    /// with the config the flow was started with (consumed from the pending
+    /// state), so callers don't have to re-derive it.
+    pub async fn exchange_code(
+        &self,
+        code: &str,
+        state: &str,
+    ) -> Result<(OidcTokens, OidcExecConfig), String> {
         let pending_auth = {
             let mut pending_guard = self
                 .pending
@@ -148,11 +157,14 @@ impl OidcFlowManager {
             .refresh_token()
             .map(|token: &RefreshToken| token.secret().to_string());
 
-        Ok(OidcTokens {
-            id_token,
-            refresh_token,
-            expires_at,
-        })
+        Ok((
+            OidcTokens {
+                id_token,
+                refresh_token,
+                expires_at,
+            },
+            pending_auth.config,
+        ))
     }
 
     pub async fn refresh_token(
@@ -275,20 +287,26 @@ async fn discover_provider(config: &OidcExecConfig) -> Result<CoreProviderMetada
 /// `invalid_grant` OAuth2 error code means the refresh token is dead and must be
 /// discarded; transport errors, parse errors, and other server error codes are
 /// transient and must NOT cause us to drop a still-valid refresh token. We match
-/// the structured `ServerResponse` variant and inspect only the error response
-/// (which carries the code) rather than substring-matching the whole formatted
-/// error chain.
-fn classify_refresh_error<RE, T>(error: openidconnect::RequestTokenError<RE, T>) -> RefreshError
+/// the parsed `error` field of the structured `ServerResponse` variant; a
+/// substring check on the raw body remains only as a fallback for IdPs whose
+/// error response did not deserialize as a conforming OAuth2 error.
+fn classify_refresh_error<RE>(
+    error: RequestTokenError<RE, StandardErrorResponse<CoreErrorResponseType>>,
+) -> RefreshError
 where
     RE: std::error::Error + 'static,
-    T: openidconnect::ErrorResponse + std::fmt::Display,
 {
+    let is_invalid_grant = match &error {
+        RequestTokenError::ServerResponse(resp) => {
+            *resp.error() == CoreErrorResponseType::InvalidGrant
+        }
+        // Fallback: the body was not a parseable OAuth2 error response.
+        RequestTokenError::Parse(_, body) => {
+            String::from_utf8_lossy(body).contains("invalid_grant")
+        }
+        _ => false,
+    };
     let message = format!("Failed to refresh OIDC token: {}", error);
-    let is_invalid_grant = matches!(
-        &error,
-        openidconnect::RequestTokenError::ServerResponse(resp)
-            if resp.to_string().contains("invalid_grant")
-    );
     if is_invalid_grant {
         RefreshError::Terminal(message)
     } else {
@@ -369,5 +387,47 @@ mod tests {
     fn refresh_error_display_shows_message() {
         assert_eq!(RefreshError::Terminal("boom".into()).to_string(), "boom");
         assert_eq!(RefreshError::Transient("blip".into()).to_string(), "blip");
+    }
+
+    type TestTokenError =
+        RequestTokenError<std::convert::Infallible, StandardErrorResponse<CoreErrorResponseType>>;
+
+    fn server_response(error: CoreErrorResponseType) -> TestTokenError {
+        RequestTokenError::ServerResponse(StandardErrorResponse::new(error, None, None))
+    }
+
+    #[test]
+    fn classifies_invalid_grant_server_response_as_terminal() {
+        let result = classify_refresh_error(server_response(CoreErrorResponseType::InvalidGrant));
+        assert!(matches!(result, RefreshError::Terminal(_)));
+    }
+
+    #[test]
+    fn classifies_other_server_errors_as_transient() {
+        // Regression: classification used to substring-match the formatted
+        // error, so an unrelated error mentioning "invalid_grant" in its
+        // description would kill a still-valid refresh token.
+        let result = classify_refresh_error(server_response(CoreErrorResponseType::InvalidClient));
+        assert!(matches!(result, RefreshError::Transient(_)));
+
+        let misleading: TestTokenError =
+            RequestTokenError::ServerResponse(StandardErrorResponse::new(
+                CoreErrorResponseType::InvalidRequest,
+                Some("this is not an invalid_grant error".to_string()),
+                None,
+            ));
+        assert!(matches!(
+            classify_refresh_error(misleading),
+            RefreshError::Transient(_)
+        ));
+    }
+
+    #[test]
+    fn classifies_non_server_errors_as_transient() {
+        let other: TestTokenError = RequestTokenError::Other("invalid_grant mention".to_string());
+        assert!(matches!(
+            classify_refresh_error(other),
+            RefreshError::Transient(_)
+        ));
     }
 }

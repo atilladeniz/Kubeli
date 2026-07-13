@@ -118,6 +118,10 @@ export const resourceQuotaColumns: Column<ResourceQuotaInfo>[] = [
     key: "resources",
     label: "RESOURCES",
     sortable: false,
+    getSearchText: (rq) =>
+      Object.entries(rq.hard)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(", "),
     render: (rq) => Object.keys(rq.hard).length,
   },
   {

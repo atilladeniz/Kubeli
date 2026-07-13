@@ -5,6 +5,7 @@ import { ActiveTab } from "./ActiveTab";
 import { PortForwardDialogs } from "../portforward/PortForwardDialogs";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
+import { showMainWindow, quitApp as quitAppCommand } from "@/lib/tauri/commands/app";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import packageJson from "../../../../package.json";
 
@@ -30,9 +31,8 @@ export function TrayPopup() {
 
   const openMainWindow = async () => {
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
       const { emit } = await import("@tauri-apps/api/event");
-      await invoke("show_main_window_command");
+      await showMainWindow();
       // Navigate main window to Pods view
       await emit("navigate", { view: "pods" });
     } catch (err) {
@@ -42,8 +42,7 @@ export function TrayPopup() {
 
   const quitApp = async () => {
     try {
-      const { invoke } = await import("@tauri-apps/api/core");
-      await invoke("quit_app");
+      await quitAppCommand();
     } catch (err) {
       console.error("Failed to quit:", err);
     }

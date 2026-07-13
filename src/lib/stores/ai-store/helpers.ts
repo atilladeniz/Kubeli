@@ -61,6 +61,43 @@ export function finalizeStreamingMessage(
   return { ...conversation, messages, updatedAt: Date.now() };
 }
 
+// Character budget for the transcript injected when resuming a session.
+// Oldest messages are dropped first when the history exceeds it.
+export const RESUME_CONTEXT_MAX_CHARS = 10000;
+
+/**
+ * Builds a compact transcript of prior messages so a resumed session's
+ * fresh backend CLI process knows what was already discussed.
+ * Returns null when there is no usable history.
+ */
+export function buildResumeContext(messages: ChatMessage[]): string | null {
+  const lines: string[] = [];
+  let total = 0;
+
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const { role, content } = messages[i];
+    if ((role !== "user" && role !== "assistant") || !content.trim()) continue;
+
+    const line = `${role === "user" ? "User" : "Assistant"}: ${content.trim()}`;
+    if (total + line.length > RESUME_CONTEXT_MAX_CHARS) {
+      // Keep at least the most recent message, truncated to the budget.
+      if (lines.length === 0) {
+        lines.unshift(line.slice(0, RESUME_CONTEXT_MAX_CHARS));
+      }
+      break;
+    }
+    lines.unshift(line);
+    total += line.length;
+  }
+
+  if (lines.length === 0) return null;
+
+  return `## Previous conversation
+This session was resumed. The prior exchange with the user (oldest first):
+
+${lines.join("\n\n")}`;
+}
+
 export function toChatMessages(records: MessageRecord[]): ChatMessage[] {
   return records.map((record) => ({
     id: record.message_id,

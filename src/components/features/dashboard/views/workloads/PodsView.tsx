@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import {
   FileText,
@@ -73,7 +73,7 @@ export function PodsView() {
   const openOrActivateTab = useTabsStore((s) => s.openOrActivateTab);
   const pendingLogsHandled = useRef<{ namespace: string; podName: string } | null>(null);
 
-  const openLogsTab = (podName: string, namespace: string) => {
+  const openLogsTab = useCallback((podName: string, namespace: string) => {
     const result = openOrActivateTab(
       "pod-logs",
       `Logs: ${podName} (${namespace})`,
@@ -83,7 +83,7 @@ export function PodsView() {
         tab.metadata?.namespace === namespace,
     );
     if (result === null) toast.warning(t("tabs.limitToast"));
-  };
+  }, [openOrActivateTab, t]);
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const currentCluster = useClusterStore((s) => s.currentCluster);
@@ -146,23 +146,35 @@ export function PodsView() {
     },
   ], [refresh, isWatching]);
 
-  const handleOpenShell = (pod: PodInfo) => {
+  const handleOpenShell = useCallback((pod: PodInfo) => {
     addTab(pod.namespace, pod.name);
-  };
+  }, [addTab]);
+
+  // Precompute pod -> service matches once per data change instead of
+  // scanning all services per row on every render
+  const podServiceMap = useMemo(() => {
+    const map = new Map<string, ServiceInfo>();
+    for (const pod of data) {
+      const service = services.find((svc) => {
+        if (svc.namespace !== pod.namespace) return false;
+        if (!svc.selector || Object.keys(svc.selector).length === 0) return false;
+        return Object.entries(svc.selector).every(
+          ([key, value]) => pod.labels[key] === value
+        );
+      });
+      if (service) map.set(pod.uid, service);
+    }
+    return map;
+  }, [data, services]);
 
   // Find matching service for a pod based on label selectors
-  const findServiceForPod = (pod: PodInfo): ServiceInfo | undefined => {
-    return services.find((svc) => {
-      if (svc.namespace !== pod.namespace) return false;
-      if (!svc.selector || Object.keys(svc.selector).length === 0) return false;
-      return Object.entries(svc.selector).every(
-        ([key, value]) => pod.labels[key] === value
-      );
-    });
-  };
+  const findServiceForPod = useCallback(
+    (pod: PodInfo): ServiceInfo | undefined => podServiceMap.get(pod.uid),
+    [podServiceMap]
+  );
 
   // Check if pod's service is being forwarded (any port)
-  const getForwardForPod = (pod: PodInfo) => {
+  const getForwardForPod = useCallback((pod: PodInfo) => {
     const service = findServiceForPod(pod);
     if (!service) return undefined;
     return forwards.find(
@@ -171,10 +183,10 @@ export function PodsView() {
         f.namespace === service.namespace &&
         f.target_type === "service"
     );
-  };
+  }, [findServiceForPod, forwards]);
 
   // Get all forwards for a pod's service (for multi-port popover)
-  const getForwardsForPod = (pod: PodInfo) => {
+  const getForwardsForPod = useCallback((pod: PodInfo) => {
     const service = findServiceForPod(pod);
     if (!service) return [];
     return forwards.filter(
@@ -183,22 +195,22 @@ export function PodsView() {
         f.namespace === service.namespace &&
         f.target_type === "service"
     );
-  };
+  }, [findServiceForPod, forwards]);
 
-  const handlePortForward = (pod: PodInfo, port?: ServicePortInfo) => {
+  const handlePortForward = useCallback((pod: PodInfo, port?: ServicePortInfo) => {
     const service = findServiceForPod(pod);
     if (service && service.ports.length > 0) {
       const p = port ?? service.ports[0];
       requestForward(service.namespace, service.name, "service", p.port, p.name ?? undefined);
     }
-  };
+  }, [findServiceForPod, requestForward]);
 
-  const handleDisconnect = (pod: PodInfo) => {
+  const handleDisconnect = useCallback((pod: PodInfo) => {
     const forward = getForwardForPod(pod);
     if (forward) {
       stopForward(forward.forward_id);
     }
-  };
+  }, [getForwardForPod, stopForward]);
 
   // Get row class for highlighting forwarded pods
   const getRowClassName = (pod: PodInfo): string => {
@@ -212,10 +224,12 @@ export function PodsView() {
     return "";
   };
 
-  // Always show metrics columns — skeleton shimmer while loading, no layout shift
-  const baseColumns = getPodColumnsWithMetrics(metricsMap, metricsLoading && metricsMap.size === 0);
+  // Memoized so table rows keep referential equality between renders
+  const columnsWithActions = useMemo(() => {
+    // Always show metrics columns — skeleton shimmer while loading, no layout shift
+    const baseColumns = getPodColumnsWithMetrics(metricsMap, metricsLoading && metricsMap.size === 0);
 
-  const columnsWithActions = [
+    return [
     ...translateColumns(baseColumns, t),
     {
       key: "actions",
@@ -310,7 +324,21 @@ export function PodsView() {
         );
       },
     },
-  ];
+    ];
+  }, [
+    metricsMap,
+    metricsLoading,
+    t,
+    findServiceForPod,
+    getForwardForPod,
+    getForwardsForPod,
+    handleOpenShell,
+    handlePortForward,
+    handleDisconnect,
+    stopForward,
+    openLogsTab,
+    closeResourceDetail,
+  ]);
 
   const getPodContextMenu = (pod: PodInfo): ContextMenuItemDef[] => {
     const isTerminating = !!pod.deletion_timestamp;

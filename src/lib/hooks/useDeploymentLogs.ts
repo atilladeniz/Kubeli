@@ -251,6 +251,7 @@ export function useDeploymentLogs(
         let startedCount = 0;
 
         for (const pod of currentPods) {
+          if (!mountedRef.current) break;
           const streamId = `deploy-logs-${namespace}-${deploymentName}-${pod.name}-${Date.now()}`;
           streamIds.push(streamId);
 
@@ -308,6 +309,12 @@ export function useDeploymentLogs(
 
         activeStreamIds.current = streamIds;
         activeListeners.current = listeners;
+
+        // Unmounted while streams were starting - the effect cleanup already
+        // ran with empty refs, so tear everything down here
+        if (!mountedRef.current) {
+          await stopAllStreams();
+        }
       } catch (e) {
         if (mountedRef.current) {
           setError(toKubeliError(e));
@@ -340,11 +347,12 @@ export function useDeploymentLogs(
 
     const watchId = `deploy-pods-${namespace}-${deploymentName}-${Date.now()}`;
     let watchUnlisten: UnlistenFn | null = null;
+    let cancelled = false;
 
     const setupWatch = async () => {
       try {
         // Listen for pod watch events
-        watchUnlisten = await listen<WatchEvent<PodInfo>>(
+        const unlisten = await listen<WatchEvent<PodInfo>>(
           `pods-watch-${watchId}`,
           (event) => {
             if (!mountedRef.current) return;
@@ -395,8 +403,21 @@ export function useDeploymentLogs(
           }
         );
 
+        // Cleanup ran while listen() was pending - drop the listener now
+        if (cancelled) {
+          unlisten();
+          return;
+        }
+        watchUnlisten = unlisten;
+
         // Start the watch
         await watchPods(watchId, namespace);
+
+        // Cleanup ran while watchPods() was pending - its stopWatch was a
+        // no-op back then, so stop the watch here
+        if (cancelled) {
+          stopWatch(watchId).catch(() => {});
+        }
       } catch {
         // Watch failed - no fallback needed, initial fetch already loaded pods
       }
@@ -405,6 +426,7 @@ export function useDeploymentLogs(
     setupWatch();
 
     return () => {
+      cancelled = true;
       mountedRef.current = false;
       // Stop pod watch
       watchUnlisten?.();

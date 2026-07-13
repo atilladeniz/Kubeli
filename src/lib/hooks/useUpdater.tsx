@@ -73,7 +73,9 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
   }, []);
 
   const checkForUpdates = useCallback(async (showToast: boolean = false) => {
-    if (checking) return null;
+    // Read from store directly - a `checking` dep would recreate this
+    // callback (and reset the interval effect) on every check.
+    if (useUpdaterStore.getState().checking) return null;
 
     setChecking(true);
 
@@ -116,7 +118,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
       }
       return null;
     }
-  }, [checking, setChecking, setAvailable, setError, toastStrings]);
+  }, [setChecking, setAvailable, setError, toastStrings]);
 
   const downloadAndInstall = useCallback(async (_autoRestart: boolean = false, isAutoInstall: boolean = false) => {
     // Get current state directly from store to avoid stale closure

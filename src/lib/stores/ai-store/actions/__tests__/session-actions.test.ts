@@ -168,6 +168,40 @@ describe("createSessionActions", () => {
     expect(console.warn).toHaveBeenCalledTimes(2);
   });
 
+  it("injects prior conversation history into the initial context when resuming", async () => {
+    const { actions } = createHarness({
+      currentConversationId: "existing-conversation",
+      conversations: {
+        "kind-dev": {
+          id: "existing-conversation",
+          clusterContext: "kind-dev",
+          messages: [
+            { id: "m1", role: "user", content: "why is my pod crashing?", timestamp: 1 },
+            { id: "m2", role: "assistant", content: "It is OOMKilled.", timestamp: 2 },
+          ],
+          createdAt: 1,
+          updatedAt: 2,
+        },
+      },
+    });
+
+    await actions.startSession("kind-dev", "default");
+
+    const initialContext = (aiStartSession as jest.Mock).mock.calls[0][1] as string;
+    expect(initialContext).toContain("system prompt");
+    expect(initialContext).toContain("## Previous conversation");
+    expect(initialContext).toContain("User: why is my pod crashing?");
+    expect(initialContext).toContain("Assistant: It is OOMKilled.");
+  });
+
+  it("does not inject a resume block when the conversation has no messages", async () => {
+    const { actions } = createHarness();
+
+    await actions.startSession("kind-dev", "default");
+
+    expect(aiStartSession).toHaveBeenCalledWith("kind-dev", "system prompt", "claude");
+  });
+
   it("stores a normalized error when starting a session fails", async () => {
     (aiStartSession as jest.Mock).mockRejectedValueOnce(new Error("start failed"));
     const { state, actions } = createHarness();

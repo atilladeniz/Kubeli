@@ -250,8 +250,13 @@ function PortForwardItem({ forward, onStop }: PortForwardItemProps) {
 
   const statusLabel = getStatusLabel(forward.status);
 
-  const openInBrowser = () => {
-    window.open(`http://localhost:${forward.local_port}`, "_blank");
+  const openInBrowser = async () => {
+    try {
+      const { openUrl } = await import("@tauri-apps/plugin-opener");
+      await openUrl(`http://localhost:${forward.local_port}`);
+    } catch (err) {
+      console.error("Failed to open browser:", err);
+    }
   };
 
   return (

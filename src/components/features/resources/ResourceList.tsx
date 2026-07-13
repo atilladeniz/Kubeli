@@ -101,10 +101,15 @@ export function ResourceList<T>({
 
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      result = result.filter((item) =>
-        Object.values(item as Record<string, unknown>).some((value) =>
-          String(value).toLowerCase().includes(query)
-        )
+      const searchColumns = columns.filter((col) => col.getSearchText);
+      result = result.filter(
+        (item) =>
+          Object.values(item as Record<string, unknown>).some((value) =>
+            String(value).toLowerCase().includes(query)
+          ) ||
+          searchColumns.some((col) =>
+            col.getSearchText!(item).toLowerCase().includes(query)
+          )
       );
     }
 
@@ -146,7 +151,7 @@ export function ResourceList<T>({
     }
 
     return result;
-  }, [data, searchQuery, sortKey, sortDirection, activeFilter, filterOptions, customSortComparator]);
+  }, [data, columns, searchQuery, sortKey, sortDirection, activeFilter, filterOptions, customSortComparator]);
 
   const handleSort = (key: string) => {
     const newDirection =

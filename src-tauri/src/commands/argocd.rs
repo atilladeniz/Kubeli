@@ -100,7 +100,13 @@ pub async fn list_argocd_applications(
         api.list(&lp).await.map(|list| list.items)
     };
 
-    let items = result.unwrap_or_default();
+    let items = match result {
+        Ok(items) => items,
+        // 404 means the ArgoCD Application CRD is not installed - show an
+        // empty list. Everything else (401/403/network) is a real error.
+        Err(kube::Error::Api(resp)) if resp.code == 404 => return Ok(Vec::new()),
+        Err(e) => return Err(format!("Failed to list ArgoCD applications: {}", e)),
+    };
 
     Ok(items
         .into_iter()

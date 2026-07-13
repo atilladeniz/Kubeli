@@ -58,6 +58,33 @@ describe("useKubeconfigWatcher", () => {
     expect(unwatchOk).toHaveBeenCalledTimes(1);
   });
 
+  // Regression: unmounting while watch setup was awaiting left the resolved
+  // watchers running forever because unwatchRef was never populated.
+  it("releases watchers when unmounted while setup is still in flight", async () => {
+    mockGetKubeconfigSources.mockResolvedValue({
+      sources: [{ path: "/home/user/.kube", source_type: "folder" }],
+      merge_mode: false,
+    });
+
+    let resolveWatch!: (unwatch: () => void) => void;
+    mockWatch.mockImplementation(
+      () => new Promise((resolve) => { resolveWatch = resolve; })
+    );
+
+    const { unmount } = renderHook(() => useKubeconfigWatcher());
+    await flush();
+    expect(mockWatch).toHaveBeenCalledTimes(1);
+
+    unmount();
+
+    const unwatch = jest.fn();
+    await act(async () => {
+      resolveWatch(unwatch);
+    });
+
+    expect(unwatch).toHaveBeenCalledTimes(1);
+  });
+
   it("falls back to watching ~/.kube when no sources are configured", async () => {
     mockGetKubeconfigSources.mockResolvedValue({ sources: [], merge_mode: false });
     mockWatch.mockResolvedValue(jest.fn());

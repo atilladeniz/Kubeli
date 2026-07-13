@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useRef } from "react";
 
 type ShortcutHandler = () => void;
 
@@ -28,6 +28,7 @@ export function useKeyboardShortcuts(
 ) {
   const { enabled = true } = options;
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const pendingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const handleKeyDown = useCallback(
     (event: KeyboardEvent) => {
@@ -56,7 +57,8 @@ export function useKeyboardShortcuts(
           if (event.key.toLowerCase() === keys[0] && !pendingKey) {
             setPendingKey(keys[0]);
             // Clear pending after 1 second
-            setTimeout(() => setPendingKey(null), 1000);
+            if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+            pendingTimerRef.current = setTimeout(() => setPendingKey(null), 1000);
             return;
           }
         }
@@ -94,6 +96,13 @@ export function useKeyboardShortcuts(
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [handleKeyDown]);
+
+  // Cancel a pending sequence timer on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingTimerRef.current) clearTimeout(pendingTimerRef.current);
+    };
+  }, []);
 
   return { pendingKey };
 }

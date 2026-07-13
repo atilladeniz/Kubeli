@@ -175,6 +175,10 @@ export const namespaceColumns: Column<NamespaceInfo>[] = [
     key: "labels",
     label: "LABELS",
     sortable: false,
+    getSearchText: (ns) =>
+      Object.entries(ns.labels)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(", "),
     render: (ns) => {
       const labelCount = Object.keys(ns.labels).length;
       return labelCount > 0 ? `${labelCount} labels` : "-";
@@ -211,6 +215,10 @@ export function getNamespaceColumns(t: TranslateFunc): Column<NamespaceInfo>[] {
       key: "labels",
       label: t("columns.labels"),
       sortable: false,
+      getSearchText: (ns) =>
+        Object.entries(ns.labels)
+          .map(([k, v]) => `${k}=${v}`)
+          .join(", "),
       render: (ns) => {
         const labelCount = Object.keys(ns.labels).length;
         return labelCount > 0 ? `${labelCount} labels` : "-";
