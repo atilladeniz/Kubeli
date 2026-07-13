@@ -19,6 +19,9 @@ use std::sync::Arc;
 
 use super::server::McpServerState;
 
+/// Cap on how many events are fetched from the API server per request.
+const EVENT_FETCH_LIMIT: usize = 500;
+
 /// Response types
 #[derive(Debug, Serialize)]
 struct PodSummary {
@@ -112,6 +115,8 @@ struct EventListSummary {
     showing: usize,
     event_type_filter: String,
     time_window: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    truncated: Option<String>,
 }
 
 /// Kubeli MCP Server with Kubernetes tools
@@ -209,6 +214,40 @@ impl KubeliMcpServer {
                 }
             }
         }
+    }
+
+    /// Explicit marker when a list hit its server-side fetch limit, so the
+    /// model knows the response is incomplete instead of silently truncated.
+    fn fetch_limit_note(fetched: usize, limit: usize) -> Option<String> {
+        (fetched >= limit).then(|| {
+            format!(
+                "[truncated: showing first {} results; more may exist]",
+                limit
+            )
+        })
+    }
+
+    /// Truncation note for the events response: covers both the client-side
+    /// cap (50 shown) and the server-side fetch limit.
+    fn event_truncation_note(
+        showing: usize,
+        total_matched: usize,
+        fetched: usize,
+    ) -> Option<String> {
+        let mut notes = Vec::new();
+        if showing < total_matched {
+            notes.push(format!(
+                "[truncated: showing {} of {} matched events]",
+                showing, total_matched
+            ));
+        }
+        if fetched >= EVENT_FETCH_LIMIT {
+            notes.push(format!(
+                "[fetch capped at {} events; more may exist on the server]",
+                EVENT_FETCH_LIMIT
+            ));
+        }
+        (!notes.is_empty()).then(|| notes.join(" "))
     }
 
     /// Check if a pod is healthy (Running/Succeeded, all containers ready, restarts < 10)
@@ -461,11 +500,21 @@ impl KubeliMcpServer {
 
         let total = pods.len();
         let problem_count = problem_pods.len();
-        let showing = if problem_count > 0 {
+        let mut showing = if problem_count > 0 {
             format!("{} problem pods in detail", problem_count)
         } else {
             "all pods healthy".to_string()
         };
+        if let Some(note) = Self::fetch_limit_note(total, 500) {
+            showing.push(' ');
+            showing.push_str(&note);
+        }
+        if healthy_names.len() > 50 {
+            showing.push_str(&format!(
+                " [truncated: {} healthy pods, names omitted]",
+                healthy_names.len()
+            ));
+        }
 
         let response = PodListResponse {
             summary: PodListSummary {
@@ -538,11 +587,21 @@ impl KubeliMcpServer {
         let total = deployments.len();
         let degraded_count = degraded_list.len();
         let healthy_count = healthy_names.len();
-        let showing = if degraded_count > 0 {
+        let mut showing = if degraded_count > 0 {
             format!("{} degraded deployments in detail", degraded_count)
         } else {
             "all deployments healthy".to_string()
         };
+        if let Some(note) = Self::fetch_limit_note(total, 200) {
+            showing.push(' ');
+            showing.push_str(&note);
+        }
+        if healthy_names.len() > 50 {
+            showing.push_str(&format!(
+                " [truncated: {} healthy deployments, names omitted]",
+                healthy_names.len()
+            ));
+        }
 
         let response = DeploymentListResponse {
             summary: DeploymentListSummary {
@@ -622,7 +681,12 @@ impl KubeliMcpServer {
             })
             .collect();
 
-        serde_json::to_string_pretty(&summaries).map_err(|e| format!("Serialization error: {}", e))
+        let json = serde_json::to_string_pretty(&summaries)
+            .map_err(|e| format!("Serialization error: {}", e))?;
+        Ok(match Self::fetch_limit_note(summaries.len(), 200) {
+            Some(note) => format!("{}\n{}", note, json),
+            None => json,
+        })
     }
 
     async fn get_logs(
@@ -738,10 +802,13 @@ impl KubeliMcpServer {
         let cutoff = k8s_openapi::jiff::Timestamp::now().as_second() - (minutes * 60);
 
         // Use field selector for type filtering at API level (efficient server-side)
+        // and cap the fetch so huge clusters cannot return unbounded event lists.
         let lp = if type_filter.eq_ignore_ascii_case("all") {
-            ListParams::default()
+            ListParams::default().limit(EVENT_FETCH_LIMIT as u32)
         } else {
-            ListParams::default().fields(&format!("type={}", type_filter))
+            ListParams::default()
+                .limit(EVENT_FETCH_LIMIT as u32)
+                .fields(&format!("type={}", type_filter))
         };
 
         let events: Vec<Event> = if let Some(ns) = &namespace {
@@ -799,6 +866,7 @@ impl KubeliMcpServer {
         // Sort by last_seen descending (most recent first)
         summaries.sort_by(|a, b| b.last_seen.cmp(&a.last_seen));
 
+        let fetched = events.len();
         let total_matched = summaries.len();
         summaries.truncate(50);
         let showing = summaries.len();
@@ -815,6 +883,7 @@ impl KubeliMcpServer {
                 showing,
                 event_type_filter: type_label,
                 time_window: format!("last {} minutes", minutes),
+                truncated: Self::event_truncation_note(showing, total_matched, fetched),
             },
             events: summaries,
         };
@@ -1257,6 +1326,7 @@ mod tests {
                 showing: 25,
                 event_type_filter: "Warning".to_string(),
                 time_window: "last 60 minutes".to_string(),
+                truncated: None,
             },
             events: vec![EventSummary {
                 namespace: "default".to_string(),
@@ -1403,6 +1473,53 @@ mod tests {
 
         let metadata = value.get("metadata").unwrap().as_object().unwrap();
         assert!(!metadata.contains_key("managedFields"));
+    }
+
+    #[test]
+    fn test_fetch_limit_note() {
+        // Below the limit: no note
+        assert_eq!(KubeliMcpServer::fetch_limit_note(42, 500), None);
+        assert_eq!(KubeliMcpServer::fetch_limit_note(0, 200), None);
+        // At the limit: explicit truncation marker
+        let note = KubeliMcpServer::fetch_limit_note(500, 500).unwrap();
+        assert!(note.contains("[truncated"));
+        assert!(note.contains("500"));
+    }
+
+    #[test]
+    fn test_event_truncation_note() {
+        // Nothing truncated
+        assert_eq!(KubeliMcpServer::event_truncation_note(10, 10, 10), None);
+
+        // Client-side cap only
+        let note = KubeliMcpServer::event_truncation_note(50, 120, 120).unwrap();
+        assert!(note.contains("showing 50 of 120 matched events"));
+        assert!(!note.contains("fetch capped"));
+
+        // Fetch limit hit as well
+        let note = KubeliMcpServer::event_truncation_note(50, 480, 500).unwrap();
+        assert!(note.contains("showing 50 of 480"));
+        assert!(note.contains("fetch capped at 500"));
+    }
+
+    #[test]
+    fn test_event_list_summary_omits_truncated_when_none() {
+        let summary = EventListSummary {
+            total_matched: 5,
+            showing: 5,
+            event_type_filter: "Warning".to_string(),
+            time_window: "last 60 minutes".to_string(),
+            truncated: None,
+        };
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(!json.contains("truncated"));
+
+        let summary = EventListSummary {
+            truncated: Some("[truncated: showing 50 of 80 matched events]".to_string()),
+            ..summary
+        };
+        let json = serde_json::to_string(&summary).unwrap();
+        assert!(json.contains("\"truncated\":\"[truncated: showing 50 of 80 matched events]\""));
     }
 
     #[test]

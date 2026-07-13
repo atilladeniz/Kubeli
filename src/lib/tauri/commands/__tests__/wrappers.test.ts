@@ -36,6 +36,8 @@ const shellOptions = { namespace: "default", pod_name: "demo", container: "app",
 
 const cases: TestCase[] = [
   { name: "restartApp", run: () => appCommands.restartApp(), expectedCommand: "restart_app" },
+  { name: "showMainWindow", run: () => appCommands.showMainWindow(), expectedCommand: "show_main_window_command" },
+  { name: "quitApp", run: () => appCommands.quitApp(), expectedCommand: "quit_app" },
   { name: "listClusters", run: () => cluster.listClusters(), expectedCommand: "list_clusters" },
   { name: "connectCluster", run: () => cluster.connectCluster("ctx"), expectedCommand: "connect_cluster", expectedPayload: { context: "ctx" } },
   { name: "disconnectCluster", run: () => cluster.disconnectCluster(), expectedCommand: "disconnect_cluster" },

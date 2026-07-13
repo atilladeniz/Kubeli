@@ -42,6 +42,27 @@ pub struct SessionStore {
     conn: Arc<Mutex<Connection>>,
 }
 
+/// Parse a timestamp stored as TEXT. Rows are written with `to_rfc3339`, but
+/// tolerate other common formats for rows written by hand or older builds.
+///
+/// Ordering of query results is done in SQL on the raw TEXT column, so the
+/// fallback value here only affects the displayed timestamp — it never changes
+/// the order in which sessions or messages are returned.
+fn parse_timestamp(raw: &str) -> DateTime<Utc> {
+    if let Ok(dt) = DateTime::parse_from_rfc3339(raw) {
+        return dt.with_timezone(&Utc);
+    }
+    // SQLite's datetime() default format (no timezone, assume UTC)
+    if let Ok(naive) = chrono::NaiveDateTime::parse_from_str(raw, "%Y-%m-%d %H:%M:%S%.f") {
+        return naive.and_utc();
+    }
+    if let Ok(dt) = DateTime::parse_from_rfc2822(raw) {
+        return dt.with_timezone(&Utc);
+    }
+    tracing::warn!("Unparseable timestamp in session store: {raw:?}; falling back to Unix epoch");
+    DateTime::<Utc>::UNIX_EPOCH
+}
+
 impl SessionStore {
     /// Create a new session store with database at the given path
     pub fn new(db_path: PathBuf) -> SqliteResult<Self> {
@@ -193,12 +214,8 @@ impl SessionStore {
                 Ok(SessionRecord {
                     session_id: row.get(0)?,
                     cluster_context: row.get(1)?,
-                    created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
-                        .unwrap_or_default()
-                        .with_timezone(&Utc),
-                    last_active_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
-                        .unwrap_or_default()
-                        .with_timezone(&Utc),
+                    created_at: parse_timestamp(&row.get::<_, String>(2)?),
+                    last_active_at: parse_timestamp(&row.get::<_, String>(3)?),
                     permission_mode: row.get(4)?,
                     title: row.get(5)?,
                 })
@@ -234,12 +251,8 @@ impl SessionStore {
                 Ok(SessionSummary {
                     session_id: row.get(0)?,
                     cluster_context: row.get(1)?,
-                    created_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(2)?)
-                        .unwrap_or_default()
-                        .with_timezone(&Utc),
-                    last_active_at: DateTime::parse_from_rfc3339(&row.get::<_, String>(3)?)
-                        .unwrap_or_default()
-                        .with_timezone(&Utc),
+                    created_at: parse_timestamp(&row.get::<_, String>(2)?),
+                    last_active_at: parse_timestamp(&row.get::<_, String>(3)?),
                     title: row.get(4)?,
                     message_count: row.get(5)?,
                 })
@@ -349,9 +362,7 @@ impl SessionStore {
                     role: row.get(2)?,
                     content: row.get(3)?,
                     tool_calls: row.get(4)?,
-                    timestamp: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                        .unwrap_or_default()
-                        .with_timezone(&Utc),
+                    timestamp: parse_timestamp(&row.get::<_, String>(5)?),
                 })
             })?;
 
@@ -387,9 +398,7 @@ impl SessionStore {
                     role: row.get(2)?,
                     content: row.get(3)?,
                     tool_calls: row.get(4)?,
-                    timestamp: DateTime::parse_from_rfc3339(&row.get::<_, String>(5)?)
-                        .unwrap_or_default()
-                        .with_timezone(&Utc),
+                    timestamp: parse_timestamp(&row.get::<_, String>(5)?),
                 })
             })?;
 
@@ -460,4 +469,34 @@ pub fn create_session_store(db_path: PathBuf) -> Result<SharedSessionStore, Stri
     SessionStore::new(db_path)
         .map(Arc::new)
         .map_err(|e| format!("Failed to create session store: {}", e))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_rfc3339_timestamps() {
+        let parsed = parse_timestamp("2026-01-02T03:04:05.678+02:00");
+        assert_eq!(parsed.to_rfc3339(), "2026-01-02T01:04:05.678+00:00");
+    }
+
+    #[test]
+    fn parses_sqlite_datetime_format() {
+        let parsed = parse_timestamp("2026-01-02 03:04:05");
+        assert_eq!(
+            parsed,
+            DateTime::parse_from_rfc3339("2026-01-02T03:04:05Z").unwrap()
+        );
+    }
+
+    #[test]
+    fn unparseable_timestamp_falls_back_to_epoch_without_panicking() {
+        // Regression: unparseable timestamps used to silently become epoch via
+        // unwrap_or_default(). The fallback value is still epoch (there is no
+        // correct value to invent), but it is now logged, and result ordering
+        // is unaffected because queries sort on the raw TEXT column in SQL.
+        let parsed = parse_timestamp("not a timestamp");
+        assert_eq!(parsed, DateTime::<Utc>::UNIX_EPOCH);
+    }
 }

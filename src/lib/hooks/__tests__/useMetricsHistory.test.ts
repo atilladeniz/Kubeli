@@ -5,8 +5,16 @@ jest.mock("@/lib/tauri/commands", () => ({
   getPodMetrics: jest.fn(),
 }));
 
+const mockClusterState = {
+  isConnected: true,
+  currentCluster: { context: "ctx-a" } as { context: string } | null,
+};
+
 jest.mock("@/lib/stores/cluster-store", () => ({
-  useClusterStore: jest.fn(() => ({ isConnected: true })),
+  useClusterStore: Object.assign(
+    jest.fn(() => ({ isConnected: true })),
+    { getState: () => mockClusterState }
+  ),
 }));
 
 import {
@@ -30,6 +38,7 @@ function makePodMetrics(name: string, cpu: number, mem: number): PodMetrics {
 
 describe("useMetricsHistory module", () => {
   beforeEach(() => {
+    mockClusterState.currentCluster = { context: "ctx-a" };
     clearMetricsHistory();
     jest.useRealTimers();
   });
@@ -104,6 +113,26 @@ describe("useMetricsHistory module", () => {
 
       expect(getHistorySnapshot("kubeli-demo/web")).toEqual([]);
       expect(getHistorySnapshot("kubeli-demo/api")).toEqual([]);
+    });
+  });
+
+  describe("cluster context switch", () => {
+    // Regression: history persisted across cluster switches, so sparklines
+    // briefly showed the previous cluster's data.
+    it("drops history from the previous cluster", () => {
+      seedHistoryFromBulkMetrics([makePodMetrics("web", 100_000_000, 200_000_000)]);
+      expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(2);
+
+      mockClusterState.currentCluster = { context: "ctx-b" };
+
+      expect(getHistorySnapshot("kubeli-demo/web")).toEqual([]);
+    });
+
+    it("keeps history while the context stays the same", () => {
+      seedHistoryFromBulkMetrics([makePodMetrics("web", 100_000_000, 200_000_000)]);
+
+      expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(2);
+      expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(2);
     });
   });
 

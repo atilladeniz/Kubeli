@@ -28,6 +28,17 @@ export function Terminal({
   const fitAddonRef = useRef<FitAddonType | null>(null);
   const [isLoaded, setIsLoaded] = useState(false);
 
+  // Keep latest callbacks in refs so a new callback identity does not
+  // tear down and recreate the xterm instance.
+  const onDataRef = useRef(onData);
+  const onResizeRef = useRef(onResize);
+  const onReadyRef = useRef(onReady);
+  useEffect(() => {
+    onDataRef.current = onData;
+    onResizeRef.current = onResize;
+    onReadyRef.current = onReady;
+  });
+
   // Write data to terminal
   const write = useCallback((data: string) => {
     terminalRef.current?.write(data);
@@ -124,16 +135,16 @@ export function Terminal({
 
       // Handle data input
       terminal.onData((data) => {
-        onData?.(data);
+        onDataRef.current?.(data);
       });
 
       // Handle resize
       terminal.onResize(({ cols, rows }) => {
-        onResize?.(cols, rows);
+        onResizeRef.current?.(cols, rows);
       });
 
       // Notify ready
-      onReady?.(terminal);
+      onReadyRef.current?.(terminal);
       setIsLoaded(true);
 
       // Handle container resize with debounce to ensure layout is settled
@@ -160,7 +171,7 @@ export function Terminal({
       terminalRef.current = null;
       fitAddonRef.current = null;
     };
-  }, [fontSize, fontFamily, onData, onResize, onReady]);
+  }, [fontSize, fontFamily]);
 
   // Expose methods via ref
   useEffect(() => {

@@ -198,5 +198,40 @@ describe("usePendingAnalysis", () => {
     await waitFor(() => {
       expect(mockSetError).toHaveBeenCalledWith("Send failed");
     });
+
+    // Regression: the prompt must survive a failed send so it can retry.
+    expect(mockClearPendingAnalysis).not.toHaveBeenCalled();
+  });
+
+  it("keeps the pending analysis when startSession fails", async () => {
+    mockStartSession.mockRejectedValue(new Error("start failed"));
+
+    setAIStoreState({
+      isSessionActive: false,
+      startSession: mockStartSession,
+      sendMessage: mockSendMessage,
+      setError: mockSetError,
+      pendingAnalysis: {
+        clusterContext: "test-cluster",
+        message: "Analyze this pod",
+        namespace: "default",
+      },
+      clearPendingAnalysis: mockClearPendingAnalysis,
+    });
+
+    setClusterStoreState({
+      currentCluster: { context: "test-cluster" },
+    });
+
+    renderHook(() => usePendingAnalysis());
+
+    jest.advanceTimersByTime(200);
+
+    await waitFor(() => {
+      expect(mockStartSession).toHaveBeenCalled();
+    });
+
+    expect(mockSendMessage).not.toHaveBeenCalled();
+    expect(mockClearPendingAnalysis).not.toHaveBeenCalled();
   });
 });

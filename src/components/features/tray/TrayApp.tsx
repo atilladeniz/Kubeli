@@ -38,13 +38,17 @@ export function TrayApp() {
     if (initialized.current) return;
     initialized.current = true;
 
+    let cancelled = false;
     const init = async () => {
       await fetchClusters();
       await syncConnectionState();
       await initialize();
-      setIsReady(true);
+      if (!cancelled) setIsReady(true);
     };
     init();
+    return () => {
+      cancelled = true;
+    };
   }, [fetchClusters, syncConnectionState, initialize]);
 
   // Sync Zustand store from shared localStorage (DOM classes already
@@ -76,8 +80,10 @@ export function TrayApp() {
 
   // Re-sync every time the tray popup is shown (event from Rust backend)
   useEffect(() => {
+    let cancelled = false;
     let unlisten: (() => void) | null = null;
     import("@tauri-apps/api/event").then(({ listen }) => {
+      if (cancelled) return;
       listen("tray-popup-shown", () => {
         syncThemeFromStorage();
         syncConnectionState();
@@ -85,18 +91,26 @@ export function TrayApp() {
         // does not propagate live across Tauri windows.
         void usePortForwardStore.persist?.rehydrate();
       }).then((fn) => {
+        // Listener may resolve after unmount — detach immediately
+        if (cancelled) {
+          fn();
+          return;
+        }
         unlisten = fn;
       });
     });
     return () => {
+      cancelled = true;
       unlisten?.();
     };
   }, [syncConnectionState, syncThemeFromStorage]);
 
   // Also sync theme live when the event fires (while popup is open)
   useEffect(() => {
+    let cancelled = false;
     let unlisten: (() => void) | null = null;
     import("@tauri-apps/api/event").then(({ listen }) => {
+      if (cancelled) return;
       listen<{ theme: string; resolvedTheme: "light" | "dark" | "classic-dark" }>(
         "theme-changed",
         (event) => {
@@ -116,10 +130,16 @@ export function TrayApp() {
           }));
         }
       ).then((fn) => {
+        // Listener may resolve after unmount — detach immediately
+        if (cancelled) {
+          fn();
+          return;
+        }
         unlisten = fn;
       });
     });
     return () => {
+      cancelled = true;
       unlisten?.();
     };
   }, []);
@@ -133,12 +153,14 @@ export function TrayApp() {
 
   // Auto-dismiss when window loses focus (click outside on macOS desktop)
   useEffect(() => {
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
     const handleBlur = async () => {
       try {
         const { getCurrentWindow } = await import("@tauri-apps/api/window");
         const win = getCurrentWindow();
         // Small delay to avoid race with tray icon toggle
-        setTimeout(async () => {
+        if (hideTimer) clearTimeout(hideTimer);
+        hideTimer = setTimeout(async () => {
           if (!document.hasFocus()) {
             await win.hide();
           }
@@ -148,7 +170,10 @@ export function TrayApp() {
       }
     };
     window.addEventListener("blur", handleBlur);
-    return () => window.removeEventListener("blur", handleBlur);
+    return () => {
+      window.removeEventListener("blur", handleBlur);
+      if (hideTimer) clearTimeout(hideTimer);
+    };
   }, []);
 
   if (!isReady) {

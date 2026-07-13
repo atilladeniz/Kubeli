@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   listCRDs,
   listCustomResources,
@@ -79,9 +79,13 @@ export function useCustomResources(
   );
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<KubeliError | null>(null);
+  // Generation counter: a stale (older, slower) refresh must not overwrite
+  // the state written by a newer one
+  const refreshSeq = useRef(0);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
+    const seq = ++refreshSeq.current;
     setIsLoading(true);
     setError(null);
     try {
@@ -136,12 +140,17 @@ export function useCustomResources(
         }
       }
 
+      // A newer refresh superseded this one - drop the stale result
+      if (seq !== refreshSeq.current) return;
       setData(result);
       setCache(cacheKey, result);
     } catch (error) {
+      if (seq !== refreshSeq.current) return;
       setError(toKubeliError(error));
     } finally {
-      setIsLoading(false);
+      if (seq === refreshSeq.current) {
+        setIsLoading(false);
+      }
     }
   }, [
     cacheKey,

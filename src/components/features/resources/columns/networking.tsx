@@ -251,6 +251,10 @@ export const networkPolicyColumns: Column<NetworkPolicyInfo>[] = [
     key: "pod_selector",
     label: "POD SELECTOR",
     sortable: false,
+    getSearchText: (np) =>
+      Object.entries(np.pod_selector)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(", "),
     render: (np) => {
       const entries = Object.entries(np.pod_selector);
       if (entries.length === 0) return <span className="text-muted-foreground">(all pods)</span>;

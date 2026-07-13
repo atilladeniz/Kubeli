@@ -13,6 +13,7 @@ import {
 import { useUIStore } from "../../ui-store";
 import {
   buildFallbackSystemPrompt,
+  buildResumeContext,
   finalizeStreamingMessage,
   findConversationById,
   generateId,
@@ -51,6 +52,16 @@ export function createSessionActions(
         } catch (error) {
           console.warn("Failed to build cluster context, using fallback:", error);
           initialContext = buildFallbackSystemPrompt(clusterContext);
+        }
+
+        // When resuming a conversation with stored history, the backend CLI
+        // session is brand new and has no memory of it - inject a compact
+        // transcript so the model keeps the context the UI displays.
+        const priorMessages =
+          get().conversations[clusterContext]?.messages ?? [];
+        const resumeContext = buildResumeContext(priorMessages);
+        if (resumeContext) {
+          initialContext = `${initialContext}\n\n${resumeContext}`;
         }
 
         const sessionId = await aiStartSession(

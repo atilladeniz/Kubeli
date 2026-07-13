@@ -23,7 +23,20 @@ const POLL_INTERVAL = 10_000; // 10 seconds
  */
 const historyStore = new Map<string, MetricsSnapshot[]>();
 
+// Cluster context the stored history belongs to. Checked on every access so
+// sparklines never show data from a previously connected cluster.
+let historyContext: string | null = null;
+
+function syncHistoryContext(): void {
+  const context = useClusterStore.getState().currentCluster?.context ?? null;
+  if (context !== historyContext) {
+    historyStore.clear();
+    historyContext = context;
+  }
+}
+
 function getHistory(key: string): MetricsSnapshot[] {
+  syncHistoryContext();
   let arr = historyStore.get(key);
   if (!arr) {
     arr = [];
@@ -75,6 +88,7 @@ export function seedHistoryFromBulkMetrics(metrics: PodMetrics[]) {
 /** Non-reactive read of history for a pod key ("namespace/podName").
  *  Returns the current snapshot array (or empty). */
 export function getHistorySnapshot(key: string): MetricsSnapshot[] {
+  syncHistoryContext();
   return historyStore.get(key) || [];
 }
 
@@ -93,16 +107,18 @@ export function useMetricsHistory(
   namespace: string,
 ): MetricsHistoryResult {
   const isConnected = useClusterStore((s) => s.isConnected);
+  const context = useClusterStore((s) => s.currentCluster?.context ?? null);
   const key = `${namespace}/${podName}`;
   const [history, setHistory] = useState<MetricsSnapshot[]>(() => [...getHistory(key)]);
   const [polled, setPolled] = useState(() => getHistory(key).length > 0);
 
-  // Reset when pod changes (key changes)
+  // Reset when pod changes (key changes) or the cluster context switches
+  // (getHistory then returns the cleared store)
   useEffect(() => {
     const existing = getHistory(key);
     setHistory([...existing]);
     setPolled(existing.length > 0);
-  }, [key]);
+  }, [key, context]);
 
   const poll = useCallback(async () => {
     if (!isConnected) return;

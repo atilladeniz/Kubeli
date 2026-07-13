@@ -41,10 +41,12 @@ impl OidcState {
 
     /// Signal any running refresh task to stop (used on disconnect).
     pub fn cancel_refresh(&self) {
-        if let Ok(mut guard) = self.refresh_stop.lock() {
-            guard.store(true, Ordering::Relaxed);
-            *guard = Arc::new(AtomicBool::new(false));
-        }
+        let mut guard = self
+            .refresh_stop
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard.store(true, Ordering::Relaxed);
+        *guard = Arc::new(AtomicBool::new(false));
     }
 
     /// Remember the full exec config (TLS/CA settings included) detected from the
@@ -100,9 +102,18 @@ impl OidcState {
             return Ok(token);
         }
 
-        let refresh_token =
-            OidcTokenStore::load_refresh_token(&config.issuer_url, &config.client_id)
-                .ok_or_else(|| RefreshError::Terminal("No stored refresh token".to_string()))?;
+        // Keyring access is blocking OS IPC; keep it off the async runtime
+        // (same pattern as SessionStore::with_conn).
+        let refresh_token = {
+            let issuer = config.issuer_url.clone();
+            let client_id = config.client_id.clone();
+            tauri::async_runtime::spawn_blocking(move || {
+                OidcTokenStore::load_refresh_token(&issuer, &client_id)
+            })
+            .await
+            .map_err(|e| RefreshError::Transient(format!("Keyring task failed: {e}")))?
+            .ok_or_else(|| RefreshError::Terminal("No stored refresh token".to_string()))?
+        };
 
         match self
             .flow_manager
@@ -111,11 +122,13 @@ impl OidcState {
         {
             Ok(tokens) => {
                 if let Some(ref new_rt) = tokens.refresh_token {
-                    OidcTokenStore::save_refresh_token(
-                        &config.issuer_url,
-                        &config.client_id,
-                        new_rt,
-                    );
+                    let issuer = config.issuer_url.clone();
+                    let client_id = config.client_id.clone();
+                    let new_rt = new_rt.clone();
+                    let _ = tauri::async_runtime::spawn_blocking(move || {
+                        OidcTokenStore::save_refresh_token(&issuer, &client_id, &new_rt);
+                    })
+                    .await;
                 }
                 let id_token = tokens.id_token.clone();
                 self.token_store
@@ -125,11 +138,16 @@ impl OidcState {
             Err(RefreshError::Terminal(message)) => {
                 self.token_store
                     .clear(&config.issuer_url, &config.client_id);
-                OidcTokenStore::delete_refresh_token_if_matches(
-                    &config.issuer_url,
-                    &config.client_id,
-                    &refresh_token,
-                );
+                let issuer = config.issuer_url.clone();
+                let client_id = config.client_id.clone();
+                let _ = tauri::async_runtime::spawn_blocking(move || {
+                    OidcTokenStore::delete_refresh_token_if_matches(
+                        &issuer,
+                        &client_id,
+                        &refresh_token,
+                    );
+                })
+                .await;
                 Err(RefreshError::Terminal(message))
             }
             Err(transient) => Err(transient),
@@ -215,23 +233,17 @@ pub async fn oidc_handle_callback(
     code: String,
     state: String,
 ) -> Result<OidcAuthResult, String> {
-    let (issuer_url, client_id) = {
-        let guard = oidc_state
-            .flow_manager
-            .pending
-            .lock()
-            .map_err(|_| "Failed to lock pending auth state".to_string())?;
-        let pending = guard
-            .as_ref()
-            .ok_or_else(|| "No pending OIDC authentication flow".to_string())?;
-        (
-            pending.config.issuer_url.clone(),
-            pending.config.client_id.clone(),
-        )
-    };
-
-    let tokens = oidc_state.flow_manager.exchange_code(&code, &state).await?;
-    persist_tokens(&app, &oidc_state, &issuer_url, &client_id, &tokens);
+    // exchange_code consumes the pending flow and hands back the config it was
+    // started with, so we don't have to read it out of the pending state first.
+    let (tokens, config) = oidc_state.flow_manager.exchange_code(&code, &state).await?;
+    persist_tokens(
+        &app,
+        &oidc_state,
+        &config.issuer_url,
+        &config.client_id,
+        &tokens,
+    )
+    .await;
 
     Ok(OidcAuthResult {
         status: "authenticated".to_string(),
@@ -263,7 +275,7 @@ pub fn oidc_get_token_status(
     }
 }
 
-fn persist_tokens(
+async fn persist_tokens(
     _app: &tauri::AppHandle,
     oidc_state: &OidcState,
     issuer: &str,
@@ -275,6 +287,39 @@ fn persist_tokens(
         .store_tokens(issuer, client_id, tokens.clone());
 
     if let Some(ref refresh_token) = tokens.refresh_token {
-        OidcTokenStore::save_refresh_token(issuer, client_id, refresh_token);
+        // Keyring access is blocking OS IPC; keep it off the async runtime.
+        let issuer = issuer.to_string();
+        let client_id = client_id.to_string();
+        let refresh_token = refresh_token.clone();
+        let _ = tauri::async_runtime::spawn_blocking(move || {
+            OidcTokenStore::save_refresh_token(&issuer, &client_id, &refresh_token);
+        })
+        .await;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancel_refresh_recovers_from_poisoned_mutex() {
+        let state = OidcState::default();
+        let flag = state.arm_refresh();
+
+        // Poison refresh_stop by panicking while holding the lock.
+        let _ = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let _guard = state.refresh_stop.lock().unwrap();
+            panic!("poison the refresh_stop mutex");
+        }));
+        assert!(
+            state.refresh_stop.lock().is_err(),
+            "mutex should be poisoned"
+        );
+
+        // Regression: cancel_refresh used `if let Ok(...)`, silently doing
+        // nothing on poison — the running refresh task was never signalled.
+        state.cancel_refresh();
+        assert!(flag.load(Ordering::Relaxed), "stop flag must be signalled");
     }
 }

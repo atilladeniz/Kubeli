@@ -46,10 +46,9 @@ export function useAiCli(isOpen: boolean) {
         opencode: opencodeInfo.status === "authenticated",
         droid: droidInfo.status === "authenticated",
       };
-      const currentProvider: AiCliProvider = settings.aiCliProvider || "claude";
-
-      // If the persisted provider is unavailable but another one is, switch to
-      // the first available — preference order: claude, opencode, codex, droid.
+      // Auto-select only when the user has not picked a provider yet —
+      // never override an explicit choice on re-detection.
+      // Preference order: claude, opencode, codex, droid.
       const fallbackOrder: AiCliProvider[] = [
         "claude",
         "opencode",
@@ -58,9 +57,7 @@ export function useAiCli(isOpen: boolean) {
       ];
       const firstAvailable = fallbackOrder.find((p) => availability[p]);
 
-      if (!availability[currentProvider] && firstAvailable) {
-        updateSettings({ aiCliProvider: firstAvailable });
-      } else if (!settings.aiCliProvider && firstAvailable) {
+      if (!settings.aiCliProvider && firstAvailable) {
         updateSettings({ aiCliProvider: firstAvailable });
       }
     } catch (err) {

@@ -171,8 +171,19 @@ impl From<kube::Error> for KubeliError {
                     resource: None,
                 }
             }
+            kube::Error::Auth(_) => {
+                // Structural match: any client auth failure (token refresh,
+                // exec plugin, malformed credentials) is Unauthorized.
+                let mut kubeli = KubeliError::new(
+                    ErrorKind::Unauthorized,
+                    "Authentication failed — your credentials may have expired",
+                );
+                kubeli.detail = Some(format!("{}", err));
+                kubeli
+            }
             _ => {
-                // Network, timeout, and other errors
+                // Last-resort fallback for non-structured errors (transport,
+                // TLS, protocol): classify by message sniffing.
                 let err_str = format!("{}", err);
                 let lower = err_str.to_lowercase();
 
@@ -218,10 +229,15 @@ impl From<kube::Error> for KubeliError {
 impl From<anyhow::Error> for KubeliError {
     fn from(err: anyhow::Error) -> Self {
         // Try to downcast to kube::Error first
-        // Try to downcast to kube::Error first
         match err.downcast::<kube::Error>() {
             Ok(kube_err) => kube_err.into(),
-            Err(err) => KubeliError::unknown(format!("{}", err)),
+            Err(err) => {
+                // `{:#}` renders the whole context chain ("top: mid: root");
+                // plain `{}` would drop everything below the outermost context.
+                let mut kubeli = KubeliError::unknown(format!("{:#}", err));
+                kubeli.detail = Some(err.root_cause().to_string());
+                kubeli
+            }
         }
     }
 }
@@ -353,5 +369,60 @@ mod tests {
 
         assert!(matches!(kubeli.kind, ErrorKind::Unknown));
         assert_eq!(kubeli.message, "something failed");
+    }
+
+    #[test]
+    fn anyhow_errors_keep_context_chain_and_root_cause() {
+        let err = anyhow::anyhow!("root cause")
+            .context("middle layer")
+            .context("top layer");
+        let kubeli: KubeliError = err.into();
+
+        // Regression: `{}` only rendered the outermost context, losing the
+        // cause chain. `{:#}` keeps it, and detail carries the root cause.
+        assert_eq!(kubeli.message, "top layer: middle layer: root cause");
+        assert_eq!(kubeli.detail.as_deref(), Some("root cause"));
+    }
+
+    fn api_error(code: u16) -> kube::Error {
+        // kube::core::ErrorResponse is a deprecated alias for Status
+        kube::Error::Api(Box::new(
+            kube::core::Status::failure("boom", "TestReason").with_code(code),
+        ))
+    }
+
+    #[test]
+    fn kube_api_errors_classify_by_status_code() {
+        let unauthorized: KubeliError = api_error(401).into();
+        assert!(matches!(unauthorized.kind, ErrorKind::Unauthorized));
+        assert_eq!(unauthorized.code, Some(401));
+
+        let forbidden: KubeliError = api_error(403).into();
+        assert!(matches!(forbidden.kind, ErrorKind::Forbidden));
+
+        let not_found: KubeliError = api_error(404).into();
+        assert!(matches!(not_found.kind, ErrorKind::NotFound));
+
+        let conflict: KubeliError = api_error(409).into();
+        assert!(matches!(conflict.kind, ErrorKind::Conflict));
+
+        let rate_limited: KubeliError = api_error(429).into();
+        assert!(matches!(rate_limited.kind, ErrorKind::RateLimited));
+
+        let server_error: KubeliError = api_error(503).into();
+        assert!(matches!(server_error.kind, ErrorKind::ServerError));
+        assert!(server_error.retryable);
+    }
+
+    #[test]
+    fn kube_auth_errors_classify_structurally_as_unauthorized() {
+        // No "401"/"unauthorized" in the message — structural match must win,
+        // not string sniffing.
+        let err = kube::Error::Auth(kube::client::AuthError::UnrefreshableTokenResponse);
+        let kubeli: KubeliError = err.into();
+
+        assert!(matches!(kubeli.kind, ErrorKind::Unauthorized));
+        assert!(!kubeli.retryable);
+        assert!(kubeli.detail.is_some());
     }
 }

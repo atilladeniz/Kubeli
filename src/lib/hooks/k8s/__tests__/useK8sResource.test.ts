@@ -183,6 +183,57 @@ describe("useK8sResource", () => {
     });
   });
 
+  describe("stale refresh handling", () => {
+    // Regression: overlapping refresh() calls could resolve out of order and
+    // the older response overwrote the newer data.
+    it("ignores a stale refresh that resolves after a newer one", async () => {
+      const stale: TestResource[] = [{ uid: "1", name: "stale-pod", namespace: "default" }];
+      const fresh: TestResource[] = [{ uid: "2", name: "fresh-pod", namespace: "default" }];
+
+      let resolveFirst!: (value: TestResource[]) => void;
+      let resolveSecond!: (value: TestResource[]) => void;
+      mockListFn
+        .mockImplementationOnce(
+          () => new Promise<TestResource[]>((resolve) => { resolveFirst = resolve; })
+        )
+        .mockImplementationOnce(
+          () => new Promise<TestResource[]>((resolve) => { resolveSecond = resolve; })
+        );
+
+      const { result } = renderHook(() => useK8sResource(watchConfig));
+
+      // Initial fetch (the slow request) is now in flight
+      await act(async () => {
+        await flushPromises();
+      });
+      expect(mockListFn).toHaveBeenCalledTimes(1);
+
+      // A second, newer refresh starts while the first is still pending
+      let refreshPromise!: Promise<void>;
+      act(() => {
+        refreshPromise = result.current.refresh();
+      });
+      expect(mockListFn).toHaveBeenCalledTimes(2);
+
+      // The newer request resolves first
+      await act(async () => {
+        resolveSecond(fresh);
+        await refreshPromise;
+        await flushPromises();
+      });
+      expect(result.current.data).toEqual(fresh);
+      expect(result.current.isLoading).toBe(false);
+
+      // The stale request resolves last - it must not overwrite newer data
+      await act(async () => {
+        resolveFirst(stale);
+        await flushPromises();
+      });
+      expect(result.current.data).toEqual(fresh);
+      expect(result.current.isLoading).toBe(false);
+    });
+  });
+
   describe("initial namespace filtering", () => {
     it("should pass namespace in listOptions for namespaced resources", async () => {
       renderHook(() => useK8sResource(watchConfig));

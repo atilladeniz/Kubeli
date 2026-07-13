@@ -91,25 +91,12 @@ pub struct IdeStatus {
     pub mcp_configured: bool,
 }
 
-/// Check if running in debug/development mode
-fn is_dev_mode() -> bool {
-    // Check if current executable is in a debug/target directory
-    if let Ok(exe_path) = std::env::current_exe() {
-        let path_str = exe_path.to_string_lossy();
-        return path_str.contains("/target/debug/")
-            || path_str.contains("\\target\\debug\\")
-            || path_str.contains("/target/release/")
-            || path_str.contains("\\target\\release\\");
-    }
-    false
-}
-
 /// Get Kubeli executable path
-/// Automatically detects dev vs production mode
+/// Prefers the actual running binary (covers dev mode and non-standard
+/// install locations), falling back to the platform's default install path.
 fn get_kubeli_path() -> String {
-    // First check if we're in dev mode
-    if is_dev_mode() {
-        if let Ok(exe_path) = std::env::current_exe() {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if exe_path.exists() {
             return exe_path.to_string_lossy().to_string();
         }
     }
@@ -120,16 +107,11 @@ fn get_kubeli_path() -> String {
     }
     #[cfg(target_os = "linux")]
     {
-        // Try to find the AppImage or installed binary
-        std::env::current_exe()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| "/usr/bin/kubeli".to_string())
+        "/usr/bin/kubeli".to_string()
     }
     #[cfg(target_os = "windows")]
     {
-        std::env::current_exe()
-            .map(|p| p.to_string_lossy().to_string())
-            .unwrap_or_else(|_| "C:\\Program Files\\Kubeli\\Kubeli.exe".to_string())
+        "C:\\Program Files\\Kubeli\\Kubeli.exe".to_string()
     }
 }
 

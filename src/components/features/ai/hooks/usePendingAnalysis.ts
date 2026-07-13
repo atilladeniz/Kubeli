@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAIStore } from "@/lib/stores/ai-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 
@@ -18,26 +18,37 @@ export function usePendingAnalysis() {
 
   const currentCluster = useClusterStore((s) => s.currentCluster);
 
+  // Guards against a second send when the effect re-runs mid-flight
+  // (e.g. isSessionActive flips after startSession).
+  const sendingRef = useRef(false);
+
   useEffect(() => {
     if (!pendingAnalysis || !currentCluster) return;
     if (pendingAnalysis.clusterContext !== currentCluster.context) return;
 
     const sendPendingAnalysis = async () => {
-      const message = pendingAnalysis.message;
-      clearPendingAnalysis();
-
-      if (!isSessionActive) {
-        try {
-          await startSession(currentCluster.context, pendingAnalysis.namespace);
-        } catch {
-          return;
-        }
-      }
+      if (sendingRef.current) return;
+      sendingRef.current = true;
 
       try {
-        await sendMessage(message);
-      } catch (e) {
-        setError(e instanceof Error ? e.message : "Failed to send message");
+        if (!isSessionActive) {
+          try {
+            await startSession(currentCluster.context, pendingAnalysis.namespace);
+          } catch {
+            return;
+          }
+        }
+
+        try {
+          await sendMessage(pendingAnalysis.message);
+          // Clear only after a successful send - a failure keeps the
+          // prompt in the store so it isn't lost.
+          clearPendingAnalysis();
+        } catch (e) {
+          setError(e instanceof Error ? e.message : "Failed to send message");
+        }
+      } finally {
+        sendingRef.current = false;
       }
     };
 

@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import {
   RefreshCw,
@@ -29,12 +29,20 @@ export function McpTab({ mcp }: McpTabProps) {
   const t = useTranslations("settings");
   const [examplesOpen, setExamplesOpen] = useState(false);
   const [copiedPrompt, setCopiedPrompt] = useState<string | null>(null);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
 
   const handleCopyPrompt = useCallback(async (prompt: string, key: string) => {
     try {
       await navigator.clipboard.writeText(prompt);
       setCopiedPrompt(key);
-      setTimeout(() => setCopiedPrompt(null), 2000);
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopiedPrompt(null), 2000);
     } catch (err) {
       console.error("Failed to copy:", err);
     }

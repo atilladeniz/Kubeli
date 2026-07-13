@@ -1,6 +1,6 @@
 import { ExternalLink, Square, Loader2 } from "lucide-react";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 export function ActiveTab() {
   const forwards = usePortForwardStore((s) => s.forwards);
@@ -9,6 +9,13 @@ export function ActiveTab() {
   const [stoppingId, setStoppingId] = useState<string | null>(null);
   const [stoppingAll, setStoppingAll] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const copiedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
 
   const handleStop = async (forwardId: string) => {
     setStoppingId(forwardId);
@@ -41,7 +48,8 @@ export function ActiveTab() {
     try {
       await navigator.clipboard.writeText(`localhost:${localPort}`);
       setCopiedId(forwardId);
-      setTimeout(() => setCopiedId(null), 1500);
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      copiedTimerRef.current = setTimeout(() => setCopiedId(null), 1500);
     } catch {
       // Clipboard API may not be available
     }

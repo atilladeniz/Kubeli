@@ -1,14 +1,16 @@
 import {
   buildFallbackSystemPrompt,
+  buildResumeContext,
   finalizeStreamingMessage,
   findConversationById,
   generateId,
   getErrorMessage,
   removeConversationByClusterContext,
+  RESUME_CONTEXT_MAX_CHARS,
   STORE_NAME,
   toChatMessages,
 } from "../helpers";
-import type { Conversation } from "../types";
+import type { ChatMessage, Conversation } from "../types";
 
 describe("ai-store helpers", () => {
   it("exposes the expected store name", () => {
@@ -95,6 +97,53 @@ describe("ai-store helpers", () => {
         toolCalls: undefined,
       },
     ]);
+  });
+
+  describe("buildResumeContext", () => {
+    const msg = (role: ChatMessage["role"], content: string, id = "m"): ChatMessage => ({
+      id,
+      role,
+      content,
+      timestamp: 1,
+    });
+
+    it("builds a transcript of prior user/assistant messages, oldest first", () => {
+      const context = buildResumeContext([
+        msg("user", "why is my pod crashing?"),
+        msg("assistant", "It is OOMKilled."),
+      ]);
+
+      expect(context).toContain("## Previous conversation");
+      expect(context).toContain(
+        "User: why is my pod crashing?\n\nAssistant: It is OOMKilled."
+      );
+    });
+
+    it("returns null when there is no usable history", () => {
+      expect(buildResumeContext([])).toBeNull();
+      expect(buildResumeContext([msg("assistant", "   ")])).toBeNull();
+    });
+
+    it("drops the oldest messages first when over budget", () => {
+      const big = "x".repeat(RESUME_CONTEXT_MAX_CHARS - 50);
+      const context = buildResumeContext([
+        msg("user", "oldest question"),
+        msg("assistant", big),
+        msg("user", "newest question"),
+      ]);
+
+      expect(context).not.toContain("oldest question");
+      expect(context).toContain("newest question");
+      expect(context).toContain(big);
+    });
+
+    it("truncates a single over-budget message instead of dropping everything", () => {
+      const huge = "y".repeat(RESUME_CONTEXT_MAX_CHARS * 2);
+      const context = buildResumeContext([msg("user", huge)]);
+
+      expect(context).not.toBeNull();
+      expect(context!.length).toBeLessThan(RESUME_CONTEXT_MAX_CHARS + 200);
+    });
   });
 
   describe("finalizeStreamingMessage", () => {

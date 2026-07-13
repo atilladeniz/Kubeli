@@ -119,7 +119,12 @@ pub fn handle_menu_event(_app: &tauri::AppHandle, event: tauri::menu::MenuEvent)
 }
 
 #[cfg(not(target_os = "macos"))]
-pub fn handle_menu_event(_app: &tauri::AppHandle, _event: tauri::menu::MenuEvent) {}
+pub fn handle_menu_event(app: &tauri::AppHandle, event: tauri::menu::MenuEvent) {
+    // Quit must actually exit here; hiding instead of closing is macOS-only.
+    if event.id() == "quit" {
+        app.exit(0);
+    }
+}
 
 #[cfg(target_os = "macos")]
 pub fn handle_window_event<R: tauri::Runtime>(

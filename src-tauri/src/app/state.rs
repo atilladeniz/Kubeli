@@ -26,11 +26,32 @@ pub fn register(builder: tauri::Builder<tauri::Wry>) -> tauri::Builder<tauri::Wr
 }
 
 pub fn initialize_ai_session_store(app: &mut tauri::App) {
-    let app_data_dir = app
-        .path()
-        .app_data_dir()
-        .expect("Failed to get app data directory");
-    let db_path = app_data_dir.join("ai_sessions.db");
-    let session_store = create_session_store(db_path).expect("Failed to create session store");
+    // Never crash the app over the AI session store: fall back to an
+    // in-memory database (sessions just won't persist across restarts).
+    let db_path = match app.path().app_data_dir() {
+        Ok(dir) => dir.join("ai_sessions.db"),
+        Err(e) => {
+            tracing::error!(
+                "Failed to get app data directory: {e}; using in-memory AI session store"
+            );
+            std::path::PathBuf::from(":memory:")
+        }
+    };
+    let session_store = match create_session_store(db_path.clone()) {
+        Ok(store) => store,
+        Err(e) => {
+            tracing::error!(
+                "Failed to create AI session store at {:?}: {e}; using in-memory store",
+                db_path
+            );
+            match create_session_store(std::path::PathBuf::from(":memory:")) {
+                Ok(store) => store,
+                Err(e) => {
+                    tracing::error!("Failed to create in-memory AI session store: {e}");
+                    return;
+                }
+            }
+        }
+    };
     app.manage(session_store);
 }

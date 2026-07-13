@@ -71,6 +71,9 @@ let logSeq = 0;
 const stampSeq = (entry: LogEntry): LogEntry => ({ ...entry, seq: ++logSeq });
 
 const listeners = new Map<string, UnlistenFn>();
+// Tabs with a startStream call in flight - isStreaming only turns true after
+// an await, so this synchronous marker is what stops rapid double-starts
+const startingStreams = new Set<string>();
 const pendingLogs = new Map<string, LogEntry[]>();
 const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 const podWatchers = new Map<string, () => void>();
@@ -247,7 +250,8 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
 
   async startStream(tabId, ns, pod, container, tailLines) {
     const tab = get().logTabs[tabId];
-    if (!tab || tab.isStreaming) return;
+    if (!tab || tab.isStreaming || startingStreams.has(tabId)) return;
+    startingStreams.add(tabId);
 
     // Stop existing stream if any
     if (tab.streamId) {
@@ -360,6 +364,8 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
       });
       listeners.get(tabId)?.();
       listeners.delete(tabId);
+    } finally {
+      startingStreams.delete(tabId);
     }
   },
 

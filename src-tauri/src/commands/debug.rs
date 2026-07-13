@@ -40,6 +40,18 @@ pub struct EnvironmentInfo {
     pub path_contains_aws: bool,
 }
 
+/// Mask the middle of a server URL for privacy. Operates on chars, not
+/// bytes: byte slicing panicked on multi-byte UTF-8 boundaries.
+fn mask_server_url(server: &str) -> String {
+    let chars: Vec<char> = server.chars().collect();
+    if chars.len() <= 30 {
+        return server.to_string();
+    }
+    let head: String = chars[..20].iter().collect();
+    let tail: String = chars[chars.len() - 10..].iter().collect();
+    format!("{}...{}", head, tail)
+}
+
 /// Resolve the effective kubeconfig paths from configured sources
 fn resolve_kubeconfig_paths(app: &AppHandle) -> Vec<String> {
     let sources_config = super::kubeconfig::load_sources_config(app);
@@ -157,11 +169,7 @@ pub async fn export_debug_info(
                 .unwrap_or_else(|| "Unknown".to_string());
 
             // Mask sensitive parts of the server URL for privacy
-            let server_masked = if server.len() > 30 {
-                format!("{}...{}", &server[..20], &server[server.len() - 10..])
-            } else {
-                server.clone()
-            };
+            let server_masked = mask_server_url(&server);
 
             contexts.push(ContextDebugInfo {
                 name: ctx.name.clone(),
@@ -301,4 +309,36 @@ pub async fn generate_debug_log(
     log.push_str("\n=== End of Debug Log ===\n");
 
     Ok(log)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::mask_server_url;
+
+    #[test]
+    fn masks_long_ascii_server_urls() {
+        let server = "https://my-cluster.example.com:6443/api/v1";
+        let masked = mask_server_url(server);
+        assert_eq!(masked, "https://my-cluster.e...443/api/v1");
+    }
+
+    #[test]
+    fn keeps_short_urls_unmasked() {
+        assert_eq!(mask_server_url("https://short:6443"), "https://short:6443");
+    }
+
+    #[test]
+    fn does_not_panic_on_multibyte_utf8() {
+        // 40 multi-byte chars: the old byte-offset slicing panicked here
+        let server = "ü".repeat(40);
+        let masked = mask_server_url(&server);
+        assert!(masked.contains("..."));
+        assert_eq!(masked.chars().count(), 20 + 3 + 10);
+    }
+
+    #[test]
+    fn does_not_panic_on_short_strings() {
+        assert_eq!(mask_server_url(""), "");
+        assert_eq!(mask_server_url("abc"), "abc");
+    }
 }
