@@ -202,6 +202,9 @@ describe('manual changelog fallback', () => {
     expect(prompt).toContain('# Task: Generate the Kubeli changelog for version 1.2.3');
     expect(prompt).toContain('```text\nabc123 Added release fallback\n```');
     expect(prompt).toContain('Return only the Markdown bullet points');
+    expect(prompt).toContain('Never wrap or continue a bullet on the next line');
+    expect(prompt).toContain('Do not infer or invent features');
+    expect(prompt).toContain('Start every bullet at column 1');
   });
 
   it('writes the prompt and accepts a pasted multi-line response', async () => {

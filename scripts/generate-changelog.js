@@ -58,14 +58,16 @@ ${commits}
 
 1. Group related changes together.
 2. Use past tense (Added, Fixed, Updated, etc.).
-3. Keep every item to a maximum of one line.
+3. Put each bullet on exactly one physical line. Never wrap or continue a bullet on the next line.
 4. Focus on user-facing changes.
 5. Skip merge commits and version bumps.
-6. Format every item as a Markdown bullet beginning with \`- \`.
+6. Include only changes supported by the supplied commits. Do not infer or invent features.
+7. Start every bullet at column 1 with \`- \`. Do not indent bullets.
+8. Keep wording concise and combine closely related implementation details.
 
 ## Output contract
 
-Return only the Markdown bullet points. Do not add a heading, explanation, greeting, or code fence.
+Return only the Markdown bullet points. Do not add a heading, explanation, greeting, code fence, blank line between bullets, or trailing commentary. Every bullet must remain on one physical line even if it is long.
 
 Example:
 
