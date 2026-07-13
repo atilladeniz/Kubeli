@@ -517,7 +517,7 @@ pub async fn node_shell_start(
     // Create debug pod name
     let debug_pod_name = format!(
         "kubeli-node-shell-{}",
-        &session_id
+        session_id
             .chars()
             .filter(|c| c.is_alphanumeric() || *c == '-')
             .collect::<String>()
