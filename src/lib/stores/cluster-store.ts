@@ -28,8 +28,6 @@ interface ClusterState {
   clusters: Cluster[];
   currentCluster: Cluster | null;
   selectedNamespaces: string[];
-  /** @deprecated Use selectedNamespaces. Derived: single selected ns or "" */
-  currentNamespace: string;
   namespaces: string[];
   namespaceSource: NamespaceSource;
   isConnected: boolean;
@@ -117,15 +115,14 @@ const getBackoffDelay = (attempt: number, baseDelay = 1000, maxDelay = 30000): n
   return Math.floor(delay + jitter);
 };
 
-// Helper: derive currentNamespace from selectedNamespaces for backward compat
-const deriveCurrentNamespace = (selectedNamespaces: string[]): string =>
-  selectedNamespaces.length === 1 ? selectedNamespaces[0] : "";
+/** Selector: the single selected namespace, or "" when zero or multiple are selected. */
+export const selectCurrentNamespace = (s: Pick<ClusterState, "selectedNamespaces">): string =>
+  s.selectedNamespaces.length === 1 ? s.selectedNamespaces[0] : "";
 
 export const useClusterStore = create<ClusterState>((set, get) => ({
   clusters: [],
   currentCluster: null,
   selectedNamespaces: [],
-  currentNamespace: "",
   namespaces: [],
   namespaceSource: "none",
   isConnected: false,
@@ -522,19 +519,17 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
     }
   },
 
-  setSelectedNamespaces: (namespaces) =>
-    set({ selectedNamespaces: namespaces, currentNamespace: deriveCurrentNamespace(namespaces) }),
+  setSelectedNamespaces: (namespaces) => set({ selectedNamespaces: namespaces }),
   toggleNamespace: (ns) => {
     const { selectedNamespaces } = get();
     const next = selectedNamespaces.includes(ns)
       ? selectedNamespaces.filter((n) => n !== ns)
       : [...selectedNamespaces, ns];
-    set({ selectedNamespaces: next, currentNamespace: deriveCurrentNamespace(next) });
+    set({ selectedNamespaces: next });
   },
-  selectAllNamespaces: () => set({ selectedNamespaces: [], currentNamespace: "" }),
+  selectAllNamespaces: () => set({ selectedNamespaces: [] }),
   setCurrentNamespace: (namespace) => {
-    const next = namespace ? [namespace] : [];
-    set({ selectedNamespaces: next, currentNamespace: deriveCurrentNamespace(next) });
+    set({ selectedNamespaces: namespace ? [namespace] : [] });
   },
   setError: (error) =>
     set((state) => ({
@@ -551,7 +546,6 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
       namespaces,
       namespaceSource: "configured",
       selectedNamespaces: [],
-      currentNamespace: "",
     });
   },
 
@@ -560,7 +554,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
     // prefer_kubeconfig_auth flag (#335) survives. The Rust setter drops the
     // entry automatically if nothing meaningful remains.
     await setClusterAccessibleNamespaces(context, []);
-    set({ namespaceSource: "none", namespaces: [], selectedNamespaces: [], currentNamespace: "" });
+    set({ namespaceSource: "none", namespaces: [], selectedNamespaces: [] });
     // Re-fetch namespaces via auto-discovery
     await get().fetchNamespaces();
     if (get().namespaceSource === "auto") {
@@ -600,9 +594,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
               };
               // Remove deleted namespace from selection
               if (selectedNamespaces.includes(name)) {
-                const next = selectedNamespaces.filter((ns) => ns !== name);
-                updates.selectedNamespaces = next;
-                updates.currentNamespace = deriveCurrentNamespace(next);
+                updates.selectedNamespaces = selectedNamespaces.filter((ns) => ns !== name);
               }
               set(updates);
               break;

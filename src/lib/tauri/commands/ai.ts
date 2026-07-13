@@ -23,25 +23,9 @@ export type CodexCliInfo = CliInfo;
 export type OpenCodeCliInfo = CliInfo;
 export type DroidCliInfo = CliInfo;
 
-export interface AIAuthStatus {
-  cli_available: boolean;
-  cli_authenticated: boolean;
-  cli_version: string | null;
-  cli_path: string | null;
-  error: string | null;
-}
-
 // Claude CLI commands
 export async function aiCheckCliAvailable(): Promise<ClaudeCliInfo> {
   return invoke<ClaudeCliInfo>("ai_check_cli_available");
-}
-
-export async function aiVerifyAuthentication(): Promise<AIAuthStatus> {
-  return invoke<AIAuthStatus>("ai_verify_authentication");
-}
-
-export async function aiGetAuthStatus(): Promise<AIAuthStatus> {
-  return invoke<AIAuthStatus>("ai_get_auth_status");
 }
 
 // Codex CLI commands
@@ -49,25 +33,9 @@ export async function aiCheckCodexCliAvailable(): Promise<CodexCliInfo> {
   return invoke<CodexCliInfo>("ai_check_codex_cli_available");
 }
 
-export async function aiVerifyCodexAuthentication(): Promise<AIAuthStatus> {
-  return invoke<AIAuthStatus>("ai_verify_codex_authentication");
-}
-
-export async function aiGetCodexAuthStatus(): Promise<AIAuthStatus> {
-  return invoke<AIAuthStatus>("ai_get_codex_auth_status");
-}
-
 // OpenCode CLI commands
 export async function aiCheckOpenCodeCliAvailable(): Promise<OpenCodeCliInfo> {
   return invoke<OpenCodeCliInfo>("ai_check_opencode_cli_available");
-}
-
-export async function aiVerifyOpenCodeAuthentication(): Promise<AIAuthStatus> {
-  return invoke<AIAuthStatus>("ai_verify_opencode_authentication");
-}
-
-export async function aiGetOpenCodeAuthStatus(): Promise<AIAuthStatus> {
-  return invoke<AIAuthStatus>("ai_get_opencode_auth_status");
 }
 
 // Droid CLI commands (Factory.ai)
@@ -75,22 +43,8 @@ export async function aiCheckDroidCliAvailable(): Promise<DroidCliInfo> {
   return invoke<DroidCliInfo>("ai_check_droid_cli_available");
 }
 
-export async function aiVerifyDroidAuthentication(): Promise<AIAuthStatus> {
-  return invoke<AIAuthStatus>("ai_verify_droid_authentication");
-}
-
-export async function aiGetDroidAuthStatus(): Promise<AIAuthStatus> {
-  return invoke<AIAuthStatus>("ai_get_droid_auth_status");
-}
-
 // AI Session commands
 export type AiCliProvider = "claude" | "codex" | "opencode" | "droid";
-
-export interface SessionInfo {
-  session_id: string;
-  cluster_context: string;
-  provider: AiCliProvider;
-}
 
 export async function aiStartSession(
   clusterContext: string,
@@ -119,34 +73,7 @@ export async function aiStopSession(sessionId: string): Promise<void> {
   return invoke("ai_stop_session", { sessionId });
 }
 
-export async function aiListSessions(): Promise<SessionInfo[]> {
-  return invoke<SessionInfo[]>("ai_list_sessions");
-}
-
-export async function aiIsSessionActive(sessionId: string): Promise<boolean> {
-  return invoke<boolean>("ai_is_session_active", { sessionId });
-}
-
 // AI Context commands
-export interface ClusterContext {
-  context_name: string;
-  kubernetes_version: string | null;
-  platform: string | null;
-  node_count: number;
-  namespace_count: number;
-  running_pods: number;
-  problem_pods: number;
-  current_namespace: string | null;
-  recent_issues: string[];
-}
-
-export async function aiBuildContext(
-  contextName: string,
-  currentNamespace?: string
-): Promise<ClusterContext> {
-  return invoke<ClusterContext>("ai_build_context", { contextName, currentNamespace });
-}
-
 export async function aiGetSystemPrompt(
   contextName: string,
   currentNamespace?: string
@@ -223,13 +150,6 @@ export async function aiUpdateMessage(
   return invoke<void>("ai_update_message", { messageId, content, toolCalls });
 }
 
-export async function aiUpdateSessionTitle(
-  sessionId: string,
-  title: string
-): Promise<void> {
-  return invoke<void>("ai_update_session_title", { sessionId, title });
-}
-
 export async function aiDeleteSavedSession(sessionId: string): Promise<void> {
   return invoke<void>("ai_delete_saved_session", { sessionId });
 }
@@ -238,12 +158,4 @@ export async function aiDeleteClusterSessions(
   clusterContext: string
 ): Promise<void> {
   return invoke<void>("ai_delete_cluster_sessions", { clusterContext });
-}
-
-export async function aiGetResumeContext(sessionId: string): Promise<string> {
-  return invoke<string>("ai_get_resume_context", { sessionId });
-}
-
-export async function aiCleanupOldSessions(days: number): Promise<number> {
-  return invoke<number>("ai_cleanup_old_sessions", { days });
 }

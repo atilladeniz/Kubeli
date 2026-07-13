@@ -9,6 +9,7 @@ jest.mock("@/lib/stores/ai-store", () => ({
 }));
 
 jest.mock("@/lib/stores/cluster-store", () => ({
+  ...jest.requireActual("@/lib/stores/cluster-store"),
   useClusterStore: jest.fn(),
 }));
 
@@ -93,7 +94,7 @@ describe("useLogAnalysis", () => {
 
     setClusterStoreState({
       currentCluster: { context: "test-cluster" },
-      currentNamespace: "default",
+      selectedNamespaces: ["default"],
     });
 
     setUIStoreState({
@@ -180,7 +181,7 @@ describe("useLogAnalysis", () => {
   it("analyzeWithAI does nothing when no cluster", async () => {
     setClusterStoreState({
       currentCluster: null,
-      currentNamespace: null,
+      selectedNamespaces: [],
     });
 
     const { result } = renderHook(() => useLogAnalysis(defaultOptions));

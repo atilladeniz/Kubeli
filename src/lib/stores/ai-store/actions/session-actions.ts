@@ -1,13 +1,11 @@
 import {
   aiGetSystemPrompt,
   aiInterrupt,
-  aiListSessions,
   aiSaveMessage,
   aiSaveSession,
   aiSendMessage,
   aiStartSession,
   aiStopSession,
-  aiUpdateSessionTitle,
   type AiCliProvider,
 } from "../../../tauri/commands";
 import { useUIStore } from "../../ui-store";
@@ -18,7 +16,6 @@ import {
   findConversationById,
   generateId,
   getErrorMessage,
-  removeConversationByClusterContext,
   toChatMessages,
 } from "../helpers";
 import type { AIGetState, AISetState, AIState, ChatMessage } from "../types";
@@ -30,9 +27,7 @@ type SessionActions = Pick<
   | "interrupt"
   | "stopSession"
   | "markSessionEnded"
-  | "refreshSessions"
   | "loadSavedSession"
-  | "updateSessionTitle"
 >;
 
 export function createSessionActions(
@@ -235,33 +230,25 @@ export function createSessionActions(
         }
       }
 
+      // Stop cancels the running generation and ends the backend session,
+      // but keeps the conversation - the chat history must survive a Stop.
+      // isInterrupted guards against chunks still in flight after the kill.
       const conversation = findConversationById(conversations, currentConversationId);
-      const clusterContext = conversation?.clusterContext;
-
-      if (clusterContext) {
-        set((state) => ({
-          conversations: removeConversationByClusterContext(
-            state.conversations,
-            clusterContext
-          ),
-          currentSessionId: null,
-          currentConversationId: null,
-          isSessionActive: false,
-          isStreaming: false,
-          isThinking: false,
-          isInterrupted: false,
-        }));
-        return;
-      }
-
-      set({
+      set((state) => ({
+        conversations: conversation
+          ? {
+              ...state.conversations,
+              [conversation.clusterContext]:
+                finalizeStreamingMessage(conversation),
+            }
+          : state.conversations,
         currentSessionId: null,
         currentConversationId: null,
         isSessionActive: false,
         isStreaming: false,
         isThinking: false,
-        isInterrupted: false,
-      });
+        isInterrupted: true,
+      }));
     },
 
     markSessionEnded: () => {
@@ -283,10 +270,6 @@ export function createSessionActions(
             }
           : state.conversations,
       }));
-    },
-
-    refreshSessions: async () => {
-      return await aiListSessions();
     },
 
     loadSavedSession: (sessionId, messages, clusterContext) => {
@@ -312,14 +295,6 @@ export function createSessionActions(
           },
         },
       }));
-    },
-
-    updateSessionTitle: async (sessionId, title) => {
-      try {
-        await aiUpdateSessionTitle(sessionId, title);
-      } catch (error) {
-        console.error("Failed to update session title:", error);
-      }
     },
   };
 }

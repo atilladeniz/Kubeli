@@ -157,7 +157,13 @@ impl KubeConfig {
                         let name = ctx.get("name")?.as_str()?.to_string();
                         let context = ctx.get("context")?;
                         let cluster = context.get("cluster")?.as_str()?.to_string();
-                        let user = context.get("user")?.as_str()?.to_string();
+                        // `user` is optional: a context may reference only a
+                        // cluster (e.g. public clusters or exec auth added later).
+                        let user = context
+                            .get("user")
+                            .and_then(|v| v.as_str())
+                            .unwrap_or_default()
+                            .to_string();
                         let namespace = context
                             .get("namespace")
                             .and_then(|v| v.as_str())
@@ -275,7 +281,7 @@ impl KubeConfig {
             let path = PathBuf::from(&source.path);
             match source.source_type {
                 KubeconfigSourceType::File => {
-                    if path.exists() {
+                    if tokio::fs::metadata(&path).await.is_ok() {
                         all_files.push(path);
                     }
                 }
@@ -290,11 +296,16 @@ impl KubeConfig {
         // Also respect KUBECONFIG env var (platform-aware separator)
         if let Ok(env_val) = std::env::var("KUBECONFIG") {
             for path in std::env::split_paths(&env_val) {
-                if path.exists() && !all_files.iter().any(|f| f == &path) {
+                if tokio::fs::metadata(&path).await.is_ok() && !all_files.iter().any(|f| f == &path)
+                {
                     all_files.push(path);
                 }
             }
         }
+
+        // Sources and folder scans can yield the same file under different
+        // paths (e.g. via symlinks) — keep only the first occurrence.
+        let all_files = Self::dedupe_paths(all_files).await;
 
         if all_files.is_empty() {
             // Fallback to default
@@ -302,6 +313,22 @@ impl KubeConfig {
         }
 
         Self::load_and_merge(&all_files, merge_mode).await
+    }
+
+    /// Remove paths that refer to the same file (e.g. symlinks), keeping the
+    /// first occurrence. Paths that cannot be canonicalized are compared as-is.
+    async fn dedupe_paths(files: Vec<PathBuf>) -> Vec<PathBuf> {
+        let mut seen: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
+        let mut unique = Vec::with_capacity(files.len());
+        for file in files {
+            let key = tokio::fs::canonicalize(&file)
+                .await
+                .unwrap_or_else(|_| file.clone());
+            if seen.insert(key) {
+                unique.push(file);
+            }
+        }
+        unique
     }
 
     /// Scan a folder for kubeconfig files (*.yaml, *.yml, config)
@@ -313,7 +340,12 @@ impl KubeConfig {
 
         while let Some(entry) = entries.next_entry().await? {
             let path = entry.path();
-            if path.is_file() {
+            // metadata() follows symlinks, matching Path::is_file semantics
+            let is_file = tokio::fs::metadata(&path)
+                .await
+                .map(|m| m.is_file())
+                .unwrap_or(false);
+            if is_file {
                 let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
                 let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
                 if ext == "yaml" || ext == "yml" || name == "config" {
@@ -430,8 +462,9 @@ impl KubeConfig {
     pub async fn validate_path(path: &str) -> Result<KubeconfigSourceInfo> {
         let pb = PathBuf::from(path);
         let is_default = Self::is_default_source(path);
+        let metadata = tokio::fs::metadata(&pb).await.ok();
 
-        if pb.is_dir() {
+        if metadata.as_ref().is_some_and(|m| m.is_dir()) {
             let files = Self::scan_folder(&pb).await.unwrap_or_default();
             let mut total_contexts = 0;
             for file in &files {
@@ -452,7 +485,7 @@ impl KubeConfig {
                 },
                 is_default,
             })
-        } else if pb.is_file() {
+        } else if metadata.as_ref().is_some_and(|m| m.is_file()) {
             match Self::load_from(pb).await {
                 Ok(cfg) => Ok(KubeconfigSourceInfo {
                     path: path.to_string(),
@@ -596,6 +629,29 @@ users:
         ));
         let admin_user = config.users.iter().find(|u| u.name == "admin").unwrap();
         assert!(matches!(admin_user.auth_type, AuthType::Token));
+    }
+
+    #[test]
+    fn test_parse_context_without_user_is_kept() {
+        // Regression: contexts without a `user` field (e.g. public clusters,
+        // or exec auth added later) were silently dropped during parsing.
+        let yaml = r#"
+apiVersion: v1
+kind: Config
+contexts:
+- name: no-user-ctx
+  context:
+    cluster: public-cluster
+- name: full-ctx
+  context:
+    cluster: public-cluster
+    user: some-user
+"#;
+        let config = KubeConfig::parse(yaml, PathBuf::from("/test")).unwrap();
+        assert_eq!(config.contexts.len(), 2);
+        let ctx = config.get_context("no-user-ctx").unwrap();
+        assert_eq!(ctx.cluster, "public-cluster");
+        assert!(ctx.user.is_empty());
     }
 
     #[test]
@@ -811,6 +867,35 @@ users:
             .await
             .unwrap();
         assert_eq!(files.len(), 3); // a.yaml, b.yml, config — not readme.txt
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn test_dedupe_paths_drops_symlink_aliases() {
+        let dir = tempfile::tempdir().unwrap();
+        let real = write_temp_kubeconfig(dir.path(), "real.yaml", COMPLETE_FILE);
+        let link = dir.path().join("link.yaml");
+        std::os::unix::fs::symlink(&real, &link).unwrap();
+
+        // First occurrence wins, alias is dropped
+        let deduped = KubeConfig::dedupe_paths(vec![real.clone(), link.clone()]).await;
+        assert_eq!(deduped, vec![real.clone()]);
+
+        let deduped = KubeConfig::dedupe_paths(vec![link.clone(), real]).await;
+        assert_eq!(deduped, vec![link]);
+    }
+
+    #[tokio::test]
+    async fn test_dedupe_paths_keeps_distinct_and_uncanonicalizable_paths() {
+        let dir = tempfile::tempdir().unwrap();
+        let a = write_temp_kubeconfig(dir.path(), "a.yaml", COMPLETE_FILE);
+        let missing = dir.path().join("does-not-exist.yaml");
+
+        // Distinct files stay; a path that fails canonicalize() falls back to
+        // raw-path comparison instead of being dropped, exact duplicates go
+        let deduped =
+            KubeConfig::dedupe_paths(vec![a.clone(), missing.clone(), missing.clone()]).await;
+        assert_eq!(deduped, vec![a, missing]);
     }
 
     #[tokio::test]

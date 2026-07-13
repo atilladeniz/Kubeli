@@ -5,18 +5,12 @@ import {
   findConversationById,
   generateId,
   getErrorMessage,
-  removeConversationByClusterContext,
   RESUME_CONTEXT_MAX_CHARS,
-  STORE_NAME,
   toChatMessages,
 } from "../helpers";
 import type { ChatMessage, Conversation } from "../types";
 
 describe("ai-store helpers", () => {
-  it("exposes the expected store name", () => {
-    expect(STORE_NAME).toBe("kubeli-ai-store");
-  });
-
   it("builds ids from the current timestamp and random suffix", () => {
     jest.spyOn(Date, "now").mockReturnValue(1700000000000);
     jest.spyOn(Math, "random").mockReturnValue(0.123456789);
@@ -36,7 +30,7 @@ describe("ai-store helpers", () => {
     expect(prompt).toContain("Analyzing pod status and health");
   });
 
-  it("finds and removes conversations by cluster context", () => {
+  it("finds conversations by id", () => {
     const conversations: Record<string, Conversation> = {
       alpha: {
         id: "conv-1",
@@ -56,9 +50,6 @@ describe("ai-store helpers", () => {
 
     expect(findConversationById(conversations, "conv-2")).toEqual(conversations.beta);
     expect(findConversationById(conversations, null)).toBeUndefined();
-    expect(removeConversationByClusterContext(conversations, "alpha")).toEqual({
-      beta: conversations.beta,
-    });
   });
 
   it("maps stored message records to chat messages", () => {

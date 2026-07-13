@@ -15,10 +15,6 @@ export async function disconnectCluster(): Promise<void> {
   return invoke("disconnect_cluster");
 }
 
-export async function switchContext(context: string): Promise<ConnectionStatus> {
-  return invoke<ConnectionStatus>("switch_context", { context });
-}
-
 export async function getConnectionStatus(): Promise<ConnectionStatus> {
   return invoke<ConnectionStatus>("get_connection_status");
 }
@@ -50,22 +46,6 @@ export async function setClusterPreferKubeconfigAuth(
   return invoke("set_cluster_prefer_kubeconfig_auth", { context, prefer });
 }
 
-export async function clearClusterSettings(context: string): Promise<void> {
-  return invoke("clear_cluster_settings", { context });
-}
-
-export async function addCluster(kubeconfigContent: string): Promise<void> {
-  return invoke("add_cluster", { kubeconfigContent });
-}
-
-export async function removeCluster(context: string): Promise<void> {
-  return invoke("remove_cluster", { context });
-}
-
-export async function hasKubeconfig(): Promise<boolean> {
-  return invoke<boolean>("has_kubeconfig");
-}
-
 // Kubeconfig source commands
 export type KubeconfigSourceType = "file" | "folder";
 
@@ -93,12 +73,6 @@ export async function getKubeconfigSources(): Promise<KubeconfigSourcesConfig> {
   return invoke<KubeconfigSourcesConfig>("get_kubeconfig_sources");
 }
 
-export async function setKubeconfigSources(
-  config: KubeconfigSourcesConfig
-): Promise<void> {
-  return invoke("set_kubeconfig_sources", { config });
-}
-
 export async function addKubeconfigSource(
   path: string,
   sourceType: KubeconfigSourceType
@@ -117,12 +91,6 @@ export async function removeKubeconfigSource(
 
 export async function listKubeconfigSources(): Promise<KubeconfigSourceInfo[]> {
   return invoke<KubeconfigSourceInfo[]>("list_kubeconfig_sources");
-}
-
-export async function validateKubeconfigPath(
-  path: string
-): Promise<KubeconfigSourceInfo> {
-  return invoke<KubeconfigSourceInfo>("validate_kubeconfig_path", { path });
 }
 
 export async function setKubeconfigMergeMode(

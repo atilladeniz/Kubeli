@@ -18,12 +18,6 @@ export async function portforwardList(): Promise<PortForwardInfo[]> {
   return invoke<PortForwardInfo[]>("portforward_list");
 }
 
-export async function portforwardGet(
-  forwardId: string
-): Promise<PortForwardInfo | null> {
-  return invoke<PortForwardInfo | null>("portforward_get", { forwardId });
-}
-
 export async function portforwardCheckPort(port: number): Promise<boolean> {
   return invoke<boolean>("portforward_check_port", { port });
 }

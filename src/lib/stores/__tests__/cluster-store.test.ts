@@ -1,6 +1,6 @@
 import { act } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
-import { useClusterStore } from "../cluster-store";
+import { useClusterStore, selectCurrentNamespace } from "../cluster-store";
 import { toKubeliError } from "../../types/errors";
 
 // Mock Tauri commands
@@ -69,7 +69,6 @@ const defaultState = {
   clusters: [],
   currentCluster: null,
   selectedNamespaces: [] as string[],
-  currentNamespace: "",
   namespaces: [],
   isConnected: false,
   isLoading: false,
@@ -803,7 +802,8 @@ describe("ClusterStore", () => {
         useClusterStore.getState().setCurrentNamespace("kube-system");
       });
 
-      expect(useClusterStore.getState().currentNamespace).toBe("kube-system");
+      expect(useClusterStore.getState().selectedNamespaces).toEqual(["kube-system"]);
+      expect(selectCurrentNamespace(useClusterStore.getState())).toBe("kube-system");
     });
   });
 
@@ -957,7 +957,6 @@ describe("ClusterStore", () => {
       useClusterStore.setState({
         namespaces: ["default", "kube-system", "active-ns"],
         selectedNamespaces: ["active-ns"],
-        currentNamespace: "active-ns",
       });
 
       await act(async () => {
@@ -971,7 +970,7 @@ describe("ClusterStore", () => {
       });
 
       expect(useClusterStore.getState().namespaces).toEqual(["default", "kube-system"]);
-      expect(useClusterStore.getState().currentNamespace).toBe("");
+      expect(selectCurrentNamespace(useClusterStore.getState())).toBe("");
     });
 
     it("should not reset namespace when a different namespace is deleted", async () => {
@@ -985,7 +984,6 @@ describe("ClusterStore", () => {
       useClusterStore.setState({
         namespaces: ["default", "kube-system", "other-ns"],
         selectedNamespaces: ["default"],
-        currentNamespace: "default",
       });
 
       await act(async () => {
@@ -999,7 +997,7 @@ describe("ClusterStore", () => {
       });
 
       expect(useClusterStore.getState().namespaces).toEqual(["default", "kube-system"]);
-      expect(useClusterStore.getState().currentNamespace).toBe("default");
+      expect(selectCurrentNamespace(useClusterStore.getState())).toBe("default");
     });
 
     it("should sort namespaces on Added event", async () => {

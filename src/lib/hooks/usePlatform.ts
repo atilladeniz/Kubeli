@@ -4,36 +4,46 @@ import { useState, useEffect } from "react";
 
 export type Platform = "macos" | "windows" | "linux" | "unknown";
 
+// Platform never changes at runtime - detect once at module level and let
+// every hook mount read the cached value instead of re-running detection.
+let cachedPlatform: Platform | null = null;
+let detectionPromise: Promise<Platform> | null = null;
+
+async function detectPlatform(): Promise<Platform> {
+  try {
+    const { type } = await import("@tauri-apps/plugin-os");
+    const osType = await type();
+    if (osType === "macos") return "macos";
+    if (osType === "windows") return "windows";
+    if (osType === "linux") return "linux";
+  } catch {
+    // Fallback to navigator if Tauri not available
+    if (typeof navigator !== "undefined") {
+      const ua = navigator.userAgent.toLowerCase();
+      if (ua.includes("mac")) return "macos";
+      if (ua.includes("win")) return "windows";
+      if (ua.includes("linux")) return "linux";
+    }
+  }
+  return "unknown";
+}
+
 export function usePlatform() {
-  const [platform, setPlatform] = useState<Platform>("unknown");
+  const [platform, setPlatform] = useState<Platform>(cachedPlatform ?? "unknown");
 
   useEffect(() => {
-    const detectPlatform = async () => {
-      try {
-        const { type } = await import("@tauri-apps/plugin-os");
-        const osType = await type();
-        if (osType === "macos") {
-          setPlatform("macos");
-        } else if (osType === "windows") {
-          setPlatform("windows");
-        } else if (osType === "linux") {
-          setPlatform("linux");
-        }
-      } catch {
-        // Fallback to navigator if Tauri not available
-        if (typeof navigator !== "undefined") {
-          const ua = navigator.userAgent.toLowerCase();
-          if (ua.includes("mac")) {
-            setPlatform("macos");
-          } else if (ua.includes("win")) {
-            setPlatform("windows");
-          } else if (ua.includes("linux")) {
-            setPlatform("linux");
-          }
-        }
-      }
+    if (cachedPlatform !== null) return;
+    detectionPromise ??= detectPlatform().then((detected) => {
+      cachedPlatform = detected;
+      return detected;
+    });
+    let cancelled = false;
+    detectionPromise.then((detected) => {
+      if (!cancelled) setPlatform(detected);
+    });
+    return () => {
+      cancelled = true;
     };
-    detectPlatform();
   }, []);
 
   const isMac = platform === "macos";

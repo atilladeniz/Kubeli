@@ -29,10 +29,6 @@ export async function shellClose(sessionId: string): Promise<void> {
   return invoke("shell_close", { sessionId });
 }
 
-export async function shellListSessions(): Promise<string[]> {
-  return invoke<string[]>("shell_list_sessions");
-}
-
 // Node shell commands
 export async function nodeShellStart(
   sessionId: string,

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { Locale } from "@/i18n/config";
 import { defaultLocale, isValidLocale } from "@/i18n/config";
+import type { AiCliProvider } from "../tauri/commands/ai";
 
 export type Theme = "light" | "dark" | "classic-dark" | "system";
 
@@ -11,7 +12,8 @@ export type PortForwardBrowserBehavior = "ask" | "always" | "never";
 
 export type ProxyType = "none" | "system" | "http" | "socks5";
 
-export type AiCliProvider = "claude" | "codex" | "opencode" | "droid";
+// Single source of truth for the provider union lives in the Tauri bindings.
+export type { AiCliProvider };
 
 export type LogCloseConfirmation = "ask" | "never";
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useClusterStore } from "../stores/cluster-store";
+import { useClusterStore, selectCurrentNamespace } from "../stores/cluster-store";
 import {
   getNodeMetrics,
   getPodMetrics,
@@ -140,7 +140,7 @@ export function usePodMetrics(
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isConnected = useClusterStore((s) => s.isConnected);
-  const currentNamespace = useClusterStore((s) => s.currentNamespace);
+  const currentNamespace = useClusterStore(selectCurrentNamespace);
   const ns = namespace ?? currentNamespace;
   const pollCount = useRef(0);
   /** Track whether kubelet direct endpoint is available */

@@ -9,7 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTranslations } from "next-intl";
 import { LogHeader, LogToolbar, LogContent, LogFooter } from "./components";
 import { useAIStore } from "@/lib/stores/ai-store";
-import { useClusterStore } from "@/lib/stores/cluster-store";
+import { useClusterStore, selectCurrentNamespace } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { useLogFilter, useLogAnalysis, useLogDownload, useAutoScroll } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
@@ -124,7 +124,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
   // Send selected log text to AI
   const setPendingAnalysis = useAIStore((s) => s.setPendingAnalysis);
   const currentCluster = useClusterStore((s) => s.currentCluster);
-  const currentNamespace = useClusterStore((s) => s.currentNamespace);
+  const currentNamespace = useClusterStore(selectCurrentNamespace);
   const setAIAssistantOpen = useUIStore((s) => s.setAIAssistantOpen);
 
   const handleSendSelectionToAI = useCallback(

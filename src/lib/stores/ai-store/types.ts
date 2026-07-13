@@ -1,5 +1,5 @@
 import type { StateCreator } from "zustand";
-import type { MessageRecord, SessionInfo } from "../../tauri/commands";
+import type { MessageRecord } from "../../tauri/commands";
 
 export type MessageRole = "user" | "assistant" | "system";
 
@@ -48,7 +48,6 @@ export interface AIState {
   interrupt: () => Promise<void>;
   stopSession: () => Promise<void>;
   markSessionEnded: () => void;
-  refreshSessions: () => Promise<SessionInfo[]>;
 
   appendMessageChunk: (content: string, done: boolean) => void;
   finalizeStreaming: () => void;
@@ -63,11 +62,9 @@ export interface AIState {
     messages: MessageRecord[],
     clusterContext: string
   ) => void;
-  updateSessionTitle: (sessionId: string, title: string) => Promise<void>;
 
   setPendingAnalysis: (analysis: PendingAnalysis | null) => void;
   clearPendingAnalysis: () => void;
-  getPendingAnalysis: () => PendingAnalysis | null;
 
   setError: (error: string | null) => void;
   clearError: () => void;

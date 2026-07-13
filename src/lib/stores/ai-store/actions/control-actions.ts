@@ -1,18 +1,14 @@
-import type { AIGetState, AISetState, AIState } from "../types";
+import type { AISetState, AIState } from "../types";
 
 type ControlActions = Pick<
   AIState,
   | "setPendingAnalysis"
   | "clearPendingAnalysis"
-  | "getPendingAnalysis"
   | "setError"
   | "clearError"
 >;
 
-export function createControlActions(
-  set: AISetState,
-  get: AIGetState
-): ControlActions {
+export function createControlActions(set: AISetState): ControlActions {
   return {
     setPendingAnalysis: (analysis) => {
       set({ pendingAnalysis: analysis });
@@ -20,10 +16,6 @@ export function createControlActions(
 
     clearPendingAnalysis: () => {
       set({ pendingAnalysis: null });
-    },
-
-    getPendingAnalysis: () => {
-      return get().pendingAnalysis;
     },
 
     setError: (error: string | null) => {

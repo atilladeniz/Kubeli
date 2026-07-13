@@ -33,7 +33,6 @@ describe("log-store startStream", () => {
     mockStreamPodLogs.mockResolvedValue(undefined);
     mockStopLogStream.mockResolvedValue(undefined);
     useLogStore.setState({
-      activeTabId: null,
       logTabs: { tab1: makeTabState() },
     });
   });

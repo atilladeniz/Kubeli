@@ -17,7 +17,7 @@ function createHarness(overrides: Record<string, unknown> = {}) {
 
   return {
     state,
-    actions: createControlActions(set as never, (() => state) as never),
+    actions: createControlActions(set as never),
   };
 }
 
@@ -27,7 +27,7 @@ describe("createControlActions", () => {
     const { state, actions } = createHarness();
 
     actions.setPendingAnalysis(analysis as never);
-    expect(actions.getPendingAnalysis()).toEqual(analysis);
+    expect(state.pendingAnalysis).toEqual(analysis);
     actions.clearPendingAnalysis();
     expect(state.pendingAnalysis).toBeNull();
   });
