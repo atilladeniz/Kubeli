@@ -86,7 +86,7 @@
     "zustand": "^5.0.10"
   },
   "devDependencies": {
-    "@dotenvx/dotenvx": "^1.51.4",
+    "@dotenvx/dotenvx": "^2.1.5",
     "@playwright/test": "^1.61.1",
     "@swc/jest": "^0.2.39",
     "@tailwindcss/vite": "^4.2.2",
