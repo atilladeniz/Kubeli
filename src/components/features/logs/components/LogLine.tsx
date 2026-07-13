@@ -114,6 +114,7 @@ function highlightWithString(text: string, query: string): React.ReactNode {
   }
 
   // escapeRegExp makes the pattern safe by escaping all special regex characters
+  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
   const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
   const parts = text.split(regex);
 
