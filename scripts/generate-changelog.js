@@ -134,7 +134,13 @@ const CHANGELOG_PROVIDERS = [
   {
     name: 'Claude Code',
     command: 'claude',
-    args: ['--print'],
+    args: [
+      '--print',
+      '--no-session-persistence',
+      '--disable-slash-commands',
+      '--tools',
+      ''
+    ],
     useStdin: true,
     parse: output => output
   },
@@ -154,6 +160,9 @@ const CHANGELOG_PROVIDERS = [
     name: 'OpenCode',
     command: 'opencode',
     args: prompt => ['run', '--pure', '--format', 'json', '--dir', os.tmpdir(), prompt],
+    env: {
+      OPENCODE_CONFIG_CONTENT: JSON.stringify({ permission: { '*': 'deny' } })
+    },
     useStdin: false,
     parse: output =>
       parseJsonLines(output, event =>
@@ -178,7 +187,8 @@ function generateWithAiFallback(prompt, spawn = spawnSync) {
     const result = spawn(provider.command, args, {
       input: provider.useStdin ? prompt : undefined,
       encoding: 'utf8',
-      timeout: 60000
+      timeout: 60000,
+      env: provider.env ? { ...process.env, ...provider.env } : process.env
     });
     const parsedOutput = result.status === 0
       ? provider.parse(result.stdout?.trim() || '')

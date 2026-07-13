@@ -66,6 +66,30 @@ describe('generateWithAiFallback', () => {
 
     expect(generateWithAiFallback('prompt', spawn).provider).toBe('Claude Code');
     expect(spawn).toHaveBeenCalledTimes(1);
+    expect(spawn.mock.calls[0][1]).toEqual([
+      '--print',
+      '--no-session-persistence',
+      '--disable-slash-commands',
+      '--tools',
+      ''
+    ]);
+  });
+
+  it('denies all OpenCode tools through its inline runtime config', () => {
+    const spawn = jest
+      .fn()
+      .mockReturnValueOnce(result({ status: 1 }))
+      .mockReturnValueOnce(result({ status: 1 }))
+      .mockReturnValueOnce(result({
+        stdout: JSON.stringify({ type: 'text', part: { text: '- Added safe fallback' } })
+      }));
+
+    generateWithAiFallback('prompt', spawn);
+
+    const openCodeOptions = spawn.mock.calls[2][2];
+    expect(JSON.parse(openCodeOptions.env.OPENCODE_CONFIG_CONTENT)).toEqual({
+      permission: { '*': 'deny' }
+    });
   });
 
   it('rejects non-bullet output so limit messages trigger fallback', () => {
