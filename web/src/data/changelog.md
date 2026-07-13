@@ -4,6 +4,17 @@ title: Changelog
 # `make release` prepends new entries here automatically.
 ---
 
+## v0.3.80 <span class="text-sm font-normal text-neutral-400 ml-2">2026-07-13</span>
+
+- Added fallback options for release changelog generation
+- Fixed broken AI, proxy, log, and shell features
+- Fixed frontend races, memory leaks, structural error handling, and connection, teardown, watch, and port-forward lifecycles
+- Fixed data-loss paths, Helm forget behavior, and environment-secret redaction
+- Strengthened AI tool-use permissions, filesystem scoping, content security policy, MCP handling, and shell security
+- Improved startup performance by lazy-loading heavy features, trimming Monaco, and reducing startup JavaScript
+- Improved diagram performance with a real ELK web worker, topology-aware relayout, and refreshes without blanking
+- Improved performance by virtualizing resource tables, log viewers, and AI chat, optimizing state subscriptions, batching IPC, and reducing query overhead
+
 ## v0.3.79 <span class="text-sm font-normal text-neutral-400 ml-2">2026-07-02</span>
 
 - Redesigned marketing site with Müller-Brockmann grid layout
