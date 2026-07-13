@@ -252,6 +252,35 @@ function dryRunProviders(providerId = '', spawn = spawnSync) {
   return results;
 }
 
+function dryRunFallback(spawn = spawnSync) {
+  const prompt = 'Return exactly this Markdown bullet and nothing else: - Release fallback OK';
+  console.log('No release or changelog files will be changed.\n');
+  const generated = generateWithAiFallback(prompt, spawn);
+
+  if (!generated.changelogItems) {
+    throw new Error('No AI provider completed the fallback dry run.');
+  }
+
+  log(GREEN, `Fallback dry run passed with ${generated.provider}.`);
+  return generated;
+}
+
+async function dryRunManualFallback(options = {}) {
+  const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+  const commits = exec('git log --oneline --no-merges -20');
+  const prompt = buildChangelogPrompt(packageJson.version, commits || 'No commits available');
+
+  console.log('No release or changelog files will be changed.\n');
+  const changelogItems = await requestManualChangelog(prompt, options);
+  if (!changelogItems) {
+    throw new Error('Manual changelog dry run did not receive valid Markdown bullet points.');
+  }
+
+  log(GREEN, 'Manual changelog dry run passed:');
+  console.log(changelogItems);
+  return changelogItems;
+}
+
 async function main() {
   const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
   const version = packageJson.version;
@@ -357,15 +386,22 @@ ${changelogItems}
 }
 
 if (require.main === module) {
-  const command = process.argv.includes('--dry-run')
-    ? Promise.resolve().then(() => {
+  let command;
+  if (process.argv.includes('--dry-run')) {
+    command = Promise.resolve().then(() => {
       const results = dryRunProviders(process.env.PROVIDER || '');
       if (results.some(result => !result.passed)) {
         throw new Error('One or more AI provider checks failed.');
       }
       log(GREEN, 'All selected AI provider checks passed.');
-    })
-    : main();
+    });
+  } else if (process.argv.includes('--fallback-dry-run')) {
+    command = Promise.resolve().then(() => dryRunFallback());
+  } else if (process.argv.includes('--manual-dry-run')) {
+    command = dryRunManualFallback();
+  } else {
+    command = main();
+  }
 
   command.catch(error => {
     console.error(error);
@@ -377,6 +413,8 @@ module.exports = {
   CHANGELOG_PROVIDERS,
   MANUAL_PROMPT_PATH,
   buildChangelogPrompt,
+  dryRunFallback,
+  dryRunManualFallback,
   dryRunProviders,
   extractMarkdownBullets,
   generateWithAiFallback,

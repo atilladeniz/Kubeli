@@ -3,6 +3,8 @@
 const {
   MANUAL_PROMPT_PATH,
   buildChangelogPrompt,
+  dryRunFallback,
+  dryRunManualFallback,
   dryRunProviders,
   extractMarkdownBullets,
   generateWithAiFallback,
@@ -104,6 +106,24 @@ describe('dryRunProviders', () => {
 
   beforeEach(() => {
     logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  it('tests the real fallback chain without requiring every provider to pass', () => {
+    const spawn = jest
+      .fn()
+      .mockReturnValueOnce(result({ status: 1 }))
+      .mockReturnValueOnce(result({
+        stdout: JSON.stringify({
+          type: 'item.completed',
+          item: { type: 'agent_message', text: '- Release fallback OK' }
+        })
+      }));
+
+    expect(dryRunFallback(spawn)).toEqual({
+      changelogItems: '- Release fallback OK',
+      provider: 'Codex'
+    });
+    expect(spawn.mock.calls.map(call => call[0])).toEqual(['claude', 'codex']);
   });
 
   afterEach(() => {
@@ -211,5 +231,17 @@ describe('manual changelog fallback', () => {
     })).resolves.toBe('');
     expect(writeFile).toHaveBeenCalledWith(MANUAL_PROMPT_PATH, 'prompt contents');
     expect(readResponse).not.toHaveBeenCalled();
+  });
+
+  it('dry-runs the copy and paste flow without updating changelog files', async () => {
+    const writeFile = jest.fn();
+    const readResponse = jest.fn().mockResolvedValue('- Added pasted changelog entry');
+
+    await expect(dryRunManualFallback({
+      interactive: true,
+      readResponse,
+      writeFile
+    })).resolves.toBe('- Added pasted changelog entry');
+    expect(writeFile.mock.calls[0][0]).toBe(MANUAL_PROMPT_PATH);
   });
 });
