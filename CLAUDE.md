@@ -49,10 +49,10 @@ make build
 
 | Command | Description |
 |---------|-------------|
-| `make release` | Release via CI: version bump, changelog, commit, tag push → CI builds all platforms |
+| `make release` | Release via CI: version bump, AI-generated changelog, commit, tag push → CI builds all platforms |
 | `make build-deploy` | Alias for `make release` |
 
-The release flow: `make release` → tag push triggers GitHub Actions → builds macOS (ARM + x86), Windows, Linux → waits for manual approval → deploys to FTP + publishes GitHub Release.
+The release flow: `make release` → changelog generation tries Claude, then Codex, then OpenCode → if all CLIs fail, `.changelog-ai-prompt.md` is created for use in any AI chat and the generated bullet points can be pasted back into the terminal → tag push triggers GitHub Actions → builds macOS (ARM + x86), Windows, Linux → waits for manual approval → deploys to FTP + publishes GitHub Release.
 
 ### Using npm
 

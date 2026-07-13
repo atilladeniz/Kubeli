@@ -195,8 +195,8 @@ release: ## Release: version bump, changelog, commit, tag push → CI builds all
 	echo "$(CYAN)CI will now build macOS, Windows, and Linux.$(RESET)"; \
 	echo "$(CYAN)Watch progress: https://github.com/atilladeniz/Kubeli/actions$(RESET)"
 
-generate-changelog: ## Generate changelog using Claude Code CLI
-	@echo "$(CYAN)Generating changelog with Claude Code CLI...$(RESET)"
+generate-changelog: ## Generate changelog using Claude, Codex, or OpenCode CLI
+	@echo "$(CYAN)Generating changelog with AI CLI fallback (Claude → Codex → OpenCode)...$(RESET)"
 	@node scripts/generate-changelog.js
 	@if [ -f .release-notes.md ]; then \
 		echo "$(GREEN)✓ Changelog files updated$(RESET)"; \
