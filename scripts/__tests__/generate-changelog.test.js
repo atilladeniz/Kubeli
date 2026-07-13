@@ -68,11 +68,11 @@ describe('generateWithAiFallback', () => {
     expect(spawn).toHaveBeenCalledTimes(1);
     expect(spawn.mock.calls[0][1]).toEqual([
       '--print',
-      '--no-session-persistence',
       '--disable-slash-commands',
       '--tools',
       ''
     ]);
+    expect(spawn.mock.calls[0][2].env.CLAUDE_CODE_SKIP_PROMPT_HISTORY).toBe('1');
   });
 
   it('denies all OpenCode tools through its inline runtime config', () => {

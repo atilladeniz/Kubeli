@@ -136,11 +136,13 @@ const CHANGELOG_PROVIDERS = [
     command: 'claude',
     args: [
       '--print',
-      '--no-session-persistence',
       '--disable-slash-commands',
       '--tools',
       ''
     ],
+    env: {
+      CLAUDE_CODE_SKIP_PROMPT_HISTORY: '1'
+    },
     useStdin: true,
     parse: output => output
   },
