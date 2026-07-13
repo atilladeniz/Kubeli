@@ -50,12 +50,13 @@ make build
 | Command | Description |
 |---------|-------------|
 | `make release` | Release via CI: version bump, AI-generated changelog, commit, tag push → CI builds all platforms |
+| `make release-push` | Review and publish a prepared release after explicit terminal confirmation |
 | `make release-ai-dry-run` | Test Claude, Codex, and OpenCode release integration without changing release files |
 | `make release-changelog-dry-run` | Test the real Claude → Codex → OpenCode fallback chain without changing release files |
 | `make release-manual-dry-run` | Test the Markdown prompt and terminal paste fallback without changing release files |
 | `make build-deploy` | Alias for `make release` |
 
-The release flow: `make release` → changelog generation tries Claude, then Codex, then OpenCode → if all CLIs fail, `.changelog-ai-prompt.md` is created for use in any AI chat and the generated bullet points can be pasted back into the terminal → tag push triggers GitHub Actions → builds macOS (ARM + x86), Windows, Linux → waits for manual approval → deploys to FTP + publishes GitHub Release.
+The release flow: `make release` → changelog generation tries Claude, then Codex, then OpenCode → if all CLIs fail, `.changelog-ai-prompt.md` is created for use in any AI chat and the generated bullet points can be pasted back into the terminal → release files and notes are shown for review → pressing Enter confirms commit, push, and tag creation; any other input aborts → tag push triggers GitHub Actions → builds macOS (ARM + x86), Windows, Linux → waits for manual approval → deploys to FTP + publishes GitHub Release. After an abort, edit the prepared files and run `make release-push` to review and continue without another version bump.
 
 ### Using npm
 

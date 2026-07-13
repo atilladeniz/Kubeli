@@ -5,7 +5,7 @@
 .PHONY: dev web-dev tauri-dev
 .PHONY: build build-start web-build tauri-build build-universal dmg build-dmg build-universal-dmg build-all build-windows
 .PHONY: astro astro-build astro-public
-.PHONY: build-deploy release generate-changelog release-ai-dry-run release-changelog-dry-run release-manual-dry-run version-bump
+.PHONY: build-deploy release release-push generate-changelog release-ai-dry-run release-changelog-dry-run release-manual-dry-run version-bump
 .PHONY: lint format check rust-check rust-fmt rust-lint vet vet-install
 .PHONY: test test-watch test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust rust-test
 .PHONY: clean clean-all install reinstall install-windows-build-deps deps update-deps
@@ -194,7 +194,41 @@ release: ## Release: version bump, changelog, commit, tag push → CI builds all
 	@echo ""
 	@$(MAKE) generate-changelog
 	@echo ""
+	@$(MAKE) release-push
+
+release-push: ## Review and publish an already prepared release (requires confirmation)
 	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
+	if [ ! -f .release-notes.md ]; then \
+		echo "$(YELLOW)Error: .release-notes.md not found. Run 'make generate-changelog' first.$(RESET)"; \
+		exit 1; \
+	fi; \
+	if git rev-parse --verify "refs/tags/v$$VERSION" >/dev/null 2>&1; then \
+		echo "$(YELLOW)Error: tag v$$VERSION already exists.$(RESET)"; \
+		exit 1; \
+	fi; \
+	echo "$(CYAN)Release v$$VERSION is prepared for review.$(RESET)"; \
+	echo ""; \
+	echo "$(CYAN)Changed release files:$(RESET)"; \
+	git --no-pager diff --stat -- package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json src-tauri/gen/schemas/ CHANGELOG.md web/src/data/changelog.md .release-notes.md; \
+	echo ""; \
+	echo "$(CYAN)GitHub release notes preview:$(RESET)"; \
+	echo "$(YELLOW)----------------------------------------$(RESET)"; \
+	cat .release-notes.md; \
+	echo ""; \
+	echo "$(YELLOW)----------------------------------------$(RESET)"; \
+	echo "$(CYAN)Review or edit the files now. Nothing has been committed or pushed yet.$(RESET)"; \
+	printf "$(YELLOW)Press Enter to commit and push, or type anything to abort: $(RESET)"; \
+	if ! IFS= read -r approval; then \
+		echo ""; \
+		echo "$(YELLOW)No interactive confirmation received. Release aborted.$(RESET)"; \
+		exit 1; \
+	fi; \
+	if [ -n "$$approval" ]; then \
+		echo "$(YELLOW)Release aborted. Prepared files were left unchanged.$(RESET)"; \
+		echo "$(CYAN)After reviewing them, run 'make release-push' to continue.$(RESET)"; \
+		exit 1; \
+	fi; \
+	echo ""; \
 	echo "$(CYAN)Committing release...$(RESET)"; \
 	git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json src-tauri/gen/schemas/ CHANGELOG.md web/src/data/changelog.md .release-notes.md; \
 	git commit -m "chore(release): bump version to $$VERSION and update changelog"; \
