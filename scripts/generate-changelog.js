@@ -132,6 +132,7 @@ function parseJsonLines(output, getText) {
 
 const CHANGELOG_PROVIDERS = [
   {
+    id: 'claude',
     name: 'Claude Code',
     command: 'claude',
     args: [
@@ -147,6 +148,7 @@ const CHANGELOG_PROVIDERS = [
     parse: output => output
   },
   {
+    id: 'codex',
     name: 'Codex',
     command: 'codex',
     args: ['exec', '--json', '--sandbox', 'read-only', '--skip-git-repo-check', '--ephemeral', '-'],
@@ -159,6 +161,7 @@ const CHANGELOG_PROVIDERS = [
       )
   },
   {
+    id: 'opencode',
     name: 'OpenCode',
     command: 'opencode',
     args: prompt => ['run', '--pure', '--format', 'json', '--dir', os.tmpdir(), prompt],
@@ -181,21 +184,29 @@ function failureReason(result) {
   return 'returned no valid changelog items';
 }
 
+function invokeProvider(provider, prompt, spawn = spawnSync) {
+  const args = typeof provider.args === 'function' ? provider.args(prompt) : provider.args;
+  const result = spawn(provider.command, args, {
+    input: provider.useStdin ? prompt : undefined,
+    encoding: 'utf8',
+    timeout: 60000,
+    env: provider.env ? { ...process.env, ...provider.env } : process.env
+  });
+  const parsedOutput = result.status === 0
+    ? provider.parse(result.stdout?.trim() || '')
+    : '';
+
+  return {
+    changelogItems: extractMarkdownBullets(parsedOutput),
+    result
+  };
+}
+
 function generateWithAiFallback(prompt, spawn = spawnSync) {
   for (const provider of CHANGELOG_PROVIDERS) {
     log(CYAN, `Calling ${provider.name} CLI...`);
 
-    const args = typeof provider.args === 'function' ? provider.args(prompt) : provider.args;
-    const result = spawn(provider.command, args, {
-      input: provider.useStdin ? prompt : undefined,
-      encoding: 'utf8',
-      timeout: 60000,
-      env: provider.env ? { ...process.env, ...provider.env } : process.env
-    });
-    const parsedOutput = result.status === 0
-      ? provider.parse(result.stdout?.trim() || '')
-      : '';
-    const changelogItems = extractMarkdownBullets(parsedOutput);
+    const { changelogItems, result } = invokeProvider(provider, prompt, spawn);
 
     if (changelogItems) {
       log(GREEN, `Generated changelog with ${provider.name}.`);
@@ -206,6 +217,39 @@ function generateWithAiFallback(prompt, spawn = spawnSync) {
   }
 
   return { changelogItems: '', provider: null };
+}
+
+function dryRunProviders(providerId = '', spawn = spawnSync) {
+  const normalizedId = providerId.trim().toLowerCase();
+  const providers = normalizedId
+    ? CHANGELOG_PROVIDERS.filter(provider => provider.id === normalizedId)
+    : CHANGELOG_PROVIDERS;
+
+  if (providers.length === 0) {
+    throw new Error(
+      `Unknown provider "${providerId}". Use claude, codex, or opencode.`
+    );
+  }
+
+  log(CYAN, `Testing ${providers.map(provider => provider.name).join(', ')}...`);
+  console.log('No release or changelog files will be changed.\n');
+
+  const results = providers.map(provider => {
+    const prompt = `Return exactly this Markdown bullet and nothing else: - ${provider.name} provider OK`;
+    const invocation = invokeProvider(provider, prompt, spawn);
+    const passed = Boolean(invocation.changelogItems);
+
+    if (passed) {
+      log(GREEN, `✓ ${provider.name}: ${invocation.changelogItems}`);
+    } else {
+      log(YELLOW, `✗ ${provider.name}: ${failureReason(invocation.result)}`);
+    }
+
+    return { id: provider.id, passed };
+  });
+
+  console.log('');
+  return results;
 }
 
 async function main() {
@@ -313,7 +357,17 @@ ${changelogItems}
 }
 
 if (require.main === module) {
-  main().catch(error => {
+  const command = process.argv.includes('--dry-run')
+    ? Promise.resolve().then(() => {
+      const results = dryRunProviders(process.env.PROVIDER || '');
+      if (results.some(result => !result.passed)) {
+        throw new Error('One or more AI provider checks failed.');
+      }
+      log(GREEN, 'All selected AI provider checks passed.');
+    })
+    : main();
+
+  command.catch(error => {
     console.error(error);
     process.exitCode = 1;
   });
@@ -323,8 +377,10 @@ module.exports = {
   CHANGELOG_PROVIDERS,
   MANUAL_PROMPT_PATH,
   buildChangelogPrompt,
+  dryRunProviders,
   extractMarkdownBullets,
   generateWithAiFallback,
+  invokeProvider,
   parseJsonLines,
   readPastedResponse,
   requestManualChangelog

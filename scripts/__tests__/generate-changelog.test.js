@@ -3,6 +3,7 @@
 const {
   MANUAL_PROMPT_PATH,
   buildChangelogPrompt,
+  dryRunProviders,
   extractMarkdownBullets,
   generateWithAiFallback,
   readPastedResponse,
@@ -95,6 +96,60 @@ describe('generateWithAiFallback', () => {
   it('rejects non-bullet output so limit messages trigger fallback', () => {
     expect(extractMarkdownBullets('Usage limit reached')).toBe('');
     expect(extractMarkdownBullets('Here you go:\n- Added a feature\nThanks')).toBe('- Added a feature');
+  });
+});
+
+describe('dryRunProviders', () => {
+  let logSpy;
+
+  beforeEach(() => {
+    logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    logSpy.mockRestore();
+  });
+
+  it('checks all providers independently with their production parsers', () => {
+    const spawn = jest.fn(command => {
+      if (command === 'claude') return result({ stdout: '- Claude provider OK' });
+      if (command === 'codex') {
+        return result({
+          stdout: JSON.stringify({
+            type: 'item.completed',
+            item: { type: 'agent_message', text: '- Codex provider OK' }
+          })
+        });
+      }
+      return result({
+        stdout: JSON.stringify({
+          type: 'text',
+          part: { text: '- OpenCode provider OK' }
+        })
+      });
+    });
+
+    expect(dryRunProviders('', spawn)).toEqual([
+      { id: 'claude', passed: true },
+      { id: 'codex', passed: true },
+      { id: 'opencode', passed: true }
+    ]);
+    expect(spawn.mock.calls.map(call => call[0])).toEqual(['claude', 'codex', 'opencode']);
+  });
+
+  it('can test one provider and rejects unknown provider names', () => {
+    const spawn = jest.fn().mockReturnValue(result({
+      stdout: JSON.stringify({
+        type: 'item.completed',
+        item: { type: 'agent_message', text: '- Codex provider OK' }
+      })
+    }));
+
+    expect(dryRunProviders('codex', spawn)).toEqual([{ id: 'codex', passed: true }]);
+    expect(spawn).toHaveBeenCalledTimes(1);
+    expect(() => dryRunProviders('unknown', spawn)).toThrow(
+      'Unknown provider "unknown". Use claude, codex, or opencode.'
+    );
   });
 });
 

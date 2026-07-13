@@ -1,7 +1,7 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-setup-argocd minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup oidc-dev oidc-dev-stop astro astro-build astro-public build-deploy release generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build vet vet-install
+.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-setup-argocd minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup oidc-dev oidc-dev-stop astro astro-build astro-public build-deploy release generate-changelog release-ai-dry-run sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build vet vet-install
 
 # Default target
 .DEFAULT_GOAL := help
@@ -201,6 +201,10 @@ generate-changelog: ## Generate changelog using Claude, Codex, or OpenCode CLI
 	@if [ -f .release-notes.md ]; then \
 		echo "$(GREEN)✓ Changelog files updated$(RESET)"; \
 	fi
+
+release-ai-dry-run: ## Test release AI providers without changing release files (optional: PROVIDER=codex)
+	@echo "$(CYAN)Testing release AI providers (no release files will be changed)...$(RESET)"
+	@PROVIDER="$(PROVIDER)" node scripts/generate-changelog.js --dry-run
 
 ## Code Quality
 
