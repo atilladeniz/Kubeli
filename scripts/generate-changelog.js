@@ -29,11 +29,18 @@ function exec(cmd) {
 }
 
 function extractMarkdownBullets(output) {
-  return output
-    .split('\n')
-    .map(line => line.trim())
-    .filter(line => /^-\s+\S/.test(line))
-    .join('\n');
+  const bullets = [];
+
+  for (const line of output.split('\n')) {
+    const trimmed = line.trim();
+    if (/^-\s+\S/.test(trimmed)) {
+      bullets.push(trimmed);
+    } else if (bullets.length > 0 && /^\s+\S/.test(line)) {
+      bullets[bullets.length - 1] += ` ${trimmed}`;
+    }
+  }
+
+  return bullets.join('\n');
 }
 
 function buildChangelogPrompt(version, commits) {

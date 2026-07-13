@@ -99,6 +99,18 @@ describe('generateWithAiFallback', () => {
     expect(extractMarkdownBullets('Usage limit reached')).toBe('');
     expect(extractMarkdownBullets('Here you go:\n- Added a feature\nThanks')).toBe('- Added a feature');
   });
+
+  it('joins indented continuation lines from pasted chat output', () => {
+    const pasted = `  - Fixed memory leaks, race conditions, and error handling in the
+    frontend
+  - Virtualized resource tables, log viewers, and AI chat components to improve
+    rendering efficiency`;
+
+    expect(extractMarkdownBullets(pasted)).toBe(
+      '- Fixed memory leaks, race conditions, and error handling in the frontend\n' +
+      '- Virtualized resource tables, log viewers, and AI chat components to improve rendering efficiency'
+    );
+  });
 });
 
 describe('dryRunProviders', () => {
