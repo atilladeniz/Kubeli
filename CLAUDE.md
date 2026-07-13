@@ -313,10 +313,11 @@ Namespace (GroupNode)
 | File | Description |
 |------|-------------|
 | `src/components/features/visualization/ResourceDiagram.tsx` | Main diagram component |
+| `src/components/features/visualization/useDiagramLayout.ts` | Node conversion + layout orchestration (topology signature skips relayout when unchanged) |
 | `src/components/features/visualization/nodes/GroupNode.tsx` | Namespace/Deployment container node |
 | `src/components/features/visualization/nodes/ResourceNode.tsx` | Pod/resource node |
-| `src/lib/workers/layout-worker.ts` | ELK.js layout calculation |
-| `src/lib/hooks/useLayout.ts` | Layout hook with Web Worker |
+| `src/lib/workers/layout-worker.ts` | ELK.js layout calculation (real Web Worker) |
+| `src/lib/hooks/useLayout.ts` | Layout hook wrapping the worker (token-guarded requests) |
 | `src/lib/stores/diagram-store.ts` | Diagram state (Zustand) |
 
 ### Design Decisions
@@ -330,7 +331,7 @@ Namespace (GroupNode)
 
 ### Viewport Behavior
 
-- **defaultViewport**: `{ x: 50, y: 50, zoom: 0.55 }` - stable starting point
+- **defaultViewport**: `{ x: 90, y: 70, zoom: 0.7 }` - stable starting point
 - **No fitView on navigation**: Component uses defaultViewport when mounted
 - **No fitView on refresh**: Keeps current viewport position
 - **translateExtent**: Limits panning to node bounds + 500px padding

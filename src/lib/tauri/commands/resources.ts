@@ -244,10 +244,6 @@ export async function getPod(name: string, namespace: string): Promise<PodInfo> 
   return invoke<PodInfo>("get_pod", { name, namespace });
 }
 
-export async function deletePod(name: string, namespace: string): Promise<void> {
-  return invoke("delete_pod", { name, namespace });
-}
-
 export async function revealEnvVar(
   namespace: string,
   secretName: string,

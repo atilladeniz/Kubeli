@@ -151,7 +151,16 @@ impl KubeClientManager {
     /// Used by the MCP server (`mcp::server::McpServerState::connect_to_cluster`)
     /// where there is no UI to pick a specific context.
     pub async fn init(&self) -> Result<()> {
-        let parsed_config = ParsedKubeConfig::load().await?;
+        // Honor KUBECONFIG like `Config::infer()` below does: a setup where
+        // only the env var points at kubeconfigs has no ~/.kube/config, so
+        // loading just the default path would fail the whole init.
+        let parsed_config = match env::var("KUBECONFIG") {
+            Ok(env_val) if !env_val.is_empty() => {
+                let files: Vec<std::path::PathBuf> = env::split_paths(&env_val).collect();
+                ParsedKubeConfig::load_and_merge(&files, true).await?
+            }
+            _ => ParsedKubeConfig::load().await?,
+        };
         let current_ctx = parsed_config.current_context.clone();
 
         let mut config = Config::infer()
@@ -245,7 +254,7 @@ impl KubeClientManager {
 
         steps.push("Creating kube-rs config from kubeconfig context".into());
         let config = match Config::from_custom_kubeconfig(
-            kubeconfig.clone(),
+            kubeconfig,
             &KubeConfigOptions {
                 context: Some(context_name.to_string()),
                 cluster: None,

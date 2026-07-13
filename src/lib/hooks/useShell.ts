@@ -59,17 +59,16 @@ export function useShell(
         // Filter out init containers for shell
         const mainContainers = containerList.filter((c) => !c.startsWith("init:"));
         setContainers(mainContainers);
-        // Auto-select first container if none selected
-        if (mainContainers.length > 0 && !selectedContainer) {
-          setSelectedContainer(mainContainers[0]);
-        }
+        // Auto-select the first container only when nothing is selected yet -
+        // a refetch must not stomp the user's manual container choice.
+        setSelectedContainer((current) => current ?? mainContainers[0] ?? null);
       } catch (e) {
         console.error("Failed to fetch containers:", e);
       }
     };
 
     fetchContainers();
-  }, [namespace, podName, selectedContainer]);
+  }, [namespace, podName]);
 
   // Track mounted state
   useEffect(() => {
@@ -212,63 +211,5 @@ export function useShell(
     disconnect,
     sendInput,
     resize,
-  };
-}
-
-// Hook for managing multiple shell sessions
-export interface ShellSessionState {
-  id: string;
-  namespace: string;
-  podName: string;
-  container: string | null;
-  isConnected: boolean;
-  error: string | null;
-}
-
-export function useMultiShell() {
-  const [sessions, setSessions] = useState<Map<string, ShellSessionState>>(new Map());
-
-  const addSession = useCallback((id: string, namespace: string, podName: string, container?: string) => {
-    setSessions((prev) => {
-      const newMap = new Map(prev);
-      newMap.set(id, {
-        id,
-        namespace,
-        podName,
-        container: container || null,
-        isConnected: false,
-        error: null,
-      });
-      return newMap;
-    });
-  }, []);
-
-  const removeSession = useCallback((id: string) => {
-    setSessions((prev) => {
-      const newMap = new Map(prev);
-      newMap.delete(id);
-      return newMap;
-    });
-  }, []);
-
-  const updateSession = useCallback((id: string, updates: Partial<ShellSessionState>) => {
-    setSessions((prev) => {
-      const newMap = new Map(prev);
-      const session = newMap.get(id);
-      if (session) {
-        newMap.set(id, { ...session, ...updates });
-      }
-      return newMap;
-    });
-  }, []);
-
-  const getSession = useCallback((id: string) => sessions.get(id), [sessions]);
-
-  return {
-    sessions: Array.from(sessions.values()),
-    addSession,
-    removeSession,
-    updateSession,
-    getSession,
   };
 }

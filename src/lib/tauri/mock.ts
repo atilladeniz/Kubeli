@@ -241,11 +241,8 @@ export function mockInvoke(command: string, payload?: Record<string, unknown>) {
       return Promise.resolve(mockKubeconfigSourceInfos);
     case "add_kubeconfig_source":
     case "remove_kubeconfig_source":
-    case "set_kubeconfig_sources":
     case "set_kubeconfig_merge_mode":
       return Promise.resolve(mockKubeconfigSourcesConfig);
-    case "validate_kubeconfig_path":
-      return Promise.resolve(mockKubeconfigSourceInfos[0]);
     case "list_pods":
       return Promise.resolve(mockPods);
     case "generate_resource_graph":

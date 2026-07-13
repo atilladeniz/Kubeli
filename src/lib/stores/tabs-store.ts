@@ -69,40 +69,64 @@ function stripEphemeralMetadata(tabs: Tab[]): Tab[] {
   });
 }
 
-function persistTabs(tabs: Tab[], activeTabId: string) {
-  try {
-    const clusterContext = getClusterContext();
-    if (clusterContext) {
-      localStorage.setItem(
-        `kubeli:tabs:${clusterContext}`,
-        JSON.stringify({ tabs: stripEphemeralMetadata(tabs), activeTabId })
-      );
+// Read-through cache + debounced writes: rapid tab operations (open/close/
+// switch) update the cache synchronously and hit localStorage at most once
+// per PERSIST_DEBOUNCE_MS. Reads prefer the cache so pending writes are seen.
+const PERSIST_DEBOUNCE_MS = 300;
+const persistCache = new Map<string, string>();
+const dirtyKeys = new Set<string>();
+let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+function flushPersist() {
+  if (persistTimer) {
+    clearTimeout(persistTimer);
+    persistTimer = null;
+  }
+  for (const key of dirtyKeys) {
+    try {
+      const value = persistCache.get(key);
+      if (value !== undefined) localStorage.setItem(key, value);
+    } catch {
+      // localStorage may not be available
     }
-  } catch {
-    // localStorage may not be available
+  }
+  dirtyKeys.clear();
+}
+
+// Don't lose tab changes made within the debounce window right before quit
+if (typeof window !== "undefined") {
+  window.addEventListener("beforeunload", flushPersist);
+}
+
+function persistTabs(tabs: Tab[], activeTabId: string) {
+  const clusterContext = getClusterContext();
+  if (!clusterContext) return;
+  const key = `kubeli:tabs:${clusterContext}`;
+  persistCache.set(
+    key,
+    JSON.stringify({ tabs: stripEphemeralMetadata(tabs), activeTabId })
+  );
+  dirtyKeys.add(key);
+  if (!persistTimer) {
+    persistTimer = setTimeout(flushPersist, PERSIST_DEBOUNCE_MS);
   }
 }
+
+let cachedClusterContext: string | null | undefined;
 
 function getClusterContext(): string | null {
-  // Read from cluster store's state directly
+  if (cachedClusterContext !== undefined) return cachedClusterContext;
   try {
-    // Access the zustand store state directly
-    const storeState = JSON.parse(
+    cachedClusterContext = JSON.parse(
       localStorage.getItem("kubeli:last-cluster-context") || "null"
     );
-    return storeState;
   } catch {
-    return null;
+    cachedClusterContext = null;
   }
-}
-
-function syncActiveTabId(activeTabId: string) {
-  useLogStore.getState().setActiveTabId(activeTabId);
+  return cachedClusterContext ?? null;
 }
 
 export const useTabsStore = create<TabsState>((set, get) => {
-  syncActiveTabId(DEFAULT_TAB.id);
-
   return {
     tabs: [DEFAULT_TAB],
     activeTabId: DEFAULT_TAB.id,
@@ -128,7 +152,6 @@ export const useTabsStore = create<TabsState>((set, get) => {
 
       set({ tabs: newTabs, activeTabId: newTab.id });
       persistTabs(newTabs, newTab.id);
-      syncActiveTabId(newTab.id);
     },
 
     openOrActivateTab: (type, title, metadata, match) => {
@@ -137,7 +160,6 @@ export const useTabsStore = create<TabsState>((set, get) => {
       if (existing) {
         set({ activeTabId: existing.id });
         persistTabs(tabs, existing.id);
-        syncActiveTabId(existing.id);
         return existing.id;
       }
       if (tabs.length >= MAX_TABS) {
@@ -147,7 +169,6 @@ export const useTabsStore = create<TabsState>((set, get) => {
       const newTabs = [...tabs, newTab];
       set({ tabs: newTabs, activeTabId: newTab.id });
       persistTabs(newTabs, newTab.id);
-      syncActiveTabId(newTab.id);
       return newTab.id;
     },
 
@@ -170,7 +191,6 @@ export const useTabsStore = create<TabsState>((set, get) => {
       const { [id]: _af, ...restFilters } = activeFilters;
       set({ tabs: newTabs, activeTabId: newActiveId, searchQueries: restQueries, activeFilters: restFilters });
       persistTabs(newTabs, newActiveId);
-      syncActiveTabId(newActiveId);
 
       if (closedTab && isLogTab(closedTab.type)) {
         useLogStore.getState().cleanupLogTab(id);
@@ -188,7 +208,6 @@ export const useTabsStore = create<TabsState>((set, get) => {
       const keptFilters = id in activeFilters ? { [id]: activeFilters[id] } : {};
       set({ tabs: newTabs, activeTabId: id, searchQueries: keptQueries, activeFilters: keptFilters });
       persistTabs(newTabs, id);
-      syncActiveTabId(id);
 
       for (const t of removedTabs) {
         if (isLogTab(t.type)) {
@@ -214,7 +233,6 @@ export const useTabsStore = create<TabsState>((set, get) => {
       }
       set({ tabs: newTabs, activeTabId: newActiveId, searchQueries: newQueries, activeFilters: newFilters });
       persistTabs(newTabs, newActiveId);
-      syncActiveTabId(newActiveId);
 
       for (const t of removedTabs) {
         if (isLogTab(t.type)) {
@@ -228,7 +246,6 @@ export const useTabsStore = create<TabsState>((set, get) => {
       if (tabs.find((t) => t.id === id)) {
         set({ activeTabId: id });
         persistTabs(tabs, id);
-        syncActiveTabId(id);
       }
     },
 
@@ -258,17 +275,19 @@ export const useTabsStore = create<TabsState>((set, get) => {
     restoreTabs: (clusterContext: string) => {
       try {
         // Save context for persistence
+        cachedClusterContext = clusterContext;
         localStorage.setItem(
           "kubeli:last-cluster-context",
           JSON.stringify(clusterContext)
         );
 
-        const stored = localStorage.getItem(`kubeli:tabs:${clusterContext}`);
+        const key = `kubeli:tabs:${clusterContext}`;
+        const stored = persistCache.get(key) ?? localStorage.getItem(key);
         if (stored) {
+          persistCache.set(key, stored);
           const { tabs, activeTabId } = JSON.parse(stored);
           if (Array.isArray(tabs) && tabs.length > 0) {
             set({ tabs, activeTabId });
-            syncActiveTabId(activeTabId);
             return;
           }
         }
@@ -276,16 +295,20 @@ export const useTabsStore = create<TabsState>((set, get) => {
         // Fall through to default
       }
       set({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id });
-      syncActiveTabId(DEFAULT_TAB.id);
     },
 
     resetTabs: () => {
       const { tabs } = get();
       set({ tabs: [DEFAULT_TAB], activeTabId: DEFAULT_TAB.id, searchQueries: {}, activeFilters: {} });
-      syncActiveTabId(DEFAULT_TAB.id);
       try {
         const ctx = getClusterContext();
-        if (ctx) localStorage.removeItem(`kubeli:tabs:${ctx}`);
+        if (ctx) {
+          const key = `kubeli:tabs:${ctx}`;
+          // Drop any pending debounced write so it can't resurrect the key
+          persistCache.delete(key);
+          dirtyKeys.delete(key);
+          localStorage.removeItem(key);
+        }
       } catch {
         // ignore
       }

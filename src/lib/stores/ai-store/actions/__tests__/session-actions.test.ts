@@ -1,13 +1,11 @@
 jest.mock("../../../../tauri/commands", () => ({
   aiGetSystemPrompt: jest.fn(),
   aiInterrupt: jest.fn(),
-  aiListSessions: jest.fn(),
   aiSaveMessage: jest.fn(),
   aiSaveSession: jest.fn(),
   aiSendMessage: jest.fn(),
   aiStartSession: jest.fn(),
   aiStopSession: jest.fn(),
-  aiUpdateSessionTitle: jest.fn(),
 }));
 
 jest.mock("../../../ui-store", () => ({
@@ -28,13 +26,11 @@ jest.mock("../../helpers", () => {
 import {
   aiGetSystemPrompt,
   aiInterrupt,
-  aiListSessions,
   aiSaveMessage,
   aiSaveSession,
   aiSendMessage,
   aiStartSession,
   aiStopSession,
-  aiUpdateSessionTitle,
 } from "../../../../tauri/commands";
 import { useUIStore } from "../../../ui-store";
 import { buildFallbackSystemPrompt, generateId } from "../../helpers";
@@ -107,8 +103,6 @@ describe("createSessionActions", () => {
     (aiSendMessage as jest.Mock).mockResolvedValue(undefined);
     (aiInterrupt as jest.Mock).mockResolvedValue(undefined);
     (aiStopSession as jest.Mock).mockResolvedValue(undefined);
-    (aiListSessions as jest.Mock).mockResolvedValue([{ session_id: "s1" }]);
-    (aiUpdateSessionTitle as jest.Mock).mockResolvedValue(undefined);
   });
 
   it("starts a new session, creates a conversation, and persists the session", async () => {
@@ -427,7 +421,7 @@ describe("createSessionActions", () => {
     expect(aiInterrupt).not.toHaveBeenCalled();
   });
 
-  it("stops a session, removes the active conversation, and ignores stop errors", async () => {
+  it("stops a session, keeps the conversation history, and ignores stop errors", async () => {
     (aiStopSession as jest.Mock).mockRejectedValueOnce(new Error("stop failed"));
     const { state, actions } = createHarness({
       currentSessionId: "session-1",
@@ -449,12 +443,22 @@ describe("createSessionActions", () => {
     await actions.stopSession();
 
     expect(aiStopSession).toHaveBeenCalledWith("session-1");
-    expect(state.conversations).toEqual({});
+    // Stop ends the backend session but must not delete the chat history.
+    expect(state.conversations).toEqual({
+      prod: {
+        id: "conversation-1",
+        clusterContext: "prod",
+        messages: [],
+        createdAt: 1,
+        updatedAt: 1,
+      },
+    });
     expect(state.currentSessionId).toBeNull();
     expect(state.currentConversationId).toBeNull();
     expect(state.isSessionActive).toBe(false);
     expect(state.isStreaming).toBe(false);
     expect(state.isThinking).toBe(false);
+    expect(state.isInterrupted).toBe(true);
   });
 
   it("resets session state even when no conversation is active", async () => {
@@ -475,12 +479,9 @@ describe("createSessionActions", () => {
     expect(state.isThinking).toBe(false);
   });
 
-  it("refreshes sessions, loads saved sessions, and updates titles", async () => {
-    jest.spyOn(console, "error").mockImplementation(() => undefined);
+  it("loads saved sessions", () => {
     (generateId as jest.Mock).mockReturnValueOnce("conversation-2");
     const { state, actions } = createHarness();
-
-    await expect(actions.refreshSessions()).resolves.toEqual([{ session_id: "s1" }]);
 
     actions.loadSavedSession(
       "session-2",
@@ -514,15 +515,5 @@ describe("createSessionActions", () => {
     expect(state.conversations["kind-dev"].updatedAt).toBe(
       new Date("2026-03-07T10:01:00.000Z").getTime()
     );
-
-    await actions.updateSessionTitle("session-2", "Investigate cluster");
-    expect(aiUpdateSessionTitle).toHaveBeenCalledWith(
-      "session-2",
-      "Investigate cluster"
-    );
-
-    (aiUpdateSessionTitle as jest.Mock).mockRejectedValueOnce(new Error("title failed"));
-    await actions.updateSessionTitle("session-2", "Broken title");
-    expect(console.error).toHaveBeenCalled();
   });
 });

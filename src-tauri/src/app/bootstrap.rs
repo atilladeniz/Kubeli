@@ -40,15 +40,15 @@ pub fn initialize() -> Args {
 fn configure_linux_webview() {
     #[cfg(target_os = "linux")]
     {
+        // eprintln! instead of tracing: this runs before any tracing
+        // subscriber is installed, so tracing events would be dropped.
         if env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
             env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-            tracing::info!("Set WEBKIT_DISABLE_COMPOSITING_MODE=1 to prevent EGL display errors");
+            eprintln!("Set WEBKIT_DISABLE_COMPOSITING_MODE=1 to prevent EGL display errors");
         }
         if env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
             env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-            tracing::info!(
-                "Set WEBKIT_DISABLE_DMABUF_RENDERER=1 to prevent GBM EGL display errors"
-            );
+            eprintln!("Set WEBKIT_DISABLE_DMABUF_RENDERER=1 to prevent GBM EGL display errors");
         }
     }
 }
@@ -94,7 +94,9 @@ fn extend_path_with_common_cli_dirs() {
     if updated {
         if let Ok(joined) = env::join_paths(paths.clone()) {
             env::set_var("PATH", &joined);
-            tracing::info!("Extended PATH with common CLI directories to support exec auth");
+            // eprintln! instead of tracing: runs before any tracing
+            // subscriber is installed, so tracing events would be dropped.
+            eprintln!("Extended PATH with common CLI directories to support exec auth");
         }
     }
 }

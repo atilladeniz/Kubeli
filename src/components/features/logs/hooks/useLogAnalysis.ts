@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import type { LogEntry } from "@/lib/types";
 import { useAIStore } from "@/lib/stores/ai-store";
-import { useClusterStore } from "@/lib/stores/cluster-store";
+import { useClusterStore, selectCurrentNamespace } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { aiCheckCliAvailable, aiCheckCodexCliAvailable } from "@/lib/tauri/commands";
 import { getLogLevel, formatTimestamp } from "../lib";
@@ -39,7 +39,7 @@ export function useLogAnalysis({
 
   const setPendingAnalysis = useAIStore((s) => s.setPendingAnalysis);
   const currentCluster = useClusterStore((s) => s.currentCluster);
-  const currentNamespace = useClusterStore((s) => s.currentNamespace);
+  const currentNamespace = useClusterStore(selectCurrentNamespace);
   const setAIAssistantOpen = useUIStore((s) => s.setAIAssistantOpen);
 
   // Check AI CLI availability on mount

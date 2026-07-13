@@ -2,7 +2,7 @@
 
 import { useTranslations } from "next-intl";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { useClusterStore } from "@/lib/stores/cluster-store";
+import { useClusterStore, selectCurrentNamespace } from "@/lib/stores/cluster-store";
 import {
   usePods,
   useDeployments,
@@ -18,7 +18,7 @@ import { StatusRow } from "../components/StatusRow";
 
 export function WorkloadsOverview() {
   const t = useTranslations("workloads");
-  const currentNamespace = useClusterStore((s) => s.currentNamespace);
+  const currentNamespace = useClusterStore(selectCurrentNamespace);
   const { data: pods } = usePods();
   const { data: deployments } = useDeployments();
   const { data: replicaSets } = useReplicaSets();

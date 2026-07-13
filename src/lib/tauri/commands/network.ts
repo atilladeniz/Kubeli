@@ -25,10 +25,6 @@ export async function setProxyConfig(
   });
 }
 
-export async function getProxyConfig(): Promise<ProxyConfig> {
-  return invoke<ProxyConfig>("get_proxy_config");
-}
-
 /** Apply proxy settings from the persisted UI settings shape. */
 export async function applyProxyFromSettings(settings: {
   proxyType: string;

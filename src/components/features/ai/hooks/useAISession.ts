@@ -2,7 +2,7 @@
 
 import { useCallback, useRef } from "react";
 import { useAIStore } from "@/lib/stores/ai-store";
-import { useClusterStore } from "@/lib/stores/cluster-store";
+import { useClusterStore, selectCurrentNamespace } from "@/lib/stores/cluster-store";
 import type { ViewContext } from "./useViewContext";
 import { buildViewContextPrefix } from "../utils/buildViewContextPrefix";
 
@@ -26,7 +26,7 @@ export function useAISession(options: UseAISessionOptions = {}) {
   const setError = useAIStore((s) => s.setError);
 
   const currentCluster = useClusterStore((s) => s.currentCluster);
-  const currentNamespace = useClusterStore((s) => s.currentNamespace);
+  const currentNamespace = useClusterStore(selectCurrentNamespace);
 
   const handleSend = useCallback(
     async (input: string) => {

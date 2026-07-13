@@ -5,8 +5,6 @@ import type {
 } from "./types";
 import type { MessageRecord } from "../../tauri/commands";
 
-export const STORE_NAME = "kubeli-ai-store";
-
 export const generateId = () =>
   `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 
@@ -33,14 +31,6 @@ export function findConversationById(
   return Object.values(conversations).find((conversation) => {
     return conversation.id === currentConversationId;
   });
-}
-
-export function removeConversationByClusterContext(
-  conversations: Record<string, Conversation>,
-  clusterContext: string
-): Record<string, Conversation> {
-  const { [clusterContext]: _removed, ...rest } = conversations;
-  return rest;
 }
 
 export function finalizeStreamingMessage(

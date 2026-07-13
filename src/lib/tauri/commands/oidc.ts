@@ -24,13 +24,3 @@ export async function oidcHandleCallback(
 ): Promise<OidcAuthResult> {
   return invoke<OidcAuthResult>("oidc_handle_callback", { code, state });
 }
-
-export async function oidcGetTokenStatus(
-  issuerUrl: string,
-  clientId: string
-): Promise<OidcAuthResult> {
-  return invoke<OidcAuthResult>("oidc_get_token_status", {
-    issuerUrl,
-    clientId,
-  });
-}

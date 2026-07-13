@@ -39,10 +39,8 @@ function defaultLogTabState(): LogTabState {
 }
 
 interface LogStoreState {
-  activeTabId: string | null;
   logTabs: Record<string, LogTabState>;
 
-  setActiveTabId(tabId: string | null): void;
   initLogTab(tabId: string, ns: string, pod: string): Promise<void>;
   startStream(
     tabId: string,
@@ -199,12 +197,7 @@ function scheduleFlush(tabId: string, set: (fn: (s: LogStoreState) => Partial<Lo
 }
 
 export const useLogStore = create<LogStoreState>((set, get) => ({
-  activeTabId: null,
   logTabs: {},
-
-  setActiveTabId(tabId) {
-    set({ activeTabId: tabId });
-  },
 
   async initLogTab(tabId, ns, pod) {
     // No-op if tab already exists (re-mount)

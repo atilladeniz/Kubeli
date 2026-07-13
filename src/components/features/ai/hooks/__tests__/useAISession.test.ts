@@ -4,9 +4,12 @@ import { useAIStore } from "@/lib/stores/ai-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import type { ExtractState } from "zustand";
 
-// Mock the stores
+// Mock the stores (keep the real pure selectors from cluster-store)
 jest.mock("@/lib/stores/ai-store");
-jest.mock("@/lib/stores/cluster-store");
+jest.mock("@/lib/stores/cluster-store", () => ({
+  ...jest.requireActual("@/lib/stores/cluster-store"),
+  useClusterStore: jest.fn(),
+}));
 
 const mockUseAIStore = useAIStore as jest.MockedFunction<typeof useAIStore>;
 const mockUseClusterStore = useClusterStore as jest.MockedFunction<typeof useClusterStore>;
@@ -40,7 +43,7 @@ describe("useAISession", () => {
 
     setClusterStoreState({
       currentCluster: { context: "test-cluster" },
-      currentNamespace: "default",
+      selectedNamespaces: ["default"],
     });
   });
 
@@ -58,7 +61,7 @@ describe("useAISession", () => {
   it("returns canSend as false when no cluster", () => {
     setClusterStoreState({
       currentCluster: null,
-      currentNamespace: null,
+      selectedNamespaces: [],
     });
 
     const { result } = renderHook(() => useAISession());
