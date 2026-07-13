@@ -1,7 +1,20 @@
 # Kubeli - Kubernetes Management Desktop App
 # Makefile for common development tasks
 
-.PHONY: dev build build-start build-all clean install install-windows-build-deps build-windows test test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust lint format check tauri-dev tauri-build web-dev dmg build-dmg build-universal minikube-start minikube-stop minikube-status minikube-setup-samples minikube-setup-flux minikube-setup-argocd minikube-clean-samples minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale minikube-serve kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-cleanup oidc-dev oidc-dev-stop astro astro-build astro-public build-deploy release generate-changelog sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep screenshots screenshot-setup screenshot-build vet vet-install
+.PHONY: help
+.PHONY: dev web-dev tauri-dev
+.PHONY: build build-start web-build tauri-build build-universal dmg build-dmg build-universal-dmg build-all build-windows
+.PHONY: astro astro-build astro-public
+.PHONY: build-deploy release release-push generate-changelog release-ai-dry-run release-changelog-dry-run release-manual-dry-run version-bump
+.PHONY: lint format check rust-check rust-fmt rust-lint vet vet-install
+.PHONY: test test-watch test-all test-e2e test-coverage test-coverage-frontend test-coverage-rust rust-test
+.PHONY: clean clean-all install reinstall install-windows-build-deps deps update-deps
+.PHONY: minikube-start minikube-stop minikube-status minikube-serve minikube-setup-samples minikube-clean-samples minikube-setup-flux minikube-setup-argocd minikube-setup-helm
+.PHONY: minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale
+.PHONY: kubeconfig-setup-samples kubeconfig-clean-samples kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-same-user kubeconfig-cleanup
+.PHONY: k8s-pods k8s-services k8s-namespaces oidc-dev oidc-dev-stop
+.PHONY: sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
+.PHONY: screenshots screenshot-setup screenshot-build
 
 # Default target
 .DEFAULT_GOAL := help
@@ -172,7 +185,7 @@ astro-public: astro-build ## Build and deploy landing page to FTP
 	done; \
 	echo "$(GREEN)✓ Landing page deployed to https://$$DEPLOY_LANDING_URL$(RESET)"
 
-## Deployment
+## Release & Deployment
 
 build-deploy: release ## Release via CI (version bump, changelog, commit, tag, push)
 
@@ -181,7 +194,41 @@ release: ## Release: version bump, changelog, commit, tag push → CI builds all
 	@echo ""
 	@$(MAKE) generate-changelog
 	@echo ""
+	@$(MAKE) release-push
+
+release-push: ## Review and publish an already prepared release (requires confirmation)
 	@VERSION=$$(node -e "console.log(require('./package.json').version)"); \
+	if [ ! -f .release-notes.md ]; then \
+		echo "$(YELLOW)Error: .release-notes.md not found. Run 'make generate-changelog' first.$(RESET)"; \
+		exit 1; \
+	fi; \
+	if git rev-parse --verify "refs/tags/v$$VERSION" >/dev/null 2>&1; then \
+		echo "$(YELLOW)Error: tag v$$VERSION already exists.$(RESET)"; \
+		exit 1; \
+	fi; \
+	echo "$(CYAN)Release v$$VERSION is prepared for review.$(RESET)"; \
+	echo ""; \
+	echo "$(CYAN)Changed release files:$(RESET)"; \
+	git --no-pager diff --stat -- package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json src-tauri/gen/schemas/ CHANGELOG.md web/src/data/changelog.md .release-notes.md; \
+	echo ""; \
+	echo "$(CYAN)GitHub release notes preview:$(RESET)"; \
+	echo "$(YELLOW)----------------------------------------$(RESET)"; \
+	cat .release-notes.md; \
+	echo ""; \
+	echo "$(YELLOW)----------------------------------------$(RESET)"; \
+	echo "$(CYAN)Review or edit the files now. Nothing has been committed or pushed yet.$(RESET)"; \
+	printf "$(YELLOW)Press Enter to commit and push, or type anything to abort: $(RESET)"; \
+	if ! IFS= read -r approval; then \
+		echo ""; \
+		echo "$(YELLOW)No interactive confirmation received. Release aborted.$(RESET)"; \
+		exit 1; \
+	fi; \
+	if [ -n "$$approval" ]; then \
+		echo "$(YELLOW)Release aborted. Prepared files were left unchanged.$(RESET)"; \
+		echo "$(CYAN)After reviewing them, run 'make release-push' to continue.$(RESET)"; \
+		exit 1; \
+	fi; \
+	echo ""; \
 	echo "$(CYAN)Committing release...$(RESET)"; \
 	git add package.json package-lock.json src-tauri/Cargo.toml src-tauri/Cargo.lock src-tauri/tauri.conf.json src-tauri/gen/schemas/ CHANGELOG.md web/src/data/changelog.md .release-notes.md; \
 	git commit -m "chore(release): bump version to $$VERSION and update changelog"; \
@@ -195,12 +242,24 @@ release: ## Release: version bump, changelog, commit, tag push → CI builds all
 	echo "$(CYAN)CI will now build macOS, Windows, and Linux.$(RESET)"; \
 	echo "$(CYAN)Watch progress: https://github.com/atilladeniz/Kubeli/actions$(RESET)"
 
-generate-changelog: ## Generate changelog using Claude Code CLI
-	@echo "$(CYAN)Generating changelog with Claude Code CLI...$(RESET)"
+generate-changelog: ## Generate changelog using Claude, Codex, or OpenCode CLI
+	@echo "$(CYAN)Generating changelog with AI CLI fallback (Claude → Codex → OpenCode)...$(RESET)"
 	@node scripts/generate-changelog.js
 	@if [ -f .release-notes.md ]; then \
 		echo "$(GREEN)✓ Changelog files updated$(RESET)"; \
 	fi
+
+release-ai-dry-run: ## Test release AI providers without changing release files (optional: PROVIDER=codex)
+	@echo "$(CYAN)Testing release AI providers (no release files will be changed)...$(RESET)"
+	@PROVIDER="$(PROVIDER)" node scripts/generate-changelog.js --dry-run
+
+release-changelog-dry-run: ## Test the Claude → Codex → OpenCode fallback chain without changing release files
+	@echo "$(CYAN)Testing the release changelog fallback chain...$(RESET)"
+	@node scripts/generate-changelog.js --fallback-dry-run
+
+release-manual-dry-run: ## Test the manual Markdown copy/paste fallback without changing release files
+	@echo "$(CYAN)Testing the manual Markdown changelog fallback...$(RESET)"
+	@node scripts/generate-changelog.js --manual-dry-run
 
 ## Code Quality
 
@@ -270,7 +329,7 @@ clean-all: clean ## Deep clean including node_modules
 	rm -rf node_modules
 	rm -rf src-tauri/target
 
-## Installation
+## Installation & Windows Builds
 
 install: ## Install all dependencies
 	npm install
@@ -584,7 +643,7 @@ oidc-dev: ## Start local OIDC stack (HTTPS Dex + minikube that trusts it) to tes
 oidc-dev-stop: ## Tear down the local OIDC stack (Dex + minikube profile + context)
 	@./scripts/oidc-dev.sh down
 
-## Security / SBOM
+## Software Bill of Materials (SBOM)
 
 sbom-npm: ## Generate npm SBOM (CycloneDX JSON)
 	npm run sbom:npm
@@ -619,7 +678,7 @@ security-semgrep: ## Run Semgrep SAST scan (requires Docker)
 	docker run --rm --platform linux/amd64 -v $(PWD):/src semgrep/semgrep:1.112.0 semgrep scan --config p/default --config p/secrets --config p/typescript --config p/react --config p/rust --config /src/.semgrep.yaml --metrics off
 	@echo "$(GREEN)✓ Semgrep scan completed$(RESET)"
 
-## Utilities
+## Versioning & Dependencies
 
 version-bump: ## Bump version interactively (or use TYPE=patch|minor|major)
 	@TYPE="$(TYPE)"; \
@@ -738,4 +797,10 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(YELLOW)Usage:$(RESET) make [target]"
 	@echo ""
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-15s$(RESET) %s\n", $$1, $$2}'
+	@awk '\
+		/^## / { printf "\n$(YELLOW)%s$(RESET)\n", substr($$0, 4); next } \
+		/^[a-zA-Z0-9_-]+:.*## / { \
+			target = $$0; sub(/:.*/, "", target); \
+			description = $$0; sub(/^.*## /, "", description); \
+			printf "  $(GREEN)%-28s$(RESET) %s\n", target, description \
+		}' $(MAKEFILE_LIST)

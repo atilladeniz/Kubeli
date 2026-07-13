@@ -58,6 +58,7 @@ yarn-error.log*
 # Task management (local)
 .taskmaster/
 .release-notes.md
+.changelog-ai-prompt.md
 
 # Test coverage
 coverage/
