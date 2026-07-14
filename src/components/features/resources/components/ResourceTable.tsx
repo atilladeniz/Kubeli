@@ -224,13 +224,11 @@ export function ResourceTable<T>({
   const columnCount = columns.length + (hasBulkActions ? 1 : 0);
 
   return (
-    // overflow-y-scroll + stable gutter: the vertical scrollbar is always
-    // reserved, so fast virtual-row swaps can't toggle it on/off and reflow
-    // the table width sideways (the "zigzag" shift).
-    <div
-      ref={scrollRef}
-      className="h-full overflow-y-scroll overflow-x-auto [scrollbar-gutter:stable]"
-    >
+    // overflow-y-scroll (not auto): the custom 10px WebKit scrollbar is classic,
+    // so letting it appear/disappear during virtual-row swaps reflows the table
+    // sideways. Always showing it keeps the width stable with no reserved gap
+    // beyond the scrollbar itself.
+    <div ref={scrollRef} className="h-full overflow-x-auto overflow-y-scroll">
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
