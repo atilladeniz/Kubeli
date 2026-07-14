@@ -7,7 +7,7 @@ use k8s_openapi::api::core::v1::{Event, Namespace, Pod, Service};
 use kube::api::{Api, ListParams, LogParams};
 use kube::ResourceExt;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, Implementation, InitializeRequestParams,
+    CallToolRequestParams, CallToolResult, ContentBlock, Implementation, InitializeRequestParams,
     InitializeResult, ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo,
     Tool, ToolAnnotations,
 };
@@ -1104,8 +1104,8 @@ impl ServerHandler for KubeliMcpServer {
         };
 
         match result {
-            Ok(text) => Ok(CallToolResult::success(vec![Content::text(text)])),
-            Err(e) => Ok(CallToolResult::error(vec![Content::text(format!(
+            Ok(text) => Ok(CallToolResult::success(vec![ContentBlock::text(text)])),
+            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
                 "Error: {}",
                 e
             ))])),
