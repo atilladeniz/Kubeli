@@ -36,13 +36,19 @@ export function MenuProximityHighlight({
     if (!parent) return;
 
     const moveTo = (target: HTMLElement) => {
-      const p = parent.getBoundingClientRect();
-      const r = target.getBoundingClientRect();
+      // Use layout-relative offsets (offsetTop/Left), not getBoundingClientRect
+      // deltas: Radix's item-aligned viewport applies a scroll transform, which
+      // would otherwise double-count and throw the highlight to a stale spot on
+      // click/close (the "flash to nowhere" glitch).
+      if (target.offsetParent !== parent) {
+        setVisible(false);
+        return;
+      }
       setRect({
-        top: r.top - p.top + parent.scrollTop,
-        left: r.left - p.left + parent.scrollLeft,
-        width: r.width,
-        height: r.height,
+        top: target.offsetTop,
+        left: target.offsetLeft,
+        width: target.offsetWidth,
+        height: target.offsetHeight,
       });
       setVisible(true);
     };

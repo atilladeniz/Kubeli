@@ -224,7 +224,13 @@ export function ResourceTable<T>({
   const columnCount = columns.length + (hasBulkActions ? 1 : 0);
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto">
+    // overflow-y-scroll + stable gutter: the vertical scrollbar is always
+    // reserved, so fast virtual-row swaps can't toggle it on/off and reflow
+    // the table width sideways (the "zigzag" shift).
+    <div
+      ref={scrollRef}
+      className="h-full overflow-y-scroll overflow-x-auto [scrollbar-gutter:stable]"
+    >
       <Table>
         <TableHeader className="sticky top-0 z-10 bg-background">
           <TableRow>
