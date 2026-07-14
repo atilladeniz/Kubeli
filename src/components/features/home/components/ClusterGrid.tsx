@@ -29,6 +29,10 @@ import { ConnectionErrorAlert } from "./ConnectionErrorAlert";
 import { ClusterGridCard } from "./ClusterGridCard";
 import { ClusterListCard } from "./ClusterListCard";
 import { ConfigureNamespacesDialog } from "./ConfigureNamespacesDialog";
+import {
+  ProximityHoverGroup,
+  ProximityHoverItem,
+} from "@/lib/proximity-hover";
 
 export function ClusterGrid() {
   const t = useTranslations("cluster");
@@ -276,11 +280,12 @@ export function ClusterGrid() {
             </EmptyHeader>
           </Empty>
         ) : (
-          <div
+          <ProximityHoverGroup
+            radius={viewLayout === "grid" ? "0" : "0.75rem"}
             className={
               viewLayout === "grid"
                 ? "grid gap-3 md:grid-cols-2 lg:grid-cols-3"
-                : "overflow-hidden rounded-lg border"
+                : "bg-surface-2 shadow-surface-3 border-surface-border overflow-hidden rounded-xl border"
             }
           >
             {filteredClusters.map((cluster) => {
@@ -303,12 +308,14 @@ export function ClusterGrid() {
                 hasConfiguredNamespaces: nsDialog.configuredContexts.has(cluster.context),
               };
               return viewLayout === "list" ? (
-                <ClusterListCard key={cluster.id} {...cardProps} />
+                <ProximityHoverItem key={cluster.id}>
+                  <ClusterListCard {...cardProps} />
+                </ProximityHoverItem>
               ) : (
                 <ClusterGridCard key={cluster.id} {...cardProps} />
               );
             })}
-          </div>
+          </ProximityHoverGroup>
         )}
       </div>
 

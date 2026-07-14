@@ -5,6 +5,110 @@
 @custom-variant dark (&:is(.dark *));
 @custom-variant classic-dark (&:is(.classic-dark *));
 
+/* ============================================
+   Elevation / Surface system
+   (fluidfunctionalism.com/docs/surfaces)
+
+   Each surface level has a bg + shadow pair. Containers read their own
+   substrate level from React context and re-provide level+offset to
+   descendants, so an overlay opened inside a dialog lands one step lighter
+   than the dialog — without any props passed between them.
+
+   Light mode: bg flattens to white after ~level 2; shadow alone carries
+   elevation. Dark mode: progressively lighter bg + a layered shadow recipe.
+   ============================================ */
+@layer base {
+  :root {
+    /* Light — bg flattens quickly, shadow grows */
+    --surface-1: #f5f5f5;
+    --surface-2: #fcfcfc;
+    --surface-3: #ffffff;
+    --surface-4: #ffffff;
+    --surface-5: #ffffff;
+    --surface-6: #ffffff;
+    --surface-7: #ffffff;
+    --surface-8: #ffffff;
+
+    --surface-shadow-1: none;
+    --surface-shadow-2: 0 1px 2px oklch(0 0 0 / 5%);
+    --surface-shadow-3: 0 1px 3px oklch(0 0 0 / 6%);
+    --surface-shadow-4: 0 3px 8px oklch(0 0 0 / 7%), 0 1px 2px oklch(0 0 0 / 5%);
+    --surface-shadow-5: 0 5px 14px oklch(0 0 0 / 8%), 0 2px 4px oklch(0 0 0 / 5%);
+    --surface-shadow-6: 0 8px 20px oklch(0 0 0 / 9%), 0 3px 6px oklch(0 0 0 / 6%);
+    --surface-shadow-7: 0 11px 26px oklch(0 0 0 / 10%), 0 4px 8px oklch(0 0 0 / 6%);
+    --surface-shadow-8: 0 16px 34px oklch(0 0 0 / 11%), 0 5px 10px oklch(0 0 0 / 7%);
+
+    /* Interaction deltas (added on top of the surface bg) */
+    --surface-hover: oklch(0 0 0 / 4%);
+    --surface-selected: oklch(0 0 0 / 7%);
+    --surface-border: oklch(0 0 0 / 8%);
+
+    /* Brand highlight (buttons, active states) */
+    --brand: #3b82f6;
+    --brand-hover: #2f74e6;
+    --brand-active: #2864cc;
+    --brand-foreground: #ffffff;
+  }
+
+  .dark {
+    --surface-1: #1f1f1f;
+    --surface-2: #262626;
+    --surface-3: #2e2e2e;
+    --surface-4: #363636;
+    --surface-5: #3d3d3d;
+    --surface-6: #444444;
+    --surface-7: #4b4b4b;
+    --surface-8: #525252;
+
+    --surface-shadow-1: none;
+    --surface-shadow-2: 0 1px 2px oklch(0 0 0 / 18%);
+    --surface-shadow-3: 0 1px 3px oklch(0 0 0 / 22%);
+    --surface-shadow-4: 0 3px 8px oklch(0 0 0 / 26%), 0 1px 2px oklch(0 0 0 / 18%);
+    --surface-shadow-5: 0 5px 14px oklch(0 0 0 / 30%), 0 2px 4px oklch(0 0 0 / 20%);
+    --surface-shadow-6: 0 8px 20px oklch(0 0 0 / 32%), 0 3px 6px oklch(0 0 0 / 22%);
+    --surface-shadow-7: 0 11px 26px oklch(0 0 0 / 34%), 0 4px 8px oklch(0 0 0 / 22%);
+    --surface-shadow-8: 0 16px 34px oklch(0 0 0 / 36%), 0 5px 10px oklch(0 0 0 / 24%);
+
+    --surface-hover: oklch(1 0 0 / 6%);
+    --surface-selected: oklch(1 0 0 / 10%);
+    --surface-border: oklch(1 0 0 / 10%);
+
+    --brand: #4b8ef7;
+    --brand-hover: #5c9bf9;
+    --brand-active: #3f7fe0;
+    --brand-foreground: #ffffff;
+  }
+
+  .classic-dark {
+    --surface-1: #191a22;
+    --surface-2: #1e1f28;
+    --surface-3: #24252f;
+    --surface-4: #2a2b38;
+    --surface-5: #303240;
+    --surface-6: #363848;
+    --surface-7: #3c3e50;
+    --surface-8: #424458;
+
+    --surface-shadow-1: none;
+    --surface-shadow-2: 0 1px 2px oklch(0 0 0 / 20%);
+    --surface-shadow-3: 0 1px 3px oklch(0 0 0 / 24%);
+    --surface-shadow-4: 0 3px 8px oklch(0 0 0 / 28%), 0 1px 2px oklch(0 0 0 / 20%);
+    --surface-shadow-5: 0 5px 14px oklch(0 0 0 / 32%), 0 2px 4px oklch(0 0 0 / 22%);
+    --surface-shadow-6: 0 8px 20px oklch(0 0 0 / 34%), 0 3px 6px oklch(0 0 0 / 24%);
+    --surface-shadow-7: 0 11px 26px oklch(0 0 0 / 36%), 0 4px 8px oklch(0 0 0 / 24%);
+    --surface-shadow-8: 0 16px 34px oklch(0 0 0 / 38%), 0 5px 10px oklch(0 0 0 / 26%);
+
+    --surface-hover: oklch(1 0 0 / 5%);
+    --surface-selected: oklch(1 0 0 / 9%);
+    --surface-border: oklch(1 0 0 / 9%);
+
+    --brand: #5b8def;
+    --brand-hover: #6c9bf3;
+    --brand-active: #4f7fdc;
+    --brand-foreground: #ffffff;
+  }
+}
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -39,6 +143,27 @@
   --color-popover: var(--popover);
   --color-card-foreground: var(--card-foreground);
   --color-card: var(--card);
+  --color-surface-1: var(--surface-1);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-surface-4: var(--surface-4);
+  --color-surface-5: var(--surface-5);
+  --color-surface-6: var(--surface-6);
+  --color-surface-7: var(--surface-7);
+  --color-surface-8: var(--surface-8);
+  --color-surface-border: var(--surface-border);
+  --color-brand: var(--brand);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-active: var(--brand-active);
+  --color-brand-foreground: var(--brand-foreground);
+  --shadow-surface-1: var(--surface-shadow-1);
+  --shadow-surface-2: var(--surface-shadow-2);
+  --shadow-surface-3: var(--surface-shadow-3);
+  --shadow-surface-4: var(--surface-shadow-4);
+  --shadow-surface-5: var(--surface-shadow-5);
+  --shadow-surface-6: var(--surface-shadow-6);
+  --shadow-surface-7: var(--surface-shadow-7);
+  --shadow-surface-8: var(--surface-shadow-8);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -163,6 +288,27 @@
   }
   body {
     @apply text-foreground;
+  }
+}
+
+/* Page-shell enter: fade in + a small slide from y:-2, for tab-panel content.
+   Deliberately minimal so switching tabs feels snappy, not floaty. */
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.page-enter {
+  animation: page-enter 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none;
   }
 }
 
@@ -400,23 +546,20 @@ html.tray-popup #root {
   }
 }
 
-/* Toast notifications - near-opaque regardless of vibrancy level */
-:is(.vibrancy-standard, .vibrancy-more, .vibrancy-extra) {
-  & [data-sonner-toast] {
-    backdrop-filter: blur(20px) saturate(1.3);
-    -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  }
-
+/* Toast notifications - fully opaque regardless of vibrancy level.
+   No backdrop blur: a toast floats above content and must stay legible, so
+   it reads as a solid raised surface rather than a translucent pane. */
+:is(.vibrancy-off, .vibrancy-standard, .vibrancy-more, .vibrancy-extra) {
   &:not(.dark):not(.classic-dark) [data-sonner-toast] {
-    background: rgba(252, 252, 252, 0.9) !important;
+    background: #ffffff !important;
   }
 
   &.dark [data-sonner-toast] {
-    background: rgba(42, 42, 42, 0.9) !important;
+    background: #2e2e2e !important;
   }
 
   &.classic-dark [data-sonner-toast] {
-    background: rgba(30, 31, 40, 0.9) !important;
+    background: #24252f !important;
   }
 }
 
@@ -570,6 +713,20 @@ summary *,
 .cursor-not-allowed,
 .cursor-not-allowed * {
   cursor: not-allowed !important;
+}
+
+/* No rubber-band / bounce on internal scroll areas — the elastic overscroll
+   makes tables and panels feel loose. Contain it so only the content scrolls. */
+html,
+body {
+  overscroll-behavior: none;
+}
+[data-slot="table-container"],
+.overflow-auto,
+.overflow-y-auto,
+.overflow-x-auto,
+[data-radix-scroll-area-viewport] {
+  overscroll-behavior: contain;
 }
 
 /* Hide scrollbar utility */

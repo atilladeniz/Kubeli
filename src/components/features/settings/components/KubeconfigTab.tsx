@@ -243,8 +243,8 @@ export function KubeconfigTab() {
                 if (e.key === "Enter") handleAddManualPath();
               }}
             />
-            <Button size="sm" onClick={handleAddManualPath}>
-              <Plus className="h-3.5 w-3.5" />
+            <Button onClick={handleAddManualPath}>
+              <Plus className="h-4 w-4" />
               {t("kubeconfig.sources.add")}
             </Button>
           </div>
