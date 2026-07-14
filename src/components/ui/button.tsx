@@ -15,7 +15,7 @@ const buttonVariants = cva(
         default:
           "bg-brand text-brand-foreground bg-[linear-gradient(to_bottom,rgba(255,255,255,0.22),rgba(255,255,255,0)_45%,rgba(0,0,0,0.12))] shadow-[0_1px_2px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.28)] hover:bg-brand-hover active:bg-brand-active active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.18)] disabled:shadow-none",
         destructive:
-          "bg-destructive text-white shadow-[0_1px_2px_rgba(0,0,0,0.12),inset_0_1px_0_rgba(255,255,255,0.12)] hover:bg-destructive/90 active:bg-destructive/95 focus-visible:ring-destructive/30 dark:focus-visible:ring-destructive/40 dark:bg-destructive/70 disabled:shadow-none",
+          "bg-destructive text-white bg-[linear-gradient(to_bottom,rgba(255,255,255,0.22),rgba(255,255,255,0)_45%,rgba(0,0,0,0.12))] shadow-[0_1px_2px_rgba(0,0,0,0.18),inset_0_1px_0_rgba(255,255,255,0.25)] hover:bg-destructive/90 active:shadow-[inset_0_1px_2px_rgba(0,0,0,0.18)] focus-visible:ring-destructive/30 dark:focus-visible:ring-destructive/40 dark:bg-destructive/80 disabled:shadow-none",
         outline:
           "border border-black/12 dark:border-white/14 bg-surface-2 text-foreground shadow-xs hover:bg-[var(--surface-hover)] active:bg-[var(--surface-selected)]",
         secondary:
