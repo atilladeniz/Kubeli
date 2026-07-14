@@ -59,9 +59,10 @@ export function DiagramToolbar({
 
       <Button
         variant="outline"
-        size="sm"
+        size="icon"
         onClick={onRefresh}
         disabled={isLoading || isCalculating}
+        aria-label={tCommon("refresh")}
       >
         <RefreshCw
           className={cn(
