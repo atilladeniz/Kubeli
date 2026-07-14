@@ -5,6 +5,11 @@ export interface Column<T> {
   render?: (item: T) => React.ReactNode;
   width?: string;
   /**
+   * Skip the truncation applied to fixed-width cells. Use for cells whose
+   * content must never be clipped (e.g. action buttons, badges).
+   */
+  noTruncate?: boolean;
+  /**
    * Text used by the search filter for this column. Needed for columns whose
    * underlying value is an object (which would stringify to "[object Object]").
    */

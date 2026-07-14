@@ -154,7 +154,11 @@ function ResourceTableRowInner<T>({
       {columns.map((column) => (
         <TableCell
           key={String(column.key)}
-          className={cn("text-sm", column.width, isFixed && "truncate")}
+          className={cn(
+            "text-sm",
+            column.width,
+            isFixed && !column.noTruncate && "truncate"
+          )}
         >
           {column.render
             ? column.render(item)

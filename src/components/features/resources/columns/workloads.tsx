@@ -63,7 +63,8 @@ export const podColumns: Column<PodInfo>[] = [
     key: "phase",
     label: "STATUS",
     sortable: true,
-    width: "w-36",
+    width: "w-44",
+    noTruncate: true,
     render: (pod) => <PodPhaseBadge phase={getEffectivePodStatus(pod)} />,
   },
   {
@@ -99,6 +100,7 @@ export function getPodColumnsWithMetrics(
       label: "CPU",
       sortable: true,
       width: "w-32",
+      noTruncate: true,
       render: (pod) => (
         <PodMetricsCell
           podName={pod.name}
@@ -114,6 +116,7 @@ export function getPodColumnsWithMetrics(
       label: "MEMORY",
       sortable: true,
       width: "w-32",
+      noTruncate: true,
       render: (pod) => (
         <PodMetricsCell
           podName={pod.name}
