@@ -171,7 +171,7 @@ export function Sidebar({
               {isConnected && isHealthy && (
                 <div className="flex items-center gap-1.5 shrink-0">
                   {latencyMs !== null && (
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {latencyMs}ms
                     </span>
                   )}
@@ -183,7 +183,7 @@ export function Sidebar({
               )}
               {isReconnecting && (
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     Retry {reconnectAttempts}
                   </span>
                   <span className="size-2 rounded-full bg-yellow-400 animate-pulse" />
@@ -308,7 +308,7 @@ export function Sidebar({
             <Cog className="size-4" />
             {tNav("settings")}
           </span>
-          <Kbd className="text-[10px]">{modKeySymbol},</Kbd>
+          <Kbd className="text-xs">{modKeySymbol},</Kbd>
         </Button>
       </div>
 

@@ -278,7 +278,7 @@ function ActiveRow({ forward, onStop, onDelete }: ActiveRowProps) {
       <TableCell className="font-medium">{forward.name}</TableCell>
       <TableCell>{forward.namespace}</TableCell>
       <TableCell>
-        <Badge variant="outline" className="capitalize text-[10px] font-normal">{forward.target_type}</Badge>
+        <Badge variant="outline" className="capitalize text-xs font-normal">{forward.target_type}</Badge>
       </TableCell>
       <TableCell>
         <PortsPill localPort={forward.local_port} targetPort={forward.target_port} />
@@ -344,7 +344,7 @@ function HistoryRow({ item, onRestart, onDelete }: HistoryRowProps) {
         {item.error_message && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <div className="text-[10px] text-red-500/80 truncate max-w-[280px] cursor-default">
+              <div className="text-xs text-red-500/80 truncate max-w-[280px] cursor-default">
                 {item.error_message}
               </div>
             </TooltipTrigger>
@@ -356,7 +356,7 @@ function HistoryRow({ item, onRestart, onDelete }: HistoryRowProps) {
       </TableCell>
       <TableCell>{item.namespace}</TableCell>
       <TableCell>
-        <Badge variant="outline" className="capitalize text-[10px] font-normal">{item.target_type}</Badge>
+        <Badge variant="outline" className="capitalize text-xs font-normal">{item.target_type}</Badge>
       </TableCell>
       <TableCell>
         <PortsPill localPort={item.local_port} targetPort={item.target_port} />

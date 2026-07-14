@@ -121,7 +121,7 @@ function MetricCellInner({
           {hasRequest && (
             <span
               className={cn(
-                "text-[10px] tabular-nums",
+                "text-xs tabular-nums",
                 percentage > 90
                   ? "text-destructive"
                   : percentage > 80

@@ -155,7 +155,7 @@ export function ForwardTab() {
         <div className="relative">
           <button
             onClick={() => setNsOpen(!nsOpen)}
-            className="w-full flex items-center justify-between px-2.5 py-1.5 text-[11px] border border-border bg-muted hover:bg-accent rounded-md text-foreground transition-colors"
+            className="w-full flex items-center justify-between px-2.5 py-1.5 text-xs border border-border bg-muted hover:bg-accent rounded-md text-foreground transition-colors"
           >
             <span className="truncate text-foreground">{nsLabel}</span>
             <div className="flex items-center gap-1 shrink-0 ml-1">
@@ -181,7 +181,7 @@ export function ForwardTab() {
                     selectAllNamespaces();
                     setNsOpen(false);
                   }}
-                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors hover:bg-muted ${selectedNamespaces.length === 0 ? "bg-accent" : ""}`}
+                  className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs transition-colors hover:bg-muted ${selectedNamespaces.length === 0 ? "bg-accent" : ""}`}
                 >
                   <div
                     className={`h-3 w-3 rounded-sm border flex items-center justify-center shrink-0 ${selectedNamespaces.length === 0 ? "bg-primary border-primary" : "border-muted-foreground/40"}`}
@@ -198,7 +198,7 @@ export function ForwardTab() {
                     <button
                       key={ns}
                       onClick={() => toggleNamespace(ns)}
-                      className={`w-full flex items-center gap-2 px-2.5 py-1.5 text-[11px] transition-colors hover:bg-muted ${selected ? "bg-accent" : ""}`}
+                      className={`w-full flex items-center gap-2 px-2.5 py-2 text-xs transition-colors hover:bg-muted ${selected ? "bg-accent" : ""}`}
                     >
                       <div
                         className={`h-3 w-3 rounded-sm border flex items-center justify-center shrink-0 ${selected ? "bg-primary border-primary" : "border-muted-foreground/40"}`}
@@ -229,7 +229,7 @@ export function ForwardTab() {
             autoCapitalize="off"
             spellCheck={false}
             data-form-type="other"
-            className="w-full pl-7 pr-3 py-1.5 text-[11px] border border-border bg-muted rounded-md text-foreground placeholder:text-muted-foreground/60 outline-none focus:bg-accent focus:border-border transition-colors"
+            className="w-full pl-7 pr-3 py-1.5 text-xs border border-border bg-muted rounded-md text-foreground placeholder:text-muted-foreground/60 outline-none focus:bg-accent focus:border-border transition-colors"
           />
         </div>
       </div>
@@ -241,13 +241,13 @@ export function ForwardTab() {
             <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex items-center justify-center h-24 text-[11px] text-muted-foreground/60">
+          <div className="flex items-center justify-center h-24 text-xs text-muted-foreground/60">
             {search ? "No matches found" : "No resources with ports found"}
           </div>
         ) : (
           Array.from(grouped.entries()).map(([namespace, nsItems]) => (
             <div key={namespace}>
-              <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm text-[10px] uppercase tracking-wider text-muted-foreground/50 font-medium px-1 py-1">
+              <div className="sticky top-0 z-10 bg-background/90 backdrop-blur-sm text-xs uppercase tracking-wider text-muted-foreground font-medium px-1 py-1">
                 {namespace}
               </div>
               {nsItems.map((item, idx) => {
@@ -256,13 +256,13 @@ export function ForwardTab() {
                 return (
                   <div
                     key={`${item.name}-${item.port}-${idx}`}
-                    className="flex items-center justify-between px-1.5 py-1.5 rounded-md hover:bg-accent group transition-colors"
+                    className="flex items-center justify-between px-1.5 py-2 rounded-md hover:bg-accent group transition-colors"
                   >
                     <div className="min-w-0 flex-1">
-                      <div className="text-[12px] font-medium text-foreground truncate leading-tight">
+                      <div className="text-xs font-medium text-foreground truncate leading-tight">
                         {item.name}
                       </div>
-                      <div className="text-[10px] text-muted-foreground/60 leading-tight mt-0.5">
+                      <div className="text-xs text-muted-foreground/60 leading-tight mt-0.5">
                         :{item.port}
                         {item.portName ? ` (${item.portName})` : ""}
                         <span className="ml-1 opacity-60">

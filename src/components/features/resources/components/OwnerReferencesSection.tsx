@@ -39,7 +39,7 @@ export function OwnerReferencesSection({
             {ref.controller && (
               <Badge
                 variant="outline"
-                className="ml-auto shrink-0 text-[10px] font-normal text-muted-foreground"
+                className="ml-auto shrink-0 text-xs font-normal text-muted-foreground"
               >
                 controller
               </Badge>

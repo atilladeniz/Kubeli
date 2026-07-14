@@ -16,7 +16,7 @@ export function CrdScopeBadge({ scope }: { scope: string }) {
     <Badge
       variant="outline"
       className={cn(
-        "text-[10px] border-0",
+        "text-xs border-0",
         scope === "Namespaced"
           ? "bg-blue-500/10 text-blue-500"
           : "bg-purple-500/10 text-purple-500"

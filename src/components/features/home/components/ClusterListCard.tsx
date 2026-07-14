@@ -33,7 +33,7 @@ export function ClusterListCard({
             {cluster.name}
           </span>
           {cluster.current && (
-            <Badge variant="secondary" className="shrink-0 text-[10px]">
+            <Badge variant="secondary" className="shrink-0 text-xs">
               {t("default")}
             </Badge>
           )}
@@ -41,14 +41,14 @@ export function ClusterListCard({
         <p className="truncate text-xs text-muted-foreground">
           {cluster.context}
         </p>
-        <p className="truncate text-[11px] text-muted-foreground/50">
+        <p className="truncate text-xs text-muted-foreground/50">
           {cluster.server}
         </p>
       </div>
       <span className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground/70 md:flex">
         {cluster.namespace || "default"}
         {hasConfiguredNamespaces && (
-          <Badge variant="outline" className="px-1 py-0 text-[9px] font-normal">
+          <Badge variant="outline" className="px-1 py-0 text-xs font-normal">
             NS
           </Badge>
         )}

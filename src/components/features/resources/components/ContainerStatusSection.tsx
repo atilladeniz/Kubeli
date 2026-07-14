@@ -87,7 +87,7 @@ function EnvVarSourceBadge({ kind }: { kind: string }) {
     resource: "border-green-500/50 text-green-500",
   };
   return (
-    <Badge variant="outline" className={cn("text-[9px] px-1 py-0 h-3.5 shrink-0", styles[kind])}>
+    <Badge variant="outline" className={cn("text-xs px-1.5 py-0.5 shrink-0", styles[kind])}>
       {kind}
     </Badge>
   );
@@ -156,7 +156,7 @@ function EnvVarRow({
   }, [displayValue, loadValue, t]);
 
   return (
-    <div className="space-y-1">
+    <div className="space-y-2">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           <span className="text-xs font-medium text-muted-foreground">{env.name}</span>
@@ -174,7 +174,7 @@ function EnvVarRow({
         </div>
       </div>
       {isRef && (
-        <div className="text-[10px] text-muted-foreground/60 font-mono truncate">
+        <div className="text-xs text-muted-foreground/60 font-mono truncate">
           {env.value_from}
         </div>
       )}
@@ -188,7 +188,7 @@ function EnvVarRow({
           userSelect: revealed ? "text" : "none",
         } : undefined}
       >
-        <span className={cn("break-all", isRef && !hasResolvedValue && !isSecret && "text-blue-400 italic text-[11px]")}>
+        <span className={cn("break-all", isRef && !hasResolvedValue && !isSecret && "text-blue-400 italic text-xs")}>
           {canReveal ? (revealed ? displayValue : "••••••••") : displayValue}
         </span>
       </div>
@@ -222,7 +222,7 @@ function EnvVarsSection({
           <span className="text-xs font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
             {t("podDetail.environmentVariables")}
           </span>
-          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-4">
+          <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
             {envVars.length}
           </Badge>
           <div className="flex-1" />

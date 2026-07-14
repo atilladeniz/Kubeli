@@ -40,7 +40,7 @@ export function AIHeader({
             <h3 className="text-sm font-semibold leading-tight">{title}</h3>
             <ProviderBadge />
           </div>
-          <p className="text-[10px] text-muted-foreground truncate max-w-[150px]">
+          <p className="text-xs text-muted-foreground truncate max-w-[150px]">
             {clusterContext}
           </p>
         </div>

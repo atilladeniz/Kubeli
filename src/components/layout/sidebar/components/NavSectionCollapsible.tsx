@@ -121,7 +121,7 @@ export function NavSectionCollapsible({
                 {!isImplemented && (
                   <Badge
                     variant="outline"
-                    className="text-[9px] px-1 py-0 h-4 font-normal opacity-60"
+                    className="text-xs px-1.5 py-0.5 font-normal opacity-60"
                   >
                     {soonLabel}
                   </Badge>

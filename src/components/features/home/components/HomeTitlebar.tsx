@@ -34,7 +34,7 @@ export function HomeTitlebar() {
           <Button
             variant="default"
             size="sm"
-            className="h-5 text-[10px] px-2 py-0"
+            className="h-5 text-xs px-2 py-0"
             onClick={() =>
               readyToRestart || downloadComplete
                 ? restartNow()

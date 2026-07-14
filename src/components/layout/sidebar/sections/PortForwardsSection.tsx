@@ -59,7 +59,7 @@ export function PortForwardsSection({
               <Maximize2 className="size-2.5" />
             </button>
             <div className="flex items-center gap-1">
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              <Badge variant="secondary" className="text-xs px-1.5 py-0">
                 {forwards.length}
               </Badge>
               <CollapsibleTrigger asChild>

@@ -73,7 +73,7 @@ export function PortSelectPopover({
                   <Badge
                     variant="secondary"
                     className={cn(
-                      "font-mono text-[10px] px-1.5 py-0 shrink-0",
+                      "font-mono text-xs px-1.5 py-0 shrink-0",
                       isForwarded && "bg-purple-500/20 text-purple-400 border-purple-500/30"
                     )}
                   >

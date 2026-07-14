@@ -20,7 +20,7 @@ export function ReconnectingTimer({ forwardId }: { forwardId: string }) {
   }, [forwardId]);
 
   return (
-    <span className="text-[10px] text-orange-400 leading-tight">
+    <span className="text-xs text-orange-400 leading-tight">
       Reconnecting… {elapsed}s
     </span>
   );

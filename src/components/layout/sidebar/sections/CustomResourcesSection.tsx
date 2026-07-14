@@ -54,7 +54,7 @@ export function CustomResourcesSection({
           <span className="flex-1 truncate text-left">{t("customResources")}</span>
           <Badge
             variant="outline"
-            className="h-4 shrink-0 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"
+            className="h-4 shrink-0 border-border/40 px-1.5 text-xs font-normal text-muted-foreground"
           >
             {resourceCount}
           </Badge>
@@ -90,7 +90,7 @@ export function CustomResourcesSection({
                     />
                     <Badge
                       variant="outline"
-                      className="ml-auto h-4 shrink-0 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"
+                      className="ml-auto h-4 shrink-0 border-border/40 px-1.5 text-xs font-normal text-muted-foreground"
                     >
                       {group.resources.length}
                     </Badge>

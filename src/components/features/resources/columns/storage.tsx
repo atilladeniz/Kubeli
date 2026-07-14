@@ -227,12 +227,12 @@ export const csiNodeColumns: Column<CSINodeInfo>[] = [
     render: (node) => (
       <div className="flex flex-wrap gap-1">
         {node.drivers.slice(0, 3).map((d) => (
-          <Badge key={d.name} variant="outline" className="text-[10px] px-1 py-0 h-4 font-mono">
+          <Badge key={d.name} variant="outline" className="text-xs px-1.5 py-0.5 font-mono">
             {d.name.split(".").pop()}
           </Badge>
         ))}
         {node.drivers.length > 3 && (
-          <Badge variant="secondary" className="text-[10px] px-1 py-0 h-4">
+          <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
             +{node.drivers.length - 3}
           </Badge>
         )}

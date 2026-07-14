@@ -20,7 +20,7 @@ export const helmReleaseColumns: Column<HelmReleaseInfo>[] = [
       <div className="flex items-center gap-1.5">
         <span className="font-medium text-xs">{r.name}</span>
         {r.managed_by === "flux" && (
-          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
+          <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
             Flux
           </span>
         )}
@@ -86,7 +86,7 @@ export function getHelmReleaseColumns(t: TranslateFunc): Column<HelmReleaseInfo>
         <div className="flex items-center gap-1.5">
           <span className="font-medium text-xs">{r.name}</span>
           {r.managed_by === "flux" && (
-            <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
+            <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
               Flux
             </span>
           )}

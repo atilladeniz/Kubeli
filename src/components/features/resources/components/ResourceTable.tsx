@@ -86,7 +86,7 @@ function renderMenuItems(menuItems: ContextMenuItemDef[]) {
               {child.hint && (
                 <span
                   className={cn(
-                    "ml-auto rounded-full px-2 py-0.5 text-[10px] font-mono font-medium",
+                    "ml-auto rounded-full px-2 py-0.5 text-xs font-mono font-medium",
                     child.hintVariant === "active"
                       ? "bg-purple-500/20 text-purple-400"
                       : "bg-muted text-foreground"

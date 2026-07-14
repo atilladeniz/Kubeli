@@ -74,7 +74,7 @@ export function TrayPopup() {
             <Circle
               className={`h-2 w-2 shrink-0 ${isConnected ? "fill-green-500 text-green-500" : "fill-muted-foreground/30 text-muted-foreground/30"}`}
             />
-            <span className="text-[13px] font-semibold text-foreground truncate">
+            <span className="text-sm font-semibold text-foreground truncate">
               {connecting
                 ? "Connecting..."
                 : currentCluster
@@ -94,7 +94,7 @@ export function TrayPopup() {
                     <button
                       key={cluster.context}
                       onClick={() => handleSwitchCluster(cluster.context)}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 mx-0.5 text-[11px] transition-colors hover:bg-muted rounded-md ${isCurrent ? "text-foreground" : "text-muted-foreground"}`}
+                      className={`w-full flex items-center gap-2 px-2 py-2 mx-0.5 text-xs transition-colors hover:bg-muted rounded-md ${isCurrent ? "text-foreground" : "text-muted-foreground"}`}
                       style={{ width: "calc(100% - 4px)" }}
                     >
                       <div className={`h-3.5 w-3.5 shrink-0 flex items-center justify-center ${isCurrent ? "text-green-500" : ""}`}>
@@ -103,14 +103,14 @@ export function TrayPopup() {
                       <div className="min-w-0 flex-1 text-left">
                         <div className="truncate font-medium">{cluster.context}</div>
                         {cluster.name !== cluster.context && (
-                          <div className="truncate text-[10px] text-muted-foreground">{cluster.name}</div>
+                          <div className="truncate text-xs text-muted-foreground">{cluster.name}</div>
                         )}
                       </div>
                     </button>
                   );
                 })}
                 {clusters.length === 0 && (
-                  <div className="px-2.5 py-2 text-[11px] text-muted-foreground/50">
+                  <div className="px-2.5 py-2 text-xs text-muted-foreground/50">
                     No clusters found
                   </div>
                 )}
@@ -152,7 +152,7 @@ export function TrayPopup() {
         <div className="flex rounded-lg p-0.5 border border-border bg-muted">
           <button
             onClick={() => setActiveTab("forward")}
-            className={`flex-1 text-[11px] font-medium py-1.5 rounded-md transition-all ${
+            className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${
               activeTab === "forward"
                 ? "bg-background text-foreground shadow-sm border border-border"
                 : "text-muted-foreground hover:text-foreground border border-transparent"
@@ -162,7 +162,7 @@ export function TrayPopup() {
           </button>
           <button
             onClick={() => setActiveTab("active")}
-            className={`flex-1 text-[11px] font-medium py-1.5 rounded-md transition-all ${
+            className={`flex-1 text-xs font-medium py-1.5 rounded-md transition-all ${
               activeTab === "active"
                 ? "bg-background text-foreground shadow-sm border border-border"
                 : "text-muted-foreground hover:text-foreground border border-transparent"
@@ -176,7 +176,7 @@ export function TrayPopup() {
       {/* Tab Content */}
       <div className="flex-1 overflow-hidden">
         {!isConnected && !connecting ? (
-          <div className="flex items-center justify-center h-full text-[11px] text-muted-foreground/60 px-6 text-center leading-relaxed">
+          <div className="flex items-center justify-center h-full text-xs text-muted-foreground/60 px-6 text-center leading-relaxed">
             Select a cluster to get started.
           </div>
         ) : activeTab === "forward" ? (
@@ -188,7 +188,7 @@ export function TrayPopup() {
 
       {/* Footer */}
       <div className="shrink-0 border-t border-border px-3 flex items-center justify-center h-7">
-        <span className="text-[10px] text-muted-foreground leading-none">
+        <span className="text-xs text-muted-foreground leading-none">
           Kubeli v{packageJson.version}
         </span>
       </div>

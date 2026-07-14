@@ -75,11 +75,11 @@ function ResourceNodeComponent({ data }: ResourceNodeProps) {
           <div className="flex items-center gap-1.5 px-2.5 py-1.5 bg-muted/50 border-b">
             <span className={cn("size-2 rounded-full shrink-0", statusColor)} />
             <span className="text-muted-foreground">{icon}</span>
-            <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide">
+            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
               {label}
             </span>
             {(readyStatus || replicas) && (
-              <span className="text-[10px] text-muted-foreground ml-auto tabular-nums">
+              <span className="text-xs text-muted-foreground ml-auto tabular-nums">
                 {readyStatus || replicas}
               </span>
             )}

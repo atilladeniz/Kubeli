@@ -53,20 +53,20 @@ export function CliStatusCard({
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium">{name}</span>
             {isSelected && (
-              <span className="bg-brand/12 text-brand rounded-full px-1.5 py-0.5 text-[10px] font-medium">
+              <span className="bg-brand/12 text-brand rounded-full px-1.5 py-0.5 text-xs font-medium">
                 {translations?.active ?? "Active"}
               </span>
             )}
           </div>
           {(info?.version || info?.cli_path) && (
-            <p className="text-muted-foreground mt-0.5 truncate font-mono text-[11px]">
+            <p className="text-muted-foreground mt-0.5 truncate font-mono text-xs">
               {info?.version}
               {info?.version && info?.cli_path && " · "}
               {info?.cli_path}
             </p>
           )}
           {info?.error_message && (
-            <p className="mt-0.5 truncate text-[11px] text-red-500">
+            <p className="mt-0.5 truncate text-xs text-red-500">
               {info.error_message}
             </p>
           )}

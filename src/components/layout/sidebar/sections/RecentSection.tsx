@@ -78,7 +78,7 @@ export function RecentSection({
                 {recent.namespace && (
                   <TruncateTooltip
                     content={recent.namespace}
-                    className="max-w-24 shrink-0 truncate text-[10px] text-muted-foreground/60"
+                    className="max-w-24 shrink-0 truncate text-xs text-muted-foreground/60"
                   />
                 )}
               </button>

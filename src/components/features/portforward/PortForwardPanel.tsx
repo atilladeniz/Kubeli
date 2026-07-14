@@ -138,7 +138,7 @@ export function PortForwardPanel({ onClose }: PortForwardPanelProps) {
             <TabsTrigger value="active" className="text-xs gap-1.5">
               {t("active")}
               {forwards.length > 0 && (
-                <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4">
+                <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
                   {forwards.length}
                 </Badge>
               )}
@@ -146,7 +146,7 @@ export function PortForwardPanel({ onClose }: PortForwardPanelProps) {
             <TabsTrigger value="history" className="text-xs gap-1.5">
               {t("history")}
               {visibleHistory.length > 0 && (
-                <Badge variant="secondary" className="text-xs px-1.5 py-0 h-4">
+                <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
                   {visibleHistory.length}
                 </Badge>
               )}
@@ -410,14 +410,14 @@ function PortForwardHistoryRow({
               <span>:{item.target_port}</span>
             </div>
             {(reasonText || agoText) && (
-              <div className="text-[11px] text-muted-foreground mt-1 truncate">
+              <div className="text-xs text-muted-foreground mt-1 truncate">
                 {[reasonText, agoText].filter(Boolean).join(" • ")}
               </div>
             )}
             {item.error_message && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <div className="text-[11px] text-red-500/80 mt-0.5 truncate cursor-default">
+                  <div className="text-xs text-red-500/80 mt-0.5 truncate cursor-default">
                     {item.error_message}
                   </div>
                 </TooltipTrigger>
@@ -497,7 +497,7 @@ function NewPortForwardForm({
   return (
     <Card className="mb-4">
       <CardHeader className="pb-4">
-        <CardTitle className="text-sm">{t("newForward")}</CardTitle>
+        <CardTitle className="text-base">{t("newForward")}</CardTitle>
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit}>

@@ -94,14 +94,14 @@ export const SessionItem = memo(function SessionItem({
         <div style={pointerStyle} className="flex items-center gap-2">
           <span
             style={pointerStyle}
-            className="text-[10px] text-muted-foreground flex items-center gap-1"
+            className="text-xs text-muted-foreground flex items-center gap-1"
           >
             <Clock className="size-2.5" />
             {formatTime(session.last_active_at)}
           </span>
           <span
             style={pointerStyle}
-            className="text-[10px] text-muted-foreground/70"
+            className="text-xs text-muted-foreground/70"
           >
             {messagesLabel}
           </span>

@@ -102,7 +102,7 @@ export function QuickAccessSection({
                     className="min-w-0 flex-1 truncate"
                   />
                   {isDuplicate && section && (
-                    <Badge variant="outline" className="h-3.5 max-w-16 rounded px-1 text-[9px] font-normal text-muted-foreground/60 border-border/40">
+                    <Badge variant="outline" className="h-3.5 max-w-16 rounded px-1 text-xs font-normal text-muted-foreground/60 border-border/40">
                       <TruncateTooltip
                         content={section}
                         className="block truncate"

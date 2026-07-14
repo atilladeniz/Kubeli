@@ -20,7 +20,7 @@ export function EmptySessionList({
         <MessageSquare className="size-5 text-muted-foreground/50" />
       </div>
       <p className="text-xs text-muted-foreground mb-1">{noSessionsLabel}</p>
-      <p className="text-[10px] text-muted-foreground/70">
+      <p className="text-xs text-muted-foreground/70">
         {startConversationLabel}
       </p>
     </div>

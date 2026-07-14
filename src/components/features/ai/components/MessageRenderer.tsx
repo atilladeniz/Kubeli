@@ -107,7 +107,7 @@ export const MessageRenderer = memo(function MessageRenderer({
             <span className="text-xs font-medium text-muted-foreground">
               {isUser ? t("you") : t("assistant")}
             </span>
-            <span className="text-[10px] text-muted-foreground/60">
+            <span className="text-xs text-muted-foreground/60">
               {formatTime(message.timestamp, locale)}
             </span>
           </div>

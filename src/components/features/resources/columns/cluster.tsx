@@ -167,7 +167,7 @@ export const priorityClassColumns: Column<PriorityClassInfo>[] = [
       <Badge
         variant="outline"
         className={cn(
-          "border-0 text-[10px]",
+          "border-0 text-xs",
           pc.preemption_policy === "PreemptLowerPriority"
             ? "bg-orange-500/10 text-orange-500"
             : "bg-muted text-muted-foreground"

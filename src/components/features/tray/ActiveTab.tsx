@@ -71,7 +71,7 @@ export function ActiveTab() {
 
   if (forwards.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-[11px] text-muted-foreground/60 px-6 text-center leading-relaxed">
+      <div className="flex items-center justify-center h-full text-xs text-muted-foreground/60 px-6 text-center leading-relaxed">
         No active port forwards.
         <br />
         Use the Forward tab to start one.
@@ -97,13 +97,13 @@ export function ActiveTab() {
 
             {/* Info */}
             <div className="min-w-0 flex-1">
-              <div className="text-[12px] font-medium text-foreground truncate leading-tight">
+              <div className="text-xs font-medium text-foreground truncate leading-tight">
                 {forward.name}
                 {copiedId === forward.forward_id && (
-                  <span className="ml-1.5 text-[9px] text-green-500">Copied!</span>
+                  <span className="ml-1.5 text-xs text-green-500">Copied!</span>
                 )}
               </div>
-              <div className="text-[10px] text-muted-foreground/60 leading-tight mt-0.5">
+              <div className="text-xs text-muted-foreground/60 leading-tight mt-0.5">
                 localhost:{forward.local_port} &rarr; :{forward.target_port}
               </div>
             </div>
@@ -146,7 +146,7 @@ export function ActiveTab() {
           <button
             onClick={handleStopAll}
             disabled={stoppingAll}
-            className="w-full py-1.5 text-[11px] font-medium rounded-md text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+            className="w-full py-1.5 text-xs font-medium rounded-md text-destructive/60 hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
           >
             {stoppingAll ? "Stopping..." : "Stop All"}
           </button>

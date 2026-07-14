@@ -7,7 +7,7 @@ export function AggregatedBadge() {
   const t = useTranslations("common");
 
   return (
-    <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-blue-500/10 text-blue-500">
+    <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-blue-500/10 text-blue-500">
       {t("aggregated")}
     </Badge>
   );

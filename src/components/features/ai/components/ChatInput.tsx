@@ -79,7 +79,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
             </Button>
           )}
         </div>
-        <p className="text-muted-foreground mt-2 text-center text-[10px]">
+        <p className="text-muted-foreground mt-2 text-center text-xs">
           Enter to send / Shift+Enter for new line
         </p>
       </div>
