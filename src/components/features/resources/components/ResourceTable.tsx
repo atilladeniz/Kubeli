@@ -224,13 +224,20 @@ export function ResourceTable<T>({
   const columnCount = columns.length + (hasBulkActions ? 1 : 0);
 
   return (
-    // overflow-y-scroll (not auto): the custom 10px WebKit scrollbar is classic,
-    // so letting it appear/disappear during virtual-row swaps reflows the table
-    // sideways. Always showing it keeps the width stable with no reserved gap
-    // beyond the scrollbar itself.
-    <div ref={scrollRef} className="h-full overflow-x-auto overflow-y-scroll">
+    // hide-scrollbar: the classic 10px WebKit scrollbar reserves width, so it
+    // toggled during virtual-row swaps and reflowed the table sideways (zigzag)
+    // and left a gap under the sticky header. Hiding it removes the reserved
+    // width entirely; wheel/trackpad scroll still works. overscroll-none kills
+    // the elastic bounce that left ghost rows above/below the sticky header.
+    <div
+      ref={scrollRef}
+      className="hide-scrollbar h-full overflow-auto [overscroll-behavior:none]"
+    >
       <Table>
-        <TableHeader className="sticky top-0 z-10 bg-background">
+        {/* translate-z-0: force the sticky header onto its own GPU layer so
+            virtual rows scrolling under it don't leave repaint ghosts in
+            WebKit. */}
+        <TableHeader className="sticky top-0 z-20 bg-background [transform:translateZ(0)]">
           <TableRow>
             {hasBulkActions && (
               <TableHead className="w-8 bg-background pl-3.5">
