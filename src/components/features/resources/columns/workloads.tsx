@@ -327,7 +327,7 @@ export const replicaSetColumns: Column<ReplicaSetInfo>[] = [
     sortable: true,
     render: (rs) => (
       <div className="flex flex-col">
-        <span className="text-xs text-muted-foreground">{rs.owner_kind || "-"}</span>
+        <span className="text-muted-foreground">{rs.owner_kind || "-"}</span>
         <span className="truncate max-w-[150px]">{rs.owner_name || "-"}</span>
       </div>
     ),

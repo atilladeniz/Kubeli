@@ -18,7 +18,7 @@ export const helmReleaseColumns: Column<HelmReleaseInfo>[] = [
     sortable: true,
     render: (r) => (
       <div className="flex items-center gap-1.5">
-        <span className="font-medium text-xs">{r.name}</span>
+        <span className="font-medium">{r.name}</span>
         {r.managed_by === "flux" && (
           <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
             Flux
@@ -34,7 +34,7 @@ export const helmReleaseColumns: Column<HelmReleaseInfo>[] = [
     render: (r) => (
       <div className="flex items-center gap-1.5">
         <NamespaceColorDot namespace={r.namespace} />
-        <span className="text-muted-foreground text-xs">{r.namespace}</span>
+        <span className="text-muted-foreground">{r.namespace}</span>
       </div>
     ),
   },
@@ -49,7 +49,7 @@ export const helmReleaseColumns: Column<HelmReleaseInfo>[] = [
     label: "CHART",
     sortable: true,
     render: (r) => (
-      <span className="text-xs text-muted-foreground">
+      <span className="text-muted-foreground">
         {r.chart}-{r.chart_version}
       </span>
     ),
@@ -59,7 +59,7 @@ export const helmReleaseColumns: Column<HelmReleaseInfo>[] = [
     label: "APP VERSION",
     sortable: true,
     render: (r) => (
-      <span className="text-xs text-muted-foreground">{r.app_version || "-"}</span>
+      <span className="text-muted-foreground">{r.app_version || "-"}</span>
     ),
   },
   {
@@ -84,7 +84,7 @@ export function getHelmReleaseColumns(t: TranslateFunc): Column<HelmReleaseInfo>
       sortable: true,
       render: (r) => (
         <div className="flex items-center gap-1.5">
-          <span className="font-medium text-xs">{r.name}</span>
+          <span className="font-medium">{r.name}</span>
           {r.managed_by === "flux" && (
             <span className="px-1.5 py-0.5 text-xs font-medium rounded bg-purple-500/10 text-purple-500 border border-purple-500/20">
               Flux
@@ -100,7 +100,7 @@ export function getHelmReleaseColumns(t: TranslateFunc): Column<HelmReleaseInfo>
       render: (r) => (
         <div className="flex items-center gap-1.5">
           <NamespaceColorDot namespace={r.namespace} />
-          <span className="text-muted-foreground text-xs">{r.namespace}</span>
+          <span className="text-muted-foreground">{r.namespace}</span>
         </div>
       ),
     },
@@ -115,14 +115,14 @@ export function getHelmReleaseColumns(t: TranslateFunc): Column<HelmReleaseInfo>
       label: t("columns.chart"),
       sortable: true,
       render: (r) => (
-        <span className="text-xs text-muted-foreground">{r.chart}-{r.chart_version}</span>
+        <span className="text-muted-foreground">{r.chart}-{r.chart_version}</span>
       ),
     },
     {
       key: "app_version",
       label: t("columns.appVersion"),
       sortable: true,
-      render: (r) => <span className="text-xs text-muted-foreground">{r.app_version || "-"}</span>,
+      render: (r) => <span className="text-muted-foreground">{r.app_version || "-"}</span>,
     },
     {
       key: "revision",
@@ -144,7 +144,7 @@ export const fluxKustomizationColumns: Column<FluxKustomizationInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
-    render: (k) => <span className="font-medium text-xs">{k.name}</span>,
+    render: (k) => <span className="font-medium">{k.name}</span>,
   },
   {
     key: "namespace",
@@ -153,7 +153,7 @@ export const fluxKustomizationColumns: Column<FluxKustomizationInfo>[] = [
     render: (k) => (
       <div className="flex items-center gap-1.5">
         <NamespaceColorDot namespace={k.namespace} />
-        <span className="text-muted-foreground text-xs">{k.namespace}</span>
+        <span className="text-muted-foreground">{k.namespace}</span>
       </div>
     ),
   },
@@ -168,7 +168,7 @@ export const fluxKustomizationColumns: Column<FluxKustomizationInfo>[] = [
     label: "PATH",
     sortable: true,
     render: (k) => (
-      <span className="text-xs text-muted-foreground font-mono">{k.path || "-"}</span>
+      <span className="text-muted-foreground font-mono">{k.path || "-"}</span>
     ),
   },
   {
@@ -176,7 +176,7 @@ export const fluxKustomizationColumns: Column<FluxKustomizationInfo>[] = [
     label: "SOURCE",
     sortable: true,
     render: (k) => (
-      <span className="text-xs text-muted-foreground">{k.source_ref || "-"}</span>
+      <span className="text-muted-foreground">{k.source_ref || "-"}</span>
     ),
   },
   {
@@ -184,7 +184,7 @@ export const fluxKustomizationColumns: Column<FluxKustomizationInfo>[] = [
     label: "INTERVAL",
     sortable: true,
     render: (k) => (
-      <span className="text-xs text-muted-foreground">{k.interval || "-"}</span>
+      <span className="text-muted-foreground">{k.interval || "-"}</span>
     ),
   },
   {
@@ -192,7 +192,7 @@ export const fluxKustomizationColumns: Column<FluxKustomizationInfo>[] = [
     label: "REVISION",
     sortable: false,
     render: (k) => (
-      <span className="text-xs text-muted-foreground font-mono truncate max-w-[120px] block">
+      <span className="text-muted-foreground font-mono truncate max-w-[120px] block">
         {k.last_applied_revision ? k.last_applied_revision.slice(0, 12) : "-"}
       </span>
     ),
@@ -210,7 +210,7 @@ export const argoCDApplicationColumns: Column<ArgoCDApplicationInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
-    render: (a) => <span className="font-medium text-xs">{a.name}</span>,
+    render: (a) => <span className="font-medium">{a.name}</span>,
   },
   {
     key: "namespace",
@@ -219,7 +219,7 @@ export const argoCDApplicationColumns: Column<ArgoCDApplicationInfo>[] = [
     render: (a) => (
       <div className="flex items-center gap-1.5">
         <NamespaceColorDot namespace={a.namespace} />
-        <span className="text-muted-foreground text-xs">{a.namespace}</span>
+        <span className="text-muted-foreground">{a.namespace}</span>
       </div>
     ),
   },
@@ -228,7 +228,7 @@ export const argoCDApplicationColumns: Column<ArgoCDApplicationInfo>[] = [
     label: "PROJECT",
     sortable: true,
     render: (a) => (
-      <span className="text-xs text-muted-foreground">{a.project || "-"}</span>
+      <span className="text-muted-foreground">{a.project || "-"}</span>
     ),
   },
   {
@@ -248,7 +248,7 @@ export const argoCDApplicationColumns: Column<ArgoCDApplicationInfo>[] = [
     label: "REPO",
     sortable: true,
     render: (a) => (
-      <span className="text-xs text-muted-foreground truncate max-w-[200px] block">
+      <span className="text-muted-foreground truncate max-w-[200px] block">
         {a.repo_url || "-"}
       </span>
     ),
@@ -258,7 +258,7 @@ export const argoCDApplicationColumns: Column<ArgoCDApplicationInfo>[] = [
     label: "PATH",
     sortable: true,
     render: (a) => (
-      <span className="text-xs text-muted-foreground font-mono">{a.path || "-"}</span>
+      <span className="text-muted-foreground font-mono">{a.path || "-"}</span>
     ),
   },
   {
@@ -266,7 +266,7 @@ export const argoCDApplicationColumns: Column<ArgoCDApplicationInfo>[] = [
     label: "REVISION",
     sortable: false,
     render: (a) => (
-      <span className="text-xs text-muted-foreground font-mono truncate max-w-[120px] block">
+      <span className="text-muted-foreground font-mono truncate max-w-[120px] block">
         {a.current_revision ? a.current_revision.slice(0, 12) : "-"}
       </span>
     ),
@@ -276,7 +276,7 @@ export const argoCDApplicationColumns: Column<ArgoCDApplicationInfo>[] = [
     label: "DEST",
     sortable: true,
     render: (a) => (
-      <span className="text-xs text-muted-foreground">{a.dest_namespace || "-"}</span>
+      <span className="text-muted-foreground">{a.dest_namespace || "-"}</span>
     ),
   },
   {
@@ -284,7 +284,7 @@ export const argoCDApplicationColumns: Column<ArgoCDApplicationInfo>[] = [
     label: "SYNC POLICY",
     sortable: true,
     render: (a) => (
-      <span className="text-xs text-muted-foreground capitalize">{a.sync_policy}</span>
+      <span className="text-muted-foreground capitalize">{a.sync_policy}</span>
     ),
   },
   {

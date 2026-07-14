@@ -258,7 +258,7 @@ export const eventColumns: Column<EventInfo>[] = [
     width: "200px",
     render: (event) => (
       <div className="flex flex-col">
-        <span className="text-xs text-muted-foreground">{event.involved_object.kind}</span>
+        <span className="text-muted-foreground">{event.involved_object.kind}</span>
         <span className="font-medium truncate max-w-[180px]">{event.involved_object.name}</span>
       </div>
     ),

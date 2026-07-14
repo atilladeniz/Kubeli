@@ -4,9 +4,9 @@ import type { SettingSectionProps } from "../types";
 export function SettingSection({ title, description, children }: SettingSectionProps) {
   return (
     <div className="flex items-center justify-between">
-      <div className="space-y-0.5">
+      <div className="space-y-1">
         <Label className="text-sm font-medium">{title}</Label>
-        <p className="text-xs text-muted-foreground">{description}</p>
+        <p className="text-sm text-muted-foreground">{description}</p>
       </div>
       {children}
     </div>

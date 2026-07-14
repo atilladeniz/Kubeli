@@ -112,7 +112,7 @@ export function AdvancedTab({ appVersion }: AdvancedTabProps) {
                 {t("advanced.devMode")}
               </span>
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {t("advanced.devModeDescription")}
             </p>
             <div className="flex items-center gap-2">

@@ -66,7 +66,7 @@ export function CliStatusCard({
             </p>
           )}
           {info?.error_message && (
-            <p className="mt-0.5 truncate text-xs text-red-500">
+            <p className="mt-0.5 truncate text-sm text-red-500">
               {info.error_message}
             </p>
           )}

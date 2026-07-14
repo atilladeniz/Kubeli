@@ -44,7 +44,7 @@ export function McpIdeCard({
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {ide.installed
               ? ide.mcp_configured
                 ? ide.config_path

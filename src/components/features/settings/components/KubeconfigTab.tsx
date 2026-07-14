@@ -150,11 +150,11 @@ export function KubeconfigTab() {
     <div className="space-y-6">
       {/* Kubeconfig Sources */}
       <div className="space-y-3">
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           <Label className="text-sm font-medium">
             {t("kubeconfig.sources.title")}
           </Label>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {t("kubeconfig.sources.description")}
           </p>
         </div>
@@ -251,7 +251,7 @@ export function KubeconfigTab() {
         )}
 
         {error && (
-          <p className="text-xs text-destructive flex items-center gap-1">
+          <p className="text-sm text-destructive flex items-center gap-1">
             <AlertCircle className="h-3 w-3" />
             {error}
           </p>
@@ -335,7 +335,7 @@ function MergeModeSection({
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
     >
-      <div className="space-y-0.5 max-w-[85%]">
+      <div className="space-y-1 max-w-[85%]">
         <div className="flex items-center gap-1.5">
           <Label className="text-sm font-medium">
             {t("kubeconfig.mergeMode.title")}
@@ -356,7 +356,7 @@ function MergeModeSection({
             >
               <div className="space-y-2">
                 <p className="font-medium">{t("kubeconfig.mergeMode.helpTitle")}</p>
-                <p className="text-muted-foreground text-xs">
+                <p className="text-muted-foreground text-sm">
                   {t("kubeconfig.mergeMode.helpDescription")}
                 </p>
                 <div className="rounded-md bg-muted p-2 font-mono text-xs space-y-1">
@@ -369,7 +369,7 @@ function MergeModeSection({
             </PopoverContent>
           </Popover>
         </div>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-sm text-muted-foreground">
           {t("kubeconfig.mergeMode.description")}
         </p>
       </div>

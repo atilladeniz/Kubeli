@@ -165,7 +165,7 @@ export const clusterRoleColumns: Column<ClusterRoleInfo>[] = [
     render: (cr) => {
       if (!cr.aggregation_rule || cr.aggregation_rule.length === 0) return "-";
       return (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-muted-foreground">
           {cr.aggregation_rule.length} label{cr.aggregation_rule.length > 1 ? "s" : ""}
         </span>
       );

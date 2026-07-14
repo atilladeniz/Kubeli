@@ -259,7 +259,7 @@ export const networkPolicyColumns: Column<NetworkPolicyInfo>[] = [
       const entries = Object.entries(np.pod_selector);
       if (entries.length === 0) return <span className="text-muted-foreground">(all pods)</span>;
       return (
-        <span className="text-xs">
+        <span>
           {entries.map(([k, v]) => `${k}=${v}`).join(", ")}
         </span>
       );

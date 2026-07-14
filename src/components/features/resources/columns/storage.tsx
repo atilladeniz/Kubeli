@@ -140,7 +140,7 @@ export const storageClassColumns: Column<StorageClassInfo>[] = [
     key: "provisioner",
     label: "PROVISIONER",
     sortable: true,
-    render: (sc) => <span className="text-muted-foreground text-xs font-mono">{sc.provisioner}</span>,
+    render: (sc) => <span className="text-muted-foreground font-mono">{sc.provisioner}</span>,
   },
   {
     key: "reclaim_policy",
@@ -173,7 +173,7 @@ export const csiDriverColumns: Column<CSIDriverInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
-    render: (driver) => <span className="font-medium font-mono text-xs">{driver.name}</span>,
+    render: (driver) => <span className="font-medium font-mono">{driver.name}</span>,
   },
   {
     key: "attach_required",
@@ -252,13 +252,13 @@ export const volumeAttachmentColumns: Column<VolumeAttachmentInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
-    render: (va) => <span className="font-medium text-xs font-mono">{va.name.slice(0, 40)}...</span>,
+    render: (va) => <span className="font-medium font-mono">{va.name.slice(0, 40)}...</span>,
   },
   {
     key: "attacher",
     label: "ATTACHER",
     sortable: true,
-    render: (va) => <span className="text-xs font-mono">{va.attacher}</span>,
+    render: (va) => <span className="font-mono">{va.attacher}</span>,
   },
   {
     key: "pv_name",
