@@ -4,6 +4,12 @@ title: Changelog
 # `make release` prepends new entries here automatically.
 ---
 
+## v0.3.81 <span class="text-sm font-normal text-neutral-400 ml-2">2026-07-14</span>
+
+- Improved UI with elevated surfaces, better contrast, and snappier motion
+- Updated dependencies (rmcp 2.1.0, tokio-tungstenite 0.29.0, dotenvx 2.1.5, @types/node 26.1.0)
+- Updated CI build tooling to tauri-action 1.0.0
+
 ## v0.3.80 <span class="text-sm font-normal text-neutral-400 ml-2">2026-07-13</span>
 
 - Added fallback options for release changelog generation
