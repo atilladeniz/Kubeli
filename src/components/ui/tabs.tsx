@@ -27,11 +27,20 @@ function Tabs({
 function TabsList({
   className,
   children,
+  ref,
   ...props
 }: React.ComponentProps<typeof TabsPrimitive.List>) {
   const listRef = React.useRef<HTMLDivElement>(null)
   const pillRef = React.useRef<HTMLSpanElement>(null)
   const firstPaint = React.useRef(true)
+  const composedRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      listRef.current = node
+      if (typeof ref === "function") ref(node)
+      else if (ref) ref.current = node
+    },
+    [ref]
+  )
 
   React.useLayoutEffect(() => {
     const list = listRef.current
@@ -78,7 +87,7 @@ function TabsList({
 
   return (
     <TabsPrimitive.List
-      ref={listRef}
+      ref={composedRef}
       data-slot="tabs-list"
       className={cn(
         "bg-[var(--surface-hover)] text-muted-foreground relative inline-flex h-9 w-fit items-center justify-center rounded-lg p-[3px]",

@@ -19,7 +19,7 @@ import { cn } from "@/lib/utils";
  *
  * Usage:
  *   <ProximityHoverGroup>            // wraps the scrollable menu/list
- *     <ProximityHoverItem asChild>   // one per row
+ *     <ProximityHoverItem>           // one per row
  *       <MenuItem />
  *     </ProximityHoverItem>
  *   </ProximityHoverGroup>
@@ -103,7 +103,7 @@ export function ProximityHoverGroup({
 
 /**
  * Marks an element as a proximity target. Reports its bounds on pointer-enter.
- * Renders a plain wrapper span by default; the child is responsible for layout.
+ * Renders a plain wrapper div; the child is responsible for layout.
  * Items inside a group should NOT set their own hover background — the gliding
  * highlight replaces it. Keep focus/selected states (keyboard nav) as-is.
  */
