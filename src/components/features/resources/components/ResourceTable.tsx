@@ -26,7 +26,7 @@ import { getNamespaceColor } from "@/lib/utils/colors";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Column, ContextMenuItemDef, SortDirection } from "../types";
 
-const ROW_HEIGHT = 40;
+const ROW_HEIGHT = 44;
 const OVERSCAN = 10;
 
 interface ResourceTableProps<T> {

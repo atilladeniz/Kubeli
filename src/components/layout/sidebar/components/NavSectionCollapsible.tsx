@@ -42,13 +42,13 @@ export function NavSectionCollapsible({
   const showHeaderHighlight = !isOpen && hasActiveChild;
 
   return (
-    <Collapsible defaultOpen={defaultOpen} onOpenChange={setIsOpen} className="mb-1">
+    <Collapsible defaultOpen={defaultOpen} onOpenChange={setIsOpen} className="mb-2">
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
           className={cn(
-            "w-full justify-start gap-2 px-2 font-medium text-xs uppercase tracking-wider hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90",
+            "h-9 w-full justify-start gap-2 px-2 font-medium text-xs uppercase tracking-wider hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90",
             showHeaderHighlight
               ? "text-primary bg-primary/10 hover:bg-primary/20 hover:text-primary"
               : "text-muted-foreground",
@@ -58,7 +58,7 @@ export function NavSectionCollapsible({
           <ChevronRight className="chevron size-3.5 transition-transform" />
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="relative ml-[11px] mt-0.5 space-y-0.5">
+      <CollapsibleContent className="relative ml-[11px] mt-1 space-y-1">
         {/* Tree vertical line */}
         <div className="absolute left-0 top-0 bottom-2 w-px bg-border/60" />
         {section.items.map((item, index) => {
@@ -92,7 +92,7 @@ export function NavSectionCollapsible({
                 }}
                 disabled={!isImplemented}
                 className={cn(
-                  "ml-4 w-[calc(100%-1rem)] justify-between gap-1.5 px-1.5 pr-8 font-normal text-xs",
+                  "h-9 ml-4 w-[calc(100%-1rem)] justify-between gap-1.5 px-1.5 pr-8 font-normal text-xs",
                   activeResource === item.id
                     ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                     : isImplemented

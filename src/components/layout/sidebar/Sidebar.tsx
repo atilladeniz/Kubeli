@@ -255,7 +255,7 @@ export function Sidebar({
 
       {/* Navigation */}
       <ScrollArea className="flex-1 min-h-0 *:data-[slot=scroll-area-viewport]:!overflow-x-hidden *:data-[slot=scroll-area-scrollbar]:absolute *:data-[slot=scroll-area-scrollbar]:right-0" type="scroll">
-        <nav className="p-2 pr-2 pb-4 min-w-0 overflow-hidden">
+        <nav className="p-3 pb-4 min-w-0 overflow-hidden">
           <QuickAccessSection
             navFavorites={navFavorites}
             navLabelById={navLabelById}
@@ -297,12 +297,12 @@ export function Sidebar({
 
       {/* Settings Button */}
       <Separator />
-      <div className="p-2">
+      <div className="p-3">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setSettingsOpen(true)}
-          className="w-full justify-between px-2 text-muted-foreground hover:text-foreground"
+          className="h-9 w-full justify-between px-2 text-muted-foreground hover:text-foreground"
         >
           <span className="flex items-center gap-2">
             <Cog className="size-4" />

@@ -84,7 +84,7 @@ export function ClusterGridCard({
         <Button
           variant="outline"
           size="icon"
-          className="shrink-0 size-9"
+          className="shrink-0"
           onClick={() => onConfigureNamespaces(cluster.context)}
           title={t("configureNamespaces")}
         >

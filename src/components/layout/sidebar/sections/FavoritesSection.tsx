@@ -56,7 +56,7 @@ export function FavoritesSection({
                 {tNav("pinnedResources")}
               </span>
               <span className="flex items-center gap-1">
-                <Badge variant="secondary" className="text-xs px-1.5 py-0">
+                <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
                   {favorites.length}
                 </Badge>
                 <ChevronRight
