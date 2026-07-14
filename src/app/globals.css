@@ -2,7 +2,9 @@
 @import "@xterm/xterm/css/xterm.css";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/* classic-dark is a dark theme too: every dark: utility applies there as well,
+   so components don't have to mirror styles with classic-dark: manually. */
+@custom-variant dark (&:is(.dark *, .classic-dark *));
 @custom-variant classic-dark (&:is(.classic-dark *));
 
 /* ============================================
