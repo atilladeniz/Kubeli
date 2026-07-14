@@ -42,7 +42,7 @@ export function QuickAccessSection({
     <Collapsible
       open={isNavFavoritesSectionOpen}
       onOpenChange={setIsNavFavoritesSectionOpen}
-      className="mb-2"
+      className="mb-3"
     >
       <CollapsibleTrigger asChild>
         <Button
@@ -78,13 +78,13 @@ export function QuickAccessSection({
                 size="sm"
                 onClick={() => onResourceSelect(resource)}
                 className={cn(
-                  "h-9 ml-4 w-[calc(100%-1rem)] justify-start gap-1.5 px-1.5 pr-8 font-normal text-xs",
+                  "h-9 ml-4 w-[calc(100%-1rem)] justify-start gap-2.5 px-2 pr-8 font-normal",
                   activeResource === resource
                     ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                     : "text-muted-foreground hover:text-foreground",
                 )}
               >
-                <span className="flex items-center gap-1.5 min-w-0 flex-1">
+                <span className="flex items-center gap-2.5 min-w-0 flex-1">
                   {icon && (
                     <span
                       className={cn(

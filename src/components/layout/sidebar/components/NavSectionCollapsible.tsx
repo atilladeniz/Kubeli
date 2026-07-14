@@ -42,7 +42,7 @@ export function NavSectionCollapsible({
   const showHeaderHighlight = !isOpen && hasActiveChild;
 
   return (
-    <Collapsible defaultOpen={defaultOpen} onOpenChange={setIsOpen} className="mb-2">
+    <Collapsible defaultOpen={defaultOpen} onOpenChange={setIsOpen} className="mb-3">
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
@@ -92,7 +92,7 @@ export function NavSectionCollapsible({
                 }}
                 disabled={!isImplemented}
                 className={cn(
-                  "h-9 ml-4 w-[calc(100%-1rem)] justify-between gap-1.5 px-1.5 pr-8 font-normal text-xs",
+                  "h-9 ml-4 w-[calc(100%-1rem)] justify-between gap-2.5 px-2 pr-8 font-normal",
                   activeResource === item.id
                     ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                     : isImplemented
@@ -100,7 +100,7 @@ export function NavSectionCollapsible({
                       : "text-muted-foreground/50 cursor-not-allowed",
                 )}
               >
-                <span className="flex items-center gap-1.5 truncate">
+                <span className="flex items-center gap-2.5 truncate">
                   {item.icon && (
                     <span
                       className={cn(

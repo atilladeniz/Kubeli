@@ -44,7 +44,7 @@ export function CustomResourcesSection({
   );
 
   return (
-    <Collapsible defaultOpen className="mb-2">
+    <Collapsible defaultOpen className="mb-3">
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
@@ -81,12 +81,12 @@ export function CustomResourcesSection({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-9 w-full min-w-0 justify-start gap-1.5 overflow-hidden px-1.5 font-normal text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+                    className="h-9 w-full min-w-0 justify-start gap-2.5 overflow-hidden px-2 font-normal text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
                   >
                     <ChevronRight className="chevron size-3 shrink-0 transition-transform" />
                     <TruncateTooltip
                       content={group.provider}
-                      className="min-w-0 w-0 flex-1 truncate text-left text-xs"
+                      className="min-w-0 w-0 flex-1 truncate text-left text-sm"
                     />
                     <Badge
                       variant="outline"
@@ -130,7 +130,7 @@ export function CustomResourcesSection({
                           }
                         }}
                         className={cn(
-                          "w-full min-w-0 justify-start gap-1.5 overflow-hidden px-1.5 font-normal text-xs",
+                          "h-9 w-full min-w-0 justify-start gap-2.5 overflow-hidden px-2 font-normal",
                           activeResource === resource.id
                             ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                             : "text-muted-foreground hover:text-foreground",

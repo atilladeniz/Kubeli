@@ -145,7 +145,7 @@ export function Sidebar({
   };
 
   return (
-    <aside ref={sidebarRef} className="flex w-fit min-w-52 max-w-64 shrink-0 flex-col border-r border-border bg-card/50 overflow-hidden">
+    <aside ref={sidebarRef} className="flex w-fit min-w-56 max-w-72 shrink-0 flex-col border-r border-border bg-card/50 overflow-hidden">
       {/* Traffic lights safe area */}
       <div data-tauri-drag-region className="h-8 shrink-0" />
 
