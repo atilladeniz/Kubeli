@@ -44,24 +44,24 @@ export function CustomResourcesSection({
   );
 
   return (
-    <Collapsible defaultOpen className="mb-1">
+    <Collapsible defaultOpen className="mb-3">
       <CollapsibleTrigger asChild>
         <Button
           variant="ghost"
           size="sm"
-          className="w-full justify-start gap-2 px-2 font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+          className="h-9 w-full justify-start gap-2 px-2 font-medium text-xs uppercase tracking-wider text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
         >
           <span className="flex-1 truncate text-left">{t("customResources")}</span>
           <Badge
             variant="outline"
-            className="h-4 shrink-0 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"
+            className="h-5 shrink-0 border-border/40 px-1.5 text-xs font-normal text-muted-foreground"
           >
             {resourceCount}
           </Badge>
           <ChevronRight className="chevron size-3.5 shrink-0 transition-transform" />
         </Button>
       </CollapsibleTrigger>
-      <CollapsibleContent className="mt-0.5 space-y-0.5">
+      <CollapsibleContent className="mt-1 space-y-1">
         {groups.map((group) => {
           const hasActiveChild = group.resources.some(
             (r) => activeResource === r.id,
@@ -81,23 +81,23 @@ export function CustomResourcesSection({
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="w-full min-w-0 justify-start gap-1.5 overflow-hidden px-1.5 font-normal text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
+                    className="h-9 w-full min-w-0 justify-start gap-2.5 overflow-hidden px-2 font-normal text-muted-foreground hover:text-foreground [&[data-state=open]>svg.chevron]:rotate-90"
                   >
                     <ChevronRight className="chevron size-3 shrink-0 transition-transform" />
                     <TruncateTooltip
                       content={group.provider}
-                      className="min-w-0 w-0 flex-1 truncate text-left text-xs"
+                      className="min-w-0 w-0 flex-1 truncate text-left text-sm"
                     />
                     <Badge
                       variant="outline"
-                      className="ml-auto h-4 shrink-0 border-border/40 px-1.5 text-[9px] font-normal text-muted-foreground"
+                      className="ml-auto h-5 shrink-0 border-border/40 px-1.5 text-xs font-normal text-muted-foreground"
                     >
                       {group.resources.length}
                     </Badge>
                   </Button>
                 </CollapsibleTrigger>
               </div>
-              <CollapsibleContent className="relative ml-4 mt-0.5 space-y-0.5">
+              <CollapsibleContent className="relative ml-4 mt-1 space-y-1">
                 {/* Tree vertical line for resources */}
                 <div className="absolute left-[11px] top-0 bottom-2 w-px bg-border/60" />
                 {group.resources.map((resource, index) => {
@@ -130,7 +130,7 @@ export function CustomResourcesSection({
                           }
                         }}
                         className={cn(
-                          "w-full min-w-0 justify-start gap-1.5 overflow-hidden px-1.5 font-normal text-xs",
+                          "h-9 w-full min-w-0 justify-start gap-2.5 overflow-hidden px-2 font-normal",
                           activeResource === resource.id
                             ? "bg-primary/10 text-primary hover:bg-primary/20 hover:text-primary"
                             : "text-muted-foreground hover:text-foreground",

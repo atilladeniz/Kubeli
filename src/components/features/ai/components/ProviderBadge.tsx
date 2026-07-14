@@ -21,7 +21,7 @@ export function ProviderBadge() {
   return (
     <span
       className={cn(
-        "text-[9px] font-medium px-1.5 py-0.5 rounded-full",
+        "text-xs font-medium px-1.5 py-0.5 rounded-full",
         style.className
       )}
     >

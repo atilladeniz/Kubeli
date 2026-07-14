@@ -59,7 +59,7 @@ export function PortForwardsSection({
               <Maximize2 className="size-2.5" />
             </button>
             <div className="flex items-center gap-1">
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+              <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
                 {forwards.length}
               </Badge>
               <CollapsibleTrigger asChild>
@@ -90,7 +90,7 @@ export function PortForwardsSection({
             {forwards.map((forward) => (
               <div
                 key={forward.forward_id}
-                className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-1.5 text-xs group overflow-hidden"
+                className="flex items-center justify-between rounded-md bg-muted/50 px-2 py-2 text-xs group overflow-hidden"
               >
                 <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
                   <span

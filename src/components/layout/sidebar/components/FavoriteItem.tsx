@@ -68,7 +68,7 @@ export function FavoriteItem({
           <TruncateTooltip
             content={favorite.namespace}
             className={cn(
-              "block w-full truncate text-[10px] leading-tight",
+              "block w-full truncate text-xs leading-tight",
               isActive ? "text-muted-foreground" : "text-muted-foreground/60"
             )}
           />
@@ -78,7 +78,7 @@ export function FavoriteItem({
         {shortcutKey && (
           <Kbd
             className={cn(
-              "text-[9px] transition-opacity",
+              "text-xs transition-opacity",
               isActive ? "opacity-100" : "opacity-50 group-hover:opacity-100"
             )}
           >

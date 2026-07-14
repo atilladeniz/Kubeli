@@ -83,7 +83,7 @@ export function AboutTab({ appVersion }: AboutTabProps) {
             )}
           </Button>
         )}
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
 
       <div className="max-w-md space-y-4 text-sm text-muted-foreground">
@@ -102,8 +102,8 @@ export function AboutTab({ appVersion }: AboutTabProps) {
 
       <Separator className="my-6 w-full" />
 
-      <div className="text-xs text-muted-foreground/70 space-y-2">
-        <div className="space-y-0.5">
+      <div className="text-sm text-muted-foreground/70 space-y-2">
+        <div className="space-y-1">
           <p className="text-muted-foreground">{t("about.developer")}</p>
           <p className="font-medium text-foreground">Atilla Deniz</p>
           <a

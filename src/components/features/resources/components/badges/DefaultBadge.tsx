@@ -10,7 +10,7 @@ export function DefaultBadge({ className }: { className?: string }) {
   return (
     <Badge
       variant="outline"
-      className={cn("text-[10px] px-1 py-0 h-4 font-medium", className)}
+      className={cn("text-xs px-1.5 py-0.5 font-medium", className)}
     >
       {t("default")}
     </Badge>

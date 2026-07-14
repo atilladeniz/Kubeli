@@ -49,7 +49,7 @@ import {
 
 import type { NavSection } from "./types/types";
 
-const iconClass = "size-3.5 shrink-0";
+const iconClass = "size-4 shrink-0";
 
 // Hook to get translated navigation sections
 export function useNavigationSections(): NavSection[] {

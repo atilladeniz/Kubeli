@@ -104,9 +104,9 @@ export function McpTab({ mcp }: McpTabProps) {
     <div className="space-y-6">
       {/* Header with Refresh */}
       <div className="flex items-center justify-between">
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           <Label className="text-sm font-medium">{t("mcp.ideIntegration")}</Label>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {t("mcp.ideIntegrationDescription")}
           </p>
         </div>
@@ -153,9 +153,9 @@ export function McpTab({ mcp }: McpTabProps) {
 
       {/* Kubeli Path */}
       <div className="space-y-2">
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           <Label className="text-sm font-medium">{t("mcp.kubeliPath")}</Label>
-          <p className="text-xs text-muted-foreground">{t("mcp.kubeliPathDescription")}</p>
+          <p className="text-sm text-muted-foreground">{t("mcp.kubeliPathDescription")}</p>
         </div>
         <code className="block text-xs font-mono bg-muted px-3 py-2 rounded-md text-muted-foreground break-all">
           {mcp.kubeliPath || "..."}
@@ -166,9 +166,9 @@ export function McpTab({ mcp }: McpTabProps) {
 
       {/* Example Prompts Button */}
       <div className="flex items-center justify-between">
-        <div className="space-y-0.5">
+        <div className="space-y-1">
           <Label className="text-sm font-medium">{t("mcp.examplePrompts")}</Label>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {t("mcp.examplePromptsDescription")}
           </p>
         </div>
@@ -190,13 +190,13 @@ export function McpTab({ mcp }: McpTabProps) {
           <Plug className="size-4" />
           <span className="font-medium">{t("mcp.howItWorks")}</span>
         </div>
-        <p className="text-xs">
+        <p className="text-sm">
           {t("mcp.howItWorksDescription")}
         </p>
-        <p className="text-xs font-medium text-foreground mt-2">
+        <p className="text-sm font-medium text-foreground mt-2">
           {t("mcp.capabilities")}
         </p>
-        <ul className="text-xs space-y-1 ml-6 list-disc">
+        <ul className="text-sm space-y-1 ml-6 list-disc">
           <li>{t("mcp.capabilityPods")}</li>
           <li>{t("mcp.capabilityDeployments")}</li>
           <li>{t("mcp.capabilityServices")}</li>

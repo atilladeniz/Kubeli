@@ -1,8 +1,13 @@
 import { useTranslations } from "next-intl";
-import { CheckCircle, XCircle, AlertCircle } from "lucide-react";
-import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import type { CliStatusCardProps } from "../types";
+
+const STATUS_META = {
+  authenticated: { dot: "bg-green-500", text: "text-green-500", key: "authenticated" },
+  notauthenticated: { dot: "bg-yellow-500", text: "text-yellow-500", key: "notAuthenticated" },
+  notinstalled: { dot: "bg-red-500", text: "text-red-500", key: "notInstalled" },
+  error: { dot: "bg-red-500", text: "text-red-500", key: "error" },
+} as const;
 
 export function CliStatusCard({
   name,
@@ -14,89 +19,72 @@ export function CliStatusCard({
 }: CliStatusCardProps) {
   const tc = useTranslations("common");
 
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <Label className="text-sm font-medium">{name}</Label>
-        {isSelected && (
-          <span className="text-xs bg-primary/10 text-primary px-2 py-0.5 rounded-full">
-            {translations?.active || "Active"}
-          </span>
-        )}
-      </div>
+  const meta =
+    info && info.status in STATUS_META
+      ? STATUS_META[info.status as keyof typeof STATUS_META]
+      : null;
+  const statusLabel = meta
+    ? meta.key === "error"
+      ? tc("error")
+      : translations?.[meta.key as keyof typeof translations] ?? meta.key
+    : !info && isChecking
+      ? translations?.checking ?? "Checking…"
+      : translations?.clickRefresh ?? "—";
 
+  return (
+    <div className="space-y-2">
       <div
         className={cn(
-          "rounded-lg border p-4 space-y-2",
-          info?.status === "authenticated" &&
-            "border-green-500/30 bg-green-500/5",
-          info?.status === "notauthenticated" &&
-            "border-yellow-500/30 bg-yellow-500/5",
-          info?.status === "notinstalled" && "border-red-500/30 bg-red-500/5",
-          info?.status === "error" && "border-red-500/30 bg-red-500/5",
-          !info && "border-muted"
+          "border-surface-border bg-surface-2 flex items-center gap-3 rounded-lg border px-3.5 py-3",
+          isSelected && "ring-brand/40 ring-1"
         )}
       >
-        <div className="flex items-center gap-2">
-          {info?.status === "authenticated" && (
-            <>
-              <CheckCircle className="size-5 text-green-500" />
-              <span className="text-sm font-medium text-green-500">
-                {translations?.authenticated || "Authenticated"}
+        {/* Status dot */}
+        <span
+          className={cn(
+            "size-2 shrink-0 rounded-full",
+            meta ? meta.dot : "bg-muted-foreground/40",
+            !info && isChecking && "animate-pulse"
+          )}
+        />
+
+        {/* Name + meta */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium">{name}</span>
+            {isSelected && (
+              <span className="bg-brand/12 text-brand rounded-full px-1.5 py-0.5 text-xs font-medium">
+                {translations?.active ?? "Active"}
               </span>
-            </>
+            )}
+          </div>
+          {(info?.version || info?.cli_path) && (
+            <p className="text-muted-foreground mt-0.5 truncate font-mono text-xs">
+              {info?.version}
+              {info?.version && info?.cli_path && " · "}
+              {info?.cli_path}
+            </p>
           )}
-          {info?.status === "notauthenticated" && (
-            <>
-              <AlertCircle className="size-5 text-yellow-500" />
-              <span className="text-sm font-medium text-yellow-500">
-                {translations?.notAuthenticated || "Not Authenticated"}
-              </span>
-            </>
-          )}
-          {info?.status === "notinstalled" && (
-            <>
-              <XCircle className="size-5 text-red-500" />
-              <span className="text-sm font-medium text-red-500">
-                {translations?.notInstalled || "Not Installed"}
-              </span>
-            </>
-          )}
-          {info?.status === "error" && (
-            <>
-              <XCircle className="size-5 text-red-500" />
-              <span className="text-sm font-medium text-red-500">{tc("error")}</span>
-            </>
-          )}
-          {!info && !isChecking && (
-            <span className="text-sm text-muted-foreground">
-              {translations?.clickRefresh || "Click Refresh to check status"}
-            </span>
-          )}
-          {!info && isChecking && (
-            <span className="text-sm text-muted-foreground">
-              {translations?.checking || "Checking CLI status..."}
-            </span>
+          {info?.error_message && (
+            <p className="mt-0.5 truncate text-sm text-red-500">
+              {info.error_message}
+            </p>
           )}
         </div>
 
-        {info?.version && (
-          <div className="text-xs text-muted-foreground">
-            {tc("version")}: <span className="font-mono">{info.version}</span>
-          </div>
-        )}
-        {info?.cli_path && (
-          <div className="text-xs text-muted-foreground">
-            Path: <span className="font-mono">{info.cli_path}</span>
-          </div>
-        )}
-        {info?.error_message && (
-          <div className="text-xs text-red-500">{info.error_message}</div>
-        )}
+        {/* Status label */}
+        <span
+          className={cn(
+            "shrink-0 text-xs font-medium",
+            meta ? meta.text : "text-muted-foreground"
+          )}
+        >
+          {statusLabel}
+        </span>
       </div>
 
       {info?.status === "notinstalled" && (
-        <div className="text-sm text-muted-foreground bg-muted/50 rounded-md p-3">
+        <div className="text-muted-foreground bg-[var(--surface-hover)] rounded-lg p-3 text-sm">
           {installInstructions}
         </div>
       )}

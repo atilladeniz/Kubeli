@@ -38,7 +38,7 @@ export function DiagramToolbar({
           placeholder={t("searchResources")}
           value={searchInput}
           onChange={(e) => onSearch(e.target.value)}
-          className="h-9 pl-9 pr-8"
+          className="pl-9 pr-8"
         />
         {searchInput.length > 0 && (
           <Button
@@ -59,9 +59,10 @@ export function DiagramToolbar({
 
       <Button
         variant="outline"
-        size="sm"
+        size="icon"
         onClick={onRefresh}
         disabled={isLoading || isCalculating}
+        aria-label={tCommon("refresh")}
       >
         <RefreshCw
           className={cn(

@@ -31,7 +31,7 @@ export function TitlebarIconButton({ icon: Icon, label, shortcut, onClick }: Tit
         </TooltipTrigger>
         <TooltipContent side="bottom" className="flex items-center gap-2">
           <span>{label}</span>
-          <Kbd className="text-[10px]">{shortcut}</Kbd>
+          <Kbd className="text-xs">{shortcut}</Kbd>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

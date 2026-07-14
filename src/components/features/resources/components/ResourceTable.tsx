@@ -26,7 +26,7 @@ import { getNamespaceColor } from "@/lib/utils/colors";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Column, ContextMenuItemDef, SortDirection } from "../types";
 
-const ROW_HEIGHT = 40;
+const ROW_HEIGHT = 44;
 const OVERSCAN = 10;
 
 interface ResourceTableProps<T> {
@@ -56,6 +56,7 @@ interface ResourceTableRowProps<T> {
   namespace?: string;
   rowClassName?: string;
   hasBulkActions: boolean;
+  isFixed: boolean;
   onRowClick?: (item: T) => void;
   contextMenuItems?: (item: T) => ContextMenuItemDef[];
   onToggleSelect: (key: string) => void;
@@ -85,7 +86,7 @@ function renderMenuItems(menuItems: ContextMenuItemDef[]) {
               {child.hint && (
                 <span
                   className={cn(
-                    "ml-auto rounded-full px-2 py-0.5 text-[10px] font-mono font-medium",
+                    "ml-auto rounded-full px-2 py-0.5 text-xs font-mono font-medium",
                     child.hintVariant === "active"
                       ? "bg-purple-500/20 text-purple-400"
                       : "bg-muted text-foreground"
@@ -121,6 +122,7 @@ function ResourceTableRowInner<T>({
   namespace,
   rowClassName,
   hasBulkActions,
+  isFixed,
   onRowClick,
   contextMenuItems,
   onToggleSelect,
@@ -150,7 +152,14 @@ function ResourceTableRowInner<T>({
         </TableCell>
       )}
       {columns.map((column) => (
-        <TableCell key={String(column.key)} className="text-sm">
+        <TableCell
+          key={String(column.key)}
+          className={cn(
+            "text-sm",
+            column.width,
+            isFixed && !column.noTruncate && "truncate"
+          )}
+        >
           {column.render
             ? column.render(item)
             : String(
@@ -222,11 +231,28 @@ export function ResourceTable<T>({
       ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
       : 0;
   const columnCount = columns.length + (hasBulkActions ? 1 : 0);
+  // Fixed layout (stable columns, no scroll jitter) only when widths are
+  // declared; otherwise fall back to content-sized auto layout.
+  const hasFixedWidths = columns.some((c) => c.width);
 
   return (
-    <div ref={scrollRef} className="h-full overflow-auto">
-      <Table>
-        <TableHeader className="sticky top-0 z-10 bg-background">
+    // overscroll-none kills the elastic bounce that left ghost rows above/below
+    // the sticky header. The horizontal jitter is fixed at the source: columns
+    // carry fixed widths so their content (e.g. the variable action buttons)
+    // can't renegotiate widths as rows scroll through the virtual window.
+    <div
+      ref={scrollRef}
+      className="h-full overflow-auto [overscroll-behavior:none]"
+    >
+      {/* table-fixed only when columns declare widths: widths then come from the
+          headers, not per-row content, so variable action buttons can't jitter
+          the layout sideways while scrolling. Tables without declared widths
+          keep the content-sized auto layout. */}
+      <Table className={cn("w-full", hasFixedWidths && "min-w-max table-fixed")}>
+        {/* translate-z-0: force the sticky header onto its own GPU layer so
+            virtual rows scrolling under it don't leave repaint ghosts in
+            WebKit. */}
+        <TableHeader className="sticky top-0 z-20 bg-background [transform:translateZ(0)]">
           <TableRow>
             {hasBulkActions && (
               <TableHead className="w-8 bg-background pl-3.5">
@@ -293,6 +319,7 @@ export function ResourceTable<T>({
                 namespace={getRowNamespace?.(item)}
                 rowClassName={getRowClassName?.(item)}
                 hasBulkActions={hasBulkActions}
+                isFixed={hasFixedWidths}
                 onRowClick={onRowClick}
                 contextMenuItems={contextMenuItems}
                 onToggleSelect={onToggleSelect}

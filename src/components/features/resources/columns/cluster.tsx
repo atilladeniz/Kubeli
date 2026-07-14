@@ -85,13 +85,13 @@ export const crdColumns: Column<CRDInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
-    render: (crd) => <span className="font-medium text-xs font-mono">{crd.name}</span>,
+    render: (crd) => <span className="font-medium font-mono">{crd.name}</span>,
   },
   {
     key: "group",
     label: "GROUP",
     sortable: true,
-    render: (crd) => <span className="text-xs">{crd.group}</span>,
+    render: (crd) => <span>{crd.group}</span>,
   },
   {
     key: "kind",
@@ -110,7 +110,7 @@ export const crdColumns: Column<CRDInfo>[] = [
     label: "VERSIONS",
     sortable: false,
     render: (crd) => (
-      <span className="text-xs text-muted-foreground">
+      <span className="text-muted-foreground">
         {crd.versions.map(v => v.name).join(", ")}
       </span>
     ),
@@ -154,7 +154,7 @@ export const priorityClassColumns: Column<PriorityClassInfo>[] = [
     label: "VALUE",
     sortable: true,
     render: (pc) => (
-      <span className="font-mono text-xs">
+      <span className="font-mono">
         {pc.value.toLocaleString()}
       </span>
     ),
@@ -167,7 +167,7 @@ export const priorityClassColumns: Column<PriorityClassInfo>[] = [
       <Badge
         variant="outline"
         className={cn(
-          "border-0 text-[10px]",
+          "border-0 text-xs",
           pc.preemption_policy === "PreemptLowerPriority"
             ? "bg-orange-500/10 text-orange-500"
             : "bg-muted text-muted-foreground"
@@ -182,7 +182,7 @@ export const priorityClassColumns: Column<PriorityClassInfo>[] = [
     label: "DESCRIPTION",
     sortable: false,
     render: (pc) => (
-      <span className="text-xs text-muted-foreground truncate max-w-xs">
+      <span className="text-muted-foreground truncate max-w-xs">
         {pc.description || "-"}
       </span>
     ),
@@ -207,7 +207,7 @@ export const runtimeClassColumns: Column<RuntimeClassInfo>[] = [
     key: "handler",
     label: "HANDLER",
     sortable: true,
-    render: (rc) => <span className="font-mono text-xs">{rc.handler}</span>,
+    render: (rc) => <span className="font-mono">{rc.handler}</span>,
   },
   {
     key: "scheduling_tolerations_count",
@@ -226,7 +226,7 @@ export const runtimeClassColumns: Column<RuntimeClassInfo>[] = [
     render: (rc) => {
       if (!rc.scheduling_node_selector) return "-";
       const count = Object.keys(rc.scheduling_node_selector).length;
-      return <span className="text-xs text-muted-foreground">{count} label{count > 1 ? "s" : ""}</span>;
+      return <span className="text-muted-foreground">{count} label{count > 1 ? "s" : ""}</span>;
     },
   },
   {
@@ -243,7 +243,7 @@ export const mutatingWebhookColumns: Column<MutatingWebhookInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
-    render: (mw) => <span className="font-medium text-xs">{mw.name}</span>,
+    render: (mw) => <span className="font-medium">{mw.name}</span>,
   },
   {
     key: "webhooks_count",
@@ -262,7 +262,7 @@ export const mutatingWebhookColumns: Column<MutatingWebhookInfo>[] = [
         .slice(0, 2);
       if (services.length === 0) return "-";
       return (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-muted-foreground">
           {services.join(", ")}{mw.webhooks.length > 2 ? "..." : ""}
         </span>
       );
@@ -291,7 +291,7 @@ export const validatingWebhookColumns: Column<ValidatingWebhookInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
-    render: (vw) => <span className="font-medium text-xs">{vw.name}</span>,
+    render: (vw) => <span className="font-medium">{vw.name}</span>,
   },
   {
     key: "webhooks_count",
@@ -310,7 +310,7 @@ export const validatingWebhookColumns: Column<ValidatingWebhookInfo>[] = [
         .slice(0, 2);
       if (services.length === 0) return "-";
       return (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-muted-foreground">
           {services.join(", ")}{vw.webhooks.length > 2 ? "..." : ""}
         </span>
       );

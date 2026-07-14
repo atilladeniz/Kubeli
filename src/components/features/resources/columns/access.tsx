@@ -117,7 +117,7 @@ export const roleBindingColumns: Column<RoleBindingInfo>[] = [
     sortable: true,
     render: (rb) => (
       <div className="flex items-center gap-1">
-        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4">
+        <Badge variant="outline" className="text-xs px-1.5 py-0.5">
           {rb.role_kind}
         </Badge>
         <span>{rb.role_name}</span>
@@ -165,7 +165,7 @@ export const clusterRoleColumns: Column<ClusterRoleInfo>[] = [
     render: (cr) => {
       if (!cr.aggregation_rule || cr.aggregation_rule.length === 0) return "-";
       return (
-        <span className="text-xs text-muted-foreground">
+        <span className="text-muted-foreground">
           {cr.aggregation_rule.length} label{cr.aggregation_rule.length > 1 ? "s" : ""}
         </span>
       );
@@ -192,7 +192,7 @@ export const clusterRoleBindingColumns: Column<ClusterRoleBindingInfo>[] = [
     sortable: true,
     render: (crb) => (
       <div className="flex items-center gap-1">
-        <Badge variant="outline" className="text-[10px] px-1 py-0 h-4 bg-purple-500/10 text-purple-500 border-purple-500/20">
+        <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-purple-500/10 text-purple-500 border-purple-500/20">
           ClusterRole
         </Badge>
         <span>{crb.role_name}</span>

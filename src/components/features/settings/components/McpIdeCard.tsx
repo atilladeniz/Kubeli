@@ -2,13 +2,7 @@ import { CheckCircle, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { McpIdeCardProps } from "../types";
-
-const IDE_ICONS: Record<string, string> = {
-  claude_code: "C",
-  codex: "O",
-  vscode: "VS",
-  cursor: "Cu",
-};
+import { IDE_LOGOS } from "./ide-logos";
 
 export function McpIdeCard({
   ide,
@@ -17,7 +11,7 @@ export function McpIdeCard({
   onUninstall,
   translations,
 }: McpIdeCardProps) {
-  const icon = IDE_ICONS[ide.id] || "?";
+  const Logo = IDE_LOGOS[ide.id];
 
   return (
     <div
@@ -31,13 +25,13 @@ export function McpIdeCard({
       <div className="flex items-center gap-3">
         <div
           className={cn(
-            "size-10 rounded-lg flex items-center justify-center text-sm font-bold",
+            "flex size-10 items-center justify-center rounded-lg",
             ide.installed
-              ? "bg-primary/10 text-primary"
-              : "bg-muted text-muted-foreground"
+              ? "bg-brand/12 text-foreground"
+              : "bg-[var(--surface-hover)] text-muted-foreground"
           )}
         >
-          {icon}
+          {Logo ? <Logo className="size-5" /> : <span className="text-sm font-bold">?</span>}
         </div>
 
         <div>
@@ -50,7 +44,7 @@ export function McpIdeCard({
               </span>
             )}
           </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {ide.installed
               ? ide.mcp_configured
                 ? ide.config_path

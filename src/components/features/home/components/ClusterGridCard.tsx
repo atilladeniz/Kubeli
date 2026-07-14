@@ -43,7 +43,7 @@ export function ClusterGridCard({
               <CardTitle className="flex items-center gap-2 text-base">
                 {cluster.name}
                 {cluster.current && (
-                  <Badge variant="secondary" className="text-[10px]">
+                  <Badge variant="secondary" className="text-xs">
                     {t("default")}
                   </Badge>
                 )}
@@ -74,7 +74,7 @@ export function ClusterGridCard({
           <p className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
             <span>{cluster.namespace || "default"} | {cluster.auth_type}</span>
             {hasConfiguredNamespaces && (
-              <Badge variant="outline" className="px-1 py-0 text-[9px] font-normal">
+              <Badge variant="outline" className="px-1 py-0 text-xs font-normal">
                 NS
               </Badge>
             )}
@@ -84,7 +84,7 @@ export function ClusterGridCard({
         <Button
           variant="outline"
           size="icon"
-          className="shrink-0 size-9"
+          className="shrink-0"
           onClick={() => onConfigureNamespaces(cluster.context)}
           title={t("configureNamespaces")}
         >

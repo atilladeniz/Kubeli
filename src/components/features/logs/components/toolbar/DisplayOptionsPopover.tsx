@@ -60,7 +60,7 @@ export function DisplayOptionsPopover({
       </Tooltip>
       <PopoverContent align="end" className="w-56 p-3">
         {/* Display Options */}
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
           {labels.displayOptions}
         </p>
         <div className="space-y-2.5">
@@ -95,7 +95,7 @@ export function DisplayOptionsPopover({
 
         {/* Timestamp */}
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground mb-2">
+          <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
             {labels.timestamp}
           </p>
           <div className="flex rounded-md border border-border overflow-hidden">

@@ -44,7 +44,7 @@ export function AddTabButton({
         </TooltipTrigger>
         <TooltipContent side="bottom" className="flex items-center gap-2">
           <span>{isAtLimit ? limitReachedLabel : newTabLabel}</span>
-          {!isAtLimit && <Kbd className="text-[10px]">{modKeySymbol}T</Kbd>}
+          {!isAtLimit && <Kbd className="text-xs">{modKeySymbol}T</Kbd>}
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>

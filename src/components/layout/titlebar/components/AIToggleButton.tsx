@@ -46,7 +46,7 @@ export function AIToggleButton({ isOpen, isProcessing, isDisabled, onToggle }: A
           ) : (
             <>
               <span>AI Assistant</span>
-              <Kbd className="text-[10px]">G I</Kbd>
+              <Kbd className="text-xs">G I</Kbd>
             </>
           )}
         </TooltipContent>

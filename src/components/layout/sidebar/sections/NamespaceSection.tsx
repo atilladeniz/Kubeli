@@ -131,7 +131,7 @@ export function NamespaceSection({
               <span className="flex items-center gap-1.5">
                 {tCluster("namespace")}
                 {namespaceSource === "configured" && (
-                  <Badge variant="outline" className="px-1.5 py-0 text-[9px] font-normal text-muted-foreground">
+                  <Badge variant="outline" className="px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
                     {tCluster("namespacesConfigured")}
                   </Badge>
                 )}
@@ -140,7 +140,7 @@ export function NamespaceSection({
                 {!isNamespaceSectionOpen && (
                   <Badge
                     variant="secondary"
-                    className="max-w-[130px] px-2 py-0 text-[10px]"
+                    className="max-w-[130px] px-2 py-0.5 text-xs"
                   >
                     <TruncateTooltip
                       content={badgeLabel}

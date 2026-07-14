@@ -59,7 +59,7 @@ export function SettingsPanel() {
 
   return (
     <Dialog open={isSettingsOpen} onOpenChange={setSettingsOpen}>
-      <DialogContent className="sm:max-w-4xl max-h-[85vh] min-h-[45vh] overflow-hidden flex flex-col">
+      <DialogContent className="flex h-[80vh] flex-col overflow-hidden sm:max-w-4xl">
         <DialogHeader className="shrink-0">
           <div className="flex items-center justify-between">
             <DialogTitle className="text-lg font-semibold">
@@ -71,9 +71,9 @@ export function SettingsPanel() {
         <Tabs
           value={activeTab}
           onValueChange={setActiveTab}
-          className="flex-1 flex flex-col min-h-0"
+          className="flex min-h-0 flex-1 flex-col"
         >
-          <TabsList className="shrink-0 w-full justify-start gap-1">
+          <TabsList className="w-full shrink-0 justify-start gap-1">
             <TabsTrigger value="appearance">{t("tabs.appearance")}</TabsTrigger>
             <TabsTrigger value="general">{t("tabs.general")}</TabsTrigger>
             <TabsTrigger value="network">{t("tabs.network")}</TabsTrigger>
@@ -85,7 +85,7 @@ export function SettingsPanel() {
             <TabsTrigger value="about">{t("tabs.about")}</TabsTrigger>
           </TabsList>
 
-          <div className="flex-1 overflow-auto mt-4 px-1">
+          <div className="mt-4 min-h-0 flex-1 overflow-y-auto px-1 [scrollbar-gutter:stable]">
             <TabsContent value="appearance" className="m-0">
               <AppearanceTab />
             </TabsContent>

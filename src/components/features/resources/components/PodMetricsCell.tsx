@@ -80,7 +80,7 @@ export function PodMetricsCell({ podName, namespace, metricsMap, type, loading }
   }
 
   if (!metrics) {
-    return <span className="text-muted-foreground text-xs">-</span>;
+    return <span className="text-muted-foreground">-</span>;
   }
 
   return (
@@ -115,13 +115,13 @@ function MetricCellInner({
       )}
       <div className="flex flex-col gap-0.5 flex-1">
         <div className="flex items-baseline justify-between">
-          <span className="text-xs font-medium tabular-nums">
+          <span className="font-medium tabular-nums">
             {config.format(value)}
           </span>
           {hasRequest && (
             <span
               className={cn(
-                "text-[10px] tabular-nums",
+                "tabular-nums",
                 percentage > 90
                   ? "text-destructive"
                   : percentage > 80

@@ -145,7 +145,7 @@ export function Sidebar({
   };
 
   return (
-    <aside ref={sidebarRef} className="flex w-fit min-w-52 max-w-64 shrink-0 flex-col border-r border-border bg-card/50 overflow-hidden">
+    <aside ref={sidebarRef} className="flex w-fit min-w-56 max-w-72 shrink-0 flex-col border-r border-border bg-card/50 overflow-hidden">
       {/* Traffic lights safe area */}
       <div data-tauri-drag-region className="h-8 shrink-0" />
 
@@ -171,7 +171,7 @@ export function Sidebar({
               {isConnected && isHealthy && (
                 <div className="flex items-center gap-1.5 shrink-0">
                   {latencyMs !== null && (
-                    <span className="text-[10px] text-muted-foreground">
+                    <span className="text-xs text-muted-foreground">
                       {latencyMs}ms
                     </span>
                   )}
@@ -183,7 +183,7 @@ export function Sidebar({
               )}
               {isReconnecting && (
                 <div className="flex items-center gap-1.5 shrink-0">
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     Retry {reconnectAttempts}
                   </span>
                   <span className="size-2 rounded-full bg-yellow-400 animate-pulse" />
@@ -255,7 +255,7 @@ export function Sidebar({
 
       {/* Navigation */}
       <ScrollArea className="flex-1 min-h-0 *:data-[slot=scroll-area-viewport]:!overflow-x-hidden *:data-[slot=scroll-area-scrollbar]:absolute *:data-[slot=scroll-area-scrollbar]:right-0" type="scroll">
-        <nav className="p-2 pr-2 pb-4 min-w-0 overflow-hidden">
+        <nav className="p-3 pb-4 min-w-0 overflow-hidden">
           <QuickAccessSection
             navFavorites={navFavorites}
             navLabelById={navLabelById}
@@ -297,18 +297,18 @@ export function Sidebar({
 
       {/* Settings Button */}
       <Separator />
-      <div className="p-2">
+      <div className="p-3">
         <Button
           variant="ghost"
           size="sm"
           onClick={() => setSettingsOpen(true)}
-          className="w-full justify-between px-2 text-muted-foreground hover:text-foreground"
+          className="h-9 w-full justify-between px-2 text-muted-foreground hover:text-foreground"
         >
           <span className="flex items-center gap-2">
             <Cog className="size-4" />
             {tNav("settings")}
           </span>
-          <Kbd className="text-[10px]">{modKeySymbol},</Kbd>
+          <Kbd className="text-xs">{modKeySymbol},</Kbd>
         </Button>
       </div>
 

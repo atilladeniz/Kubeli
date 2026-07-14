@@ -52,7 +52,7 @@ export function UpdateChecker() {
   return (
     <div
       className={cn(
-        "fixed bottom-4 right-4 z-50 w-80 rounded-lg border bg-card p-4 shadow-lg",
+        "bg-surface-3 shadow-surface-4 border-surface-border fixed right-4 bottom-4 z-50 w-80 rounded-xl border p-4",
         "animate-in slide-in-from-bottom-5 duration-300"
       )}
     >

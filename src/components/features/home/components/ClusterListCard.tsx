@@ -22,10 +22,8 @@ export function ClusterListCard({
 
   return (
     <div
-      className={`flex items-center gap-3 border-b border-border/50 px-3 py-2.5 transition-colors ${
-        isActive
-          ? "bg-green-500/5"
-          : "hover:bg-muted/50"
+      className={`relative z-10 flex items-center gap-3 border-b border-surface-border px-3 py-2.5 transition-colors first:rounded-t-xl last:rounded-b-xl last:border-b-0 ${
+        isActive ? "bg-green-500/5" : ""
       }`}
     >
       <ClusterIcon cluster={cluster} size={22} />
@@ -35,7 +33,7 @@ export function ClusterListCard({
             {cluster.name}
           </span>
           {cluster.current && (
-            <Badge variant="secondary" className="shrink-0 text-[10px]">
+            <Badge variant="secondary" className="shrink-0 text-xs">
               {t("default")}
             </Badge>
           )}
@@ -43,14 +41,14 @@ export function ClusterListCard({
         <p className="truncate text-xs text-muted-foreground">
           {cluster.context}
         </p>
-        <p className="truncate text-[11px] text-muted-foreground/50">
+        <p className="truncate text-xs text-muted-foreground/50">
           {cluster.server}
         </p>
       </div>
       <span className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground/70 md:flex">
         {cluster.namespace || "default"}
         {hasConfiguredNamespaces && (
-          <Badge variant="outline" className="px-1 py-0 text-[9px] font-normal">
+          <Badge variant="outline" className="px-1 py-0 text-xs font-normal">
             NS
           </Badge>
         )}

@@ -42,7 +42,7 @@ export function CreateResourceFAB({ activeResource, onClick }: CreateResourceFAB
         <Button
           size="icon"
           onClick={onClick}
-          className="absolute bottom-6 right-6 z-10 size-12 rounded-full shadow-lg border border-border transition-[bottom] duration-200 group-has-[[data-bulk-bar]]/main:bottom-[4.25rem]"
+          className="absolute right-6 bottom-6 z-10 size-12 rounded-full shadow-surface-5 transition-[bottom] duration-200 group-has-[[data-bulk-bar]]/main:bottom-[4.25rem]"
         >
           <Plus className="size-6" />
         </Button>
