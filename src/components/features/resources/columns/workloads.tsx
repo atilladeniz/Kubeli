@@ -27,6 +27,7 @@ export const podColumns: Column<PodInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
+    width: "w-[22rem]",
     render: (pod) => (
       <span className="font-medium">{pod.name}</span>
     ),
@@ -35,10 +36,11 @@ export const podColumns: Column<PodInfo>[] = [
     key: "namespace",
     label: "NAMESPACE",
     sortable: true,
+    width: "w-40",
     render: (pod) => (
       <div className="flex items-center gap-2">
         <NamespaceColorDot namespace={pod.namespace} />
-        <span>{pod.namespace}</span>
+        <span className="truncate">{pod.namespace}</span>
       </div>
     ),
   },
@@ -46,6 +48,7 @@ export const podColumns: Column<PodInfo>[] = [
     key: "ready_containers",
     label: "READY",
     sortable: true,
+    width: "w-20",
     render: (pod) => (
       <span
         className={cn(
@@ -60,23 +63,26 @@ export const podColumns: Column<PodInfo>[] = [
     key: "phase",
     label: "STATUS",
     sortable: true,
+    width: "w-36",
     render: (pod) => <PodPhaseBadge phase={getEffectivePodStatus(pod)} />,
   },
   {
     key: "restart_count",
     label: "RESTARTS",
     sortable: true,
+    width: "w-24",
     render: (pod) => (
       <span className={cn(pod.restart_count > 0 && "text-yellow-500")}>
         {pod.restart_count}
       </span>
     ),
   },
-  { key: "node_name", label: "NODE", sortable: true },
+  { key: "node_name", label: "NODE", sortable: true, width: "w-28" },
   {
     key: "created_at",
     label: "AGE",
     sortable: true,
+    width: "w-20",
     render: (pod) => (pod.created_at ? formatAge(pod.created_at) : "-"),
   },
 ];
@@ -92,6 +98,7 @@ export function getPodColumnsWithMetrics(
       key: "cpu_usage",
       label: "CPU",
       sortable: true,
+      width: "w-32",
       render: (pod) => (
         <PodMetricsCell
           podName={pod.name}
@@ -106,6 +113,7 @@ export function getPodColumnsWithMetrics(
       key: "memory_usage",
       label: "MEMORY",
       sortable: true,
+      width: "w-32",
       render: (pod) => (
         <PodMetricsCell
           podName={pod.name}

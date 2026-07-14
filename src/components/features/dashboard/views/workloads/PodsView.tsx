@@ -234,6 +234,10 @@ export function PodsView() {
     {
       key: "actions",
       label: t("columns.actions") || "ACTIONS",
+      // Fixed width: rows show a variable number of buttons (Shell/Forward are
+      // conditional). Reserving the full width stops the column renegotiating
+      // as rows scroll through the virtual window.
+      width: "w-56",
       render: (pod: PodInfo) => {
         const isTerminating = !!pod.deletion_timestamp;
         const service = findServiceForPod(pod);

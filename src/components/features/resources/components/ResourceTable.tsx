@@ -56,6 +56,7 @@ interface ResourceTableRowProps<T> {
   namespace?: string;
   rowClassName?: string;
   hasBulkActions: boolean;
+  isFixed: boolean;
   onRowClick?: (item: T) => void;
   contextMenuItems?: (item: T) => ContextMenuItemDef[];
   onToggleSelect: (key: string) => void;
@@ -121,6 +122,7 @@ function ResourceTableRowInner<T>({
   namespace,
   rowClassName,
   hasBulkActions,
+  isFixed,
   onRowClick,
   contextMenuItems,
   onToggleSelect,
@@ -150,7 +152,10 @@ function ResourceTableRowInner<T>({
         </TableCell>
       )}
       {columns.map((column) => (
-        <TableCell key={String(column.key)} className="text-sm">
+        <TableCell
+          key={String(column.key)}
+          className={cn("text-sm", column.width, isFixed && "truncate")}
+        >
           {column.render
             ? column.render(item)
             : String(
@@ -222,18 +227,24 @@ export function ResourceTable<T>({
       ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
       : 0;
   const columnCount = columns.length + (hasBulkActions ? 1 : 0);
+  // Fixed layout (stable columns, no scroll jitter) only when widths are
+  // declared; otherwise fall back to content-sized auto layout.
+  const hasFixedWidths = columns.some((c) => c.width);
 
   return (
-    // hide-scrollbar: the classic 10px WebKit scrollbar reserves width, so it
-    // toggled during virtual-row swaps and reflowed the table sideways (zigzag)
-    // and left a gap under the sticky header. Hiding it removes the reserved
-    // width entirely; wheel/trackpad scroll still works. overscroll-none kills
-    // the elastic bounce that left ghost rows above/below the sticky header.
+    // overscroll-none kills the elastic bounce that left ghost rows above/below
+    // the sticky header. The horizontal jitter is fixed at the source: columns
+    // carry fixed widths so their content (e.g. the variable action buttons)
+    // can't renegotiate widths as rows scroll through the virtual window.
     <div
       ref={scrollRef}
-      className="hide-scrollbar h-full overflow-auto [overscroll-behavior:none]"
+      className="h-full overflow-auto [overscroll-behavior:none]"
     >
-      <Table>
+      {/* table-fixed only when columns declare widths: widths then come from the
+          headers, not per-row content, so variable action buttons can't jitter
+          the layout sideways while scrolling. Tables without declared widths
+          keep the content-sized auto layout. */}
+      <Table className={cn("w-full", hasFixedWidths && "min-w-max table-fixed")}>
         {/* translate-z-0: force the sticky header onto its own GPU layer so
             virtual rows scrolling under it don't leave repaint ghosts in
             WebKit. */}
@@ -304,6 +315,7 @@ export function ResourceTable<T>({
                 namespace={getRowNamespace?.(item)}
                 rowClassName={getRowClassName?.(item)}
                 hasBulkActions={hasBulkActions}
+                isFixed={hasFixedWidths}
                 onRowClick={onRowClick}
                 contextMenuItems={contextMenuItems}
                 onToggleSelect={onToggleSelect}
