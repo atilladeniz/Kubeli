@@ -1,0 +1,4 @@
+# GGUF model files — too large for git
+*.gguf
+*.bin
+!.gitignore
