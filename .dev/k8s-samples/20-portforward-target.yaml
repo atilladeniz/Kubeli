@@ -1,0 +1,54 @@
+# Minimal forwardable target for multi-cluster port-forward testing.
+# A tiny nginx Deployment + ClusterIP Service on port 80. Apply this to two
+# different clusters/profiles and forward pf-web:80 in each to verify forwards
+# survive a cluster switch (issue #388).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeli-pf
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pf-web
+  namespace: kubeli-pf
+  labels:
+    app: pf-web
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pf-web
+  template:
+    metadata:
+      labels:
+        app: pf-web
+    spec:
+      containers:
+        - name: nginx
+          image: nginx:1.27-alpine
+          ports:
+            - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pf-web
+  namespace: kubeli-pf
+  labels:
+    app: pf-web
+spec:
+  type: ClusterIP
+  selector:
+    app: pf-web
+  ports:
+    - port: 80
+      targetPort: 80
+      protocol: TCP
