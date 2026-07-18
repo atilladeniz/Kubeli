@@ -169,16 +169,6 @@ impl PortForwardManager {
         sessions.contains_key(id)
     }
 
-    /// Stop every port-forward session. Called on disconnect/context switch
-    /// so no forward keeps tunneling into the previous cluster.
-    pub async fn stop_all(&self) {
-        let mut sessions = self.sessions.write().await;
-        for session in sessions.values() {
-            session.cancel.cancel();
-        }
-        sessions.clear();
-    }
-
     /// Wait (bounded) until a session's forward task has exited and dropped
     /// its listener. No-op when the session is already gone.
     async fn wait_finished(&self, id: &str, timeout: tokio::time::Duration) {
@@ -846,15 +836,6 @@ impl PortForwardWatchManager {
             "Started port forward pod watcher for namespace: {}",
             namespace
         );
-    }
-
-    /// Stop all namespace watchers regardless of ref counts (disconnect).
-    pub async fn stop_all(&self) {
-        let mut watchers = self.watchers.write().await;
-        for handle in watchers.values() {
-            handle.cancel.cancel();
-        }
-        watchers.clear();
     }
 
     /// Decrement ref count for a namespace watcher. Stop it if ref count reaches 0.
@@ -1785,39 +1766,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn manager_stop_all_cancels_and_clears() {
-        let mgr = PortForwardManager::new();
-        let s1 = make_session(
-            8080,
-            80,
-            PortForwardTargetType::Pod,
-            "default",
-            "web",
-            "pod-1",
-            "uid-1",
-        );
-        let s2 = make_session(
-            9090,
-            90,
-            PortForwardTargetType::Service,
-            "kube-system",
-            "dns",
-            "pod-2",
-            "uid-2",
-        );
-        let c1 = s1.cancel.clone();
-        let c2 = s2.cancel.clone();
-        mgr.add_session("fwd-1".to_string(), s1).await;
-        mgr.add_session("fwd-2".to_string(), s2).await;
-
-        mgr.stop_all().await;
-
-        assert!(c1.is_cancelled());
-        assert!(c2.is_cancelled());
-        assert!(mgr.list_sessions().await.is_empty());
-    }
-
-    #[tokio::test]
     async fn manager_stop_nonexistent_returns_false() {
         let mgr = PortForwardManager::new();
         assert!(!mgr.stop_session("nope").await);
@@ -2066,27 +2014,6 @@ mod tests {
         let wm = PortForwardWatchManager::new();
         // Should not panic
         wm.release_namespace_watcher("nonexistent").await;
-    }
-
-    #[tokio::test]
-    async fn watch_manager_stop_all_cancels_and_clears() {
-        let wm = PortForwardWatchManager::new();
-        let cancel = CancellationToken::new();
-        {
-            let mut watchers = wm.watchers.write().await;
-            watchers.insert(
-                "default".to_string(),
-                NamespaceWatchHandle {
-                    cancel: cancel.clone(),
-                    ref_count: 2,
-                },
-            );
-        }
-
-        wm.stop_all().await;
-
-        assert!(cancel.is_cancelled());
-        assert!(wm.watchers.read().await.is_empty());
     }
 
     // ── cleanup_session tests ──

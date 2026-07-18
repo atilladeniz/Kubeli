@@ -19,9 +19,14 @@ use super::types::{
     ClusterInfo, ConnectionStatus, HealthCheckResult, NamespaceResult, OidcAuthInfo,
 };
 
-/// Stop every session (watches, log streams, shells, port-forwards) that
-/// belongs to the current connection. Called before switching contexts and
-/// on disconnect - otherwise streams keep running against the old cluster.
+/// Stop the sessions that are bound to the cluster we're looking at (watches,
+/// log streams, shells). Called before switching contexts and on disconnect -
+/// otherwise these streams keep running against the old cluster.
+///
+/// Port-forwards are intentionally NOT torn down here (nor on disconnect): a
+/// forward is its own live tunnel and should survive a cluster switch, which in
+/// this app is a disconnect back to the picker plus connecting elsewhere (#388).
+/// Forwards only end on user-stop, pod death, error, or process exit.
 async fn teardown_active_sessions(app: &AppHandle, state: &AppState) {
     let old_client = state.k8s.get_client().await.ok();
 
@@ -30,13 +35,6 @@ async fn teardown_active_sessions(app: &AppHandle, state: &AppState) {
 
     let logs: State<'_, Arc<crate::commands::logs::LogStreamManager>> = app.state();
     logs.stop_all().await;
-
-    let forwards: State<'_, Arc<crate::commands::portforward::PortForwardManager>> = app.state();
-    forwards.stop_all().await;
-
-    let pf_watches: State<'_, Arc<crate::commands::portforward::PortForwardWatchManager>> =
-        app.state();
-    pf_watches.stop_all().await;
 
     let shells: State<'_, Arc<crate::commands::shell::ShellSessionManager>> = app.state();
     shells.stop_all(old_client).await;
@@ -418,6 +416,13 @@ pub async fn disconnect_cluster(
     let oidc_state: State<'_, Arc<OidcState>> = app.state();
     oidc_state.cancel_refresh();
     teardown_active_sessions(&app, &state).await;
+
+    // Port-forwards are intentionally NOT stopped here. A forward is its own
+    // live tunnel and should survive a cluster switch — which in this app is a
+    // disconnect back to the picker followed by connecting elsewhere (#388).
+    // Forwards die with the process on quit; until then they keep tunneling and
+    // stay visible/controllable via the all-forwards view.
+
     state.k8s.clear_connection().await;
     Ok(())
 }
