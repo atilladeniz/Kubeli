@@ -20,7 +20,6 @@ import {
 import { TruncateTooltip } from "@/components/ui/truncate-tooltip";
 import { cn } from "@/lib/utils";
 import { usePortForward } from "@/lib/hooks/usePortForward";
-import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterTag } from "@/components/features/dashboard/views/PortForwardRows";
 
@@ -48,19 +47,16 @@ export function PortForwardsBadge({ onExpand }: PortForwardsBadgeProps) {
   const tNav = useTranslations("navigation");
   const tc = useTranslations("common");
   const { forwards, stopForward } = usePortForward();
-  const history = usePortForwardStore((s) => s.history);
   const clusters = useClusterStore((s) => s.clusters);
   const [query, setQuery] = useState("");
 
   const clusterLabel = useMemo(() => {
     const nameByContext = new Map(clusters.map((c) => [c.context, c.name || c.context]));
-    const contextByForward = new Map(history.map((h) => [h.forward_id, h.cluster_context]));
-    return (forwardId: string) => {
-      const context = contextByForward.get(forwardId);
+    return (context: string) => {
       if (!context) return undefined;
       return nameByContext.get(context) ?? context;
     };
-  }, [clusters, history]);
+  }, [clusters]);
 
   // Show the search only once the list is long enough to warrant it.
   const showSearch = forwards.length > 5;
@@ -68,7 +64,7 @@ export function PortForwardsBadge({ onExpand }: PortForwardsBadgeProps) {
     const q = query.trim().toLowerCase();
     if (!q) return forwards;
     return forwards.filter((f) => {
-      const label = clusterLabel(f.forward_id) ?? "";
+      const label = clusterLabel(f.cluster_context) ?? "";
       return (
         f.name.toLowerCase().includes(q) ||
         label.toLowerCase().includes(q) ||
@@ -156,7 +152,7 @@ export function PortForwardsBadge({ onExpand }: PortForwardsBadgeProps) {
             </Empty>
           )}
           {visibleForwards.map((forward) => {
-            const label = clusterLabel(forward.forward_id);
+            const label = clusterLabel(forward.cluster_context);
             return (
               <div
                 key={forward.forward_id}

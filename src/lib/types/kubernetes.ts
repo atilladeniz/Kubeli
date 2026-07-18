@@ -203,6 +203,8 @@ export interface PortForwardOptions {
 
 export interface PortForwardInfo {
   forward_id: string;
+  /** Cluster context that owns this forward (immutable; survives cluster switch). */
+  cluster_context: string;
   namespace: string;
   name: string;
   target_type: PortForwardTargetType;

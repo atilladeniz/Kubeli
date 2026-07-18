@@ -24,7 +24,6 @@ import {
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
-import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { getClusterSettings } from "@/lib/tauri/commands";
 import { PortForwardsBadge } from "@/components/features/portforward/PortForwardsBadge";
 import { ConnectionErrorAlert } from "./ConnectionErrorAlert";
@@ -59,20 +58,18 @@ export function ClusterGrid() {
   const saveAccessibleNamespaces = useClusterStore((s) => s.saveAccessibleNamespaces);
   const clearAccessibleNamespaces = useClusterStore((s) => s.clearAccessibleNamespaces);
   const { forwards } = usePortForward();
-  const forwardHistory = usePortForwardStore((s) => s.history);
 
-  // Count live forwards per cluster context. Live forwards carry no context of
-  // their own, so join them to their history entry by forward_id (same as the
-  // all-forwards view). Forwards with no history entry are left uncounted.
+  // Count live forwards per cluster context, using each forward's own immutable
+  // cluster_context (survives cluster switches; no history join needed).
   const forwardCountByContext = useMemo(() => {
-    const contextByForward = new Map(forwardHistory.map((h) => [h.forward_id, h.cluster_context]));
     const counts = new Map<string, number>();
     for (const f of forwards) {
-      const ctx = contextByForward.get(f.forward_id);
-      if (ctx) counts.set(ctx, (counts.get(ctx) ?? 0) + 1);
+      if (f.cluster_context) {
+        counts.set(f.cluster_context, (counts.get(f.cluster_context) ?? 0) + 1);
+      }
     }
     return counts;
-  }, [forwards, forwardHistory]);
+  }, [forwards]);
 
   // Configure namespaces dialog state
   type NsDialogState = {

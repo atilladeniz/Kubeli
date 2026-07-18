@@ -537,6 +537,10 @@ export const usePortForwardStore = create<PortForwardState>()(
       // The "Connected" event might arrive before portforwardStart returns
       const placeholderForward: PortForwardInfo = {
         forward_id: forwardId,
+        // Backend overwrites this from immutable session ownership once
+        // portforwardStart returns; seed it from the current cluster so the
+        // transient placeholder is tagged correctly too.
+        cluster_context: useClusterStore.getState().currentCluster?.context ?? "",
         namespace,
         name,
         target_type: targetType,
@@ -571,6 +575,7 @@ export const usePortForwardStore = create<PortForwardState>()(
           f.forward_id === forwardId
             ? {
                 ...f,
+                cluster_context: info.cluster_context,
                 local_port: info.local_port,
                 target_port: info.target_port,
                 pod_name: info.pod_name,
@@ -582,6 +587,7 @@ export const usePortForwardStore = create<PortForwardState>()(
 
       const updatedForward: PortForwardInfo = {
         ...placeholderForward,
+        cluster_context: info.cluster_context,
         local_port: info.local_port,
         target_port: info.target_port,
         pod_name: info.pod_name,

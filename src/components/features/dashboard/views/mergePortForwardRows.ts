@@ -7,8 +7,8 @@ export type PortForwardRow =
 
 /**
  * Merge live forwards with stopped/error history into a single ordered row list
- * (oldest first). Live forwards carry no cluster context of their own, so they
- * are joined to their history entry by forward_id to recover the cluster tag.
+ * (oldest first). Each live forward carries its owning `cluster_context` from
+ * the backend, so no history join is needed to recover its cluster tag.
  *
  * Pass a `contextFilter` to scope to one cluster; omit it for the all-clusters view.
  */
@@ -17,30 +17,30 @@ export function mergePortForwardRows(
   history: PortForwardHistoryItem[],
   contextFilter?: string,
 ): PortForwardRow[] {
-  const forwardMap = new Map(forwards.map((f) => [f.forward_id, f]));
-  const scopedHistory =
-    contextFilter === undefined
-      ? history
-      : history.filter((h) => h.cluster_context === contextFilter);
-  // Any forward that has history (in ANY cluster) is placed by the history pass;
-  // only forwards with no history at all fall through to the orphan pass.
-  const knownForwardIds = new Set(history.map((h) => h.forward_id));
+  const inScope = <T extends { cluster_context: string }>(x: T) =>
+    contextFilter === undefined || x.cluster_context === contextFilter;
 
-  const historyRows = [...scopedHistory]
-    .sort((a, b) => a.started_at - b.started_at)
-    .flatMap((item): PortForwardRow[] => {
-      const live = forwardMap.get(item.forward_id);
-      if (live) return [{ kind: "active", forward: live, cluster: item.cluster_context }];
-      if (item.status !== "active") return [{ kind: "history", item, cluster: item.cluster_context }];
-      return []; // orphaned active history entry — skip
-    });
+  // A live forward supersedes its own stopped history entry, so drop any
+  // history whose forward is currently live. The history entry is still used
+  // to recover a live forward's start time for ordering.
+  const startedAtById = new Map(history.map((h) => [h.forward_id, h.started_at]));
+  const liveForwardIds = new Set(forwards.map((f) => f.forward_id));
 
-  // Live forwards with no history entry at all — cluster unknown. These appear
-  // in every view (scoped or not); a forward whose history belongs to another
-  // cluster is intentionally excluded from a scoped view.
-  const orphanRows: PortForwardRow[] = forwards
-    .filter((f) => !knownForwardIds.has(f.forward_id))
-    .map((forward) => ({ kind: "active", forward, cluster: "" }));
+  const activeRows = forwards.filter(inScope).map((forward): PortForwardRow => ({
+    kind: "active",
+    forward,
+    cluster: forward.cluster_context,
+  }));
 
-  return [...historyRows, ...orphanRows];
+  const historyRows = history
+    .filter((item) => item.status !== "active" && !liveForwardIds.has(item.forward_id))
+    .filter(inScope)
+    .map((item): PortForwardRow => ({ kind: "history", item, cluster: item.cluster_context }));
+
+  const startedAt = (row: PortForwardRow): number =>
+    row.kind === "history"
+      ? row.item.started_at
+      : (startedAtById.get(row.forward.forward_id) ?? Number.POSITIVE_INFINITY);
+
+  return [...activeRows, ...historyRows].sort((a, b) => startedAt(a) - startedAt(b));
 }

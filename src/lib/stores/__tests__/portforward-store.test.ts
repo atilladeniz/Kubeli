@@ -75,6 +75,7 @@ function simulateEvent(event: PortForwardEvent) {
 // Test data
 const mockForward: PortForwardInfo = {
   forward_id: "svc-default-test-svc-8080-123",
+  cluster_context: "test-cluster",
   namespace: "default",
   name: "test-svc",
   target_type: "service",

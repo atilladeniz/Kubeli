@@ -56,6 +56,8 @@ export function PortForwardsView() {
   const currentContext = useClusterStore((s) => s.currentCluster?.context);
 
   // Merge active forwards + stopped history for the current cluster.
+  // Undefined would mean "all clusters"; when the current context is transiently
+  // absent, scope to "" so this single-cluster view renders none rather than all.
   const rows = useMemo(
     () => mergePortForwardRows(forwards, history, currentContext ?? ""),
     [forwards, history, currentContext],

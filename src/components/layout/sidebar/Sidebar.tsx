@@ -11,7 +11,6 @@ import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
-import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { useCRDs } from "@/lib/hooks/useK8sResources";
 import { useFavoritesStore } from "@/lib/stores/favorites-store";
 import { groupCustomResources } from "@/lib/custom-resources";
@@ -73,20 +72,15 @@ export function Sidebar({
 
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const { forwards, stopForward } = usePortForward();
-  const forwardHistory = usePortForwardStore((s) => s.history);
 
   // The sidebar is scoped to the connected cluster, so its badge and forward
-  // list show only this cluster's forwards. Live forwards carry no context of
-  // their own, so join them to their history entry by forward_id (same as the
-  // all-forwards view).
+  // list show only this cluster's forwards, matched on each forward's own
+  // immutable cluster_context.
   const currentClusterForwards = useMemo(() => {
     const ctx = currentCluster?.context;
     if (!ctx) return [];
-    const forwardIdsForCluster = new Set(
-      forwardHistory.filter((h) => h.cluster_context === ctx).map((h) => h.forward_id),
-    );
-    return forwards.filter((f) => forwardIdsForCluster.has(f.forward_id));
-  }, [forwards, forwardHistory, currentCluster?.context]);
+    return forwards.filter((f) => f.cluster_context === ctx);
+  }, [forwards, currentCluster?.context]);
   const getFavorites = useFavoritesStore((s) => s.getFavorites);
   const removeFavorite = useFavoritesStore((s) => s.removeFavorite);
   const getRecentResources = useFavoritesStore((s) => s.getRecentResources);
