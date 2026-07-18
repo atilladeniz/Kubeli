@@ -7,6 +7,7 @@ export { WorkloadsOverview } from "./WorkloadsOverview";
 
 // Utility views
 export { PortForwardsView } from "./PortForwardsView";
+export { AllPortForwardsView } from "./AllPortForwardsView";
 
 // Cluster views
 export * from "./cluster";

@@ -12,6 +12,8 @@
     "close": "Schließen",
     "confirm": "Bestätigen",
     "search": "Suchen",
+    "clear": "Löschen",
+    "noResults": "Keine Treffer",
     "filter": "Filtern",
     "refresh": "Aktualisieren",
     "copy": "Kopieren",
@@ -90,6 +92,9 @@
     "quickAccess": "Schnellzugriff",
     "recent": "Zuletzt verwendet",
     "portForwards": "Port-Weiterleitungen",
+    "portForwardsAll": "Alle Port-Weiterleitungen",
+    "activePortForwards": "Aktive Port-Weiterleitungen",
+    "noForwardsMatch": "Keine Port-Weiterleitung passt zu \"{query}\"",
     "overview": "Übersicht",
     "resourceDiagram": "Ressourcen-Diagramm",
     "nodes": "Nodes",
@@ -263,7 +268,8 @@
     "selector": "Selektor",
     "host": "Host",
     "path": "Pfad",
-    "backend": "Backend"
+    "backend": "Backend",
+    "portForwardsAll": "Alle Port-Weiterleitungen"
   },
   "storage": {
     "persistentVolumes": "Persistent Volumes",
@@ -460,6 +466,8 @@
   },
   "portForward": {
     "title": "Port-Weiterleitungen",
+    "titleAll": "Alle Port-Weiterleitungen",
+    "columnCluster": "Cluster",
     "localPort": "Lokaler Port",
     "remotePort": "Remote-Port",
     "targetPort": "Ziel-Port",

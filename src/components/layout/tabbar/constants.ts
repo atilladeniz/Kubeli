@@ -17,6 +17,7 @@ export const RESOURCE_I18N_KEYS: Record<string, [string, string]> = {
   jobs: ["workloads", "jobs"],
   cronjobs: ["workloads", "cronJobs"],
   "port-forwards": ["networking", "portForwards"],
+  "port-forwards-all": ["networking", "portForwardsAll"],
   services: ["networking", "services"],
   ingresses: ["networking", "ingresses"],
   "endpoint-slices": ["networking", "endpointSlices"],

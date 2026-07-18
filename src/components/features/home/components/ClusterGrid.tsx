@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Server,
@@ -24,7 +24,9 @@ import {
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { usePortForward } from "@/lib/hooks/usePortForward";
+import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { getClusterSettings } from "@/lib/tauri/commands";
+import { PortForwardsBadge } from "@/components/features/portforward/PortForwardsBadge";
 import { ConnectionErrorAlert } from "./ConnectionErrorAlert";
 import { ClusterGridCard } from "./ClusterGridCard";
 import { ClusterListCard } from "./ClusterListCard";
@@ -57,6 +59,20 @@ export function ClusterGrid() {
   const saveAccessibleNamespaces = useClusterStore((s) => s.saveAccessibleNamespaces);
   const clearAccessibleNamespaces = useClusterStore((s) => s.clearAccessibleNamespaces);
   const { forwards } = usePortForward();
+  const forwardHistory = usePortForwardStore((s) => s.history);
+
+  // Count live forwards per cluster context. Live forwards carry no context of
+  // their own, so join them to their history entry by forward_id (same as the
+  // all-forwards view). Forwards with no history entry are left uncounted.
+  const forwardCountByContext = useMemo(() => {
+    const contextByForward = new Map(forwardHistory.map((h) => [h.forward_id, h.cluster_context]));
+    const counts = new Map<string, number>();
+    for (const f of forwards) {
+      const ctx = contextByForward.get(f.forward_id);
+      if (ctx) counts.set(ctx, (counts.get(ctx) ?? 0) + 1);
+    }
+    return counts;
+  }, [forwards, forwardHistory]);
 
   // Configure namespaces dialog state
   type NsDialogState = {
@@ -181,7 +197,7 @@ export function ClusterGrid() {
   };
 
   return (
-    <section className="mx-auto flex min-h-0 w-full max-w-4xl flex-1 flex-col">
+    <section className="mx-auto flex min-h-0 w-full max-w-6xl flex-1 flex-col">
       <div className="shrink-0 px-6 pt-2">
         <ConnectionErrorAlert />
       </div>
@@ -193,6 +209,7 @@ export function ClusterGrid() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <PortForwardsBadge />
           <div className="relative w-64">
             <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -291,8 +308,6 @@ export function ClusterGrid() {
             {filteredClusters.map((cluster) => {
               const isActive =
                 isConnected && currentCluster?.context === cluster.context;
-              const showForwards =
-                currentCluster?.context === cluster.context;
               const cardProps = {
                 cluster,
                 isActive,
@@ -304,7 +319,7 @@ export function ClusterGrid() {
                 onConnect: handleConnect,
                 onCancelConnect: handleCancelConnect,
                 onConfigureNamespaces: handleConfigureNamespaces,
-                forwardsCount: showForwards ? forwards.length : 0,
+                forwardsCount: forwardCountByContext.get(cluster.context) ?? 0,
                 hasConfiguredNamespaces: nsDialog.configuredContexts.has(cluster.context),
               };
               return viewLayout === "list" ? (

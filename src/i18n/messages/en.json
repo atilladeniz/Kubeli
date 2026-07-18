@@ -12,6 +12,8 @@
     "close": "Close",
     "confirm": "Confirm",
     "search": "Search",
+    "clear": "Clear",
+    "noResults": "No matches",
     "filter": "Filter",
     "refresh": "Refresh",
     "copy": "Copy",
@@ -90,6 +92,9 @@
     "quickAccess": "Quick Access",
     "recent": "Recent",
     "portForwards": "Port Forwards",
+    "portForwardsAll": "All Port Forwards",
+    "activePortForwards": "Active Port Forwards",
+    "noForwardsMatch": "No port forward matches \"{query}\"",
     "overview": "Overview",
     "resourceDiagram": "Resource Diagram",
     "nodes": "Nodes",
@@ -263,7 +268,8 @@
     "selector": "Selector",
     "host": "Host",
     "path": "Path",
-    "backend": "Backend"
+    "backend": "Backend",
+    "portForwardsAll": "All Port Forwards"
   },
   "storage": {
     "persistentVolumes": "Persistent Volumes",
@@ -460,6 +466,8 @@
   },
   "portForward": {
     "title": "Port Forwards",
+    "titleAll": "All Port Forwards",
+    "columnCluster": "Cluster",
     "localPort": "Local Port",
     "remotePort": "Remote Port",
     "targetPort": "Target Port",

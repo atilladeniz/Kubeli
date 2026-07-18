@@ -36,24 +36,24 @@ export function ClusterGridCard({
       }`}
     >
       <CardHeader className="pb-2">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-3">
             <ClusterIcon cluster={cluster} size={32} />
-            <div>
+            <div className="min-w-0">
               <CardTitle className="flex items-center gap-2 text-base">
-                {cluster.name}
+                <span className="truncate">{cluster.name}</span>
                 {cluster.current && (
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge variant="secondary" className="shrink-0 text-xs">
                     {t("default")}
                   </Badge>
                 )}
               </CardTitle>
-              <CardDescription className="text-xs">
+              <CardDescription className="truncate text-xs">
                 {cluster.context}
               </CardDescription>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             {forwardsCount > 0 && (
               <div className="flex items-center gap-1 rounded bg-purple-500/10 px-1.5 py-0.5">
                 <ArrowRightLeft className="size-3 text-purple-500" />

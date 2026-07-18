@@ -28,6 +28,7 @@ export type KnownResourceType =
   | "cronjobs"
   // Networking
   | "port-forwards"
+  | "port-forwards-all"
   | "services"
   | "ingresses"
   | "endpoint-slices"
