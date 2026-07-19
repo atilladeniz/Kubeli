@@ -650,7 +650,10 @@ fn spawn_oidc_refresh_task(
                     drop(client_guard);
                     tracing::info!("OIDC token refreshed and kube client reinitialized");
                     use tauri::Emitter;
-                    let _ = app_handle.emit("oidc-token-refreshed", ());
+                    // Carry the refreshed context so the frontend restarts only
+                    // this cluster's forwards, not forwards that survived a
+                    // switch and belong to another cluster.
+                    let _ = app_handle.emit("oidc-token-refreshed", context_name.clone());
                 }
                 Err(e) => {
                     tracing::error!("Failed to create client after OIDC refresh: {}", e);
