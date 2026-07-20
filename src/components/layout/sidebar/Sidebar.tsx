@@ -81,6 +81,9 @@ export function Sidebar({
     if (!ctx) return [];
     return forwards.filter((f) => f.cluster_context === ctx);
   }, [forwards, currentCluster?.context]);
+  // Forwards surviving on other clusters are the only reason to offer the
+  // all-clusters view; without them it would just repeat this list.
+  const otherClusterForwardCount = forwards.length - currentClusterForwards.length;
   const getFavorites = useFavoritesStore((s) => s.getFavorites);
   const removeFavorite = useFavoritesStore((s) => s.removeFavorite);
   const getRecentResources = useFavoritesStore((s) => s.getRecentResources);
@@ -255,6 +258,7 @@ export function Sidebar({
       <PortForwardsSection
         isConnected={isConnected}
         forwards={currentClusterForwards}
+        otherClusterCount={otherClusterForwardCount}
         isPortForwardsSectionOpen={isPortForwardsSectionOpen}
         setIsPortForwardsSectionOpen={setIsPortForwardsSectionOpen}
         onResourceSelect={onResourceSelect}

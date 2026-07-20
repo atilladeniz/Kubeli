@@ -24,6 +24,7 @@ import type { PortForwardsSectionProps } from "../types/types";
 export function PortForwardsSection({
   isConnected,
   forwards,
+  otherClusterCount,
   isPortForwardsSectionOpen,
   setIsPortForwardsSectionOpen,
   onResourceSelect,
@@ -150,6 +151,16 @@ export function PortForwardsSection({
                 </div>
               </div>
             ))}
+            {otherClusterCount > 0 && (
+              <button
+                type="button"
+                onClick={() => onResourceSelect("port-forwards-all")}
+                className="flex w-full items-center gap-1.5 rounded-md px-2 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-muted/50 hover:text-foreground"
+              >
+                <Maximize2 className="size-3 shrink-0" />
+                {tNav("portForwardsAllOther", { count: otherClusterCount })}
+              </button>
+            )}
           </CollapsibleContent>
         </Collapsible>
       </div>
