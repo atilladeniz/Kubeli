@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, lazy, Suspense } from "react";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
+import { forwardsToRestartAfterRefresh } from "@/components/features/portforward/forwardsToRestartAfterRefresh";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { applyProxyFromSettings } from "@/lib/tauri/commands/network";
 import { useKubeconfigWatcher } from "@/lib/hooks/useKubeconfigWatcher";
@@ -108,9 +109,9 @@ export default function Home() {
     let unlisten: (() => void) | undefined;
     let cancelled = false;
     import("@tauri-apps/api/event").then(({ listen }) => {
-      listen("oidc-token-refreshed", async () => {
+      listen<string>("oidc-token-refreshed", async (event) => {
         const pfStore = usePortForwardStore.getState();
-        const activeForwards = pfStore.forwards.filter((f) => f.status === "connected");
+        const activeForwards = forwardsToRestartAfterRefresh(pfStore.forwards, event.payload);
         for (const fwd of activeForwards) {
           // Per-forward try/catch so one failure doesn't strand the rest.
           try {
