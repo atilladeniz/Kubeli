@@ -101,11 +101,19 @@ export function ActiveRow({ forward, clusterLabel, onStop, onDelete }: ActiveRow
 interface HistoryRowProps {
   item: PortForwardHistoryItem;
   clusterLabel?: string;
+  /** Set when restart is unavailable; explains why and disables the button. */
+  restartDisabledReason?: string;
   onRestart: () => void;
   onDelete: () => void;
 }
 
-export function HistoryRow({ item, clusterLabel, onRestart, onDelete }: HistoryRowProps) {
+export function HistoryRow({
+  item,
+  clusterLabel,
+  restartDisabledReason,
+  onRestart,
+  onDelete,
+}: HistoryRowProps) {
   const t = useTranslations("portForward");
   const tc = useTranslations("common");
   const dot = item.status === "error" ? "bg-red-400" : "bg-gray-400";
@@ -163,7 +171,8 @@ export function HistoryRow({ item, clusterLabel, onRestart, onDelete }: HistoryR
             variant="ghost"
             size="icon-sm"
             onClick={onRestart}
-            title={t("startAgain")}
+            disabled={!!restartDisabledReason}
+            title={restartDisabledReason ?? t("startAgain")}
             className="text-green-500 hover:text-green-600 hover:bg-green-500/10"
           >
             <Play className="size-3.5" />

@@ -52,6 +52,7 @@ export function AllPortForwardsView() {
   const removeHistoryItem = usePortForwardStore((s) => s.removeHistoryItem);
   const restartFromHistory = usePortForwardStore((s) => s.restartFromHistory);
   const clusters = useClusterStore((s) => s.clusters);
+  const currentContext = useClusterStore((s) => s.currentCluster?.context);
 
   // context -> friendly name (fall back to the raw context if unknown)
   const clusterLabel = useMemo(() => {
@@ -160,6 +161,15 @@ export function AllPortForwardsView() {
                     key={row.item.id}
                     item={row.item}
                     clusterLabel={clusterLabel(row.cluster)}
+                    restartDisabledReason={
+                      // startForward binds to the active connection, so a
+                      // restart here would rebuild the tunnel against the
+                      // wrong cluster - silently if it has a same-named
+                      // service. Offer it only for the connected cluster.
+                      row.cluster && row.cluster !== currentContext
+                        ? t("restartOtherClusterDisabled", { cluster: clusterLabel(row.cluster) ?? row.cluster })
+                        : undefined
+                    }
                     onRestart={() => restartFromHistory(row.item)}
                     onDelete={() => setDeleteDialog({ kind: "history", itemId: row.item.id, name: row.item.name })}
                   />
