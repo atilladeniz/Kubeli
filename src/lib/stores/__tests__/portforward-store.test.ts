@@ -1193,6 +1193,27 @@ describe("PortForwardStore", () => {
         );
       });
 
+      // Regression: a history entry outlives the connection it was made on.
+      // Without pinning its cluster, the backend would bind the restart to
+      // whichever cluster is active - silently, when that cluster happens to
+      // have a service with the same namespace/name.
+      it("should pin the restart to the history entry's own cluster", async () => {
+        mockPortforwardStart.mockResolvedValue({ ...mockForward, local_port: 41587 });
+        mockPortforwardCheckPort.mockResolvedValue(true);
+
+        await act(async () => {
+          await usePortForwardStore.getState().restartFromHistory({
+            ...mockHistoryItem,
+            cluster_context: "survivor-cluster",
+          });
+        });
+
+        expect(mockPortforwardStart).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({ expected_context: "survivor-cluster" })
+        );
+      });
+
       it("should fall back to auto port selection when saved local port is unavailable", async () => {
         mockPortforwardStart.mockResolvedValue({ ...mockForward, local_port: 55000 });
         mockPortforwardCheckPort.mockResolvedValue(false);

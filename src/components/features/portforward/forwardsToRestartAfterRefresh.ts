@@ -3,11 +3,10 @@ import type { PortForwardInfo } from "@/lib/types";
 /**
  * Pick the forwards to restart after an OIDC token refresh.
  *
- * Restart goes through `startForward`, which rebinds to the *active* cluster's
- * client. Since forwards now survive a cluster switch, restarting one owned by
- * another cluster would repoint it at the active cluster - silently, if that
- * cluster has a service with the same namespace/name, or as a failed restart
- * otherwise. So scope the restart to the cluster that actually refreshed.
+ * Only the refreshed cluster's forwards need a restart; the others hold tokens
+ * that did not change. The restart itself pins each forward's cluster, so a
+ * switch landing mid-restart fails it rather than repointing it - this filter
+ * keeps us from attempting those doomed restarts in the first place.
  */
 export function forwardsToRestartAfterRefresh(
   forwards: PortForwardInfo[],

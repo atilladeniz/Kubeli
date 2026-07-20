@@ -162,10 +162,9 @@ export function AllPortForwardsView() {
                     item={row.item}
                     clusterLabel={clusterLabel(row.cluster)}
                     restartDisabledReason={
-                      // startForward binds to the active connection, so a
-                      // restart here would rebuild the tunnel against the
-                      // wrong cluster - silently if it has a same-named
-                      // service. Offer it only for the connected cluster.
+                      // The backend refuses a start pinned to a cluster it is
+                      // not connected to, so this restart would only produce
+                      // an error toast. Say what to do instead of offering it.
                       row.cluster && row.cluster !== currentContext
                         ? t("restartOtherClusterDisabled", { cluster: clusterLabel(row.cluster) ?? row.cluster })
                         : undefined

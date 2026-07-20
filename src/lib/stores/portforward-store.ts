@@ -59,7 +59,13 @@ interface PortForwardState {
     targetPort: number,
     localPort?: number,
     portName?: string,
-    forwardIdOverride?: string
+    forwardIdOverride?: string,
+    /**
+     * Cluster this forward belongs to. Pass it when the cluster was decided
+     * before the call (restart after an OIDC refresh) so a switch landing in
+     * between fails the start instead of binding to the wrong cluster.
+     */
+    expectedContext?: string
   ) => Promise<PortForwardInfo | null>;
   stopForward: (forwardId: string) => Promise<boolean>;
   stopAllForwards: () => Promise<void>;
@@ -289,7 +295,10 @@ export const usePortForwardStore = create<PortForwardState>()(
           targetPort,
           preferredLocalPort,
           item.port_name,
-          forwardId
+          forwardId,
+          // History entries outlive the connection they were made on, so bind
+          // to the cluster this entry belongs to or fail.
+          item.cluster_context
         );
         if (!result) {
           set((state) => ({
@@ -527,7 +536,8 @@ export const usePortForwardStore = create<PortForwardState>()(
     targetPort,
     localPort,
     portName,
-    forwardIdOverride
+    forwardIdOverride,
+    expectedContext
   ) => {
     set({ isLoading: true, error: null });
 
@@ -569,6 +579,7 @@ export const usePortForwardStore = create<PortForwardState>()(
         target_type: targetType,
         target_port: targetPort,
         local_port: localPort,
+        expected_context: expectedContext,
       });
 
       // Update with actual info from backend (local_port, resolved target_port, pod info)

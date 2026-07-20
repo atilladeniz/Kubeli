@@ -122,7 +122,11 @@ export default function Home() {
               fwd.target_type,
               fwd.target_port,
               fwd.local_port,
-              fwd.port_name
+              fwd.port_name,
+              undefined,
+              // A switch can land between the stop and the start; bind to
+              // this forward's own cluster or fail, never to the active one.
+              fwd.cluster_context
             );
           } catch (err) {
             console.error(`Failed to restart port-forward ${fwd.forward_id} after OIDC refresh`, err);

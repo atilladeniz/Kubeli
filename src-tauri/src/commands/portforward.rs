@@ -96,6 +96,14 @@ pub struct PortForwardOptions {
     pub target_type: PortForwardTargetType,
     pub target_port: u16,
     pub local_port: Option<u16>,
+    /// Cluster this forward is meant for. Set it when the caller decided on a
+    /// cluster earlier and the active one may have changed since (restarting a
+    /// forward after an OIDC refresh, for example): the start then fails
+    /// instead of silently tunnelling to whichever cluster is active now.
+    /// `None` means "whatever is active", which is right for a fresh start the
+    /// user just triggered.
+    #[serde(default)]
+    pub expected_context: Option<String>,
 }
 
 /// Port forward info returned to frontend
@@ -319,6 +327,18 @@ async fn bind_available_port() -> Result<TcpListener, String> {
     Err("No available ports found".to_string())
 }
 
+/// Fail a start whose caller expected a different cluster than the connected
+/// one. `None` opts out: a fresh start follows whatever is active.
+fn ensure_expected_context(expected: Option<&str>, connected: &str) -> Result<(), String> {
+    match expected {
+        Some(expected) if expected != connected => Err(format!(
+            "Port forward targets cluster {} but {} is connected",
+            expected, connected
+        )),
+        _ => Ok(()),
+    }
+}
+
 /// Start a port forward session
 #[command]
 pub async fn portforward_start(
@@ -340,6 +360,10 @@ pub async fn portforward_start(
         .get_connection()
         .await
         .map_err(|e| e.to_string())?;
+
+    // Refuse rather than bind to the wrong cluster: the caller picked a
+    // cluster before this call and a switch may have landed in between.
+    ensure_expected_context(options.expected_context.as_deref(), &cluster_context)?;
 
     // Bind the listener once and hand it to the forward task; re-binding
     // inside the task would leave a window where another process takes the
@@ -2380,5 +2404,27 @@ mod tests {
         // This is the guard that prevents run_port_forward cleanup from racing with reconnect
         assert_eq!(current, PortForwardStatus::Reconnecting);
         assert!(current == PortForwardStatus::Reconnecting);
+    }
+
+    // Regression: restarting a forward (OIDC refresh, history) decides on a
+    // cluster before the call. A switch landing in between must fail the start
+    // instead of tunnelling to whichever cluster is active now - which stayed
+    // silent whenever that cluster had a service of the same namespace/name.
+    #[test]
+    fn expected_context_mismatch_refuses_the_start() {
+        let err = ensure_expected_context(Some("cluster-a"), "cluster-b")
+            .expect_err("a foreign cluster must not be tunnelled to");
+        assert!(err.contains("cluster-a"), "error names the target: {err}");
+        assert!(
+            err.contains("cluster-b"),
+            "error names the connected: {err}"
+        );
+    }
+
+    #[test]
+    fn expected_context_allows_matching_and_unset() {
+        assert!(ensure_expected_context(Some("cluster-a"), "cluster-a").is_ok());
+        // A fresh user-triggered start pins nothing and follows the active cluster.
+        assert!(ensure_expected_context(None, "cluster-a").is_ok());
     }
 }
