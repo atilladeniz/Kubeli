@@ -136,7 +136,10 @@ export const usePortForwardStore = create<PortForwardState>()(
 
       // History actions
       recordHistoryStarted: (forward) => {
-        const clusterContext = useClusterStore.getState().currentCluster?.context;
+        // The backend stamps each forward with the cluster it actually bound
+        // to. Reading the active cluster here instead would misfile history
+        // when a switch lands while the start is still in flight.
+        const clusterContext = forward.cluster_context;
         if (!clusterContext) return;
 
         const signature = buildSignature(

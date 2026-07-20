@@ -54,9 +54,6 @@ jest.mock("../cluster-store", () => ({
   },
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const mockClusterStore = require("../cluster-store").useClusterStore as { getState: jest.Mock };
-
 // Capture the listen callback so we can simulate events
 let listenCallback: ((event: { payload: PortForwardEvent }) => void) | null = null;
 const mockUnlisten = jest.fn();
@@ -1004,14 +1001,32 @@ describe("PortForwardStore", () => {
         expect(history[0].started_at).toBeGreaterThan(0);
       });
 
-      it("should skip recording if there is no current cluster context", () => {
-        mockClusterStore.getState.mockReturnValueOnce({ currentCluster: null });
-
+      // History follows the forward's own cluster_context, not the active
+      // cluster: a switch landing while the start is in flight must not file
+      // the entry under the wrong cluster (or drop it when nothing is active).
+      it("should record against the forward's cluster even with no active cluster", () => {
         act(() => {
           usePortForwardStore.getState().recordHistoryStarted(mockForward);
         });
 
-        expect(usePortForwardStore.getState().history).toHaveLength(0);
+        const history = usePortForwardStore.getState().history;
+        expect(history).toHaveLength(1);
+        expect(history[0].cluster_context).toBe(mockForward.cluster_context);
+      });
+
+      it("should file history under the forward's cluster, not the active one", () => {
+        // The active cluster mock stays "test-cluster"; this forward belongs
+        // to another one and must be filed there, not under the active one.
+        act(() => {
+          usePortForwardStore.getState().recordHistoryStarted({
+            ...mockForward,
+            cluster_context: "survivor-cluster",
+          });
+        });
+
+        const history = usePortForwardStore.getState().history;
+        expect(history).toHaveLength(1);
+        expect(history[0].cluster_context).toBe("survivor-cluster");
       });
 
       it("should upsert by signature — a second call for the same logical forward updates the row", () => {
