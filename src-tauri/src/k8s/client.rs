@@ -169,10 +169,12 @@ impl KubeClientManager {
         apply_shared_client_timeouts(&mut config);
         let client = Client::try_from(config).context("Failed to create Kubernetes client")?;
 
-        // Store everything
+        // Store everything. Context before client, matching init_with_context:
+        // get_connection snapshots the pair under the client lock and relies on
+        // a visible client always having its own context in place.
         *self.kubeconfig.write().await = Some(parsed_config);
-        *self.client.write().await = Some(client);
         *self.current_context.write().await = current_ctx;
+        *self.client.write().await = Some(client);
 
         Ok(())
     }
@@ -363,6 +365,30 @@ impl KubeClientManager {
     /// Get the current context name
     pub async fn get_current_context(&self) -> Option<String> {
         self.current_context.read().await.clone()
+    }
+
+    /// Get the client and the context it belongs to as one snapshot.
+    ///
+    /// Reading them separately lets a connect/disconnect land in between, which
+    /// yields one cluster's client tagged with another's context - a port
+    /// forward would then tunnel to A while being recorded as owned by B, and
+    /// every cluster_context filter would cement that mismatch. Holding the
+    /// client read lock across both reads closes that window: writers publish
+    /// the context before the client (see `init_with_context`) and clear the
+    /// client before the context (see `clear_connection`), so a client visible
+    /// under this lock always has its own context already/still in place.
+    pub async fn get_connection(&self) -> Result<(Client, String)> {
+        let client_guard = self.client.read().await;
+        let client = client_guard
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("Kubernetes client not initialized"))?;
+        let context = self
+            .current_context
+            .read()
+            .await
+            .clone()
+            .ok_or_else(|| anyhow::anyhow!("No cluster context is connected"))?;
+        Ok((client, context))
     }
 
     /// Get the parsed kubeconfig
@@ -583,5 +609,31 @@ users:
             .await
             .expect("second connect proceeds after the first releases the lock")
             .unwrap();
+    }
+
+    // Regression: reading client and context separately let a connect land in
+    // between, pairing one cluster's client with another's context - a port
+    // forward would tunnel to A while being recorded as owned by B. The pair
+    // must never be observable half-updated, so a context visible without a
+    // client (or vice versa) is an error rather than a mismatched pair.
+    #[tokio::test]
+    async fn get_connection_never_pairs_client_with_a_foreign_context() {
+        let manager = Arc::new(KubeClientManager::new());
+
+        // Nothing connected: no pair to hand out.
+        assert!(manager.get_connection().await.is_err());
+
+        // A context published without a client (the window init_with_context
+        // opens) must not yield a connection either.
+        *manager.context_handle().write().await = Some("cluster-b".to_string());
+        assert!(
+            manager.get_connection().await.is_err(),
+            "a context without a client must not produce a connection"
+        );
+
+        // And clearing leaves nothing behind.
+        manager.clear_connection().await;
+        assert!(manager.get_connection().await.is_err());
+        assert!(manager.get_current_context().await.is_none());
     }
 }

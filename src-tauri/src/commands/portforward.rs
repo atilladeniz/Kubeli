@@ -333,12 +333,13 @@ pub async fn portforward_start(
         return Err(format!("Port forward {} already exists", forward_id));
     }
 
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
-    let cluster_context = state
+    // One snapshot: a separate client/context read can straddle a cluster
+    // switch and tag this tunnel with the wrong owner (see get_connection).
+    let (client, cluster_context) = state
         .k8s
-        .get_current_context()
+        .get_connection()
         .await
-        .ok_or_else(|| "No cluster context is connected".to_string())?;
+        .map_err(|e| e.to_string())?;
 
     // Bind the listener once and hand it to the forward task; re-binding
     // inside the task would leave a window where another process takes the
