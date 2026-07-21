@@ -34,7 +34,11 @@ export function PortForwardsSection({
   const t = useTranslations();
   const tNav = useTranslations("navigation");
 
-  if (!isConnected || forwards.length === 0) {
+  // Forwards on other clusters must keep the section (and its all-clusters
+  // link) visible even when the active cluster has none of its own -
+  // otherwise the only path to those surviving forwards disappears exactly
+  // when it is needed.
+  if (!isConnected || (forwards.length === 0 && otherClusterCount === 0)) {
     return null;
   }
 
@@ -60,9 +64,11 @@ export function PortForwardsSection({
               <Maximize2 className="size-2.5" />
             </button>
             <div className="flex items-center gap-1">
-              <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
-                {forwards.length}
-              </Badge>
+              {forwards.length > 0 && (
+                <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
+                  {forwards.length}
+                </Badge>
+              )}
               <CollapsibleTrigger asChild>
                 <Button
                   variant="ghost"

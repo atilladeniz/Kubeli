@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowRightLeft, ExternalLink, Maximize2, Search, SearchX, X } from "lucide-react";
+import { ArrowRightLeft, ExternalLink, Search, SearchX, X } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -32,18 +32,14 @@ async function openForwardInBrowser(port: number) {
   }
 }
 
-interface PortForwardsBadgeProps {
-  /** Optional "open the full page" affordance, shown as an expand icon. */
-  onExpand?: () => void;
-}
-
 /**
  * Violet count badge for active port forwards across all clusters. Clicking it
  * opens a compact popover listing each forward with its cluster tag — usable
- * even when disconnected (the cluster-select screen has no dashboard route).
+ * even when disconnected (the cluster-select screen has no dashboard route,
+ * which is also why there is no expand-to-page affordance here).
  * Renders nothing when there are no forwards.
  */
-export function PortForwardsBadge({ onExpand }: PortForwardsBadgeProps) {
+export function PortForwardsBadge() {
   const tNav = useTranslations("navigation");
   const tc = useTranslations("common");
   const { forwards, stopForward } = usePortForward();
@@ -96,18 +92,6 @@ export function PortForwardsBadge({ onExpand }: PortForwardsBadgeProps) {
           <span className="text-sm font-medium text-muted-foreground">
             {tNav("activePortForwards")}
           </span>
-          {onExpand && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              className="size-5 p-0 text-muted-foreground hover:text-foreground"
-              onClick={onExpand}
-              aria-label={tNav("portForwardsAll")}
-            >
-              <Maximize2 className="size-3" />
-            </Button>
-          )}
         </div>
         {showSearch && (
           <div className="relative mb-2 px-1">
