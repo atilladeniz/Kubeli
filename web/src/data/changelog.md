@@ -4,6 +4,13 @@ title: Changelog
 # `make release` prepends new entries here automatically.
 ---
 
+## v0.3.82 <span class="text-sm font-normal text-neutral-400 ml-2">2026-07-21</span>
+
+- Kept port forwards alive when switching clusters and in the all-clusters view
+- Updated Astro to 7.1.3 to address XSS advisories
+- Updated dependencies (fast-uri, brace-expansion, js-yaml, tokio-tungstenite) past security advisories
+- Updated CI to actions/setup-node 7.0.0
+
 ## v0.3.81 <span class="text-sm font-normal text-neutral-400 ml-2">2026-07-14</span>
 
 - Improved UI with elevated surfaces, better contrast, and snappier motion

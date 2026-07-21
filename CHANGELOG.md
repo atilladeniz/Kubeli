@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.82] - 2026-07-21
+
+- Kept port forwards alive when switching clusters and in the all-clusters view
+- Updated Astro to 7.1.3 to address XSS advisories
+- Updated dependencies (fast-uri, brace-expansion, js-yaml, tokio-tungstenite) past security advisories
+- Updated CI to actions/setup-node 7.0.0
+
 ## [0.3.81] - 2026-07-14
 
 - Improved UI with elevated surfaces, better contrast, and snappier motion
