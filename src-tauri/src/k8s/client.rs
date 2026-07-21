@@ -32,10 +32,18 @@ pub(crate) fn apply_shared_client_timeouts(config: &mut Config) {
     config.write_timeout = None;
 }
 
+/// The live connection: a client and the context it was built for, stored as
+/// one value under one lock. A reader can never observe a client paired with
+/// another connection's context - the mismatch is unrepresentable, not merely
+/// unlikely (a previous two-lock design left a window where a connect could
+/// publish its context while an in-flight reader still held the old client).
+/// The context is `None` only on the default-kubeconfig path (`init`), where
+/// the file may name no current-context.
+pub type SharedConnection = Arc<RwLock<Option<(Client, Option<String>)>>>;
+
 /// Thread-safe Kubernetes client manager
 pub struct KubeClientManager {
-    client: Arc<RwLock<Option<Client>>>,
-    current_context: Arc<RwLock<Option<String>>>,
+    connection: SharedConnection,
     kubeconfig: Arc<RwLock<Option<ParsedKubeConfig>>>,
     connection_log: Arc<RwLock<Option<String>>>,
     /// Serializes connect attempts: two racing connect_cluster calls would
@@ -114,18 +122,13 @@ impl KubeClientManager {
         self.connection_log.read().await.clone()
     }
 
-    pub fn client_handle(&self) -> Arc<RwLock<Option<Client>>> {
-        Arc::clone(&self.client)
-    }
-
-    pub fn context_handle(&self) -> Arc<RwLock<Option<String>>> {
-        Arc::clone(&self.current_context)
+    pub fn connection_handle(&self) -> SharedConnection {
+        Arc::clone(&self.connection)
     }
 
     pub fn new() -> Self {
         Self {
-            client: Arc::new(RwLock::new(None)),
-            current_context: Arc::new(RwLock::new(None)),
+            connection: Arc::new(RwLock::new(None)),
             kubeconfig: Arc::new(RwLock::new(None)),
             connection_log: Arc::new(RwLock::new(None)),
             connect_lock: Arc::new(tokio::sync::Mutex::new(())),
@@ -142,8 +145,7 @@ impl KubeClientManager {
     /// the stored client/context never point at a cluster that did not pass
     /// the connection test (the UI treats a failed connect as disconnected).
     pub async fn clear_connection(&self) {
-        *self.client.write().await = None;
-        *self.current_context.write().await = None;
+        *self.connection.write().await = None;
     }
 
     /// Initialize the client from the default kubeconfig.
@@ -169,12 +171,8 @@ impl KubeClientManager {
         apply_shared_client_timeouts(&mut config);
         let client = Client::try_from(config).context("Failed to create Kubernetes client")?;
 
-        // Store everything. Context before client, matching init_with_context:
-        // get_connection snapshots the pair under the client lock and relies on
-        // a visible client always having its own context in place.
         *self.kubeconfig.write().await = Some(parsed_config);
-        *self.current_context.write().await = current_ctx;
-        *self.client.write().await = Some(client);
+        *self.connection.write().await = Some((client, current_ctx));
 
         Ok(())
     }
@@ -317,11 +315,7 @@ impl KubeClientManager {
             }
         };
 
-        // Publish the context before the client: the OIDC refresh task guards its
-        // write by re-reading the context while holding the client lock, so a
-        // newer connection must make its context visible no later than its client.
-        *self.current_context.write().await = Some(context_name.to_string());
-        *self.client.write().await = Some(client);
+        *self.connection.write().await = Some((client, Some(context_name.to_string())));
 
         steps.push("Client stored in manager and ready for use".into());
 
@@ -355,40 +349,38 @@ impl KubeClientManager {
 
     /// Get the current client
     pub async fn get_client(&self) -> Result<Client> {
-        self.client
+        self.connection
             .read()
             .await
-            .clone()
+            .as_ref()
+            .map(|(client, _)| client.clone())
             .ok_or_else(|| anyhow::anyhow!("Kubernetes client not initialized"))
     }
 
     /// Get the current context name
     pub async fn get_current_context(&self) -> Option<String> {
-        self.current_context.read().await.clone()
+        self.connection
+            .read()
+            .await
+            .as_ref()
+            .and_then(|(_, context)| context.clone())
     }
 
     /// Get the client and the context it belongs to as one snapshot.
     ///
-    /// Reading them separately lets a connect/disconnect land in between, which
-    /// yields one cluster's client tagged with another's context - a port
-    /// forward would then tunnel to A while being recorded as owned by B, and
-    /// every cluster_context filter would cement that mismatch. Holding the
-    /// client read lock across both reads closes that window: writers publish
-    /// the context before the client (see `init_with_context`) and clear the
-    /// client before the context (see `clear_connection`), so a client visible
-    /// under this lock always has its own context already/still in place.
+    /// The pair lives in one lock slot (see `SharedConnection`), so a client
+    /// tagged with another cluster's context is unrepresentable - a port
+    /// forward started from this snapshot tunnels to the cluster it is
+    /// recorded as owned by, and every cluster_context filter stays truthful.
     pub async fn get_connection(&self) -> Result<(Client, String)> {
-        let client_guard = self.client.read().await;
-        let client = client_guard
-            .clone()
+        let guard = self.connection.read().await;
+        let (client, context) = guard
+            .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Kubernetes client not initialized"))?;
-        let context = self
-            .current_context
-            .read()
-            .await
+        let context = context
             .clone()
             .ok_or_else(|| anyhow::anyhow!("No cluster context is connected"))?;
-        Ok((client, context))
+        Ok((client.clone(), context))
     }
 
     /// Get the parsed kubeconfig
@@ -399,7 +391,7 @@ impl KubeClientManager {
 
     /// Check if client is connected
     pub async fn is_connected(&self) -> bool {
-        self.client.read().await.is_some()
+        self.connection.read().await.is_some()
     }
 
     /// Test connection to cluster using the /version endpoint.
@@ -611,25 +603,89 @@ users:
             .unwrap();
     }
 
-    // Regression: reading client and context separately let a connect land in
-    // between, pairing one cluster's client with another's context - a port
-    // forward would tunnel to A while being recorded as owned by B. The pair
-    // must never be observable half-updated, so a context visible without a
-    // client (or vice versa) is an error rather than a mismatched pair.
+    fn test_kubeconfig_two_contexts() -> Kubeconfig {
+        // Each context pins a different default namespace, which the built
+        // client carries - so a client paired with the wrong context is
+        // detectable through Client::default_namespace().
+        let yaml = r#"
+apiVersion: v1
+kind: Config
+current-context: ctx-a
+contexts:
+  - name: ctx-a
+    context:
+      cluster: test-cluster
+      user: test-user
+      namespace: ns-a
+  - name: ctx-b
+    context:
+      cluster: test-cluster
+      user: test-user
+      namespace: ns-b
+clusters:
+  - name: test-cluster
+    cluster:
+      server: https://127.0.0.1:1
+users:
+  - name: test-user
+    user:
+      token: dummy-token
+"#;
+        serde_yaml::from_str(yaml).expect("valid test kubeconfig")
+    }
+
+    // Regression: client and context used to live in two separate locks. A
+    // connect could publish its context while an in-flight reader still held
+    // the old client, handing out cluster A's client tagged as cluster B - a
+    // port forward would tunnel to A while being recorded as owned by B. The
+    // pair now lives in one lock slot; this test races real connects against
+    // readers and asserts every observed snapshot is self-consistent.
     #[tokio::test]
     async fn get_connection_never_pairs_client_with_a_foreign_context() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let manager = Arc::new(KubeClientManager::new());
 
         // Nothing connected: no pair to hand out.
         assert!(manager.get_connection().await.is_err());
 
-        // A context published without a client (the window init_with_context
-        // opens) must not yield a connection either.
-        *manager.context_handle().write().await = Some("cluster-b".to_string());
-        assert!(
-            manager.get_connection().await.is_err(),
-            "a context without a client must not produce a connection"
-        );
+        let kubeconfig = test_kubeconfig_two_contexts();
+        manager
+            .init_with_context("ctx-a", kubeconfig.clone(), None)
+            .await
+            .expect("client creation is offline");
+
+        let writer = {
+            let manager = Arc::clone(&manager);
+            let kubeconfig = kubeconfig.clone();
+            tokio::spawn(async move {
+                for i in 0..50 {
+                    let ctx = if i % 2 == 0 { "ctx-b" } else { "ctx-a" };
+                    manager
+                        .init_with_context(ctx, kubeconfig.clone(), None)
+                        .await
+                        .expect("client creation is offline");
+                }
+            })
+        };
+
+        for _ in 0..200 {
+            let (client, context) = manager
+                .get_connection()
+                .await
+                .expect("stays connected throughout");
+            let expected_ns = match context.as_str() {
+                "ctx-a" => "ns-a",
+                "ctx-b" => "ns-b",
+                other => panic!("unknown context {other}"),
+            };
+            assert_eq!(
+                client.default_namespace(),
+                expected_ns,
+                "client from one cluster was paired with another cluster's context"
+            );
+            tokio::task::yield_now().await;
+        }
+        writer.await.unwrap();
 
         // And clearing leaves nothing behind.
         manager.clear_connection().await;
