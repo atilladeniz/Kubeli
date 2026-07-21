@@ -149,6 +149,55 @@ describe("PortForwardStore", () => {
       expect(ids).toContain("pod-demo-web-80-222");
       expect(usePortForwardStore.getState().error).toBe("port busy");
     });
+
+    // Regression: the listener registered before portforwardStart never gets
+    // a Stopped event when the start fails (e.g. expected_context mismatch),
+    // so it leaked with every failed attempt.
+    it("drops the event listener registered for a start that failed", async () => {
+      mockPortforwardStart.mockRejectedValue(
+        new Error("Port forward targets cluster a but b is connected")
+      );
+
+      await act(async () => {
+        await usePortForwardStore.getState().startForward("demo", "web", "pod", 80);
+      });
+
+      expect(mockUnlisten).toHaveBeenCalled();
+      expect(usePortForwardStore.getState().listeners.size).toBe(0);
+    });
+  });
+
+  describe("startForward placeholder tagging", () => {
+    // Regression: the optimistic placeholder was always tagged with the
+    // ACTIVE cluster. During a pinned restart (OIDC/history) with a cluster
+    // switch mid-flight, it transiently showed up under the wrong cluster.
+    it("tags a pinned restart's placeholder with the expected cluster, not the active one", async () => {
+      let resolveStart!: (value: PortForwardInfo) => void;
+      const startGate = new Promise<PortForwardInfo>((resolve) => (resolveStart = resolve));
+      mockPortforwardStart.mockReturnValue(startGate);
+
+      let startPromise: Promise<PortForwardInfo | null> = Promise.resolve(null);
+      act(() => {
+        startPromise = usePortForwardStore
+          .getState()
+          .startForward("demo", "web", "pod", 80, undefined, undefined, undefined, "other-cluster");
+      });
+
+      // The placeholder is set synchronously, before the backend call - it
+      // must already carry the pinned cluster (the active one is
+      // "test-cluster").
+      const placeholder = usePortForwardStore.getState().forwards.find((f) => f.name === "web");
+      expect(placeholder?.cluster_context).toBe("other-cluster");
+
+      await act(async () => {
+        resolveStart({
+          ...mockForward,
+          forward_id: placeholder!.forward_id,
+          cluster_context: "other-cluster",
+        });
+        await startPromise;
+      });
+    });
   });
 
   describe("updateForwardStatus", () => {

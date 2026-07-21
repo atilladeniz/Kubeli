@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, lazy, Suspense } from "react";
+import { toast } from "sonner";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { usePortForwardStore } from "@/lib/stores/portforward-store";
 import { forwardsToRestartAfterRefresh } from "@/components/features/portforward/forwardsToRestartAfterRefresh";
@@ -113,23 +114,28 @@ export default function Home() {
         const pfStore = usePortForwardStore.getState();
         const activeForwards = forwardsToRestartAfterRefresh(pfStore.forwards, event.payload);
         for (const fwd of activeForwards) {
-          // Per-forward try/catch so one failure doesn't strand the rest.
-          try {
-            await pfStore.stopForward(fwd.forward_id);
-            await pfStore.startForward(
-              fwd.namespace,
-              fwd.name,
-              fwd.target_type,
-              fwd.target_port,
-              fwd.local_port,
-              fwd.port_name,
-              undefined,
-              // A switch can land between the stop and the start; bind to
-              // this forward's own cluster or fail, never to the active one.
-              fwd.cluster_context
-            );
-          } catch (err) {
-            console.error(`Failed to restart port-forward ${fwd.forward_id} after OIDC refresh`, err);
+          // stopForward/startForward report failure via false/null, not by
+          // throwing - check the results, or a forward dies silently here.
+          const stopped = await pfStore.stopForward(fwd.forward_id);
+          const restarted = stopped
+            ? await pfStore.startForward(
+                fwd.namespace,
+                fwd.name,
+                fwd.target_type,
+                fwd.target_port,
+                fwd.local_port,
+                fwd.port_name,
+                undefined,
+                // A switch can land between the stop and the start; bind to
+                // this forward's own cluster or fail, never to the active one.
+                fwd.cluster_context
+              )
+            : null;
+          if (!restarted) {
+            console.error(`Failed to restart port-forward ${fwd.forward_id} after OIDC refresh`);
+            toast.error("Port forward restart failed", {
+              description: `${fwd.name}:${fwd.local_port} (${fwd.cluster_context})`,
+            });
           }
         }
         const clusterStore = useClusterStore.getState();

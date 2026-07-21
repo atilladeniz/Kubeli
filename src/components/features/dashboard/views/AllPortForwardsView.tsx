@@ -69,6 +69,9 @@ export function AllPortForwardsView() {
       const histItem = history.find((h) => h.forward_id === deleteDialog.forwardId);
       const stopped = await stopForward(deleteDialog.forwardId);
       if (stopped && histItem) removeHistoryItem(histItem.id);
+      // A failed stop keeps the forward alive and in the list; say so
+      // instead of letting the dialog close look like success.
+      if (!stopped) toast.error(t("stopFailed"));
     } else {
       removeHistoryItem(deleteDialog.itemId);
     }

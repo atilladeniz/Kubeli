@@ -551,9 +551,12 @@ export const usePortForwardStore = create<PortForwardState>()(
       const placeholderForward: PortForwardInfo = {
         forward_id: forwardId,
         // Backend overwrites this from immutable session ownership once
-        // portforwardStart returns; seed it from the current cluster so the
-        // transient placeholder is tagged correctly too.
-        cluster_context: useClusterStore.getState().currentCluster?.context ?? "",
+        // portforwardStart returns. A pinned restart already knows its
+        // cluster; only a fresh user-triggered start follows the active one -
+        // so the transient placeholder never shows up under a cluster a
+        // mid-flight switch just made active.
+        cluster_context:
+          expectedContext ?? useClusterStore.getState().currentCluster?.context ?? "",
         namespace,
         name,
         target_type: targetType,
@@ -613,6 +616,15 @@ export const usePortForwardStore = create<PortForwardState>()(
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to start port forward";
+      // The listener registered above never gets a Stopped event for a start
+      // that failed - drop it here or it leaks with every failed attempt.
+      const staleUnlisten = get().listeners.get(forwardId);
+      if (staleUnlisten) {
+        staleUnlisten();
+        const newListeners = new Map(get().listeners);
+        newListeners.delete(forwardId);
+        set({ listeners: newListeners });
+      }
       // Remove exactly this attempt's placeholder. The old prefix match
       // (id without the timestamp suffix) also killed sibling forwards of
       // the same target and prefix-collided (...-80 matched ...-8080).
