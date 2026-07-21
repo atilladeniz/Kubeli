@@ -199,10 +199,19 @@ export interface PortForwardOptions {
   target_type: PortForwardTargetType;
   target_port: number;
   local_port?: number;
+  /**
+   * Cluster this forward is meant for. Set it when the cluster was decided
+   * before the call and may have changed since (restarting after an OIDC
+   * refresh); the backend then fails instead of binding to the active
+   * cluster. Omit for a start the user just triggered.
+   */
+  expected_context?: string;
 }
 
 export interface PortForwardInfo {
   forward_id: string;
+  /** Cluster context that owns this forward (immutable; survives cluster switch). */
+  cluster_context: string;
   namespace: string;
   name: string;
   target_type: PortForwardTargetType;

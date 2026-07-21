@@ -4,6 +4,7 @@ import type { PortForwardInfo, ServicePortInfo } from "@/lib/types";
 function makeForward(overrides: Partial<PortForwardInfo> = {}): PortForwardInfo {
   return {
     forward_id: "test-id",
+    cluster_context: "test-ctx",
     namespace: "default",
     name: "my-svc",
     target_type: "service",

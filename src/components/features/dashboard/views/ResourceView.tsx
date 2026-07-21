@@ -16,6 +16,7 @@ import { WorkloadsOverview } from "./WorkloadsOverview";
 
 // Utility views
 import { PortForwardsView } from "./PortForwardsView";
+import { AllPortForwardsView } from "./AllPortForwardsView";
 import { PodLogsView } from "./PodLogsView";
 import { DeploymentLogsView } from "./DeploymentLogsView";
 
@@ -130,6 +131,8 @@ export function ResourceView({ activeResource }: ResourceViewProps) {
       return <DeploymentsView />;
     case "port-forwards":
       return <PortForwardsView />;
+    case "port-forwards-all":
+      return <AllPortForwardsView />;
     case "services":
       return <ServicesView />;
     case "configmaps":

@@ -59,7 +59,13 @@ interface PortForwardState {
     targetPort: number,
     localPort?: number,
     portName?: string,
-    forwardIdOverride?: string
+    forwardIdOverride?: string,
+    /**
+     * Cluster this forward belongs to. Pass it when the cluster was decided
+     * before the call (restart after an OIDC refresh) so a switch landing in
+     * between fails the start instead of binding to the wrong cluster.
+     */
+    expectedContext?: string
   ) => Promise<PortForwardInfo | null>;
   stopForward: (forwardId: string) => Promise<boolean>;
   stopAllForwards: () => Promise<void>;
@@ -136,7 +142,10 @@ export const usePortForwardStore = create<PortForwardState>()(
 
       // History actions
       recordHistoryStarted: (forward) => {
-        const clusterContext = useClusterStore.getState().currentCluster?.context;
+        // The backend stamps each forward with the cluster it actually bound
+        // to. Reading the active cluster here instead would misfile history
+        // when a switch lands while the start is still in flight.
+        const clusterContext = forward.cluster_context;
         if (!clusterContext) return;
 
         const signature = buildSignature(
@@ -286,7 +295,10 @@ export const usePortForwardStore = create<PortForwardState>()(
           targetPort,
           preferredLocalPort,
           item.port_name,
-          forwardId
+          forwardId,
+          // History entries outlive the connection they were made on, so bind
+          // to the cluster this entry belongs to or fail.
+          item.cluster_context
         );
         if (!result) {
           set((state) => ({
@@ -524,7 +536,8 @@ export const usePortForwardStore = create<PortForwardState>()(
     targetPort,
     localPort,
     portName,
-    forwardIdOverride
+    forwardIdOverride,
+    expectedContext
   ) => {
     set({ isLoading: true, error: null });
 
@@ -537,6 +550,13 @@ export const usePortForwardStore = create<PortForwardState>()(
       // The "Connected" event might arrive before portforwardStart returns
       const placeholderForward: PortForwardInfo = {
         forward_id: forwardId,
+        // Backend overwrites this from immutable session ownership once
+        // portforwardStart returns. A pinned restart already knows its
+        // cluster; only a fresh user-triggered start follows the active one -
+        // so the transient placeholder never shows up under a cluster a
+        // mid-flight switch just made active.
+        cluster_context:
+          expectedContext ?? useClusterStore.getState().currentCluster?.context ?? "",
         namespace,
         name,
         target_type: targetType,
@@ -562,6 +582,7 @@ export const usePortForwardStore = create<PortForwardState>()(
         target_type: targetType,
         target_port: targetPort,
         local_port: localPort,
+        expected_context: expectedContext,
       });
 
       // Update with actual info from backend (local_port, resolved target_port, pod info)
@@ -571,6 +592,7 @@ export const usePortForwardStore = create<PortForwardState>()(
           f.forward_id === forwardId
             ? {
                 ...f,
+                cluster_context: info.cluster_context,
                 local_port: info.local_port,
                 target_port: info.target_port,
                 pod_name: info.pod_name,
@@ -582,6 +604,7 @@ export const usePortForwardStore = create<PortForwardState>()(
 
       const updatedForward: PortForwardInfo = {
         ...placeholderForward,
+        cluster_context: info.cluster_context,
         local_port: info.local_port,
         target_port: info.target_port,
         pod_name: info.pod_name,
@@ -593,6 +616,15 @@ export const usePortForwardStore = create<PortForwardState>()(
     } catch (err) {
       const errorMessage =
         err instanceof Error ? err.message : "Failed to start port forward";
+      // The listener registered above never gets a Stopped event for a start
+      // that failed - drop it here or it leaks with every failed attempt.
+      const staleUnlisten = get().listeners.get(forwardId);
+      if (staleUnlisten) {
+        staleUnlisten();
+        const newListeners = new Map(get().listeners);
+        newListeners.delete(forwardId);
+        set({ listeners: newListeners });
+      }
       // Remove exactly this attempt's placeholder. The old prefix match
       // (id without the timestamp suffix) also killed sibling forwards of
       // the same target and prefix-collided (...-80 matched ...-8080).

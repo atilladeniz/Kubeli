@@ -5,7 +5,7 @@ import { usePlatform } from "@/lib/hooks/usePlatform";
 import { useWidthRatchet } from "@/lib/hooks/useWidthRatchet";
 import { useTranslations } from "next-intl";
 
-import { Layers, Cog } from "lucide-react";
+import { Layers, Cog, ArrowRightLeft } from "lucide-react";
 import { ConfigureNamespacesDialog } from "@/components/features/home/components/ConfigureNamespacesDialog";
 import { useClusterStore } from "@/lib/stores/cluster-store";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
@@ -72,6 +72,18 @@ export function Sidebar({
 
   const setSettingsOpen = useUIStore((s) => s.setSettingsOpen);
   const { forwards, stopForward } = usePortForward();
+
+  // The sidebar is scoped to the connected cluster, so its badge and forward
+  // list show only this cluster's forwards, matched on each forward's own
+  // immutable cluster_context.
+  const currentClusterForwards = useMemo(() => {
+    const ctx = currentCluster?.context;
+    if (!ctx) return [];
+    return forwards.filter((f) => f.cluster_context === ctx);
+  }, [forwards, currentCluster?.context]);
+  // Forwards surviving on other clusters are the only reason to offer the
+  // all-clusters view; without them it would just repeat this list.
+  const otherClusterForwardCount = forwards.length - currentClusterForwards.length;
   const getFavorites = useFavoritesStore((s) => s.getFavorites);
   const removeFavorite = useFavoritesStore((s) => s.removeFavorite);
   const getRecentResources = useFavoritesStore((s) => s.getRecentResources);
@@ -168,6 +180,28 @@ export function Sidebar({
                   className="block truncate text-sm font-medium"
                 />
               </div>
+              {currentClusterForwards.length > 0 && (
+                <span
+                  role="button"
+                  tabIndex={0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onResourceSelect("port-forwards");
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      onResourceSelect("port-forwards");
+                    }
+                  }}
+                  title={tNav("portForwards")}
+                  className="flex shrink-0 items-center gap-1 rounded-full bg-violet-500/15 px-1.5 py-0.5 text-[11px] font-medium text-violet-600 transition-colors hover:bg-violet-500/25 dark:text-violet-300 classic-dark:text-violet-300"
+                >
+                  <ArrowRightLeft className="size-2.5" />
+                  {currentClusterForwards.length}
+                </span>
+              )}
               {isConnected && isHealthy && (
                 <div className="flex items-center gap-1.5 shrink-0">
                   {latencyMs !== null && (
@@ -223,7 +257,8 @@ export function Sidebar({
 
       <PortForwardsSection
         isConnected={isConnected}
-        forwards={forwards}
+        forwards={currentClusterForwards}
+        otherClusterCount={otherClusterForwardCount}
         isPortForwardsSectionOpen={isPortForwardsSectionOpen}
         setIsPortForwardsSectionOpen={setIsPortForwardsSectionOpen}
         onResourceSelect={onResourceSelect}

@@ -24,6 +24,8 @@ struct PortForwardSession {
     local_port: u16,
     target_port: u16,
     target_type: PortForwardTargetType,
+    /// Immutable owner used to route health-watch events after cluster switches.
+    cluster_context: String,
     namespace: String,
     name: String,
     pod_name: String,
@@ -94,12 +96,21 @@ pub struct PortForwardOptions {
     pub target_type: PortForwardTargetType,
     pub target_port: u16,
     pub local_port: Option<u16>,
+    /// Cluster this forward is meant for. Set it when the caller decided on a
+    /// cluster earlier and the active one may have changed since (restarting a
+    /// forward after an OIDC refresh, for example): the start then fails
+    /// instead of silently tunnelling to whichever cluster is active now.
+    /// `None` means "whatever is active", which is right for a fresh start the
+    /// user just triggered.
+    #[serde(default)]
+    pub expected_context: Option<String>,
 }
 
 /// Port forward info returned to frontend
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct PortForwardInfo {
     pub forward_id: String,
+    pub cluster_context: String,
     pub namespace: String,
     pub name: String,
     pub target_type: PortForwardTargetType,
@@ -133,6 +144,7 @@ impl PortForwardManager {
             let status = s.status.read().await.clone();
             Some(PortForwardInfo {
                 forward_id: id.to_string(),
+                cluster_context: s.cluster_context.clone(),
                 namespace: s.namespace.clone(),
                 name: s.name.clone(),
                 target_type: s.target_type.clone(),
@@ -169,16 +181,6 @@ impl PortForwardManager {
         sessions.contains_key(id)
     }
 
-    /// Stop every port-forward session. Called on disconnect/context switch
-    /// so no forward keeps tunneling into the previous cluster.
-    pub async fn stop_all(&self) {
-        let mut sessions = self.sessions.write().await;
-        for session in sessions.values() {
-            session.cancel.cancel();
-        }
-        sessions.clear();
-    }
-
     /// Wait (bounded) until a session's forward task has exited and dropped
     /// its listener. No-op when the session is already gone.
     async fn wait_finished(&self, id: &str, timeout: tokio::time::Duration) {
@@ -198,6 +200,7 @@ impl PortForwardManager {
             let status = s.status.read().await.clone();
             result.push(PortForwardInfo {
                 forward_id: id.clone(),
+                cluster_context: s.cluster_context.clone(),
                 namespace: s.namespace.clone(),
                 name: s.name.clone(),
                 target_type: s.target_type.clone(),
@@ -237,6 +240,7 @@ impl PortForwardManager {
     /// Get all forwards targeting a specific pod UID
     async fn get_forwards_for_pod_uid(
         &self,
+        cluster_context: &str,
         pod_uid: &str,
     ) -> Vec<(
         String,
@@ -246,7 +250,7 @@ impl PortForwardManager {
         let sessions = self.sessions.read().await;
         sessions
             .iter()
-            .filter(|(_, s)| s.pod_uid == pod_uid)
+            .filter(|(_, s)| s.cluster_context == cluster_context && s.pod_uid == pod_uid)
             .map(|(id, s)| {
                 (
                     id.clone(),
@@ -291,7 +295,7 @@ async fn cleanup_session(
 ) {
     if let Some(session) = pf_manager.remove_session(forward_id).await {
         pf_watch_manager
-            .release_namespace_watcher(&session.namespace)
+            .release_namespace_watcher(&session.cluster_context, &session.namespace)
             .await;
     }
 }
@@ -323,6 +327,18 @@ async fn bind_available_port() -> Result<TcpListener, String> {
     Err("No available ports found".to_string())
 }
 
+/// Fail a start whose caller expected a different cluster than the connected
+/// one. `None` opts out: a fresh start follows whatever is active.
+fn ensure_expected_context(expected: Option<&str>, connected: &str) -> Result<(), String> {
+    match expected {
+        Some(expected) if expected != connected => Err(format!(
+            "Port forward targets cluster {} but {} is connected",
+            expected, connected
+        )),
+        _ => Ok(()),
+    }
+}
+
 /// Start a port forward session
 #[command]
 pub async fn portforward_start(
@@ -337,7 +353,17 @@ pub async fn portforward_start(
         return Err(format!("Port forward {} already exists", forward_id));
     }
 
-    let client = state.k8s.get_client().await.map_err(|e| e.to_string())?;
+    // One snapshot: a separate client/context read can straddle a cluster
+    // switch and tag this tunnel with the wrong owner (see get_connection).
+    let (client, cluster_context) = state
+        .k8s
+        .get_connection()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    // Refuse rather than bind to the wrong cluster: the caller picked a
+    // cluster before this call and a switch may have landed in between.
+    ensure_expected_context(options.expected_context.as_deref(), &cluster_context)?;
 
     // Bind the listener once and hand it to the forward task; re-binding
     // inside the task would leave a window where another process takes the
@@ -431,6 +457,7 @@ pub async fn portforward_start(
         local_port,
         target_port: resolved_target_port,
         target_type: options.target_type.clone(),
+        cluster_context: cluster_context.clone(),
         namespace: options.namespace.clone(),
         name: options.name.clone(),
         pod_name: pod_name.clone(),
@@ -441,6 +468,7 @@ pub async fn portforward_start(
 
     let info = PortForwardInfo {
         forward_id: forward_id.clone(),
+        cluster_context: cluster_context.clone(),
         namespace: options.namespace.clone(),
         name: options.name.clone(),
         target_type: options.target_type.clone(),
@@ -475,6 +503,7 @@ pub async fn portforward_start(
         .ensure_namespace_watcher(
             client.clone(),
             app.clone(),
+            cluster_context,
             options.namespace.clone(),
             Arc::clone(&pf_manager),
         )
@@ -797,7 +826,7 @@ struct NamespaceWatchHandle {
 
 /// Manager for namespace-level pod watchers used by port forwarding
 pub struct PortForwardWatchManager {
-    watchers: RwLock<HashMap<String, NamespaceWatchHandle>>,
+    watchers: RwLock<HashMap<(String, String), NamespaceWatchHandle>>,
 }
 
 impl PortForwardWatchManager {
@@ -812,18 +841,20 @@ impl PortForwardWatchManager {
         self: Arc<Self>,
         client: kube::Client,
         app: AppHandle,
+        cluster_context: String,
         namespace: String,
         pf_manager: Arc<PortForwardManager>,
     ) {
         let mut watchers = self.watchers.write().await;
-        if let Some(handle) = watchers.get_mut(&namespace) {
+        let key = (cluster_context.clone(), namespace.clone());
+        if let Some(handle) = watchers.get_mut(&key) {
             handle.ref_count += 1;
             return;
         }
 
         let cancel = CancellationToken::new();
         watchers.insert(
-            namespace.clone(),
+            key,
             NamespaceWatchHandle {
                 cancel: cancel.clone(),
                 ref_count: 1,
@@ -838,8 +869,16 @@ impl PortForwardWatchManager {
         let watch_manager = Arc::clone(&self);
 
         tokio::spawn(async move {
-            watch_pods_for_portforwards(client_clone, app, ns, pf_manager, watch_manager, cancel)
-                .await;
+            watch_pods_for_portforwards(
+                client_clone,
+                app,
+                cluster_context,
+                ns,
+                pf_manager,
+                watch_manager,
+                cancel,
+            )
+            .await;
         });
 
         tracing::info!(
@@ -848,19 +887,11 @@ impl PortForwardWatchManager {
         );
     }
 
-    /// Stop all namespace watchers regardless of ref counts (disconnect).
-    pub async fn stop_all(&self) {
-        let mut watchers = self.watchers.write().await;
-        for handle in watchers.values() {
-            handle.cancel.cancel();
-        }
-        watchers.clear();
-    }
-
     /// Decrement ref count for a namespace watcher. Stop it if ref count reaches 0.
-    async fn release_namespace_watcher(&self, namespace: &str) {
+    async fn release_namespace_watcher(&self, cluster_context: &str, namespace: &str) {
         let mut watchers = self.watchers.write().await;
-        let should_remove = if let Some(handle) = watchers.get_mut(namespace) {
+        let key = (cluster_context.to_string(), namespace.to_string());
+        let should_remove = if let Some(handle) = watchers.get_mut(&key) {
             handle.ref_count = handle.ref_count.saturating_sub(1);
             if handle.ref_count == 0 {
                 handle.cancel.cancel();
@@ -872,7 +903,7 @@ impl PortForwardWatchManager {
             false
         };
         if should_remove {
-            watchers.remove(namespace);
+            watchers.remove(&key);
             tracing::info!(
                 "Stopped port forward pod watcher for namespace: {}",
                 namespace
@@ -892,6 +923,7 @@ impl Default for PortForwardWatchManager {
 async fn watch_pods_for_portforwards(
     client: kube::Client,
     app: AppHandle,
+    cluster_context: String,
     namespace: String,
     pf_manager: Arc<PortForwardManager>,
     watch_manager: Arc<PortForwardWatchManager>,
@@ -903,7 +935,7 @@ async fn watch_pods_for_portforwards(
 
     loop {
         // A plain stream.next() would only notice the stop after the next
-        // pod event arrives; select makes release/stop_all take effect now.
+        // pod event arrives; select makes watcher release take effect now.
         let event = tokio::select! {
             _ = cancel.cancelled() => break,
             maybe_event = stream.next() => match maybe_event {
@@ -917,7 +949,9 @@ async fn watch_pods_for_portforwards(
                 let pod_uid = pod.metadata.uid.clone().unwrap_or_default();
                 let pod_name = pod.metadata.name.clone().unwrap_or_default();
 
-                let affected = pf_manager.get_forwards_for_pod_uid(&pod_uid).await;
+                let affected = pf_manager
+                    .get_forwards_for_pod_uid(&cluster_context, &pod_uid)
+                    .await;
                 if affected.is_empty() {
                     continue;
                 }
@@ -1018,7 +1052,9 @@ async fn watch_pods_for_portforwards(
                 if pod.metadata.deletion_timestamp.is_some() {
                     let pod_uid = pod.metadata.uid.clone().unwrap_or_default();
                     let pod_name = pod.metadata.name.clone().unwrap_or_default();
-                    let affected = pf_manager.get_forwards_for_pod_uid(&pod_uid).await;
+                    let affected = pf_manager
+                        .get_forwards_for_pod_uid(&cluster_context, &pod_uid)
+                        .await;
                     if affected.is_empty() {
                         continue;
                     }
@@ -1516,6 +1552,7 @@ mod tests {
             local_port,
             target_port,
             target_type,
+            cluster_context: "cluster-a".to_string(),
             namespace: namespace.to_string(),
             name: name.to_string(),
             pod_name: pod_name.to_string(),
@@ -1540,6 +1577,7 @@ mod tests {
             local_port,
             target_port,
             target_type: PortForwardTargetType::Service,
+            cluster_context: "cluster-a".to_string(),
             namespace: namespace.to_string(),
             name: name.to_string(),
             pod_name: pod_name.to_string(),
@@ -1785,39 +1823,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn manager_stop_all_cancels_and_clears() {
-        let mgr = PortForwardManager::new();
-        let s1 = make_session(
-            8080,
-            80,
-            PortForwardTargetType::Pod,
-            "default",
-            "web",
-            "pod-1",
-            "uid-1",
-        );
-        let s2 = make_session(
-            9090,
-            90,
-            PortForwardTargetType::Service,
-            "kube-system",
-            "dns",
-            "pod-2",
-            "uid-2",
-        );
-        let c1 = s1.cancel.clone();
-        let c2 = s2.cancel.clone();
-        mgr.add_session("fwd-1".to_string(), s1).await;
-        mgr.add_session("fwd-2".to_string(), s2).await;
-
-        mgr.stop_all().await;
-
-        assert!(c1.is_cancelled());
-        assert!(c2.is_cancelled());
-        assert!(mgr.list_sessions().await.is_empty());
-    }
-
-    #[tokio::test]
     async fn manager_stop_nonexistent_returns_false() {
         let mgr = PortForwardManager::new();
         assert!(!mgr.stop_session("nope").await);
@@ -1931,7 +1936,9 @@ mod tests {
         mgr.add_session("fwd-2".to_string(), s2).await;
         mgr.add_session("fwd-3".to_string(), s3).await;
 
-        let affected = mgr.get_forwards_for_pod_uid("uid-target").await;
+        let affected = mgr
+            .get_forwards_for_pod_uid("cluster-a", "uid-target")
+            .await;
         assert_eq!(affected.len(), 2);
 
         let ids: Vec<&str> = affected.iter().map(|(id, _, _)| id.as_str()).collect();
@@ -1953,8 +1960,37 @@ mod tests {
         );
         mgr.add_session("fwd-1".to_string(), s1).await;
 
-        let affected = mgr.get_forwards_for_pod_uid("uid-nonexistent").await;
+        let affected = mgr
+            .get_forwards_for_pod_uid("cluster-a", "uid-nonexistent")
+            .await;
         assert!(affected.is_empty());
+    }
+
+    #[tokio::test]
+    async fn manager_pod_lookup_is_scoped_to_cluster_context() {
+        let mgr = PortForwardManager::new();
+        let mut cluster_b = make_session(
+            8080,
+            80,
+            PortForwardTargetType::Pod,
+            "default",
+            "web",
+            "web-0",
+            "shared-uid",
+        );
+        cluster_b.cluster_context = "cluster-b".to_string();
+        mgr.add_session("b-forward".to_string(), cluster_b).await;
+
+        assert!(mgr
+            .get_forwards_for_pod_uid("cluster-a", "shared-uid")
+            .await
+            .is_empty());
+        assert_eq!(
+            mgr.get_forwards_for_pod_uid("cluster-b", "shared-uid")
+                .await
+                .len(),
+            1
+        );
     }
 
     #[tokio::test]
@@ -2003,7 +2039,7 @@ mod tests {
         );
         mgr.add_session("fwd-1".to_string(), session).await;
 
-        let affected = mgr.get_forwards_for_pod_uid("uid-1").await;
+        let affected = mgr.get_forwards_for_pod_uid("cluster-a", "uid-1").await;
         assert_eq!(affected.len(), 1);
         assert_eq!(affected[0].2, Some(selector));
     }
@@ -2014,7 +2050,7 @@ mod tests {
     async fn insert_watch_handle(wm: &PortForwardWatchManager, namespace: &str, ref_count: usize) {
         let mut watchers = wm.watchers.write().await;
         watchers.insert(
-            namespace.to_string(),
+            ("cluster-a".to_string(), namespace.to_string()),
             NamespaceWatchHandle {
                 cancel: CancellationToken::new(),
                 ref_count,
@@ -2027,18 +2063,24 @@ mod tests {
         let wm = PortForwardWatchManager::new();
         insert_watch_handle(&wm, "default", 3).await;
 
-        wm.release_namespace_watcher("default").await;
+        wm.release_namespace_watcher("cluster-a", "default").await;
         {
             let watchers = wm.watchers.read().await;
-            assert_eq!(watchers.get("default").unwrap().ref_count, 2);
+            assert_eq!(
+                watchers
+                    .get(&("cluster-a".to_string(), "default".to_string()))
+                    .unwrap()
+                    .ref_count,
+                2
+            );
         }
 
-        wm.release_namespace_watcher("default").await;
-        wm.release_namespace_watcher("default").await;
+        wm.release_namespace_watcher("cluster-a", "default").await;
+        wm.release_namespace_watcher("cluster-a", "default").await;
 
         // Ref count reached 0, should be removed
         let watchers = wm.watchers.read().await;
-        assert!(!watchers.contains_key("default"));
+        assert!(!watchers.contains_key(&("cluster-a".to_string(), "default".to_string())));
     }
 
     #[tokio::test]
@@ -2049,7 +2091,7 @@ mod tests {
         {
             let mut watchers = wm.watchers.write().await;
             watchers.insert(
-                "kube-system".to_string(),
+                ("cluster-a".to_string(), "kube-system".to_string()),
                 NamespaceWatchHandle {
                     cancel: cancel.clone(),
                     ref_count: 1,
@@ -2057,7 +2099,8 @@ mod tests {
             );
         }
 
-        wm.release_namespace_watcher("kube-system").await;
+        wm.release_namespace_watcher("cluster-a", "kube-system")
+            .await;
         assert!(cancel.is_cancelled());
     }
 
@@ -2065,28 +2108,30 @@ mod tests {
     async fn watch_manager_release_nonexistent_is_noop() {
         let wm = PortForwardWatchManager::new();
         // Should not panic
-        wm.release_namespace_watcher("nonexistent").await;
+        wm.release_namespace_watcher("cluster-a", "nonexistent")
+            .await;
     }
 
     #[tokio::test]
-    async fn watch_manager_stop_all_cancels_and_clears() {
+    async fn watch_manager_keeps_same_namespace_in_other_cluster() {
         let wm = PortForwardWatchManager::new();
-        let cancel = CancellationToken::new();
+        insert_watch_handle(&wm, "default", 1).await;
         {
             let mut watchers = wm.watchers.write().await;
             watchers.insert(
-                "default".to_string(),
+                ("cluster-b".to_string(), "default".to_string()),
                 NamespaceWatchHandle {
-                    cancel: cancel.clone(),
-                    ref_count: 2,
+                    cancel: CancellationToken::new(),
+                    ref_count: 1,
                 },
             );
         }
 
-        wm.stop_all().await;
+        wm.release_namespace_watcher("cluster-a", "default").await;
 
-        assert!(cancel.is_cancelled());
-        assert!(wm.watchers.read().await.is_empty());
+        let watchers = wm.watchers.read().await;
+        assert!(!watchers.contains_key(&("cluster-a".to_string(), "default".to_string())));
+        assert!(watchers.contains_key(&("cluster-b".to_string(), "default".to_string())));
     }
 
     // ── cleanup_session tests ──
@@ -2111,7 +2156,11 @@ mod tests {
 
         assert!(!pf.is_active("fwd-1").await);
         // Last ref released -> watcher removed
-        assert!(!wm.watchers.read().await.contains_key("default"));
+        assert!(!wm
+            .watchers
+            .read()
+            .await
+            .contains_key(&("cluster-a".to_string(), "default".to_string())));
     }
 
     /// Racing cleanup paths (stop command, forward task exit, pod watcher) may
@@ -2148,7 +2197,13 @@ mod tests {
         cleanup_session(&pf, &wm, "fwd-1").await;
 
         let watchers = wm.watchers.read().await;
-        assert_eq!(watchers.get("default").unwrap().ref_count, 1);
+        assert_eq!(
+            watchers
+                .get(&("cluster-a".to_string(), "default".to_string()))
+                .unwrap()
+                .ref_count,
+            1
+        );
         drop(watchers);
         assert!(pf.is_active("fwd-2").await);
     }
@@ -2162,7 +2217,12 @@ mod tests {
         cleanup_session(&pf, &wm, "nope").await;
 
         assert_eq!(
-            wm.watchers.read().await.get("default").unwrap().ref_count,
+            wm.watchers
+                .read()
+                .await
+                .get(&("cluster-a".to_string(), "default".to_string()))
+                .unwrap()
+                .ref_count,
             1
         );
     }
@@ -2267,6 +2327,7 @@ mod tests {
     fn port_forward_info_includes_pod_fields() {
         let info = PortForwardInfo {
             forward_id: "fwd-1".to_string(),
+            cluster_context: "cluster-a".to_string(),
             namespace: "default".to_string(),
             name: "web".to_string(),
             target_type: PortForwardTargetType::Service,
@@ -2289,6 +2350,7 @@ mod tests {
         // Simulate: service port 80 → container port 3000 (web app scenario)
         let info = PortForwardInfo {
             forward_id: "svc-demo-frontend-svc-80-123".to_string(),
+            cluster_context: "cluster-a".to_string(),
             namespace: "kubeli-demo".to_string(),
             name: "demo-frontend-svc".to_string(),
             target_type: PortForwardTargetType::Service,
@@ -2342,5 +2404,27 @@ mod tests {
         // This is the guard that prevents run_port_forward cleanup from racing with reconnect
         assert_eq!(current, PortForwardStatus::Reconnecting);
         assert!(current == PortForwardStatus::Reconnecting);
+    }
+
+    // Regression: restarting a forward (OIDC refresh, history) decides on a
+    // cluster before the call. A switch landing in between must fail the start
+    // instead of tunnelling to whichever cluster is active now - which stayed
+    // silent whenever that cluster had a service of the same namespace/name.
+    #[test]
+    fn expected_context_mismatch_refuses_the_start() {
+        let err = ensure_expected_context(Some("cluster-a"), "cluster-b")
+            .expect_err("a foreign cluster must not be tunnelled to");
+        assert!(err.contains("cluster-a"), "error names the target: {err}");
+        assert!(
+            err.contains("cluster-b"),
+            "error names the connected: {err}"
+        );
+    }
+
+    #[test]
+    fn expected_context_allows_matching_and_unset() {
+        assert!(ensure_expected_context(Some("cluster-a"), "cluster-a").is_ok());
+        // A fresh user-triggered start pins nothing and follows the active cluster.
+        assert!(ensure_expected_context(None, "cluster-a").is_ok());
     }
 }

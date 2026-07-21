@@ -3,8 +3,7 @@
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { toast } from "sonner";
-import { ArrowRightLeft, Trash2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRightLeft } from "lucide-react";
 import {
   Empty,
   EmptyDescription,
@@ -37,7 +36,7 @@ import { mergePortForwardRows } from "./mergePortForwardRows";
 
 type StatusFilter = "all" | "active" | "stopped";
 
-export function PortForwardsView() {
+export function AllPortForwardsView() {
   const t = useTranslations("portForward");
   const tc = useTranslations("common");
   const { forwards, stopForward } = usePortForward();
@@ -51,17 +50,18 @@ export function PortForwardsView() {
 
   const history = usePortForwardStore((s) => s.history);
   const removeHistoryItem = usePortForwardStore((s) => s.removeHistoryItem);
-  const clearHistoryForCurrentCluster = usePortForwardStore((s) => s.clearHistoryForCurrentCluster);
   const restartFromHistory = usePortForwardStore((s) => s.restartFromHistory);
+  const clusters = useClusterStore((s) => s.clusters);
   const currentContext = useClusterStore((s) => s.currentCluster?.context);
 
-  // Merge active forwards + stopped history for the current cluster.
-  // Undefined would mean "all clusters"; when the current context is transiently
-  // absent, scope to "" so this single-cluster view renders none rather than all.
-  const rows = useMemo(
-    () => mergePortForwardRows(forwards, history, currentContext ?? ""),
-    [forwards, history, currentContext],
-  );
+  // context -> friendly name (fall back to the raw context if unknown)
+  const clusterLabel = useMemo(() => {
+    const map = new Map(clusters.map((c) => [c.context, c.name || c.context]));
+    return (context: string) => map.get(context) ?? context;
+  }, [clusters]);
+
+  // Merge active forwards + stopped history across ALL clusters.
+  const rows = useMemo(() => mergePortForwardRows(forwards, history), [forwards, history]);
 
   const confirmDelete = async () => {
     if (!deleteDialog) return;
@@ -69,6 +69,9 @@ export function PortForwardsView() {
       const histItem = history.find((h) => h.forward_id === deleteDialog.forwardId);
       const stopped = await stopForward(deleteDialog.forwardId);
       if (stopped && histItem) removeHistoryItem(histItem.id);
+      // A failed stop keeps the forward alive and in the list; say so
+      // instead of letting the dialog close look like success.
+      if (!stopped) toast.error(t("stopFailed"));
     } else {
       removeHistoryItem(deleteDialog.itemId);
     }
@@ -95,7 +98,7 @@ export function PortForwardsView() {
     <div className="flex h-full flex-col">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div className="flex min-h-8 items-center gap-3 flex-wrap">
-          <h1 className="text-lg font-semibold">{t("title")}</h1>
+          <h1 className="text-lg font-semibold">{t("titleAll")}</h1>
           <div className="flex items-center gap-1 flex-wrap">
             <FilterPill
               label={tc("all")}
@@ -120,17 +123,6 @@ export function PortForwardsView() {
             />
           </div>
         </div>
-        {historyCount > 0 && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={clearHistoryForCurrentCluster}
-            className="h-8 text-xs text-muted-foreground"
-          >
-            <Trash2 className="size-3.5" />
-            {t("clearStopped")}
-          </Button>
-        )}
       </div>
 
       <div className="flex-1 overflow-auto">
@@ -149,6 +141,7 @@ export function PortForwardsView() {
             <TableHeader className="sticky top-0 z-10 bg-background">
               <TableRow>
                 <TableHead className="w-14 bg-background text-xs font-medium tracking-wider">{tc("status")}</TableHead>
+                <TableHead className="bg-background text-xs font-medium tracking-wider">{t("columnCluster")}</TableHead>
                 <TableHead className="bg-background text-xs font-medium tracking-wider">{tc("name")}</TableHead>
                 <TableHead className="bg-background text-xs font-medium tracking-wider">{t("columnNamespace")}</TableHead>
                 <TableHead className="bg-background text-xs font-medium tracking-wider">{t("columnKind")}</TableHead>
@@ -162,6 +155,7 @@ export function PortForwardsView() {
                   <ActiveRow
                     key={row.forward.forward_id}
                     forward={row.forward}
+                    clusterLabel={row.cluster ? clusterLabel(row.cluster) : "—"}
                     onStop={() => setStopDialog({ forwardId: row.forward.forward_id, name: row.forward.name })}
                     onDelete={() => setDeleteDialog({ kind: "active", forwardId: row.forward.forward_id, name: row.forward.name })}
                   />
@@ -169,6 +163,15 @@ export function PortForwardsView() {
                   <HistoryRow
                     key={row.item.id}
                     item={row.item}
+                    clusterLabel={clusterLabel(row.cluster)}
+                    restartDisabledReason={
+                      // The backend refuses a start pinned to a cluster it is
+                      // not connected to, so this restart would only produce
+                      // an error toast. Say what to do instead of offering it.
+                      row.cluster && row.cluster !== currentContext
+                        ? t("restartOtherClusterDisabled", { cluster: clusterLabel(row.cluster) ?? row.cluster })
+                        : undefined
+                    }
                     onRestart={() => restartFromHistory(row.item)}
                     onDelete={() => setDeleteDialog({ kind: "history", itemId: row.item.id, name: row.item.name })}
                   />

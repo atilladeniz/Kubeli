@@ -54,9 +54,6 @@ jest.mock("../cluster-store", () => ({
   },
 }));
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const mockClusterStore = require("../cluster-store").useClusterStore as { getState: jest.Mock };
-
 // Capture the listen callback so we can simulate events
 let listenCallback: ((event: { payload: PortForwardEvent }) => void) | null = null;
 const mockUnlisten = jest.fn();
@@ -75,6 +72,7 @@ function simulateEvent(event: PortForwardEvent) {
 // Test data
 const mockForward: PortForwardInfo = {
   forward_id: "svc-default-test-svc-8080-123",
+  cluster_context: "test-cluster",
   namespace: "default",
   name: "test-svc",
   target_type: "service",
@@ -150,6 +148,55 @@ describe("PortForwardStore", () => {
       expect(ids).toContain("pod-demo-web-8080-111");
       expect(ids).toContain("pod-demo-web-80-222");
       expect(usePortForwardStore.getState().error).toBe("port busy");
+    });
+
+    // Regression: the listener registered before portforwardStart never gets
+    // a Stopped event when the start fails (e.g. expected_context mismatch),
+    // so it leaked with every failed attempt.
+    it("drops the event listener registered for a start that failed", async () => {
+      mockPortforwardStart.mockRejectedValue(
+        new Error("Port forward targets cluster a but b is connected")
+      );
+
+      await act(async () => {
+        await usePortForwardStore.getState().startForward("demo", "web", "pod", 80);
+      });
+
+      expect(mockUnlisten).toHaveBeenCalled();
+      expect(usePortForwardStore.getState().listeners.size).toBe(0);
+    });
+  });
+
+  describe("startForward placeholder tagging", () => {
+    // Regression: the optimistic placeholder was always tagged with the
+    // ACTIVE cluster. During a pinned restart (OIDC/history) with a cluster
+    // switch mid-flight, it transiently showed up under the wrong cluster.
+    it("tags a pinned restart's placeholder with the expected cluster, not the active one", async () => {
+      let resolveStart!: (value: PortForwardInfo) => void;
+      const startGate = new Promise<PortForwardInfo>((resolve) => (resolveStart = resolve));
+      mockPortforwardStart.mockReturnValue(startGate);
+
+      let startPromise: Promise<PortForwardInfo | null> = Promise.resolve(null);
+      act(() => {
+        startPromise = usePortForwardStore
+          .getState()
+          .startForward("demo", "web", "pod", 80, undefined, undefined, undefined, "other-cluster");
+      });
+
+      // The placeholder is set synchronously, before the backend call - it
+      // must already carry the pinned cluster (the active one is
+      // "test-cluster").
+      const placeholder = usePortForwardStore.getState().forwards.find((f) => f.name === "web");
+      expect(placeholder?.cluster_context).toBe("other-cluster");
+
+      await act(async () => {
+        resolveStart({
+          ...mockForward,
+          forward_id: placeholder!.forward_id,
+          cluster_context: "other-cluster",
+        });
+        await startPromise;
+      });
     });
   });
 
@@ -1003,14 +1050,32 @@ describe("PortForwardStore", () => {
         expect(history[0].started_at).toBeGreaterThan(0);
       });
 
-      it("should skip recording if there is no current cluster context", () => {
-        mockClusterStore.getState.mockReturnValueOnce({ currentCluster: null });
-
+      // History follows the forward's own cluster_context, not the active
+      // cluster: a switch landing while the start is in flight must not file
+      // the entry under the wrong cluster (or drop it when nothing is active).
+      it("should record against the forward's cluster even with no active cluster", () => {
         act(() => {
           usePortForwardStore.getState().recordHistoryStarted(mockForward);
         });
 
-        expect(usePortForwardStore.getState().history).toHaveLength(0);
+        const history = usePortForwardStore.getState().history;
+        expect(history).toHaveLength(1);
+        expect(history[0].cluster_context).toBe(mockForward.cluster_context);
+      });
+
+      it("should file history under the forward's cluster, not the active one", () => {
+        // The active cluster mock stays "test-cluster"; this forward belongs
+        // to another one and must be filed there, not under the active one.
+        act(() => {
+          usePortForwardStore.getState().recordHistoryStarted({
+            ...mockForward,
+            cluster_context: "survivor-cluster",
+          });
+        });
+
+        const history = usePortForwardStore.getState().history;
+        expect(history).toHaveLength(1);
+        expect(history[0].cluster_context).toBe("survivor-cluster");
       });
 
       it("should upsert by signature — a second call for the same logical forward updates the row", () => {
@@ -1174,6 +1239,27 @@ describe("PortForwardStore", () => {
             target_port: 8080,
             local_port: 41587,
           })
+        );
+      });
+
+      // Regression: a history entry outlives the connection it was made on.
+      // Without pinning its cluster, the backend would bind the restart to
+      // whichever cluster is active - silently, when that cluster happens to
+      // have a service with the same namespace/name.
+      it("should pin the restart to the history entry's own cluster", async () => {
+        mockPortforwardStart.mockResolvedValue({ ...mockForward, local_port: 41587 });
+        mockPortforwardCheckPort.mockResolvedValue(true);
+
+        await act(async () => {
+          await usePortForwardStore.getState().restartFromHistory({
+            ...mockHistoryItem,
+            cluster_context: "survivor-cluster",
+          });
+        });
+
+        expect(mockPortforwardStart).toHaveBeenCalledWith(
+          expect.any(String),
+          expect.objectContaining({ expected_context: "survivor-cluster" })
         );
       });
 

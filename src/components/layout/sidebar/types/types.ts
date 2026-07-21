@@ -28,6 +28,7 @@ export type KnownResourceType =
   | "cronjobs"
   // Networking
   | "port-forwards"
+  | "port-forwards-all"
   | "services"
   | "ingresses"
   | "endpoint-slices"
@@ -131,6 +132,8 @@ export interface NamespaceSectionProps {
 export interface PortForwardsSectionProps {
   isConnected: boolean;
   forwards: PortForwardInfo[];
+  /** Forwards kept alive on other clusters; they are not in `forwards`. */
+  otherClusterCount: number;
   isPortForwardsSectionOpen: boolean;
   setIsPortForwardsSectionOpen: (open: boolean) => void;
   onResourceSelect: (resource: ResourceType) => void;

@@ -411,7 +411,13 @@ minikube-serve: ## Expose minikube API for Windows VM testing (run on Mac)
 
 ## Kubernetes (for local development)
 
-minikube-start: ## Start minikube cluster with addons and sample resources
+# Second cluster brought up alongside the primary one so multi-cluster
+# port-forwarding (#388) works out of the box. Set WITH_SECOND_CLUSTER=0 to
+# start only the primary minikube profile.
+WITH_SECOND_CLUSTER ?= 1
+SECOND_CLUSTER ?= kubeli-nonprod
+
+minikube-start: ## Start minikube (+ a second cluster) with addons and sample resources
 	@echo "$(CYAN)Starting minikube...$(RESET)"
 	@minikube start
 	@echo "$(CYAN)Enabling metrics-server addon...$(RESET)"
@@ -429,6 +435,16 @@ minikube-start: ## Start minikube cluster with addons and sample resources
 	@echo "$(CYAN)Setting up native Helm releases...$(RESET)"
 	@$(MAKE) minikube-setup-helm
 	@echo "$(GREEN)✓ Minikube ready with sample resources$(RESET)"
+	@if [ "$(WITH_SECOND_CLUSTER)" = "1" ]; then \
+		echo ""; \
+		echo "$(CYAN)Starting second cluster '$(SECOND_CLUSTER)' for multi-cluster port-forward testing...$(RESET)"; \
+		minikube start -p $(SECOND_CLUSTER) || exit 1; \
+		echo "$(CYAN)Applying forward target (kubeli-pf/pf-web) to $(SECOND_CLUSTER)...$(RESET)"; \
+		kubectl --context $(SECOND_CLUSTER) apply -f .dev/k8s-samples/20-portforward-target.yaml; \
+		kubectl --context $(SECOND_CLUSTER) -n kubeli-pf rollout status deploy/pf-web --timeout=90s || true; \
+		echo "$(GREEN)✓ Two clusters ready: minikube and $(SECOND_CLUSTER)$(RESET)"; \
+		echo "$(CYAN)Forward Service kubeli-pf/pf-web:80 in each, then switch clusters — forwards stay alive.$(RESET)"; \
+	fi
 
 minikube-setup-samples: ## Apply sample Kubernetes resources for testing
 	@echo "$(CYAN)Applying sample manifests from .dev/k8s-samples/...$(RESET)"
@@ -544,8 +560,11 @@ minikube-clean-samples: ## Remove sample Kubernetes resources
 	@kubectl delete ingressclass demo-ingress-class --ignore-not-found=true
 	@echo "$(GREEN)✓ Sample resources removed$(RESET)"
 
-minikube-stop: ## Stop minikube cluster
-	minikube stop
+minikube-stop: ## Stop minikube cluster (and the second cluster if started)
+	@minikube stop
+	@if [ "$(WITH_SECOND_CLUSTER)" = "1" ]; then \
+		minikube stop -p $(SECOND_CLUSTER) 2>/dev/null || true; \
+	fi
 
 minikube-status: ## Check minikube status
 	@minikube status

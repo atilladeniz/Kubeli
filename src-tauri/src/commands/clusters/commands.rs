@@ -9,7 +9,6 @@ use kube::config::Kubeconfig;
 use kube::Client;
 use std::sync::Arc;
 use tauri::{command, AppHandle, Manager, State};
-use tokio::sync::RwLock;
 
 use super::kubeconfig::{
     build_kubeconfig_for_connect, is_self_contained, load_configured_namespaces,
@@ -19,9 +18,14 @@ use super::types::{
     ClusterInfo, ConnectionStatus, HealthCheckResult, NamespaceResult, OidcAuthInfo,
 };
 
-/// Stop every session (watches, log streams, shells, port-forwards) that
-/// belongs to the current connection. Called before switching contexts and
-/// on disconnect - otherwise streams keep running against the old cluster.
+/// Stop the sessions that are bound to the cluster we're looking at (watches,
+/// log streams, shells). Called before switching contexts and on disconnect -
+/// otherwise these streams keep running against the old cluster.
+///
+/// Port-forwards are intentionally NOT torn down here (nor on disconnect): a
+/// forward is its own live tunnel and should survive a cluster switch, which in
+/// this app is a disconnect back to the picker plus connecting elsewhere (#388).
+/// Forwards only end on user-stop, pod death, error, or process exit.
 async fn teardown_active_sessions(app: &AppHandle, state: &AppState) {
     let old_client = state.k8s.get_client().await.ok();
 
@@ -30,13 +34,6 @@ async fn teardown_active_sessions(app: &AppHandle, state: &AppState) {
 
     let logs: State<'_, Arc<crate::commands::logs::LogStreamManager>> = app.state();
     logs.stop_all().await;
-
-    let forwards: State<'_, Arc<crate::commands::portforward::PortForwardManager>> = app.state();
-    forwards.stop_all().await;
-
-    let pf_watches: State<'_, Arc<crate::commands::portforward::PortForwardWatchManager>> =
-        app.state();
-    pf_watches.stop_all().await;
 
     let shells: State<'_, Arc<crate::commands::shell::ShellSessionManager>> = app.state();
     shells.stop_all(old_client).await;
@@ -336,8 +333,7 @@ pub async fn connect_cluster(
                             let oidc_state: State<'_, Arc<OidcState>> = app.state();
                             spawn_oidc_refresh_task(
                                 app.clone(),
-                                state.k8s.client_handle(),
-                                state.k8s.context_handle(),
+                                state.k8s.connection_handle(),
                                 Arc::clone(&oidc_state),
                                 oidc_config,
                                 context.clone(),
@@ -418,6 +414,13 @@ pub async fn disconnect_cluster(
     let oidc_state: State<'_, Arc<OidcState>> = app.state();
     oidc_state.cancel_refresh();
     teardown_active_sessions(&app, &state).await;
+
+    // Port-forwards are intentionally NOT stopped here. A forward is its own
+    // live tunnel and should survive a cluster switch — which in this app is a
+    // disconnect back to the picker followed by connecting elsewhere (#388).
+    // Forwards die with the process on quit; until then they keep tunneling and
+    // stay visible/controllable via the all-forwards view.
+
     state.k8s.clear_connection().await;
     Ok(())
 }
@@ -553,8 +556,7 @@ async fn sleep_cancellable(seconds: u64, stop_flag: &std::sync::atomic::AtomicBo
 #[allow(clippy::too_many_arguments)]
 fn spawn_oidc_refresh_task(
     app_handle: AppHandle,
-    k8s_manager: Arc<RwLock<Option<Client>>>,
-    k8s_connected: Arc<RwLock<Option<String>>>,
+    connection: crate::k8s::client::SharedConnection,
     oidc_state: Arc<OidcState>,
     oidc_config: crate::oidc::config::OidcExecConfig,
     context_name: String,
@@ -582,7 +584,13 @@ fn spawn_oidc_refresh_task(
             }
 
             // Stop if the user switched away from or disconnected this context.
-            if k8s_connected.read().await.as_deref() != Some(context_name.as_str()) {
+            let still_current = connection
+                .read()
+                .await
+                .as_ref()
+                .and_then(|(_, ctx)| ctx.as_deref())
+                == Some(context_name.as_str());
+            if !still_current {
                 tracing::debug!("OIDC refresh loop stopping: context changed");
                 break;
             }
@@ -622,30 +630,32 @@ fn spawn_oidc_refresh_task(
 
             match build_client_from_kubeconfig(refreshed_kubeconfig, &context_name).await {
                 Ok(new_client) => {
-                    // Re-check the context while holding the client lock before
-                    // swapping it in. A cluster switch may have landed while we
-                    // were refreshing/​building; the connect path publishes the new
-                    // context before its client, so if the context no longer
-                    // matches, a newer client either is or will be installed and
-                    // we must not clobber it with this stale one.
-                    let mut client_guard = k8s_manager.write().await;
+                    // Check and swap under the one connection lock: a cluster
+                    // switch may have landed while we were refreshing/building,
+                    // and the stored pair is the single source of truth for
+                    // which context owns the client. If the context no longer
+                    // matches, a newer connection owns the slot and this stale
+                    // client must be dropped instead of clobbering it.
+                    let mut guard = connection.write().await;
                     // Check the stop flag under the same lock: a reconnect to
                     // the SAME context arms a new refresh task - the context
                     // check alone would not stop this superseded one from
                     // clobbering the new connection's client.
                     if stop_flag.load(std::sync::atomic::Ordering::Relaxed)
-                        || !refresh_target_is_current(&k8s_connected, &context_name).await
+                        || !refresh_target_is_current(&guard, &context_name)
                     {
                         tracing::debug!(
                             "OIDC refresh: superseded during refresh, discarding stale client"
                         );
                         break;
                     }
-                    *client_guard = Some(new_client);
-                    drop(client_guard);
+                    *guard = Some((new_client, Some(context_name.clone())));
+                    drop(guard);
                     tracing::info!("OIDC token refreshed and kube client reinitialized");
                     use tauri::Emitter;
-                    let _ = app_handle.emit("oidc-token-refreshed", ());
+                    // Carry the refreshed context: forwards survive a cluster
+                    // switch, so the frontend must restart only this cluster's.
+                    let _ = app_handle.emit("oidc-token-refreshed", context_name.clone());
                 }
                 Err(e) => {
                     tracing::error!("Failed to create client after OIDC refresh: {}", e);
@@ -656,18 +666,17 @@ fn spawn_oidc_refresh_task(
     });
 }
 
-/// Whether a freshly refreshed client for `context_name` may still be installed.
+/// Whether a freshly refreshed client for `context_name` may still be
+/// installed into the stored connection slot.
 ///
-/// The background OIDC refresh can take seconds (token roundtrip + client build),
-/// during which the user may switch clusters. Call this while holding the client
-/// write lock so the check and the swap are atomic: if the active context no
-/// longer matches, a newer connection already owns the client and this stale one
-/// must be dropped instead of clobbering it.
-async fn refresh_target_is_current(
-    k8s_connected: &RwLock<Option<String>>,
-    context_name: &str,
-) -> bool {
-    k8s_connected.read().await.as_deref() == Some(context_name)
+/// The background OIDC refresh can take seconds (token roundtrip + client
+/// build), during which the user may switch clusters. Evaluate this on the
+/// same write guard that performs the swap so check and commit are atomic: if
+/// the stored context no longer matches, a newer connection owns the slot and
+/// this stale client must be dropped instead of clobbering it. Generic over
+/// the client type so tests need not build a real kube client.
+fn refresh_target_is_current<C>(stored: &Option<(C, Option<String>)>, context_name: &str) -> bool {
+    stored.as_ref().and_then(|(_, ctx)| ctx.as_deref()) == Some(context_name)
 }
 
 async fn config_from_kubeconfig(
@@ -722,7 +731,6 @@ pub async fn has_kubeconfig() -> Result<bool, KubeliError> {
 mod refresh_tests {
     use super::{config_from_kubeconfig, refresh_delay_secs, refresh_target_is_current};
     use kube::config::Kubeconfig;
-    use tokio::sync::RwLock;
 
     #[test]
     fn refreshes_at_three_quarters_of_lifetime() {
@@ -739,21 +747,21 @@ mod refresh_tests {
 
     // Regression: a token refresh that completes after the user switched away
     // must not overwrite the new connection's client. The guard keys off the
-    // active context, which the connect path publishes before its client.
-    #[tokio::test]
-    async fn refresh_only_commits_when_context_still_matches() {
-        let connected = RwLock::new(Some("cluster-a".to_string()));
-        assert!(refresh_target_is_current(&connected, "cluster-a").await);
+    // context stored alongside the client in the one connection slot.
+    #[test]
+    fn refresh_only_commits_when_context_still_matches() {
+        let connected: Option<((), Option<String>)> = Some(((), Some("cluster-a".to_string())));
+        assert!(refresh_target_is_current(&connected, "cluster-a"));
 
-        *connected.write().await = Some("cluster-b".to_string());
+        let switched: Option<((), Option<String>)> = Some(((), Some("cluster-b".to_string())));
         assert!(
-            !refresh_target_is_current(&connected, "cluster-a").await,
+            !refresh_target_is_current(&switched, "cluster-a"),
             "stale refresh must not commit after a cluster switch"
         );
 
-        *connected.write().await = None;
+        let disconnected: Option<((), Option<String>)> = None;
         assert!(
-            !refresh_target_is_current(&connected, "cluster-a").await,
+            !refresh_target_is_current(&disconnected, "cluster-a"),
             "stale refresh must not commit after disconnect"
         );
     }
