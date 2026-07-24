@@ -230,7 +230,7 @@ jobs:
         id: upload-unsigned
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          name: windows-unsigned
+          name: windows-to-sign
           path: to-sign/
 
       - name: Submit signing request to SignPath
