@@ -6,6 +6,16 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 
 const TRUNCATE_LENGTH = 120;
+const HTTP_URL_PATTERN = /^https?:\/\/\S+$/;
+
+async function openExternal(url: string): Promise<void> {
+  try {
+    const { openUrl } = await import("@tauri-apps/plugin-opener");
+    await openUrl(url);
+  } catch {
+    // Opening the browser is best-effort; ignore failures.
+  }
+}
 
 interface AnnotationsSectionProps {
   annotations: Record<string, string>;
@@ -37,6 +47,8 @@ function AnnotationEntry({
 }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [copied, setCopied] = useState(false);
+  const trimmedValue = value.trim();
+  const isUrl = HTTP_URL_PATTERN.test(trimmedValue);
   const isLong = value.length > TRUNCATE_LENGTH;
   const isJson = isLong && (value.startsWith("{") || value.startsWith("["));
 
@@ -76,6 +88,13 @@ function AnnotationEntry({
         <pre className="mt-1 bg-muted/50 rounded-md p-2 text-xs overflow-x-auto whitespace-pre-wrap break-all">
           {displayValue}
         </pre>
+      ) : isUrl ? (
+        <button
+          onClick={() => void openExternal(trimmedValue)}
+          className="mt-0.5 block text-left text-primary hover:underline break-all"
+        >
+          {displayValue}
+        </button>
       ) : (
         <p className="mt-0.5 break-all">{displayValue}</p>
       )}
