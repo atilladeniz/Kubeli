@@ -1,4 +1,4 @@
-import { render, fireEvent } from "@testing-library/react";
+import { render } from "@testing-library/react";
 import {
   DropdownMenu,
   DropdownMenuTrigger,
@@ -15,36 +15,12 @@ class ResizeObserverMock {
   disconnect() {}
 }
 
-describe("DropdownMenuSubContent", () => {
-  const originalOffsetParent = Object.getOwnPropertyDescriptor(
-    HTMLElement.prototype,
-    "offsetParent"
-  );
-
+describe("DropdownMenu hover", () => {
   beforeAll(() => {
     global.ResizeObserver = ResizeObserverMock;
-    // jsdom has no layout: offsetParent is always null, which would make the
-    // proximity highlight bail. The nearest positioned ancestor of a submenu
-    // item is the (relative) sub-content, i.e. its parent element.
-    Object.defineProperty(HTMLElement.prototype, "offsetParent", {
-      configurable: true,
-      get() {
-        return (this as HTMLElement).parentElement;
-      },
-    });
   });
 
-  afterAll(() => {
-    if (originalOffsetParent) {
-      Object.defineProperty(
-        HTMLElement.prototype,
-        "offsetParent",
-        originalOffsetParent
-      );
-    }
-  });
-
-  it("shows the proximity highlight for hovered submenu items", () => {
+  it("items use an instant focus background instead of a gliding highlight", () => {
     const { baseElement } = render(
       <DropdownMenu open>
         <DropdownMenuTrigger>Open</DropdownMenuTrigger>
@@ -59,21 +35,22 @@ describe("DropdownMenuSubContent", () => {
       </DropdownMenu>
     );
 
-    const subContent = baseElement.querySelector(
-      '[data-slot="dropdown-menu-sub-content"]'
-    ) as HTMLElement;
-    expect(subContent).toBeInTheDocument();
-
-    // Items dropped their own :hover background, so the gliding highlight is
-    // the only hover cue — it must exist inside the submenu too.
-    const item = subContent.querySelector(
+    const item = baseElement.querySelector(
       '[data-slot="dropdown-menu-item"]'
     ) as HTMLElement;
-    fireEvent.pointerMove(item);
+    expect(item.className).toContain("focus:bg-[var(--surface-hover)]");
 
-    const highlight = Array.from(subContent.querySelectorAll("div")).find((d) =>
-      d.className.includes("bg-[var(--surface-hover)]")
+    const subTrigger = baseElement.querySelector(
+      '[data-slot="dropdown-menu-sub-trigger"]'
+    ) as HTMLElement;
+    expect(subTrigger.className).toContain("focus:bg-[var(--surface-hover)]");
+
+    // The gliding proximity highlight is gone — no animated background layer.
+    const highlight = Array.from(baseElement.querySelectorAll("div")).find(
+      (d) =>
+        d.getAttribute("aria-hidden") === "true" &&
+        d.className.includes("bg-[var(--surface-hover)]")
     );
-    expect(highlight).toBeDefined();
+    expect(highlight).toBeUndefined();
   });
 });
