@@ -10,7 +10,9 @@ use k8s_openapi::api::autoscaling::v2::HorizontalPodAutoscaler;
 use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::ServiceAccount;
-use k8s_openapi::api::core::v1::{ConfigMap, Event, Namespace, Node, Pod, Secret, Service};
+use k8s_openapi::api::core::v1::{
+    ConfigMap, Event, Namespace, Node, Pod, Secret, Service, Toleration,
+};
 use k8s_openapi::api::core::v1::{LimitRange, ResourceQuota};
 use k8s_openapi::api::core::v1::{PersistentVolume, PersistentVolumeClaim};
 use k8s_openapi::api::discovery::v1::EndpointSlice;
@@ -214,6 +216,33 @@ pub struct PodInfo {
     pub labels: HashMap<String, String>,
     pub restart_count: i32,
     pub ready_containers: String,
+    pub service_account: Option<String>,
+    pub node_selector: HashMap<String, String>,
+    pub tolerations: Vec<TolerationInfo>,
+}
+
+/// Toleration entry from a pod spec
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TolerationInfo {
+    pub key: Option<String>,
+    pub operator: Option<String>,
+    pub value: Option<String>,
+    pub effect: Option<String>,
+    pub toleration_seconds: Option<i64>,
+}
+
+pub fn extract_tolerations(tolerations: Option<Vec<Toleration>>) -> Vec<TolerationInfo> {
+    tolerations
+        .unwrap_or_default()
+        .into_iter()
+        .map(|t| TolerationInfo {
+            key: t.key,
+            operator: t.operator,
+            value: t.value,
+            effect: t.effect,
+            toleration_seconds: t.toleration_seconds,
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -419,6 +448,9 @@ pub async fn list_pods(
                 labels: btree_to_hashmap(metadata.labels),
                 restart_count: total_restarts,
                 ready_containers: format!("{}/{}", ready_count, total_count),
+                service_account: spec.service_account_name,
+                node_selector: btree_to_hashmap(spec.node_selector),
+                tolerations: extract_tolerations(spec.tolerations),
             }
         })
         .collect();
@@ -913,6 +945,9 @@ pub async fn get_pod(
         labels: pod_ctx.labels,
         restart_count: total_restarts,
         ready_containers: format!("{}/{}", ready_count, total_count),
+        service_account: pod_ctx.service_account,
+        node_selector: btree_to_hashmap(spec.node_selector),
+        tolerations: extract_tolerations(spec.tolerations),
     })
 }
 
@@ -4360,6 +4395,45 @@ mod tests {
             labels,
             annotations,
         }
+    }
+
+    #[test]
+    fn test_extract_tolerations_maps_all_fields() {
+        let tolerations = vec![
+            Toleration {
+                key: Some("node.kubernetes.io/not-ready".to_string()),
+                operator: Some("Exists".to_string()),
+                value: None,
+                effect: Some("NoExecute".to_string()),
+                toleration_seconds: Some(300),
+            },
+            Toleration {
+                key: Some("dedicated".to_string()),
+                operator: Some("Equal".to_string()),
+                value: Some("gpu".to_string()),
+                effect: Some("NoSchedule".to_string()),
+                toleration_seconds: None,
+            },
+        ];
+
+        let infos = extract_tolerations(Some(tolerations));
+
+        assert_eq!(infos.len(), 2);
+        assert_eq!(
+            infos[0].key.as_deref(),
+            Some("node.kubernetes.io/not-ready")
+        );
+        assert_eq!(infos[0].operator.as_deref(), Some("Exists"));
+        assert_eq!(infos[0].value, None);
+        assert_eq!(infos[0].effect.as_deref(), Some("NoExecute"));
+        assert_eq!(infos[0].toleration_seconds, Some(300));
+        assert_eq!(infos[1].value.as_deref(), Some("gpu"));
+        assert_eq!(infos[1].toleration_seconds, None);
+    }
+
+    #[test]
+    fn test_extract_tolerations_none_is_empty() {
+        assert!(extract_tolerations(None).is_empty());
     }
 
     #[test]

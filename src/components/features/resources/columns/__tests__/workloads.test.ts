@@ -32,6 +32,9 @@ const createMockPod = (overrides: Partial<PodInfo> = {}): PodInfo => ({
   labels: {},
   restart_count: 0,
   ready_containers: "1/1",
+  service_account: null,
+  node_selector: {},
+  tolerations: [],
   ...overrides,
 });
 
