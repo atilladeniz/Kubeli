@@ -834,6 +834,18 @@ describe("ClusterStore", () => {
       expect(state.error).toBeNull();
     });
 
+    it("closes the create panel so its YAML cannot leak into the next cluster", async () => {
+      mockDisconnectCluster.mockResolvedValue(undefined);
+      useUIStore.getState().openCreateResourceWithYaml("kind: Job\n");
+
+      await act(async () => {
+        await useClusterStore.getState().disconnect();
+      });
+
+      expect(useUIStore.getState().isCreateResourceOpen).toBe(false);
+      expect(useUIStore.getState().createResourceInitialYaml).toBeNull();
+    });
+
     it("should stop namespace watch on disconnect", async () => {
       const mockUnlisten = jest.fn();
       useClusterStore.setState({

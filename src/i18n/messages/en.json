@@ -218,6 +218,8 @@
     "restart": "Restart",
     "trigger": "Trigger",
     "triggerSuccess": "Job triggered",
+    "editTrigger": "Edit & Trigger...",
+    "editTriggerError": "Failed to generate Job YAML",
     "triggerError": "Failed to trigger job",
     "suspendSuccess": "CronJob suspended",
     "suspendError": "Failed to suspend",
@@ -1014,6 +1016,7 @@
     "apply": "Apply",
     "applying": "Applying...",
     "applySuccess": "Resource created successfully",
+    "unsavedChangesKeep": "You have unsaved changes - close or apply them first",
     "applyError": "Failed to create resource",
     "categories": {
       "workloads": "Workloads",

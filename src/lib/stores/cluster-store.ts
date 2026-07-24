@@ -491,6 +491,9 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
     const generation = get().connectGeneration + 1;
     set({ connectGeneration: generation });
     useResourceCacheStore.getState().clearCache();
+    // Close the create panel: its content (e.g. a Job generated from this
+    // cluster's CronJob) must not survive into the next connection.
+    useUIStore.getState().setCreateResourceOpen(false);
     try {
       await disconnectCluster();
       // A connect started after this disconnect (newer generation) wins — don't

@@ -50,11 +50,16 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
   const monacoRef = useRef<Monaco | null>(null);
   const validationDispose = useRef<(() => void) | null>(null);
 
+  const initialYaml = useUIStore((s) => s.createResourceInitialYaml);
   const defaultTemplate = k8sTemplates[0];
   const defaultValue = `${defaultTemplate.category}/${defaultTemplate.kind}`;
-  const [yamlContent, setYamlContent] = useState(defaultTemplate.yaml);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>(defaultValue);
-  const [templateYaml, setTemplateYaml] = useState(defaultTemplate.yaml);
+  const [yamlContent, setYamlContent] = useState(initialYaml ?? defaultTemplate.yaml);
+  // Pre-filled content is not one of the templates — show the placeholder
+  // instead of falsely claiming the first template is selected.
+  const [selectedTemplate, setSelectedTemplate] = useState<string>(
+    initialYaml ? "" : defaultValue
+  );
+  const [templateYaml, setTemplateYaml] = useState(initialYaml ?? defaultTemplate.yaml);
   const [isApplying, setIsApplying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showDiscardDialog, setShowDiscardDialog] = useState(false);
@@ -62,6 +67,23 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
   const [showLintPanel, setShowLintPanel] = useState(false);
 
   const hasChanges = yamlContent !== templateYaml;
+  const hasChangesRef = useRef(hasChanges);
+  hasChangesRef.current = hasChanges;
+
+  // Pre-filled YAML can arrive while the panel is already open (e.g. a second
+  // "Edit & Trigger" from a CronJob) — adopt it as the new baseline, but never
+  // silently discard edits the user already made.
+  useEffect(() => {
+    if (!initialYaml) return;
+    if (hasChangesRef.current) {
+      toast.info(t("unsavedChangesKeep"));
+      return;
+    }
+    setYamlContent(initialYaml);
+    setTemplateYaml(initialYaml);
+    setSelectedTemplate("");
+    setError(null);
+  }, [initialYaml, t]);
   const hasLintErrors = lintErrors.length > 0;
 
   const templatesByCategory = getTemplatesByCategory();

@@ -1666,28 +1666,32 @@ pub async fn resume_cronjob(
     set_cronjob_suspend(state, &name, &namespace, false).await
 }
 
-#[command]
-pub async fn trigger_cronjob(
-    state: State<'_, AppState>,
-    name: String,
-    namespace: String,
-) -> Result<(), KubeliError> {
-    let client = state.k8s.get_client().await?;
+/// Build the manual Job a CronJob trigger creates, like
+/// `kubectl create job --from=cronjob/<name>`.
+fn manual_job_from_cronjob(
+    name: &str,
+    namespace: &str,
+    cronjob: CronJob,
+) -> Result<Job, KubeliError> {
+    let cronjob_uid = cronjob.metadata.uid.unwrap_or_default();
+    let template = cronjob
+        .spec
+        .ok_or_else(|| KubeliError::unknown(format!("CronJob {name} has no spec")))?
+        .job_template;
 
-    let cronjobs: Api<CronJob> = Api::namespaced(client.clone(), &namespace);
-    let cronjob = cronjobs.get(&name).await?;
-
-    let template = cronjob.spec.unwrap_or_default().job_template;
-
+    // Job names are DNS labels (max 63 chars); leave room for the suffix.
+    // Millisecond resolution so two quick triggers don't collide on the name.
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
-        .map(|elapsed| elapsed.as_secs())
+        .map(|elapsed| elapsed.as_millis())
         .unwrap_or_default();
-    let job_name = format!("{name}-{timestamp}");
+    let suffix = format!("-{timestamp}");
+    let base: String = name.chars().take(63 - suffix.len()).collect();
+    let job_name = format!("{}{}", base.trim_end_matches('-'), suffix);
 
     let mut metadata = template.metadata.unwrap_or_default();
-    metadata.name = Some(job_name.clone());
-    metadata.namespace = Some(namespace.clone());
+    metadata.name = Some(job_name);
+    metadata.namespace = Some(namespace.to_string());
     metadata
         .annotations
         .get_or_insert_with(Default::default)
@@ -1698,16 +1702,51 @@ pub async fn trigger_cronjob(
     metadata.owner_references = Some(vec![OwnerReference {
         api_version: CronJob::API_VERSION.to_string(),
         kind: CronJob::KIND.to_string(),
-        name: name.clone(),
-        uid: cronjob.metadata.uid.unwrap_or_default(),
+        name: name.to_string(),
+        uid: cronjob_uid,
         ..Default::default()
     }]);
 
-    let job = Job {
+    Ok(Job {
         metadata,
         spec: template.spec,
         status: None,
-    };
+    })
+}
+
+/// Render the manual Job for a CronJob as YAML so the user can review or
+/// tweak it before creating (applied via apply_resource_yaml).
+#[command]
+pub async fn get_cronjob_job_yaml(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<String, KubeliError> {
+    let client = state.k8s.get_client().await?;
+
+    let cronjobs: Api<CronJob> = Api::namespaced(client, &namespace);
+    let cronjob = cronjobs.get(&name).await?;
+    let job = manual_job_from_cronjob(&name, &namespace, cronjob)?;
+
+    // k8s-openapi types don't serialize apiVersion/kind; apply_resource_yaml needs both.
+    let mut value = serde_json::to_value(&job)?;
+    value["apiVersion"] = Job::API_VERSION.into();
+    value["kind"] = Job::KIND.into();
+    Ok(serde_yaml::to_string(&value)?)
+}
+
+#[command]
+pub async fn trigger_cronjob(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await?;
+
+    let cronjobs: Api<CronJob> = Api::namespaced(client.clone(), &namespace);
+    let cronjob = cronjobs.get(&name).await?;
+    let job = manual_job_from_cronjob(&name, &namespace, cronjob)?;
+    let job_name = job.metadata.name.clone().unwrap_or_default();
 
     let jobs: Api<Job> = Api::namespaced(client, &namespace);
     jobs.create(&PostParams::default(), &job).await?;
@@ -4473,6 +4512,51 @@ pub async fn list_validating_webhooks(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn manual_job_keeps_template_metadata_and_respects_name_limit() {
+        use k8s_openapi::api::batch::v1::{CronJobSpec, JobTemplateSpec};
+
+        let long_name = "a".repeat(80);
+        let cronjob = CronJob {
+            metadata: kube::core::ObjectMeta {
+                uid: Some("cronjob-uid-1".to_string()),
+                ..Default::default()
+            },
+            spec: Some(CronJobSpec {
+                schedule: "* * * * *".to_string(),
+                job_template: JobTemplateSpec {
+                    metadata: Some(kube::core::ObjectMeta {
+                        labels: Some([("app".to_string(), "demo".to_string())].into()),
+                        annotations: Some([("team".to_string(), "platform".to_string())].into()),
+                        ..Default::default()
+                    }),
+                    spec: None,
+                },
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+
+        let job = manual_job_from_cronjob(&long_name, "kubeli-demo", cronjob).unwrap();
+        let name = job.metadata.name.unwrap();
+        assert!(name.len() <= 63, "job name must stay a DNS label: {name}");
+        let annotations = job.metadata.annotations.unwrap();
+        assert_eq!(annotations["cronjob.kubernetes.io/instantiate"], "manual");
+        // Template annotations survive alongside the manual marker
+        assert_eq!(annotations["team"], "platform");
+        assert_eq!(job.metadata.labels.unwrap()["app"], "demo");
+        assert_eq!(job.metadata.namespace.as_deref(), Some("kubeli-demo"));
+        let owners = job.metadata.owner_references.unwrap();
+        assert_eq!(owners[0].kind, "CronJob");
+        assert_eq!(owners[0].uid, "cronjob-uid-1");
+        assert_eq!(owners[0].name, long_name);
+    }
+
+    #[test]
+    fn manual_job_fails_without_spec() {
+        assert!(manual_job_from_cronjob("x", "ns", CronJob::default()).is_err());
+    }
 
     fn test_pod_context() -> PodContext {
         let mut labels = HashMap::new();
