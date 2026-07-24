@@ -1,6 +1,7 @@
 import { act } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
 import { useClusterStore, selectCurrentNamespace } from "../cluster-store";
+import { useUIStore, defaultSettings } from "../ui-store";
 import { toKubeliError } from "../../types/errors";
 
 // Mock Tauri commands
@@ -214,6 +215,74 @@ describe("ClusterStore", () => {
       const state = useClusterStore.getState();
       expect(state.isConnected).toBe(false);
       expect(state.error?.message).toBe("Timeout");
+    });
+  });
+
+  describe("default namespace on connect (#347)", () => {
+    beforeEach(() => {
+      useClusterStore.setState({ clusters: mockClusters });
+      mockConnectCluster.mockResolvedValue({
+        connected: true,
+        context: "test-context",
+        latency_ms: 50,
+      });
+      mockGetNamespaces.mockResolvedValue({
+        namespaces: ["default", "kubeli-demo"],
+        source: "auto",
+      });
+      mockCheckConnectionHealth.mockResolvedValue({ healthy: true, latency_ms: 50 });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      useUIStore.setState({ settings: { ...defaultSettings } });
+    });
+
+    it("applies the configured default namespace on connect", async () => {
+      useUIStore.setState({
+        settings: { ...defaultSettings, defaultNamespace: " kubeli-demo " },
+      });
+
+      await act(async () => {
+        await useClusterStore.getState().connect("test-context");
+      });
+
+      expect(useClusterStore.getState().selectedNamespaces).toEqual(["kubeli-demo"]);
+    });
+
+    it("keeps all namespaces selected when no default is configured", async () => {
+      await act(async () => {
+        await useClusterStore.getState().connect("test-context");
+      });
+
+      expect(useClusterStore.getState().selectedNamespaces).toEqual([]);
+    });
+
+    it("falls back to all namespaces when the cluster lacks the default", async () => {
+      useUIStore.setState({
+        settings: { ...defaultSettings, defaultNamespace: "ghost" },
+      });
+
+      await act(async () => {
+        await useClusterStore.getState().connect("test-context");
+      });
+
+      // "ghost" isn't in the fetched namespace list — views would be silently empty
+      expect(useClusterStore.getState().selectedNamespaces).toEqual([]);
+    });
+
+    it("keeps the default when the namespace list is unknown", async () => {
+      useUIStore.setState({
+        settings: { ...defaultSettings, defaultNamespace: "restricted-ns" },
+      });
+      mockGetNamespaces.mockResolvedValue({ namespaces: [], source: "none" });
+
+      await act(async () => {
+        await useClusterStore.getState().connect("test-context");
+      });
+
+      // Without list permissions we can't validate — trust the user's setting
+      expect(useClusterStore.getState().selectedNamespaces).toEqual(["restricted-ns"]);
     });
   });
 

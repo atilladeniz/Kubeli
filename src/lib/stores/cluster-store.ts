@@ -16,7 +16,15 @@ import {
 } from "../tauri/commands";
 import { oidcStartAuth, oidcHandleCallback } from "../tauri/commands/oidc";
 import { useResourceCacheStore } from "./resource-cache-store";
+import { useUIStore } from "./ui-store";
 import type { WatchEvent } from "../types";
+
+// Applies the "Default Namespace" setting when a connection is established
+// (#347). Empty setting = all namespaces.
+const initialNamespaceSelection = (): string[] => {
+  const ns = useUIStore.getState().settings.defaultNamespace.trim();
+  return ns ? [ns] : [];
+};
 
 // Debug logger - only logs in development
 const isDev = process.env.NODE_ENV === "development";
@@ -188,6 +196,19 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
     // True once a newer connect started or the user cancelled/disconnected while
     // this attempt was awaiting — then we must not apply its (stale) result.
     const superseded = () => get().connectGeneration !== generation;
+    // The default namespace is a global setting; this cluster may not have it.
+    // Fall back to all namespaces instead of leaving every view silently empty.
+    // Skipped when the namespace list isn't known (source "none").
+    const dropMissingNamespaceSelection = () => {
+      const { namespaces, namespaceSource, selectedNamespaces } = get();
+      if (
+        namespaceSource !== "none" &&
+        selectedNamespaces.length === 1 &&
+        !namespaces.includes(selectedNamespaces[0])
+      ) {
+        set({ selectedNamespaces: [] });
+      }
+    };
     useResourceCacheStore.getState().clearCache();
     try {
       const status = await connectCluster(context);
@@ -298,7 +319,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
             set({
               isConnected: true,
               currentCluster,
-              selectedNamespaces: [],
+              selectedNamespaces: initialNamespaceSelection(),
               error: null,
               isLoading: false,
               latencyMs: retryStatus.latency_ms,
@@ -313,6 +334,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
             // A disconnect during fetchNamespaces() would leave a leaked watch
             // and health interval running for a connection that's already gone.
             if (superseded()) return retryStatus;
+            dropMissingNamespaceSelection();
             if (get().namespaceSource === "auto") {
               get().startNamespaceWatch();
             }
@@ -372,7 +394,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         set({
           isConnected: true,
           currentCluster,
-          selectedNamespaces: [],
+          selectedNamespaces: initialNamespaceSelection(),
           error: null,
           isLoading: false,
           latencyMs: status.latency_ms,
@@ -388,6 +410,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         // A disconnect during fetchNamespaces() would leave a leaked watch and
         // health interval running for a connection that's already gone.
         if (superseded()) return status;
+        dropMissingNamespaceSelection();
         // Only start namespace watch for auto-discovered namespaces (not configured)
         if (get().namespaceSource === "auto") {
           get().startNamespaceWatch();
