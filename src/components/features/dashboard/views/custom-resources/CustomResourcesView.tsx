@@ -44,7 +44,7 @@ export function CustomResourcesView({
         label: "NAME",
         sortable: true,
         render: (resource) => (
-          <span className="font-medium text-xs">{resource.name}</span>
+          <span className="font-medium">{resource.name}</span>
         ),
       },
     ];
@@ -56,9 +56,9 @@ export function CustomResourcesView({
         sortable: true,
         render: (resource) =>
           resource.namespace ? (
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-2">
               <NamespaceColorDot namespace={resource.namespace} />
-              <span className="text-xs text-muted-foreground">{resource.namespace}</span>
+              <span className="text-muted-foreground">{resource.namespace}</span>
             </div>
           ) : (
             "-"
@@ -75,7 +75,7 @@ export function CustomResourcesView({
           resource.status ? (
             <CustomResourceStatusBadge status={resource.status} />
           ) : (
-            <span className="text-xs text-muted-foreground">-</span>
+            <span className="text-muted-foreground">-</span>
           ),
       },
       {

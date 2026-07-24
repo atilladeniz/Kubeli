@@ -22,8 +22,8 @@ export function ClusterListCard({
 
   return (
     <div
-      className={`relative z-10 flex items-center gap-3 border-b border-surface-border px-3 py-2.5 transition-colors first:rounded-t-xl last:rounded-b-xl last:border-b-0 ${
-        isActive ? "bg-green-500/5" : ""
+      className={`relative z-10 flex items-center gap-3 border-b border-surface-border px-3 py-2.5 first:rounded-t-xl last:rounded-b-xl last:border-b-0 ${
+        isActive ? "bg-green-500/5" : "hover:bg-[var(--surface-hover)]"
       }`}
     >
       <ClusterIcon cluster={cluster} size={22} />

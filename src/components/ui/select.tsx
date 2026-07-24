@@ -7,7 +7,6 @@ import { CheckIcon, ChevronDownIcon, ChevronUpIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useSurface, SurfaceProvider } from "@/lib/surface-context"
 import { surfaceClasses } from "@/lib/surface-classes"
-import { MenuProximityHighlight } from "@/lib/menu-proximity"
 
 function Select({
   ...props
@@ -87,7 +86,6 @@ function SelectContent({
               "h-[var(--radix-select-trigger-height)] w-full min-w-[var(--radix-select-trigger-width)] scroll-my-1"
           )}
         >
-          <MenuProximityHighlight itemSelector="[data-slot='select-item']" />
           {children}
         </SelectPrimitive.Viewport>
         <SelectScrollDownButton />
@@ -119,7 +117,7 @@ function SelectItem({
     <SelectPrimitive.Item
       data-slot="select-item"
       className={cn(
-        "data-[state=checked]:font-medium [&_svg:not([class*='text-'])]:text-muted-foreground relative z-10 flex w-full cursor-default items-center gap-2 rounded-md py-2 pr-8 pl-2.5 text-sm outline-hidden transition-colors select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
+        "focus:bg-[var(--surface-hover)] data-[state=checked]:font-medium [&_svg:not([class*='text-'])]:text-muted-foreground relative z-10 flex w-full cursor-default items-center gap-2 rounded-md py-2 pr-8 pl-2.5 text-sm outline-hidden select-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4 *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2",
         className
       )}
       {...props}
