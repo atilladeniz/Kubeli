@@ -257,6 +257,33 @@ describe("ClusterStore", () => {
 
       expect(useClusterStore.getState().selectedNamespaces).toEqual([]);
     });
+
+    it("falls back to all namespaces when the cluster lacks the default", async () => {
+      useUIStore.setState({
+        settings: { ...defaultSettings, defaultNamespace: "ghost" },
+      });
+
+      await act(async () => {
+        await useClusterStore.getState().connect("test-context");
+      });
+
+      // "ghost" isn't in the fetched namespace list — views would be silently empty
+      expect(useClusterStore.getState().selectedNamespaces).toEqual([]);
+    });
+
+    it("keeps the default when the namespace list is unknown", async () => {
+      useUIStore.setState({
+        settings: { ...defaultSettings, defaultNamespace: "restricted-ns" },
+      });
+      mockGetNamespaces.mockResolvedValue({ namespaces: [], source: "none" });
+
+      await act(async () => {
+        await useClusterStore.getState().connect("test-context");
+      });
+
+      // Without list permissions we can't validate — trust the user's setting
+      expect(useClusterStore.getState().selectedNamespaces).toEqual(["restricted-ns"]);
+    });
   });
 
   describe("connect with OIDC auth", () => {
