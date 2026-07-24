@@ -41,12 +41,19 @@ export function FluxKustomizationsView() {
     },
     { separator: true, label: "", onClick: () => {} },
     {
-      label: "Reconcile",
+      label: k.suspended ? "Resume & Reconcile" : "Reconcile",
       icon: <RefreshCw className="size-4" />,
       onClick: async () => {
         try {
+          // Flux ignores reconcile requests while suspended, so resume first
+          if (k.suspended) {
+            await resumeFluxKustomization(k.name, k.namespace);
+          }
           await reconcileFluxKustomization(k.name, k.namespace);
-          toast.success("Reconciliation triggered", { description: k.name });
+          toast.success(
+            k.suspended ? "Resumed, reconciliation triggered" : "Reconciliation triggered",
+            { description: k.name }
+          );
           refresh();
         } catch (e) {
           toast.error("Failed to trigger reconciliation", { description: String(e) });

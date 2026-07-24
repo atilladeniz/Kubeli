@@ -52,12 +52,19 @@ export function HelmReleasesView() {
     if (release.managed_by === "flux") {
       items.push({ separator: true, label: "", onClick: () => {} });
       items.push({
-        label: "Reconcile",
+        label: release.suspended ? "Resume & Reconcile" : "Reconcile",
         icon: <RefreshCw className="size-4" />,
         onClick: async () => {
           try {
+            // Flux ignores reconcile requests while suspended, so resume first
+            if (release.suspended) {
+              await resumeFluxHelmRelease(release.name, release.namespace);
+            }
             await reconcileFluxHelmRelease(release.name, release.namespace);
-            toast.success("Reconciliation triggered", { description: release.name });
+            toast.success(
+              release.suspended ? "Resumed, reconciliation triggered" : "Reconciliation triggered",
+              { description: release.name }
+            );
             refresh();
           } catch (e) {
             toast.error("Failed to trigger reconciliation", { description: String(e) });
