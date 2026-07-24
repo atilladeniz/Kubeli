@@ -1,6 +1,7 @@
 import { act } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
 import { useClusterStore, selectCurrentNamespace } from "../cluster-store";
+import { useUIStore, defaultSettings } from "../ui-store";
 import { toKubeliError } from "../../types/errors";
 
 // Mock Tauri commands
@@ -214,6 +215,47 @@ describe("ClusterStore", () => {
       const state = useClusterStore.getState();
       expect(state.isConnected).toBe(false);
       expect(state.error?.message).toBe("Timeout");
+    });
+  });
+
+  describe("default namespace on connect (#347)", () => {
+    beforeEach(() => {
+      useClusterStore.setState({ clusters: mockClusters });
+      mockConnectCluster.mockResolvedValue({
+        connected: true,
+        context: "test-context",
+        latency_ms: 50,
+      });
+      mockGetNamespaces.mockResolvedValue({
+        namespaces: ["default", "kubeli-demo"],
+        source: "auto",
+      });
+      mockCheckConnectionHealth.mockResolvedValue({ healthy: true, latency_ms: 50 });
+      mockWatchNamespaces.mockResolvedValue(undefined);
+    });
+
+    afterEach(() => {
+      useUIStore.setState({ settings: { ...defaultSettings } });
+    });
+
+    it("applies the configured default namespace on connect", async () => {
+      useUIStore.setState({
+        settings: { ...defaultSettings, defaultNamespace: " kubeli-demo " },
+      });
+
+      await act(async () => {
+        await useClusterStore.getState().connect("test-context");
+      });
+
+      expect(useClusterStore.getState().selectedNamespaces).toEqual(["kubeli-demo"]);
+    });
+
+    it("keeps all namespaces selected when no default is configured", async () => {
+      await act(async () => {
+        await useClusterStore.getState().connect("test-context");
+      });
+
+      expect(useClusterStore.getState().selectedNamespaces).toEqual([]);
     });
   });
 

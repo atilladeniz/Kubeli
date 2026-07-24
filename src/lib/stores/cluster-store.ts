@@ -16,7 +16,15 @@ import {
 } from "../tauri/commands";
 import { oidcStartAuth, oidcHandleCallback } from "../tauri/commands/oidc";
 import { useResourceCacheStore } from "./resource-cache-store";
+import { useUIStore } from "./ui-store";
 import type { WatchEvent } from "../types";
+
+// Applies the "Default Namespace" setting when a connection is established
+// (#347). Empty setting = all namespaces.
+const initialNamespaceSelection = (): string[] => {
+  const ns = useUIStore.getState().settings.defaultNamespace.trim();
+  return ns ? [ns] : [];
+};
 
 // Debug logger - only logs in development
 const isDev = process.env.NODE_ENV === "development";
@@ -298,7 +306,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
             set({
               isConnected: true,
               currentCluster,
-              selectedNamespaces: [],
+              selectedNamespaces: initialNamespaceSelection(),
               error: null,
               isLoading: false,
               latencyMs: retryStatus.latency_ms,
@@ -372,7 +380,7 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
         set({
           isConnected: true,
           currentCluster,
-          selectedNamespaces: [],
+          selectedNamespaces: initialNamespaceSelection(),
           error: null,
           isLoading: false,
           latencyMs: status.latency_ms,
