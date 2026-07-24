@@ -12,9 +12,10 @@ import { ContainerStatusSection } from "./ContainerStatusSection";
 import { PodMetricsSection } from "./PodMetricsSection";
 import { AnnotationsSection } from "./AnnotationsSection";
 import { OwnerReferencesSection } from "./OwnerReferencesSection";
+import { PodSchedulingSection } from "./PodSchedulingSection";
 import { getPod } from "@/lib/tauri/commands";
 import type { ResourceData } from "../types";
-import type { ContainerInfo } from "@/lib/types";
+import type { ContainerInfo, TolerationInfo } from "@/lib/types";
 
 function formatDate(dateString: string, locale: string): string {
   const date = new Date(dateString);
@@ -37,15 +38,39 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner }: Overv
     key: string;
     initContainers: ContainerInfo[];
     containers: ContainerInfo[];
-  }>({ key: "", initContainers: [], containers: [] });
+    serviceAccount: string | null;
+    nodeSelector: Record<string, string>;
+    tolerations: TolerationInfo[];
+  }>({
+    key: "",
+    initContainers: [],
+    containers: [],
+    serviceAccount: null,
+    nodeSelector: {},
+    tolerations: [],
+  });
 
   const fetchContainers = useCallback(async (name: string, namespace: string, key: string) => {
     try {
       const podInfo = await getPod(name, namespace);
-      return { key, initContainers: podInfo.init_containers, containers: podInfo.containers };
+      return {
+        key,
+        initContainers: podInfo.init_containers,
+        containers: podInfo.containers,
+        serviceAccount: podInfo.service_account,
+        nodeSelector: podInfo.node_selector,
+        tolerations: podInfo.tolerations,
+      };
     } catch (err) {
       console.error("Failed to load pod containers:", err);
-      return { key, initContainers: [] as ContainerInfo[], containers: [] as ContainerInfo[] };
+      return {
+        key,
+        initContainers: [] as ContainerInfo[],
+        containers: [] as ContainerInfo[],
+        serviceAccount: null,
+        nodeSelector: {} as Record<string, string>,
+        tolerations: [] as TolerationInfo[],
+      };
     }
   }, []);
 
@@ -67,9 +92,13 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner }: Overv
     };
   }, [resourceType, resource.name, resource.namespace, resourceKey, fetchContainers]);
 
-  // Only show containers if they match the current resource (prevents stale data)
-  const initContainers = containerData.key === resourceKey ? containerData.initContainers : [];
-  const containers = containerData.key === resourceKey ? containerData.containers : [];
+  // Only show pod details if they match the current resource (prevents stale data)
+  const podDataCurrent = containerData.key === resourceKey;
+  const initContainers = podDataCurrent ? containerData.initContainers : [];
+  const containers = podDataCurrent ? containerData.containers : [];
+  const serviceAccount = podDataCurrent ? containerData.serviceAccount : null;
+  const nodeSelector = podDataCurrent ? containerData.nodeSelector : {};
+  const tolerations = podDataCurrent ? containerData.tolerations : [];
 
   return (
     <div className="h-full overflow-y-auto">
@@ -113,6 +142,17 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner }: Overv
             ownerReferences={resource.ownerReferences}
             onNavigate={onNavigateToOwner}
             namespace={resource.namespace}
+          />
+        )}
+
+        {/* Scheduling Section (for Pods only) */}
+        {resourceType === "pod" && (
+          <PodSchedulingSection
+            serviceAccount={serviceAccount}
+            nodeSelector={nodeSelector}
+            tolerations={tolerations}
+            namespace={resource.namespace}
+            onNavigate={onNavigateToOwner}
           />
         )}
 

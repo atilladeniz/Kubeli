@@ -182,6 +182,9 @@ const mockPods: PodInfo[] = mockPodDefs.map((d) => ({
   labels: { app: d.name.replace(/-[a-z0-9]+-[a-z0-9]+$/, "").replace(/-\d+$/, "") },
   restart_count: 0,
   ready_containers: "1/1",
+  service_account: "default",
+  node_selector: {},
+  tolerations: [],
 }));
 
 function buildMockGraph() {

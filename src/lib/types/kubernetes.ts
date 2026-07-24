@@ -294,6 +294,17 @@ export interface PodInfo {
   labels: Record<string, string>;
   restart_count: number;
   ready_containers: string;
+  service_account: string | null;
+  node_selector: Record<string, string>;
+  tolerations: TolerationInfo[];
+}
+
+export interface TolerationInfo {
+  key: string | null;
+  operator: string | null;
+  value: string | null;
+  effect: string | null;
+  toleration_seconds: number | null;
 }
 
 export type EnvVarSourceKind = "secret" | "configMap" | "field" | "resource" | "unknown";

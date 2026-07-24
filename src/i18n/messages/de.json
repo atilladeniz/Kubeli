@@ -995,7 +995,11 @@
     "exitCodeSigint": "SIGINT (Strg+C)",
     "exitCodeSignal": "Signal {signal}",
     "exitCodeGeneric": "Exit {code}",
-    "environmentVariables": "Umgebungsvariablen"
+    "environmentVariables": "Umgebungsvariablen",
+    "scheduling": "Scheduling",
+    "serviceAccount": "Service Account",
+    "nodeSelector": "Node Selector",
+    "tolerations": "Tolerations"
   },
   "createResource": {
     "title": "Ressource erstellen",

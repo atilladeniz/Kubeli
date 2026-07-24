@@ -1,4 +1,6 @@
-use crate::commands::resources::{extract_container_info, ContainerInfo, NamespaceInfo, PodInfo};
+use crate::commands::resources::{
+    extract_container_info, extract_tolerations, ContainerInfo, NamespaceInfo, PodInfo,
+};
 use crate::error::KubeliError;
 use crate::k8s::AppState;
 use futures::StreamExt;
@@ -158,6 +160,9 @@ fn pod_to_info(pod: Pod) -> PodInfo {
         labels: btree_to_hashmap(metadata.labels),
         restart_count: total_restarts,
         ready_containers: format!("{}/{}", ready_count, total_count),
+        service_account: spec.service_account_name,
+        node_selector: btree_to_hashmap(spec.node_selector),
+        tolerations: extract_tolerations(spec.tolerations),
     }
 }
 
