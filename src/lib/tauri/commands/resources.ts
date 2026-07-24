@@ -304,3 +304,8 @@ export async function suspendCronjob(name: string, namespace: string): Promise<v
 export async function resumeCronjob(name: string, namespace: string): Promise<void> {
   return invoke("resume_cronjob", { name, namespace });
 }
+
+/** Renders the manual Job for a CronJob as YAML for review before creating. */
+export async function getCronjobJobYaml(name: string, namespace: string): Promise<string> {
+  return invoke("get_cronjob_job_yaml", { name, namespace });
+}

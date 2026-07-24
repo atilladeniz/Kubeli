@@ -111,6 +111,9 @@ interface UIState {
 
   // Create resource panel state
   isCreateResourceOpen: boolean;
+  // Pre-filled YAML for the create panel (e.g. Job generated from a CronJob);
+  // consumed once by CreateResourcePanel on mount
+  createResourceInitialYaml: string | null;
 
   // Actions
   setTheme: (theme: Theme) => void;
@@ -129,6 +132,8 @@ interface UIState {
   triggerRefresh: () => void;
   triggerSearchFocus: () => void;
   setCreateResourceOpen: (open: boolean) => void;
+  /** Open the create panel pre-filled with the given YAML. */
+  openCreateResourceWithYaml: (yaml: string) => void;
 }
 
 // Helper to get valid vibrancy level
@@ -153,6 +158,7 @@ export const useUIStore = create<UIState>()(
       refreshTrigger: 0,
       searchFocusTrigger: 0,
       isCreateResourceOpen: false,
+      createResourceInitialYaml: null,
 
       setTheme: (theme) => {
         set((state) => ({
@@ -229,7 +235,11 @@ export const useUIStore = create<UIState>()(
       triggerSearchFocus: () =>
         set((state) => ({ searchFocusTrigger: state.searchFocusTrigger + 1 })),
 
-      setCreateResourceOpen: (open) => set({ isCreateResourceOpen: open }),
+      setCreateResourceOpen: (open) =>
+        set({ isCreateResourceOpen: open, ...(!open && { createResourceInitialYaml: null }) }),
+
+      openCreateResourceWithYaml: (yaml) =>
+        set({ isCreateResourceOpen: true, createResourceInitialYaml: yaml }),
     }),
     {
       name: "kubeli-ui-settings",

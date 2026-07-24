@@ -218,6 +218,8 @@
     "restart": "Neustarten",
     "trigger": "Auslösen",
     "triggerSuccess": "Job ausgelöst",
+    "editTrigger": "Bearbeiten & Auslösen...",
+    "editTriggerError": "Job-YAML konnte nicht erstellt werden",
     "triggerError": "Auslösen fehlgeschlagen",
     "suspendSuccess": "CronJob pausiert",
     "suspendError": "Pausieren fehlgeschlagen",
@@ -1014,6 +1016,7 @@
     "apply": "Anwenden",
     "applying": "Wird angewendet...",
     "applySuccess": "Ressource erfolgreich erstellt",
+    "unsavedChangesKeep": "Ungespeicherte Änderungen vorhanden - erst schließen oder anwenden",
     "applyError": "Ressource konnte nicht erstellt werden",
     "categories": {
       "workloads": "Workloads",

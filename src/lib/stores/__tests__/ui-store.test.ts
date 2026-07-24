@@ -278,6 +278,17 @@ describe("UIStore", () => {
     });
   });
 
+  describe("create resource panel with initial YAML", () => {
+    it("opens the panel with the given YAML and clears it on close", () => {
+      useUIStore.getState().openCreateResourceWithYaml("kind: Job\n");
+      expect(useUIStore.getState().isCreateResourceOpen).toBe(true);
+      expect(useUIStore.getState().createResourceInitialYaml).toBe("kind: Job\n");
+
+      useUIStore.getState().setCreateResourceOpen(false);
+      expect(useUIStore.getState().createResourceInitialYaml).toBeNull();
+    });
+  });
+
   describe("default settings values", () => {
     it("should have correct default values", () => {
       expect(defaultSettings.theme).toBe("classic-dark");

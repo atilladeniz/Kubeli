@@ -1,6 +1,6 @@
 "use client";
 
-import { PlayCircle, Pause, Play } from "lucide-react";
+import { FilePen, PlayCircle, Pause, Play } from "lucide-react";
 import { toast } from "sonner";
 import { useCronJobs } from "@/lib/hooks/useK8sResources";
 import {
@@ -9,7 +9,14 @@ import {
   type TranslateFunc,
 } from "../../../resources/columns";
 import { createResourceView } from "../_createResourceView";
-import { triggerCronjob, suspendCronjob, resumeCronjob } from "@/lib/tauri/commands";
+import {
+  triggerCronjob,
+  suspendCronjob,
+  resumeCronjob,
+  getCronjobJobYaml,
+} from "@/lib/tauri/commands";
+import { useUIStore } from "@/lib/stores/ui-store";
+import { useClusterStore } from "@/lib/stores/cluster-store";
 import { getErrorMessage } from "@/lib/types/errors";
 import type { CronJobInfo } from "@/lib/types";
 
@@ -63,6 +70,25 @@ function cronJobActions(
           success: t("workloads.triggerSuccess"),
           error: t("workloads.triggerError"),
         }, refresh),
+    },
+    {
+      label: t("workloads.editTrigger"),
+      icon: <FilePen className="size-4" />,
+      onClick: async () => {
+        const context = useClusterStore.getState().currentCluster?.context;
+        try {
+          const yaml = await getCronjobJobYaml(cronJob.name, cronJob.namespace);
+          // A cluster switch while the YAML was loading must not open cluster
+          // A's job against cluster B.
+          if (useClusterStore.getState().currentCluster?.context !== context) return;
+          // Review/tweak the generated Job in the create panel before applying
+          useUIStore.getState().openCreateResourceWithYaml(yaml);
+        } catch (error) {
+          toast.error(t("workloads.editTriggerError"), {
+            description: getErrorMessage(error),
+          });
+        }
+      },
     },
     toggle,
   ];

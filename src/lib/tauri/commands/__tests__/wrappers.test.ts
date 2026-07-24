@@ -184,6 +184,7 @@ const cases: TestCase[] = [
   { name: "triggerCronjob", run: () => resources.triggerCronjob("demo", "default"), expectedCommand: "trigger_cronjob", expectedPayload: { name: "demo", namespace: "default" } },
   { name: "suspendCronjob", run: () => resources.suspendCronjob("demo", "default"), expectedCommand: "suspend_cronjob", expectedPayload: { name: "demo", namespace: "default" } },
   { name: "resumeCronjob", run: () => resources.resumeCronjob("demo", "default"), expectedCommand: "resume_cronjob", expectedPayload: { name: "demo", namespace: "default" } },
+  { name: "getCronjobJobYaml", run: () => resources.getCronjobJobYaml("demo", "default"), expectedCommand: "get_cronjob_job_yaml", expectedPayload: { name: "demo", namespace: "default" } },
 ];
 
 describe("tauri command wrappers", () => {

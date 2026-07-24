@@ -74,6 +74,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Syn
         crate::commands::resources::delete_resource,
         crate::commands::resources::scale_deployment,
         crate::commands::resources::trigger_cronjob,
+        crate::commands::resources::get_cronjob_job_yaml,
         crate::commands::resources::suspend_cronjob,
         crate::commands::resources::resume_cronjob,
         crate::commands::watch::watch_pods,
