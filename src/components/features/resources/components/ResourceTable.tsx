@@ -25,6 +25,16 @@ import { cn } from "@/lib/utils";
 import { getNamespaceColor } from "@/lib/utils/colors";
 import { Checkbox } from "@/components/ui/checkbox";
 import type { Column, ContextMenuItemDef, SortDirection } from "../types";
+import { ResourceActionsMenu } from "./ResourceActionsMenu";
+import { renderMenuItems, type MenuSlots } from "./menu-items";
+
+const contextMenuSlots: MenuSlots = {
+  Item: ContextMenuItem,
+  Separator: ContextMenuSeparator,
+  Sub: ContextMenuSub,
+  SubTrigger: ContextMenuSubTrigger,
+  SubContent: ContextMenuSubContent,
+};
 
 const ROW_HEIGHT = 44;
 const OVERSCAN = 10;
@@ -60,58 +70,6 @@ interface ResourceTableRowProps<T> {
   onRowClick?: (item: T) => void;
   contextMenuItems?: (item: T) => ContextMenuItemDef[];
   onToggleSelect: (key: string) => void;
-}
-
-function renderMenuItems(menuItems: ContextMenuItemDef[]) {
-  return menuItems.map((menuItem, index) =>
-    menuItem.separator ? (
-      <ContextMenuSeparator key={`sep-${index}`} />
-    ) : menuItem.children ? (
-      <ContextMenuSub key={menuItem.label}>
-        <ContextMenuSubTrigger disabled={menuItem.disabled} className="gap-2">
-          {menuItem.icon}
-          {menuItem.label}
-        </ContextMenuSubTrigger>
-        <ContextMenuSubContent>
-          {menuItem.children.map((child) => (
-            <ContextMenuItem
-              key={child.label}
-              onClick={child.onClick}
-              disabled={child.disabled}
-              variant={child.variant}
-              className="gap-2"
-            >
-              {child.icon}
-              {child.label}
-              {child.hint && (
-                <span
-                  className={cn(
-                    "ml-auto rounded-full px-2 py-0.5 text-xs font-mono font-medium",
-                    child.hintVariant === "active"
-                      ? "bg-purple-500/20 text-purple-400"
-                      : "bg-muted text-foreground"
-                  )}
-                >
-                  {child.hint}
-                </span>
-              )}
-            </ContextMenuItem>
-          ))}
-        </ContextMenuSubContent>
-      </ContextMenuSub>
-    ) : (
-      <ContextMenuItem
-        key={menuItem.label}
-        onClick={menuItem.onClick}
-        disabled={menuItem.disabled}
-        variant={menuItem.variant}
-        className="gap-2"
-      >
-        {menuItem.icon}
-        {menuItem.label}
-      </ContextMenuItem>
-    )
-  );
 }
 
 function ResourceTableRowInner<T>({
@@ -167,6 +125,14 @@ function ResourceTableRowInner<T>({
               )}
         </TableCell>
       ))}
+      {contextMenuItems && (
+        <TableCell
+          className="w-12 text-right"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ResourceActionsMenu getItems={() => contextMenuItems(item)} />
+        </TableCell>
+      )}
     </TableRow>
   );
 
@@ -181,7 +147,7 @@ function ResourceTableRowInner<T>({
       <ContextMenuTrigger asChild>{rowContent}</ContextMenuTrigger>
       {menuOpen && (
         <ContextMenuContent className="w-48">
-          {renderMenuItems(contextMenuItems(item))}
+          {renderMenuItems(contextMenuItems(item), contextMenuSlots)}
         </ContextMenuContent>
       )}
     </ContextMenu>
@@ -230,7 +196,8 @@ export function ResourceTable<T>({
     virtualRows.length > 0
       ? virtualizer.getTotalSize() - virtualRows[virtualRows.length - 1].end
       : 0;
-  const columnCount = columns.length + (hasBulkActions ? 1 : 0);
+  const columnCount =
+    columns.length + (hasBulkActions ? 1 : 0) + (contextMenuItems ? 1 : 0);
   // Fixed layout (stable columns, no scroll jitter) only when widths are
   // declared; otherwise fall back to content-sized auto layout.
   const hasFixedWidths = columns.some((c) => c.width);
@@ -295,6 +262,7 @@ export function ResourceTable<T>({
                 )}
               </TableHead>
             ))}
+            {contextMenuItems && <TableHead className="w-12 bg-background" />}
           </TableRow>
         </TableHeader>
         <TableBody>
