@@ -462,6 +462,7 @@
     "enableRegex": "Regex aktivieren",
     "disableRegex": "Regex deaktivieren",
     "aiPromptTitle": "Analysiere die Logs des Pods {namespace}/{podName}{containerInfo}:",
+    "aiPromptTitleWorkload": "Analysiere die aggregierten Logs von {workloadKind} {namespace}/{workloadName} ueber {podCount} Pods. Jede Zeile ist mit ihrem Quell-Pod praefixiert:",
     "aiPromptStats": "**Log-Statistik**: {total} Zeilen gesamt, {errors} Errors, {warnings} Warnings",
     "aiPromptLogsHeader": "**Logs** (sortiert nach Relevanz, max. {maxLines} Zeilen):",
     "aiPromptInstructions": "Bitte analysiere diese Logs und:\n1. Identifiziere kritische Fehler oder Probleme\n2. Erklaere was die Hauptursache sein koennte\n3. Fasse die wichtigsten Muster zusammen",

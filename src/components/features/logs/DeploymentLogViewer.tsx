@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 import { LogToolbar, LogFooter, LogContent } from "./components";
-import { useLogFilter, useAutoScroll } from "./hooks";
+import { useLogFilter, useAutoScroll, useLogAnalysis, useLogDownload } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
 import type { TimestampMode } from "./types";
 
@@ -97,6 +97,26 @@ export function DeploymentLogViewer({
       // Clipboard write may fail in some environments
     }
   }, [filteredLogs]);
+
+  // Export and AI analysis operate on the pod-filtered set, so an active pod
+  // filter narrows both — the visible logs are the ones that get exported.
+  const { isDownloading, downloadLogs } = useLogDownload({
+    sourceName: deploymentName,
+    container: null,
+    logs: podFilteredLogs,
+    filteredLogs,
+    includePodNames: true,
+    t,
+  });
+
+  const { isAICliAvailable, analyzeWithAI, sendSelectionToAI } = useLogAnalysis({
+    namespace,
+    sourceName: deploymentName,
+    container: null,
+    logs: filteredLogs,
+    workloadKind: "Deployment",
+    t,
+  });
 
   const { containerRef, endRef, autoScroll, scrollToBottom, handleScroll } = useAutoScroll({
     dependencies: [logs],
@@ -243,9 +263,9 @@ export function DeploymentLogViewer({
           fetchTooltip: t("logs.fetchLogs"),
         }}
         download={{
-          isDownloading: false,
+          isDownloading,
           logsCount: logs.length,
-          onDownload: async () => {},
+          onDownload: downloadLogs,
           tooltip: t("logs.download"),
         }}
         copyAll={{
@@ -253,15 +273,13 @@ export function DeploymentLogViewer({
           tooltip: t("logs.copyAll"),
         }}
         ai={{
-          isAvailable: false,
-          onAnalyze: async () => {},
-          tooltip: "",
-          unavailableTooltip: "",
+          isAvailable: isAICliAvailable,
+          onAnalyze: analyzeWithAI,
+          tooltip: t("logs.analyzeWithAI"),
+          unavailableTooltip: t("logs.aiUnavailable"),
         }}
         onClear={clearLogs}
         clearLabel={t("logs.clear")}
-        hideDownload
-        hideAI
       />
 
       {/* Error display */}
@@ -297,6 +315,8 @@ export function DeploymentLogViewer({
         copyLabel={t("common.copy")}
         copiedLabel={t("common.copied")}
         streamDisabled={pods.length === 0}
+        onSendToAI={isAICliAvailable ? sendSelectionToAI : undefined}
+        sendToAILabel={t("logs.sendToAI")}
       />
 
       <LogFooter

@@ -42,7 +42,7 @@ describe("useLogDownload", () => {
   const mockT = jest.fn((key: string) => key);
 
   const defaultOptions = {
-    podName: "test-pod",
+    sourceName: "test-pod",
     container: "main",
     logs: mockLogs,
     filteredLogs: [],
@@ -184,5 +184,120 @@ describe("useLogDownload", () => {
     });
 
     expect(result.current.isDownloading).toBe(false);
+  });
+});
+
+describe("useLogDownload aggregated (multi-pod) export", () => {
+  const mockT = jest.fn((key: string) => key);
+
+  const fromPod = (pod: string, message: string, timestamp: string): LogEntry => ({
+    message,
+    timestamp,
+    container: "main",
+    pod,
+    namespace: "default",
+  });
+
+  const aggregatedLogs: LogEntry[] = [
+    fromPod("demo-web-abc", "INFO: Started", "2024-01-01T10:00:00Z"),
+    fromPod("demo-web-xyz", "ERROR: Failed", "2024-01-01T10:01:00Z"),
+  ];
+
+  const aggregatedOptions = {
+    sourceName: "demo-web",
+    container: null,
+    logs: aggregatedLogs,
+    filteredLogs: [],
+    includePodNames: true,
+    t: mockT,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockSave.mockResolvedValue("/path/to/file.log");
+    mockWriteTextFile.mockResolvedValue(undefined);
+  });
+
+  it("prefixes every text line with its source pod", async () => {
+    const { result } = renderHook(() => useLogDownload(aggregatedOptions));
+
+    await act(async () => {
+      await result.current.downloadLogs("text");
+    });
+
+    expect(mockWriteTextFile).toHaveBeenCalledWith(
+      "/path/to/file.log",
+      "[demo-web-abc] INFO: Started\n[demo-web-xyz] ERROR: Failed"
+    );
+  });
+
+  it("keeps the pod prefix after the timestamp in timestamps format", async () => {
+    const { result } = renderHook(() => useLogDownload(aggregatedOptions));
+
+    await act(async () => {
+      await result.current.downloadLogs("timestamps");
+    });
+
+    expect(mockWriteTextFile).toHaveBeenCalledWith(
+      "/path/to/file.log",
+      "2024-01-01T10:00:00Z\t[demo-web-abc] INFO: Started\n" +
+        "2024-01-01T10:01:00Z\t[demo-web-xyz] ERROR: Failed"
+    );
+  });
+
+  it("does not add a prefix to JSON, which already carries log.pod", async () => {
+    const { result } = renderHook(() => useLogDownload(aggregatedOptions));
+
+    await act(async () => {
+      await result.current.downloadLogs("json");
+    });
+
+    const written = mockWriteTextFile.mock.calls[0][1] as string;
+    expect(JSON.parse(written)).toEqual(aggregatedLogs);
+  });
+
+  it("names the file after the workload, not a pod", async () => {
+    const { result } = renderHook(() => useLogDownload(aggregatedOptions));
+
+    await act(async () => {
+      await result.current.downloadLogs("text");
+    });
+
+    expect(mockSave).toHaveBeenCalledWith(
+      expect.objectContaining({ defaultPath: "demo-web-logs.log" })
+    );
+  });
+
+  it("exports only the filtered pods when a pod filter is active", async () => {
+    const { result } = renderHook(() =>
+      useLogDownload({
+        ...aggregatedOptions,
+        filteredLogs: [aggregatedLogs[1]],
+      })
+    );
+
+    await act(async () => {
+      await result.current.downloadLogs("text");
+    });
+
+    expect(mockWriteTextFile).toHaveBeenCalledWith(
+      "/path/to/file.log",
+      "[demo-web-xyz] ERROR: Failed"
+    );
+  });
+
+  it("omits the prefix for single-pod logs", async () => {
+    const { result } = renderHook(() =>
+      useLogDownload({ ...aggregatedOptions, includePodNames: false })
+    );
+
+    await act(async () => {
+      await result.current.downloadLogs("text");
+    });
+
+    expect(mockWriteTextFile).toHaveBeenCalledWith(
+      "/path/to/file.log",
+      "INFO: Started\nERROR: Failed"
+    );
   });
 });
