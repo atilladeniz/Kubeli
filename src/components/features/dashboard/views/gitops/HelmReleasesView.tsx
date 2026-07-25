@@ -1,8 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { Copy, Trash2, Eye, RefreshCw, Pause, Play } from "lucide-react";
+import {
+  Copy,
+  Trash2,
+  Eye,
+  RefreshCw,
+  Pause,
+  Play,
+  GitBranch,
+  Zap,
+  RotateCcw,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useHelmReleases } from "@/lib/hooks/useK8sResources";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
@@ -14,12 +24,26 @@ import {
   type ContextMenuItemDef,
 } from "../../../resources/columns";
 import { useResourceDetail } from "../../context";
+import { useClusterStore } from "@/lib/stores/cluster-store";
 import type { HelmReleaseInfo } from "@/lib/types";
 import {
   reconcileFluxHelmRelease,
+  reconcileFluxHelmReleaseWithSource,
+  forceFluxHelmRelease,
+  resetFluxHelmRelease,
   suspendFluxHelmRelease,
   resumeFluxHelmRelease,
 } from "@/lib/tauri/commands";
+import { reportReconcileResult } from "./reconcile-feedback";
+
+type ReconcileMode = "default" | "withSource" | "force" | "reset";
+
+const reconcileCommand: Record<ReconcileMode, (name: string, ns: string) => Promise<string>> = {
+  default: reconcileFluxHelmRelease,
+  withSource: reconcileFluxHelmReleaseWithSource,
+  force: forceFluxHelmRelease,
+  reset: resetFluxHelmRelease,
+};
 
 export function HelmReleasesView() {
   const t = useTranslations();
@@ -30,12 +54,59 @@ export function HelmReleasesView() {
   const { openResourceDetail, handleDeleteFromContext, handleUninstallFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("last_deployed");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [inFlight, setInFlight] = useState<ReadonlySet<string>>(new Set());
 
   // Refresh when a resource is deleted from detail panel
   useRefreshOnDelete(refresh);
 
+  // Surface suspend in the status field so sorting and search match the badge
+  const rows = useMemo(
+    () => data.map((r) => (r.suspended ? { ...r, status: "suspended" as const } : r)),
+    [data]
+  );
+
+  const runReconcile = async (release: HelmReleaseInfo, mode: ReconcileMode) => {
+    const key = `${release.namespace}/${release.name}`;
+    if (inFlight.has(key)) return;
+    setInFlight((prev) => new Set(prev).add(key));
+    const context = useClusterStore.getState().currentCluster?.context;
+    try {
+      // Flux ignores reconcile requests while suspended, so resume first
+      if (release.suspended) {
+        await resumeFluxHelmRelease(release.name, release.namespace);
+      }
+      const token = await reconcileCommand[mode](release.name, release.namespace);
+      const triggered =
+        mode === "reset"
+          ? t("flux.resetTriggered")
+          : release.suspended
+            ? t("flux.resumedReconcileTriggered")
+            : t("flux.reconcileTriggered");
+      toast.success(triggered, { description: release.name });
+      refresh();
+      await reportReconcileResult(
+        t,
+        "helmrelease",
+        release.name,
+        release.namespace,
+        token,
+        context,
+        refresh
+      );
+    } catch (e) {
+      toast.error(t("flux.reconcileFailed"), { description: String(e) });
+    } finally {
+      setInFlight((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
+    }
+  };
+
   const getHelmContextMenu = (release: HelmReleaseInfo): ContextMenuItemDef[] => {
     const items: ContextMenuItemDef[] = [];
+    const busy = inFlight.has(`${release.namespace}/${release.name}`);
 
     // View Details for all releases (different resource type based on managed_by)
     items.push({
@@ -52,50 +123,54 @@ export function HelmReleasesView() {
     if (release.managed_by === "flux") {
       items.push({ separator: true, label: "", onClick: () => {} });
       items.push({
-        label: release.suspended ? "Resume & Reconcile" : "Reconcile",
+        label: release.suspended ? t("flux.resumeReconcile") : t("flux.reconcile"),
         icon: <RefreshCw className="size-4" />,
-        onClick: async () => {
-          try {
-            // Flux ignores reconcile requests while suspended, so resume first
-            if (release.suspended) {
-              await resumeFluxHelmRelease(release.name, release.namespace);
-            }
-            await reconcileFluxHelmRelease(release.name, release.namespace);
-            toast.success(
-              release.suspended ? "Resumed, reconciliation triggered" : "Reconciliation triggered",
-              { description: release.name }
-            );
-            refresh();
-          } catch (e) {
-            toast.error("Failed to trigger reconciliation", { description: String(e) });
-          }
-        },
+        onClick: () => runReconcile(release, "default"),
+        disabled: busy,
+      });
+      items.push({
+        label: t("flux.reconcileWithSource"),
+        icon: <GitBranch className="size-4" />,
+        onClick: () => runReconcile(release, "withSource"),
+        disabled: busy,
+      });
+      items.push({
+        label: t("flux.forceReconcile"),
+        icon: <Zap className="size-4" />,
+        onClick: () => runReconcile(release, "force"),
+        disabled: busy,
+      });
+      items.push({
+        label: t("flux.resetRetries"),
+        icon: <RotateCcw className="size-4" />,
+        onClick: () => runReconcile(release, "reset"),
+        disabled: busy,
       });
       items.push(
         release.suspended
           ? {
-              label: "Resume",
+              label: t("flux.resume"),
               icon: <Play className="size-4" />,
               onClick: async () => {
                 try {
                   await resumeFluxHelmRelease(release.name, release.namespace);
-                  toast.success("HelmRelease resumed", { description: release.name });
+                  toast.success(t("flux.helmReleaseResumed"), { description: release.name });
                   refresh();
                 } catch (e) {
-                  toast.error("Failed to resume", { description: String(e) });
+                  toast.error(t("flux.resumeFailed"), { description: String(e) });
                 }
               },
             }
           : {
-              label: "Suspend",
+              label: t("flux.suspend"),
               icon: <Pause className="size-4" />,
               onClick: async () => {
                 try {
                   await suspendFluxHelmRelease(release.name, release.namespace);
-                  toast.success("HelmRelease suspended", { description: release.name });
+                  toast.success(t("flux.helmReleaseSuspended"), { description: release.name });
                   refresh();
                 } catch (e) {
-                  toast.error("Failed to suspend", { description: String(e) });
+                  toast.error(t("flux.suspendFailed"), { description: String(e) });
                 }
               },
             }
@@ -113,7 +188,7 @@ export function HelmReleasesView() {
         },
       },
       {
-        label: "Copy Chart",
+        label: t("flux.copyChart"),
         icon: <Copy className="size-4" />,
         onClick: () => {
           const chartInfo = `${release.chart}-${release.chart_version}`;
@@ -134,7 +209,7 @@ export function HelmReleasesView() {
       });
     } else {
       items.push({
-        label: "Forget release",
+        label: t("flux.forgetRelease"),
         icon: <Trash2 className="size-4" />,
         onClick: () => handleUninstallFromContext(release.name, release.namespace, refresh),
         variant: "destructive",
@@ -147,7 +222,7 @@ export function HelmReleasesView() {
   return (
     <ResourceList
       title={t("navigation.releases")}
-      data={data}
+      data={rows}
       columns={translateColumns(helmReleaseColumns, t)}
       isLoading={isLoading}
       error={error}

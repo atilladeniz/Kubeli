@@ -1165,7 +1165,9 @@ export type HelmReleaseStatus =
   | "uninstalling"
   | "pending-install"
   | "pending-upgrade"
-  | "pending-rollback";
+  | "pending-rollback"
+  // Synthesized in the UI from spec.suspend so sorting/search match the badge
+  | "suspended";
 
 /** Source managing the Helm release */
 export type HelmManagedBy = "helm" | "flux";
@@ -1219,10 +1221,11 @@ export interface HelmReleaseDetail {
 // Flux Kustomization types
 export type FluxKustomizationStatus =
   | "ready"
-  | "notready"
   | "reconciling"
   | "failed"
-  | "unknown";
+  | "unknown"
+  // Synthesized in the UI from spec.suspend so sorting/search match the badge
+  | "suspended";
 
 export interface FluxKustomizationInfo {
   name: string;
