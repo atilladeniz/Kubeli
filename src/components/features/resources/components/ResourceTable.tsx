@@ -61,6 +61,9 @@ interface ResourceTableProps<T> {
 interface ResourceTableRowProps<T> {
   item: T;
   itemKey: string;
+  /** Index into `data`; read back by the virtualizer via the data-index attribute. */
+  dataIndex: number;
+  measureRef: (el: HTMLElement | null) => void;
   columns: Column<T>[];
   isSelected: boolean;
   namespace?: string;
@@ -75,6 +78,8 @@ interface ResourceTableRowProps<T> {
 function ResourceTableRowInner<T>({
   item,
   itemKey,
+  dataIndex,
+  measureRef,
   columns,
   isSelected,
   namespace,
@@ -90,6 +95,8 @@ function ResourceTableRowInner<T>({
 
   const rowContent = (
     <TableRow
+      ref={measureRef}
+      data-index={dataIndex}
       onClick={() => onRowClick?.(item)}
       className={cn(
         onRowClick && "cursor-pointer",
@@ -188,6 +195,14 @@ export function ResourceTable<T>({
     getScrollElement: () => scrollRef.current,
     estimateSize: () => ROW_HEIGHT,
     overscan: OVERSCAN,
+    // Rows are not all ROW_HEIGHT tall: cells like PodMetricsCell grow once
+    // metrics arrive (usage bar, sparkline). With only the flat estimate the
+    // total size is wrong, so scrolling far down lands past the real end and
+    // the virtualizer snaps back -- the "jitter". Measuring corrects it.
+    // A 0 height means the row isn't laid out yet (detached/hidden, or jsdom);
+    // trusting it would make the window grow to hundreds of rows, so keep the
+    // estimate until a real height is available.
+    measureElement: (el) => el.getBoundingClientRect().height || ROW_HEIGHT,
   });
 
   const virtualRows = virtualizer.getVirtualItems();
@@ -209,7 +224,7 @@ export function ResourceTable<T>({
     // can't renegotiate widths as rows scroll through the virtual window.
     <div
       ref={scrollRef}
-      className="h-full overflow-auto [overscroll-behavior:none]"
+      className="h-full overflow-auto overscroll-none"
     >
       {/* table-fixed only when columns declare widths: widths then come from the
           headers, not per-row content, so variable action buttons can't jitter
@@ -280,6 +295,8 @@ export function ResourceTable<T>({
             return (
               <ResourceTableRow
                 key={itemKey}
+                dataIndex={virtualRow.index}
+                measureRef={virtualizer.measureElement}
                 item={item}
                 itemKey={itemKey}
                 columns={columns}

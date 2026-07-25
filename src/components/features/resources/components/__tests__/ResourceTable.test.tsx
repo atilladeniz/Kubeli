@@ -98,4 +98,30 @@ describe("ResourceTable virtualization", () => {
 
     expect(contextMenuItems).not.toHaveBeenCalled();
   });
+
+  // Regression: rows were sized by the flat ROW_HEIGHT estimate only. Rows
+  // whose real height differs (PodMetricsCell grows a usage bar and sparkline
+  // once metrics arrive) made getTotalSize() wrong, so scrolling to the bottom
+  // overshot the real end and snapped back -- visible as jitter. Every row must
+  // carry a data-index so the virtualizer can measure it and correct the size.
+  it("marks every rendered row with its data index for measurement", () => {
+    const { container } = render(
+      <ResourceTable {...baseProps} data={makeItems(1000)} />
+    );
+
+    const rows = dataRows(container);
+    expect(rows.length).toBeGreaterThan(0);
+
+    const indices = Array.from(rows, (row) =>
+      row.getAttribute("data-index")
+    );
+    expect(indices.every((i) => i !== null)).toBe(true);
+
+    // Indices are the real positions in `data`, contiguous and ascending --
+    // measurements would be attributed to the wrong rows otherwise.
+    const numeric = indices.map(Number);
+    expect(numeric).toEqual(
+      Array.from({ length: numeric.length }, (_, i) => numeric[0] + i)
+    );
+  });
 });
