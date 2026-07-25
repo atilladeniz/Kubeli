@@ -2100,6 +2100,8 @@ pub struct DaemonSetInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub node_selector: HashMap<String, String>,
+    /// Pod selector from spec.selector — resolves the DaemonSet's pods
+    pub selector: HashMap<String, String>,
 }
 
 /// List all daemon sets
@@ -2134,6 +2136,7 @@ pub async fn list_daemonsets(
             let spec = ds.spec.unwrap_or_default();
             let status = ds.status.unwrap_or_default();
 
+            let selector = btree_to_hashmap(spec.selector.match_labels);
             let node_selector = spec
                 .template
                 .spec
@@ -2154,6 +2157,7 @@ pub async fn list_daemonsets(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 node_selector,
+                selector,
             }
         })
         .collect();
@@ -2175,6 +2179,8 @@ pub struct StatefulSetInfo {
     pub service_name: Option<String>,
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
+    /// Pod selector from spec.selector — resolves the StatefulSet's pods
+    pub selector: HashMap<String, String>,
 }
 
 /// List all stateful sets
@@ -2209,6 +2215,8 @@ pub async fn list_statefulsets(
             let spec = sts.spec.unwrap_or_default();
             let status = sts.status.unwrap_or_default();
 
+            let selector = btree_to_hashmap(spec.selector.match_labels);
+
             StatefulSetInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -2220,6 +2228,7 @@ pub async fn list_statefulsets(
                 service_name: spec.service_name,
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
+                selector,
             }
         })
         .collect();
@@ -2245,6 +2254,9 @@ pub struct JobInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub status: String,
+    /// Pod selector from spec.selector — resolves the Job's pods. Normally
+    /// the controller-generated `batch.kubernetes.io/controller-uid` label.
+    pub selector: HashMap<String, String>,
 }
 
 /// List all jobs
@@ -2312,6 +2324,11 @@ pub async fn list_jobs(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 status: job_status.to_string(),
+                selector: spec
+                    .selector
+                    .and_then(|s| s.match_labels)
+                    .map(|l| l.into_iter().collect())
+                    .unwrap_or_default(),
             }
         })
         .collect();

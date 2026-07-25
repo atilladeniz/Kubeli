@@ -1,15 +1,23 @@
 import { renderHook, act } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
-import { useDeploymentLogs } from "../useDeploymentLogs";
+import { useWorkloadLogs, supportsAggregatedLogs } from "../useWorkloadLogs";
 
 const mockListPods = jest.fn();
 const mockListDeployments = jest.fn();
+const mockListStatefulsets = jest.fn();
+const mockListDaemonsets = jest.fn();
+const mockListReplicasets = jest.fn();
+const mockListJobs = jest.fn();
 const mockWatchPods = jest.fn();
 const mockStopWatch = jest.fn();
 
 jest.mock("../../tauri/commands", () => ({
   listPods: (...args: unknown[]) => mockListPods(...args),
   listDeployments: (...args: unknown[]) => mockListDeployments(...args),
+  listStatefulsets: (...args: unknown[]) => mockListStatefulsets(...args),
+  listDaemonsets: (...args: unknown[]) => mockListDaemonsets(...args),
+  listReplicasets: (...args: unknown[]) => mockListReplicasets(...args),
+  listJobs: (...args: unknown[]) => mockListJobs(...args),
   streamPodLogs: jest.fn(),
   stopLogStream: jest.fn().mockResolvedValue(undefined),
   watchPods: (...args: unknown[]) => mockWatchPods(...args),
@@ -18,7 +26,7 @@ jest.mock("../../tauri/commands", () => ({
 
 const mockListen = listen as jest.Mock;
 
-describe("useDeploymentLogs unmount during watch setup", () => {
+describe("useWorkloadLogs unmount during watch setup", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockListDeployments.mockResolvedValue([]);
@@ -36,7 +44,7 @@ describe("useDeploymentLogs unmount during watch setup", () => {
       () => new Promise((resolve) => { resolveListen = resolve; })
     );
 
-    const { unmount } = renderHook(() => useDeploymentLogs("demo-web", "default"));
+    const { unmount } = renderHook(() => useWorkloadLogs("demo-web", "default"));
     await act(async () => {});
 
     unmount();
@@ -59,7 +67,7 @@ describe("useDeploymentLogs unmount during watch setup", () => {
       () => new Promise<void>((resolve) => { resolveWatch = resolve; })
     );
 
-    const { unmount } = renderHook(() => useDeploymentLogs("demo-web", "default"));
+    const { unmount } = renderHook(() => useWorkloadLogs("demo-web", "default"));
     await act(async () => {});
     expect(mockWatchPods).toHaveBeenCalledTimes(1);
 
@@ -73,12 +81,12 @@ describe("useDeploymentLogs unmount during watch setup", () => {
 
     expect(mockStopWatch).toHaveBeenCalledTimes(1);
     expect(mockStopWatch).toHaveBeenCalledWith(
-      expect.stringContaining("deploy-pods-default-demo-web")
+      expect.stringContaining("workload-pods-deployment-default-demo-web")
     );
   });
 });
 
-describe("useDeploymentLogs seq stamping", () => {
+describe("useWorkloadLogs seq stamping", () => {
   const podEntry = {
     name: "demo-web-7d4b8c-abcde",
     namespace: "default",
@@ -107,7 +115,7 @@ describe("useDeploymentLogs seq stamping", () => {
       return Promise.resolve(jest.fn());
     });
 
-    const { result } = renderHook(() => useDeploymentLogs("demo-web", "default"));
+    const { result } = renderHook(() => useWorkloadLogs("demo-web", "default"));
     await act(async () => {});
 
     await act(async () => {
@@ -150,5 +158,105 @@ describe("useDeploymentLogs seq stamping", () => {
     const bySeq = [...result.current.logs].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
     expect(bySeq.map((l) => l.message)).toEqual(["first", "second", "third"]);
     expect(result.current.logs.map((l) => l.message)).toEqual(["second", "first", "third"]);
+  });
+});
+
+describe("useWorkloadLogs pod resolution per workload kind", () => {
+  const listerFor = {
+    deployment: mockListDeployments,
+    statefulset: mockListStatefulsets,
+    daemonset: mockListDaemonsets,
+    replicaset: mockListReplicasets,
+    job: mockListJobs,
+  } as const;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListPods.mockResolvedValue([]);
+    mockWatchPods.mockResolvedValue(undefined);
+    mockStopWatch.mockResolvedValue(undefined);
+    mockListen.mockResolvedValue(jest.fn());
+    for (const lister of Object.values(listerFor)) {
+      lister.mockResolvedValue([]);
+    }
+  });
+
+  it.each([
+    ["deployment", "demo-web", { app: "demo-web" }],
+    ["statefulset", "demo-db", { app: "demo-db" }],
+    ["daemonset", "demo-log-collector", { app: "demo-log-collector" }],
+    ["replicaset", "demo-web-7d4b8c", { "pod-template-hash": "7d4b8c" }],
+    ["job", "demo-migration", { "batch.kubernetes.io/controller-uid": "abc-123" }],
+  ] as const)(
+    "resolves %s pods through its own lister and selector",
+    async (kind, name, selector) => {
+      listerFor[kind].mockResolvedValue([{ name, namespace: "default", selector }]);
+
+      renderHook(() => useWorkloadLogs(name, "default", kind));
+      await act(async () => {});
+
+      expect(listerFor[kind]).toHaveBeenCalledWith({ namespace: "default" });
+      // Every other lister must stay untouched
+      for (const [otherKind, lister] of Object.entries(listerFor)) {
+        if (otherKind !== kind) expect(lister).not.toHaveBeenCalled();
+      }
+
+      const expectedLabelSelector = Object.entries(selector)
+        .map(([k, v]) => `${k}=${v}`)
+        .join(",");
+      expect(mockListPods).toHaveBeenCalledWith({
+        namespace: "default",
+        label_selector: expectedLabelSelector,
+      });
+    }
+  );
+
+  it("reports a kind-specific error when the workload is missing", async () => {
+    mockListStatefulsets.mockResolvedValue([]);
+
+    const { result } = renderHook(() => useWorkloadLogs("demo-db", "default", "statefulset"));
+    await act(async () => {});
+
+    expect(result.current.error?.message).toContain("StatefulSet demo-db not found");
+    expect(mockListPods).not.toHaveBeenCalled();
+  });
+
+  it("skips the pod query when the selector is empty", async () => {
+    mockListJobs.mockResolvedValue([
+      { name: "demo-migration", namespace: "default", selector: {} },
+    ]);
+
+    const { result } = renderHook(() =>
+      useWorkloadLogs("demo-migration", "default", "job")
+    );
+    await act(async () => {});
+
+    expect(mockListPods).not.toHaveBeenCalled();
+    expect(result.current.pods).toEqual([]);
+  });
+
+  it("defaults to deployment when no kind is given", async () => {
+    mockListDeployments.mockResolvedValue([
+      { name: "demo-web", namespace: "default", selector: { app: "demo-web" } },
+    ]);
+
+    renderHook(() => useWorkloadLogs("demo-web", "default"));
+    await act(async () => {});
+
+    expect(mockListDeployments).toHaveBeenCalled();
+  });
+});
+
+describe("supportsAggregatedLogs", () => {
+  it.each(["deployment", "statefulset", "daemonset", "replicaset", "job"])(
+    "accepts %s",
+    (kind) => {
+      expect(supportsAggregatedLogs(kind)).toBe(true);
+    }
+  );
+
+  // CronJobs own Jobs, not pods, so they need a second resolution hop.
+  it.each(["cronjob", "pod", "service", "configmap"])("rejects %s", (kind) => {
+    expect(supportsAggregatedLogs(kind)).toBe(false);
   });
 });

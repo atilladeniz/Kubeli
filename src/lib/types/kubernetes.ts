@@ -622,6 +622,8 @@ export interface DaemonSetInfo {
   created_at: string | null;
   labels: Record<string, string>;
   node_selector: Record<string, string>;
+  /** Pod selector from spec.selector — resolves the DaemonSet's pods */
+  selector: Record<string, string>;
 }
 
 // StatefulSet info
@@ -636,6 +638,8 @@ export interface StatefulSetInfo {
   service_name: string | null;
   created_at: string | null;
   labels: Record<string, string>;
+  /** Pod selector from spec.selector — resolves the StatefulSet's pods */
+  selector: Record<string, string>;
 }
 
 // Job info
@@ -654,6 +658,11 @@ export interface JobInfo {
   created_at: string | null;
   labels: Record<string, string>;
   status: string;
+  /**
+   * Pod selector from spec.selector — resolves the Job's pods. Normally the
+   * controller-generated `batch.kubernetes.io/controller-uid` label.
+   */
+  selector: Record<string, string>;
 }
 
 // CronJob info

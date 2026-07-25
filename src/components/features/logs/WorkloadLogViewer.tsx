@@ -2,7 +2,11 @@
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { AlertCircle, Layers, Maximize2 } from "lucide-react";
-import { useDeploymentLogs } from "@/lib/hooks/useDeploymentLogs";
+import {
+  useWorkloadLogs,
+  WORKLOAD_KIND_LABELS,
+  type WorkloadLogKind,
+} from "@/lib/hooks/useWorkloadLogs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -14,23 +18,26 @@ import type { TimestampMode } from "./types";
 
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 
-interface DeploymentLogViewerProps {
-  deploymentName: string;
+interface WorkloadLogViewerProps {
+  workloadName: string;
   namespace: string;
+  /** Workload type whose pods are aggregated; defaults to Deployment */
+  kind?: WorkloadLogKind;
   onOpenInTab?: (isCurrentlyStreaming: boolean) => void;
   autoStream?: boolean;
 }
 
 /**
- * Log viewer that aggregates logs from all pods in a deployment.
+ * Log viewer that aggregates logs from all pods in a workload.
  * Each log line is prefixed with pod name and color-coded per pod.
  */
-export function DeploymentLogViewer({
-  deploymentName,
+export function WorkloadLogViewer({
+  workloadName,
   namespace,
+  kind = "deployment",
   onOpenInTab,
   autoStream,
-}: DeploymentLogViewerProps) {
+}: WorkloadLogViewerProps) {
   const t = useTranslations();
 
   const {
@@ -46,7 +53,7 @@ export function DeploymentLogViewer({
     startStream,
     stopStream,
     clearLogs,
-  } = useDeploymentLogs(deploymentName, namespace);
+  } = useWorkloadLogs(workloadName, namespace, kind);
 
   // Display options state
   const [lineWrap, setLineWrap] = useState(true);
@@ -78,7 +85,7 @@ export function DeploymentLogViewer({
 
   useEffect(() => {
     resetFilters();
-  }, [namespace, deploymentName, resetFilters]);
+  }, [namespace, workloadName, kind, resetFilters]);
 
   // Auto-start streaming when opened from side panel with active stream
   const autoStreamTriggered = useRef(false);
@@ -101,7 +108,7 @@ export function DeploymentLogViewer({
   // Export and AI analysis operate on the pod-filtered set, so an active pod
   // filter narrows both — the visible logs are the ones that get exported.
   const { isDownloading, downloadLogs } = useLogDownload({
-    sourceName: deploymentName,
+    sourceName: workloadName,
     container: null,
     logs: podFilteredLogs,
     filteredLogs,
@@ -111,10 +118,10 @@ export function DeploymentLogViewer({
 
   const { isAICliAvailable, analyzeWithAI, sendSelectionToAI } = useLogAnalysis({
     namespace,
-    sourceName: deploymentName,
+    sourceName: workloadName,
     container: null,
     logs: filteredLogs,
-    workloadKind: "Deployment",
+    workloadKind: WORKLOAD_KIND_LABELS[kind],
     t,
   });
 
@@ -132,7 +139,7 @@ export function DeploymentLogViewer({
         <div className="flex items-center gap-3 min-w-0">
           <h3 className="font-medium truncate">
             <Layers className="inline size-4 mr-1.5 -mt-0.5" />
-            {t("logs.title")}: {deploymentName}
+            {t("logs.title")}: {workloadName}
           </h3>
           <Badge variant="secondary">{namespace}</Badge>
           {isStreaming && (

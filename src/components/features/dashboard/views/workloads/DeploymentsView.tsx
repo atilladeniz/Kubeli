@@ -17,7 +17,7 @@ import {
   type ContextMenuItemDef,
 } from "../../../resources/columns";
 import { useResourceDetail } from "../../context";
-import { useTabsStore } from "@/lib/stores/tabs-store";
+import { useOpenWorkloadLogsTab } from "@/lib/hooks/useOpenWorkloadLogsTab";
 import type { DeploymentInfo } from "@/lib/types";
 
 export function DeploymentsView() {
@@ -27,7 +27,7 @@ export function DeploymentsView() {
     refreshInterval: 30000,
   });
   const { openResourceDetail, handleDeleteFromContext, handleScaleFromContext } = useResourceDetail();
-  const openOrActivateTab = useTabsStore((s) => s.openOrActivateTab);
+  const openWorkloadLogsTab = useOpenWorkloadLogsTab();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const currentCluster = useClusterStore((s) => s.currentCluster);
@@ -50,17 +50,7 @@ export function DeploymentsView() {
     {
       label: t("logs.viewLogs"),
       icon: <FileText className="size-4" />,
-      onClick: () => {
-        const result = openOrActivateTab(
-          "deployment-logs",
-          `Logs: ${dep.name} (${dep.namespace})`,
-          { namespace: dep.namespace, deploymentName: dep.name },
-          (tab) => tab.type === "deployment-logs" &&
-            tab.metadata?.deploymentName === dep.name &&
-            tab.metadata?.namespace === dep.namespace,
-        );
-        if (result === null) toast.warning(t("tabs.limitToast"));
-      },
+      onClick: () => openWorkloadLogsTab("deployment", dep.name, dep.namespace),
     },
     {
       label: "Scale",

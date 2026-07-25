@@ -5,6 +5,10 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import {
   listPods,
   listDeployments,
+  listStatefulsets,
+  listDaemonsets,
+  listReplicasets,
+  listJobs,
   streamPodLogs,
   stopLogStream,
   watchPods,
@@ -38,7 +42,51 @@ export interface PodColorEntry {
   bg: string;
 }
 
-export interface UseDeploymentLogsReturn {
+/**
+ * Workload types whose pods can be aggregated into a single log view.
+ *
+ * CronJobs are absent on purpose: they own no pods directly, only Jobs, so
+ * they would need a second resolution hop through their children.
+ */
+export const AGGREGATED_LOG_WORKLOADS = [
+  "deployment",
+  "statefulset",
+  "daemonset",
+  "replicaset",
+  "job",
+] as const;
+
+export type WorkloadLogKind = (typeof AGGREGATED_LOG_WORKLOADS)[number];
+
+export function supportsAggregatedLogs(resourceType: string): resourceType is WorkloadLogKind {
+  return (AGGREGATED_LOG_WORKLOADS as readonly string[]).includes(resourceType);
+}
+
+/** Human-readable kind, used in AI prompts and view titles */
+export const WORKLOAD_KIND_LABELS: Record<WorkloadLogKind, string> = {
+  deployment: "Deployment",
+  statefulset: "StatefulSet",
+  daemonset: "DaemonSet",
+  replicaset: "ReplicaSet",
+  job: "Job",
+};
+
+/**
+ * Every supported workload exposes spec.selector.matchLabels as `selector`,
+ * so resolving its pods only differs by which lister to call.
+ */
+const WORKLOAD_LISTERS: Record<
+  WorkloadLogKind,
+  (namespace: string) => Promise<Array<{ name: string; selector: Record<string, string> }>>
+> = {
+  deployment: (namespace) => listDeployments({ namespace }),
+  statefulset: (namespace) => listStatefulsets({ namespace }),
+  daemonset: (namespace) => listDaemonsets({ namespace }),
+  replicaset: (namespace) => listReplicasets({ namespace }),
+  job: (namespace) => listJobs({ namespace }),
+};
+
+export interface UseWorkloadLogsReturn {
   logs: LogEntry[];
   pods: PodInfo[];
   podColorMap: Map<string, PodColorEntry>;
@@ -55,13 +103,14 @@ export interface UseDeploymentLogsReturn {
 }
 
 /**
- * Hook that aggregates logs from all pods belonging to a deployment.
+ * Hook that aggregates logs from all pods belonging to a workload.
  * Uses the Kubernetes watch API to keep the pod list in sync in real-time.
  */
-export function useDeploymentLogs(
-  deploymentName: string,
+export function useWorkloadLogs(
+  workloadName: string,
   namespace: string,
-): UseDeploymentLogsReturn {
+  kind: WorkloadLogKind = "deployment",
+): UseWorkloadLogsReturn {
   const [logs, setLogs] = useState<LogEntry[]>([]);
   const [pods, setPods] = useState<PodInfo[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -159,7 +208,7 @@ export function useDeploymentLogs(
     }, 150);
   }, [flushPending]);
 
-  /** Check if a pod matches the deployment's selector */
+  /** Check if a pod matches the workload's selector */
   const podMatchesSelector = useCallback((pod: PodInfo): boolean => {
     const selector = selectorRef.current;
     if (!selector || Object.keys(selector).length === 0) return false;
@@ -168,21 +217,23 @@ export function useDeploymentLogs(
     );
   }, []);
 
-  // Fetch deployment selector + initial pod list
+  // Fetch workload selector + initial pod list
   const fetchPods = useCallback(async () => {
     try {
-      const deployments = await listDeployments({ namespace });
-      const deployment = deployments.find((d) => d.name === deploymentName);
-      if (!deployment) {
+      const workloads = await WORKLOAD_LISTERS[kind](namespace);
+      const workload = workloads.find((w) => w.name === workloadName);
+      if (!workload) {
         if (mountedRef.current) {
-          setError(toKubeliError(`Deployment ${deploymentName} not found`));
+          setError(
+            toKubeliError(`${WORKLOAD_KIND_LABELS[kind]} ${workloadName} not found`)
+          );
         }
         return [];
       }
 
-      selectorRef.current = deployment.selector;
+      selectorRef.current = workload.selector;
 
-      const labelSelector = Object.entries(deployment.selector)
+      const labelSelector = Object.entries(workload.selector)
         .map(([k, v]) => `${k}=${v}`)
         .join(",");
 
@@ -205,7 +256,7 @@ export function useDeploymentLogs(
       }
       return [];
     }
-  }, [namespace, deploymentName]);
+  }, [namespace, workloadName, kind]);
 
   const stopAllStreams = useCallback(async () => {
     const streamIds = [...activeStreamIds.current];
@@ -253,7 +304,7 @@ export function useDeploymentLogs(
 
         for (const pod of currentPods) {
           if (!mountedRef.current) break;
-          const streamId = `deploy-logs-${namespace}-${deploymentName}-${pod.name}-${Date.now()}`;
+          const streamId = `workload-logs-${kind}-${namespace}-${workloadName}-${pod.name}-${Date.now()}`;
           streamIds.push(streamId);
 
           const eventName = `log-stream-${streamId}`;
@@ -324,7 +375,7 @@ export function useDeploymentLogs(
         }
       }
     },
-    [isStreaming, stopAllStreams, fetchPods, namespace, deploymentName, scheduleFlush, flushPending]
+    [isStreaming, stopAllStreams, fetchPods, namespace, workloadName, kind, scheduleFlush, flushPending]
   );
 
   const clearLogs = useCallback(() => {
@@ -346,7 +397,7 @@ export function useDeploymentLogs(
     mountedRef.current = true;
     fetchPods();
 
-    const watchId = `deploy-pods-${namespace}-${deploymentName}-${Date.now()}`;
+    const watchId = `workload-pods-${kind}-${namespace}-${workloadName}-${Date.now()}`;
     let watchUnlisten: UnlistenFn | null = null;
     let cancelled = false;
 
@@ -446,7 +497,7 @@ export function useDeploymentLogs(
         clearTimeout(flushTimerRef.current);
       }
     };
-  }, [fetchPods, namespace, deploymentName, podMatchesSelector]);
+  }, [fetchPods, namespace, workloadName, kind, podMatchesSelector]);
 
   return {
     logs,
