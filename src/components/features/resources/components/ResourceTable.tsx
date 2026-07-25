@@ -224,7 +224,7 @@ export function ResourceTable<T>({
     // can't renegotiate widths as rows scroll through the virtual window.
     <div
       ref={scrollRef}
-      className="h-full overflow-auto [overscroll-behavior:none]"
+      className="h-full overflow-auto overscroll-none"
     >
       {/* table-fixed only when columns declare widths: widths then come from the
           headers, not per-row content, so variable action buttons can't jitter
