@@ -425,6 +425,7 @@
     "reconcileSucceeded": "Reconciliation succeeded",
     "reconcileError": "Reconciliation failed",
     "reconcilePending": "Reconciliation still in progress",
+    "resultUnknown": "Could not verify the reconcile result",
     "resume": "Resume",
     "suspend": "Suspend",
     "kustomizationResumed": "Kustomization resumed",

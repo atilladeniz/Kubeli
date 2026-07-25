@@ -67,11 +67,14 @@ jest.mock("@/lib/hooks/useK8sResources", () => ({
 let capturedContextMenuItems:
   | ((k: FluxKustomizationInfo) => ContextMenuItemDef[])
   | undefined;
+let capturedData: FluxKustomizationInfo[] = [];
 jest.mock("../../../../resources/ResourceList", () => ({
   ResourceList: (props: {
+    data: FluxKustomizationInfo[];
     contextMenuItems?: (k: FluxKustomizationInfo) => ContextMenuItemDef[];
   }) => {
     capturedContextMenuItems = props.contextMenuItems;
+    capturedData = props.data;
     return null;
   },
 }));
@@ -184,5 +187,55 @@ describe("FluxKustomizationsView reconcile action", () => {
     expect(toast.success).toHaveBeenCalledWith("flux.reconcileTriggered", {
       description: "apps",
     });
+  });
+
+  it("reports when the result could not be verified instead of staying silent", async () => {
+    (waitFluxReconcile as jest.Mock).mockRejectedValue(new Error("connection lost"));
+
+    menuFor(false)
+      .find((i) => i.label === "flux.reconcile")!
+      .onClick();
+
+    await waitFor(() =>
+      expect(toast.info).toHaveBeenCalledWith("flux.resultUnknown", {
+        description: "apps",
+      })
+    );
+  });
+
+  it("disables reconcile actions while one is in flight", async () => {
+    // Keep the wait pending so the action stays in flight
+    (waitFluxReconcile as jest.Mock).mockImplementation(() => new Promise(() => {}));
+
+    menuFor(false)
+      .find((i) => i.label === "flux.reconcile")!
+      .onClick();
+    await waitFor(() =>
+      expect(reconcileFluxKustomization).toHaveBeenCalledTimes(1)
+    );
+
+    // The rebuilt menu disables both reconcile variants for this resource
+    await waitFor(() => {
+      const rebuilt = capturedContextMenuItems!(mockData[0]);
+      expect(rebuilt.find((i) => i.label === "flux.reconcile")!.disabled).toBe(true);
+      expect(
+        rebuilt.find((i) => i.label === "flux.reconcileWithSource")!.disabled
+      ).toBe(true);
+    });
+
+    // A second click while in flight is a no-op
+    capturedContextMenuItems!(mockData[0])
+      .find((i) => i.label === "flux.reconcile")!
+      .onClick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(reconcileFluxKustomization).toHaveBeenCalledTimes(1);
+  });
+
+  it("maps suspended resources to a suspended status for sort and search", () => {
+    menuFor(true);
+    expect(capturedData[0].status).toBe("suspended");
+
+    menuFor(false);
+    expect(capturedData[0].status).toBe("ready");
   });
 });

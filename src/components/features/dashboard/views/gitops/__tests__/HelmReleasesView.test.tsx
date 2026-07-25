@@ -74,11 +74,14 @@ jest.mock("@/lib/hooks/useK8sResources", () => ({
 let capturedContextMenuItems:
   | ((r: HelmReleaseInfo) => ContextMenuItemDef[])
   | undefined;
+let capturedData: HelmReleaseInfo[] = [];
 jest.mock("../../../../resources/ResourceList", () => ({
   ResourceList: (props: {
+    data: HelmReleaseInfo[];
     contextMenuItems?: (r: HelmReleaseInfo) => ContextMenuItemDef[];
   }) => {
     capturedContextMenuItems = props.contextMenuItems;
+    capturedData = props.data;
     return null;
   },
 }));
@@ -191,5 +194,41 @@ describe("HelmReleasesView Flux actions", () => {
 
     expect(items.find((i) => i.label === "flux.reconcile")).toBeUndefined();
     expect(items.find((i) => i.label === "flux.forgetRelease")).toBeDefined();
+  });
+
+  it("disables all reconcile variants while one is in flight", async () => {
+    (waitFluxReconcile as jest.Mock).mockImplementation(() => new Promise(() => {}));
+
+    menuFor(false)
+      .find((i) => i.label === "flux.forceReconcile")!
+      .onClick();
+    await waitFor(() => expect(forceFluxHelmRelease).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => {
+      const rebuilt = capturedContextMenuItems!(mockData[0]);
+      for (const label of [
+        "flux.reconcile",
+        "flux.reconcileWithSource",
+        "flux.forceReconcile",
+        "flux.resetRetries",
+      ]) {
+        expect(rebuilt.find((i) => i.label === label)!.disabled).toBe(true);
+      }
+    });
+
+    // A second click while in flight is a no-op
+    capturedContextMenuItems!(mockData[0])
+      .find((i) => i.label === "flux.resetRetries")!
+      .onClick();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(resetFluxHelmRelease).not.toHaveBeenCalled();
+  });
+
+  it("maps suspended releases to a suspended status for sort and search", () => {
+    menuFor(true);
+    expect(capturedData[0].status).toBe("suspended");
+
+    menuFor(false);
+    expect(capturedData[0].status).toBe("deployed");
   });
 });

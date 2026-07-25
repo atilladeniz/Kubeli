@@ -425,6 +425,7 @@
     "reconcileSucceeded": "Abgleich erfolgreich",
     "reconcileError": "Abgleich fehlgeschlagen",
     "reconcilePending": "Abgleich läuft noch",
+    "resultUnknown": "Abgleich-Ergebnis konnte nicht überprüft werden",
     "resume": "Fortsetzen",
     "suspend": "Pausieren",
     "kustomizationResumed": "Kustomization fortgesetzt",

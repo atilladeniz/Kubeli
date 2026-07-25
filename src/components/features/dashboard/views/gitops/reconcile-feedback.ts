@@ -17,7 +17,12 @@ export async function reportReconcileResult(
   try {
     result = await waitFluxReconcile(kind, name, namespace, token);
   } catch {
-    // Watching failed (connection lost etc.) — the auto-refresh will catch up
+    // Watching failed (persistent API errors) — say so instead of leaving the
+    // user with only the optimistic "triggered" toast
+    if (useClusterStore.getState().currentCluster?.context === startedOnContext) {
+      toast.info(t("flux.resultUnknown"), { description: name });
+      refresh();
+    }
     return;
   }
   // Don't toast stale results into another cluster's view

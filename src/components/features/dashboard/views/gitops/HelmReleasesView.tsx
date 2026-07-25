@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import {
   Copy,
@@ -54,11 +54,21 @@ export function HelmReleasesView() {
   const { openResourceDetail, handleDeleteFromContext, handleUninstallFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("last_deployed");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [inFlight, setInFlight] = useState<ReadonlySet<string>>(new Set());
 
   // Refresh when a resource is deleted from detail panel
   useRefreshOnDelete(refresh);
 
+  // Surface suspend in the status field so sorting and search match the badge
+  const rows = useMemo(
+    () => data.map((r) => (r.suspended ? { ...r, status: "suspended" as const } : r)),
+    [data]
+  );
+
   const runReconcile = async (release: HelmReleaseInfo, mode: ReconcileMode) => {
+    const key = `${release.namespace}/${release.name}`;
+    if (inFlight.has(key)) return;
+    setInFlight((prev) => new Set(prev).add(key));
     const context = useClusterStore.getState().currentCluster?.context;
     try {
       // Flux ignores reconcile requests while suspended, so resume first
@@ -85,11 +95,18 @@ export function HelmReleasesView() {
       );
     } catch (e) {
       toast.error(t("flux.reconcileFailed"), { description: String(e) });
+    } finally {
+      setInFlight((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
     }
   };
 
   const getHelmContextMenu = (release: HelmReleaseInfo): ContextMenuItemDef[] => {
     const items: ContextMenuItemDef[] = [];
+    const busy = inFlight.has(`${release.namespace}/${release.name}`);
 
     // View Details for all releases (different resource type based on managed_by)
     items.push({
@@ -109,21 +126,25 @@ export function HelmReleasesView() {
         label: release.suspended ? t("flux.resumeReconcile") : t("flux.reconcile"),
         icon: <RefreshCw className="size-4" />,
         onClick: () => runReconcile(release, "default"),
+        disabled: busy,
       });
       items.push({
         label: t("flux.reconcileWithSource"),
         icon: <GitBranch className="size-4" />,
         onClick: () => runReconcile(release, "withSource"),
+        disabled: busy,
       });
       items.push({
         label: t("flux.forceReconcile"),
         icon: <Zap className="size-4" />,
         onClick: () => runReconcile(release, "force"),
+        disabled: busy,
       });
       items.push({
         label: t("flux.resetRetries"),
         icon: <RotateCcw className="size-4" />,
         onClick: () => runReconcile(release, "reset"),
+        disabled: busy,
       });
       items.push(
         release.suspended
@@ -201,7 +222,7 @@ export function HelmReleasesView() {
   return (
     <ResourceList
       title={t("navigation.releases")}
-      data={data}
+      data={rows}
       columns={translateColumns(helmReleaseColumns, t)}
       isLoading={isLoading}
       error={error}

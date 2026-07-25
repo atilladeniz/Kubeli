@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Copy, Trash2, Eye, RefreshCw, Pause, Play, GitBranch } from "lucide-react";
 import { toast } from "sonner";
@@ -32,11 +32,21 @@ export function FluxKustomizationsView() {
   const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [inFlight, setInFlight] = useState<ReadonlySet<string>>(new Set());
 
   // Refresh when a resource is deleted from detail panel
   useRefreshOnDelete(refresh);
 
+  // Surface suspend in the status field so sorting and search match the badge
+  const rows = useMemo(
+    () => data.map((k) => (k.suspended ? { ...k, status: "suspended" as const } : k)),
+    [data]
+  );
+
   const runReconcile = async (k: FluxKustomizationInfo, withSource: boolean) => {
+    const key = `${k.namespace}/${k.name}`;
+    if (inFlight.has(key)) return;
+    setInFlight((prev) => new Set(prev).add(key));
     const context = useClusterStore.getState().currentCluster?.context;
     try {
       // Flux ignores reconcile requests while suspended, so resume first
@@ -62,6 +72,12 @@ export function FluxKustomizationsView() {
       );
     } catch (e) {
       toast.error(t("flux.reconcileFailed"), { description: String(e) });
+    } finally {
+      setInFlight((prev) => {
+        const next = new Set(prev);
+        next.delete(key);
+        return next;
+      });
     }
   };
 
@@ -76,11 +92,13 @@ export function FluxKustomizationsView() {
       label: k.suspended ? t("flux.resumeReconcile") : t("flux.reconcile"),
       icon: <RefreshCw className="size-4" />,
       onClick: () => runReconcile(k, false),
+      disabled: inFlight.has(`${k.namespace}/${k.name}`),
     },
     {
       label: t("flux.reconcileWithSource"),
       icon: <GitBranch className="size-4" />,
       onClick: () => runReconcile(k, true),
+      disabled: inFlight.has(`${k.namespace}/${k.name}`),
     },
     k.suspended
       ? {
@@ -146,7 +164,7 @@ export function FluxKustomizationsView() {
   return (
     <ResourceList
       title={t("flux.kustomizations")}
-      data={data}
+      data={rows}
       columns={fluxKustomizationColumns}
       isLoading={isLoading}
       error={error}

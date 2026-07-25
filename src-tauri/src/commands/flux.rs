@@ -118,7 +118,13 @@ fn parse_flux_kustomization(obj: DynamicObject) -> Option<FluxKustomizationInfo>
     let status = obj.data.get("status");
     let (ks_status, message, last_applied) = if let Some(status) = status {
         let ready = find_condition(status, "Ready");
-        let message = condition_message(ready);
+        let stalled = find_condition(status, "Stalled");
+        // The Stalled condition carries the actual root cause; Ready is the fallback
+        let message = if condition_status(stalled) == "True" {
+            condition_message(stalled).or_else(|| condition_message(ready))
+        } else {
+            condition_message(ready)
+        };
         let last_applied = status
             .get("lastAppliedRevision")
             .and_then(|v| v.as_str())
@@ -128,9 +134,7 @@ fn parse_flux_kustomization(obj: DynamicObject) -> Option<FluxKustomizationInfo>
         // Reconciling=True or Ready=Unknown means in progress
         let ks_status = match condition_status(ready) {
             "True" => FluxKustomizationStatus::Ready,
-            _ if condition_status(find_condition(status, "Stalled")) == "True" => {
-                FluxKustomizationStatus::Failed
-            }
+            _ if condition_status(stalled) == "True" => FluxKustomizationStatus::Failed,
             _ if condition_status(find_condition(status, "Reconciling")) == "True" => {
                 FluxKustomizationStatus::Reconciling
             }
@@ -238,30 +242,86 @@ async fn request_reconcile(
         .map_err(|e| format!("Failed to trigger reconciliation: {}", e))
 }
 
-/// Annotate a Flux source so it fetches upstream immediately.
-/// Newer Flux serves sources at v1; fall back to v1beta2 for older installs.
-async fn request_source_reconcile(
+/// GET a source across the API versions Flux serves (v1 first, then v1beta2
+/// for older installs)
+async fn get_source(
+    client: kube::Client,
+    kind: &str,
+    namespace: &str,
+    name: &str,
+) -> Result<(ApiResource, DynamicObject), String> {
+    for version in ["v1", "v1beta2"] {
+        let ar = source_ar(kind, version)?;
+        let api: Api<DynamicObject> = Api::namespaced_with(client.clone(), namespace, &ar);
+        match api.get(name).await {
+            Ok(obj) => return Ok((ar, obj)),
+            Err(kube::Error::Api(resp)) if resp.code == 404 => continue,
+            Err(e) => return Err(format!("Failed to get source {}/{}: {}", kind, name, e)),
+        }
+    }
+    Err(format!("Source {}/{} not found", kind, name))
+}
+
+/// Annotate a Flux source and wait until it has handled the request and is
+/// Ready, so the dependent resource reconciles against the fresh artifact
+/// instead of the previous one (mirrors `flux reconcile --with-source`).
+async fn reconcile_source_and_wait(
     client: kube::Client,
     kind: &str,
     namespace: &str,
     name: &str,
     token: &str,
 ) -> Result<(), String> {
+    let (ar, obj) = get_source(client.clone(), kind, namespace, name).await?;
+    let suspended = obj
+        .data
+        .get("spec")
+        .and_then(|s| s.get("suspend"))
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false);
+    if suspended {
+        return Err(format!(
+            "Source {}/{} is suspended — resume it first",
+            kind, name
+        ));
+    }
+
     let patch = json!({ "metadata": { "annotations": { REQUESTED_AT: token } } });
-    for version in ["v1", "v1beta2"] {
-        let ar = source_ar(kind, version)?;
-        match merge_patch(client.clone(), &ar, namespace, name, patch.clone()).await {
-            Ok(()) => return Ok(()),
-            Err(kube::Error::Api(resp)) if resp.code == 404 => continue,
+    merge_patch(client.clone(), &ar, namespace, name, patch)
+        .await
+        .map_err(|e| format!("Failed to reconcile source {}/{}: {}", kind, name, e))?;
+
+    let api: Api<DynamicObject> = Api::namespaced_with(client, namespace, &ar);
+    let mut consecutive_errors = 0;
+    for _ in 0..30 {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        match api.get(name).await {
+            Ok(obj) => {
+                consecutive_errors = 0;
+                if let Some(result) = reconcile_outcome(&obj.data, token) {
+                    if result.outcome == "succeeded" {
+                        return Ok(());
+                    }
+                    return Err(format!(
+                        "Source {}/{} failed: {}",
+                        kind,
+                        name,
+                        result.message.unwrap_or_default()
+                    ));
+                }
+            }
             Err(e) => {
-                return Err(format!(
-                    "Failed to reconcile source {}/{}: {}",
-                    kind, name, e
-                ));
+                consecutive_errors += 1;
+                if consecutive_errors >= 5 {
+                    return Err(format!("Failed to watch source {}/{}: {}", kind, name, e));
+                }
             }
         }
     }
-    Err(format!("Source {}/{} not found", kind, name))
+    Err(format!(
+        "Timed out waiting for source {}/{} to reconcile",
+        kind, name
+    ))
 }
 
 /// Read (kind, name, namespace) of a Kustomization's sourceRef
@@ -269,13 +329,35 @@ fn kustomization_source_ref(spec: &serde_json::Value) -> Option<(String, String,
     parse_source_ref(spec.get("sourceRef")?, "GitRepository")
 }
 
-/// Read (kind, name, namespace) of a HelmRelease's chart source:
-/// spec.chartRef if present, else spec.chart.spec.sourceRef
-fn helmrelease_source_ref(spec: &serde_json::Value) -> Option<(String, String, Option<String>)> {
-    let source_ref = spec
-        .get("chartRef")
-        .or_else(|| spec.get("chart")?.get("spec")?.get("sourceRef"))?;
-    parse_source_ref(source_ref, "HelmRepository")
+/// The source object to reconcile before a HelmRelease:
+/// spec.chartRef (OCIRepository or HelmChart) wins; otherwise the HelmChart
+/// generated from the chart template (recorded in status.helmChart), which is
+/// what actually feeds the release; the raw template sourceRef is only a
+/// fallback while no generated chart exists yet
+fn helmrelease_chart_source(data: &serde_json::Value) -> Option<(String, String, Option<String>)> {
+    let spec = data.get("spec")?;
+    if let Some(chart_ref) = spec.get("chartRef") {
+        return parse_source_ref(chart_ref, "OCIRepository");
+    }
+    if let Some(chart) = data
+        .get("status")
+        .and_then(|s| s.get("helmChart"))
+        .and_then(|v| v.as_str())
+    {
+        if let Some((ns, name)) = chart.split_once('/') {
+            if !ns.is_empty() && !name.is_empty() {
+                return Some((
+                    "HelmChart".to_string(),
+                    name.to_string(),
+                    Some(ns.to_string()),
+                ));
+            }
+        }
+    }
+    parse_source_ref(
+        spec.get("chart")?.get("spec")?.get("sourceRef")?,
+        "HelmRepository",
+    )
 }
 
 fn parse_source_ref(
@@ -354,7 +436,7 @@ pub async fn reconcile_flux_kustomization_with_source(
         .ok_or("Kustomization has no sourceRef")?;
 
     let token = chrono::Utc::now().to_rfc3339();
-    request_source_reconcile(
+    reconcile_source_and_wait(
         client.clone(),
         &kind,
         source_ns.as_deref().unwrap_or(&namespace),
@@ -432,21 +514,32 @@ pub async fn reconcile_flux_helmrelease_with_source(
         .get(&name)
         .await
         .map_err(|e| format!("Failed to get helm release: {}", e))?;
-    let (kind, source_name, source_ns) = obj
-        .data
-        .get("spec")
-        .and_then(helmrelease_source_ref)
-        .ok_or("HelmRelease has no chart source")?;
+    let (kind, source_name, source_ns) =
+        helmrelease_chart_source(&obj.data).ok_or("HelmRelease has no chart source")?;
+    let source_ns = source_ns.unwrap_or_else(|| namespace.clone());
 
     let token = chrono::Utc::now().to_rfc3339();
-    request_source_reconcile(
-        client.clone(),
-        &kind,
-        source_ns.as_deref().unwrap_or(&namespace),
-        &source_name,
-        &token,
-    )
-    .await?;
+    if kind == "HelmChart" {
+        // Reconcile the chart's upstream source first, then the chart itself,
+        // so the release picks up a freshly pulled chart version
+        let (_, chart) = get_source(client.clone(), &kind, &source_ns, &source_name).await?;
+        if let Some((upstream_kind, upstream_name, upstream_ns)) = chart
+            .data
+            .get("spec")
+            .and_then(|s| s.get("sourceRef"))
+            .and_then(|sr| parse_source_ref(sr, "HelmRepository"))
+        {
+            reconcile_source_and_wait(
+                client.clone(),
+                &upstream_kind,
+                upstream_ns.as_deref().unwrap_or(&source_ns),
+                &upstream_name,
+                &token,
+            )
+            .await?;
+        }
+    }
+    reconcile_source_and_wait(client.clone(), &kind, &source_ns, &source_name, &token).await?;
     request_reconcile(client, &ar, &namespace, &name, &token, None).await?;
     Ok(token)
 }
@@ -567,17 +660,43 @@ pub async fn wait_flux_reconcile(
         other => return Err(format!("Unsupported Flux kind: {}", other)),
     };
     let api: Api<DynamicObject> = Api::namespaced_with(client, &namespace, &ar);
+    let mut consecutive_errors = 0;
     for _ in 0..60 {
         tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-        let obj = api
-            .get(&name)
-            .await
-            .map_err(|e| format!("Failed to get {}: {}", kind, e))?;
-        if let Some(result) = reconcile_outcome(&obj.data, &token) {
-            return Ok(result);
+        match api.get(&name).await {
+            Ok(obj) => {
+                consecutive_errors = 0;
+                if let Some(result) = reconcile_outcome(&obj.data, &token) {
+                    return Ok(result);
+                }
+            }
+            // Tolerate transient API errors — only give up when they persist
+            Err(e) => {
+                consecutive_errors += 1;
+                if consecutive_errors >= 5 {
+                    return Err(format!("Failed to get {}: {}", kind, e));
+                }
+            }
         }
     }
     Ok(FluxReconcileResult::new("pending", None))
+}
+
+/// A request token counts as handled when the controller recorded it verbatim,
+/// or recorded a newer one (a concurrent request overwrote ours — the state we
+/// then observe is at least as fresh as what we asked for)
+fn token_handled(handled: Option<&str>, token: &str) -> bool {
+    let Some(handled) = handled else { return false };
+    if handled == token {
+        return true;
+    }
+    match (
+        chrono::DateTime::parse_from_rfc3339(handled),
+        chrono::DateTime::parse_from_rfc3339(token),
+    ) {
+        (Ok(handled), Ok(token)) => handled >= token,
+        _ => false,
+    }
 }
 
 /// None = keep waiting; Some = final outcome for this request token
@@ -588,7 +707,7 @@ fn reconcile_outcome(data: &serde_json::Value, token: &str) -> Option<FluxReconc
     let handled = status
         .get("lastHandledReconcileAt")
         .and_then(|v| v.as_str());
-    if handled != Some(token) {
+    if !token_handled(handled, token) {
         return None;
     }
     let stalled = find_condition(status, "Stalled");
@@ -642,24 +761,100 @@ mod tests {
     }
 
     #[test]
-    fn helmrelease_source_ref_prefers_chart_ref_over_chart_template() {
-        let spec = json!({
-            "chartRef": { "kind": "OCIRepository", "name": "podinfo-oci" },
-            "chart": { "spec": { "sourceRef": { "kind": "HelmRepository", "name": "podinfo" } } }
+    fn helmrelease_chart_source_prefers_chart_ref() {
+        let data = json!({
+            "spec": {
+                "chartRef": { "kind": "OCIRepository", "name": "podinfo-oci" },
+                "chart": { "spec": { "sourceRef": { "kind": "HelmRepository", "name": "podinfo" } } }
+            },
+            "status": { "helmChart": "flux-system/flux-system-podinfo" }
         });
         assert_eq!(
-            helmrelease_source_ref(&spec).unwrap().1,
-            "podinfo-oci".to_string()
+            helmrelease_chart_source(&data),
+            Some(("OCIRepository".to_string(), "podinfo-oci".to_string(), None))
         );
+    }
 
-        let template_only = json!({
-            "chart": { "spec": { "sourceRef": { "kind": "HelmRepository", "name": "podinfo" } } }
+    #[test]
+    fn helmrelease_chart_source_uses_generated_helm_chart_for_templates() {
+        // The generated HelmChart (status.helmChart) feeds the release, so a
+        // chart-template HelmRelease must reconcile that chain — not the
+        // HelmRepository directly
+        let data = json!({
+            "spec": {
+                "chart": { "spec": { "sourceRef": { "kind": "HelmRepository", "name": "podinfo" } } }
+            },
+            "status": { "helmChart": "flux-system/flux-system-podinfo" }
         });
         assert_eq!(
-            helmrelease_source_ref(&template_only),
+            helmrelease_chart_source(&data),
+            Some((
+                "HelmChart".to_string(),
+                "flux-system-podinfo".to_string(),
+                Some("flux-system".to_string())
+            ))
+        );
+    }
+
+    #[test]
+    fn helmrelease_chart_source_falls_back_to_template_source_ref() {
+        // No generated chart recorded yet (fresh HelmRelease without status)
+        let data = json!({
+            "spec": {
+                "chart": { "spec": { "sourceRef": { "kind": "HelmRepository", "name": "podinfo" } } }
+            }
+        });
+        assert_eq!(
+            helmrelease_chart_source(&data),
             Some(("HelmRepository".to_string(), "podinfo".to_string(), None))
         );
-        assert_eq!(helmrelease_source_ref(&json!({})), None);
+        assert_eq!(helmrelease_chart_source(&json!({})), None);
+    }
+
+    #[test]
+    fn token_handled_accepts_newer_concurrent_tokens() {
+        assert!(token_handled(
+            Some("2026-07-25T10:00:00+00:00"),
+            "2026-07-25T10:00:00+00:00"
+        ));
+        // A concurrent request overwrote ours with a newer token — ours is
+        // implicitly handled, the wait must not report a false "pending"
+        assert!(token_handled(
+            Some("2026-07-25T10:00:05+00:00"),
+            "2026-07-25T10:00:00+00:00"
+        ));
+        // Different timezone offsets still compare correctly
+        assert!(token_handled(
+            Some("2026-07-25T12:00:05+02:00"),
+            "2026-07-25T10:00:00+00:00"
+        ));
+        assert!(!token_handled(
+            Some("2026-07-25T09:59:59+00:00"),
+            "2026-07-25T10:00:00+00:00"
+        ));
+        assert!(!token_handled(None, "2026-07-25T10:00:00+00:00"));
+        assert!(!token_handled(
+            Some("not-a-timestamp"),
+            "2026-07-25T10:00:00+00:00"
+        ));
+    }
+
+    #[test]
+    fn parse_flux_kustomization_keeps_stalled_root_cause_as_message() {
+        let mut obj = DynamicObject::new("apps", &kustomization_ar());
+        obj.metadata.namespace = Some("flux-system".to_string());
+        obj.data = json!({
+            "spec": { "path": "./apps", "interval": "10m" },
+            "status": {
+                "conditions": [
+                    { "type": "Stalled", "status": "True", "message": "retries exhausted" },
+                    { "type": "Ready", "status": "False", "message": "generic failure" }
+                ]
+            }
+        });
+        let info = parse_flux_kustomization(obj).unwrap();
+        assert_eq!(info.status, FluxKustomizationStatus::Failed);
+        assert_eq!(info.message.as_deref(), Some("retries exhausted"));
     }
 
     #[test]
