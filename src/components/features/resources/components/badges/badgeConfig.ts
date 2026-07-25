@@ -123,9 +123,9 @@ export const jobStatusConfig = {
 
 export const fluxStatusConfig = {
   ready: { tone: "success", label: { namespace: "common", key: "ready" } },
-  notready: { tone: "warning", label: { namespace: "common", key: "notReady" } },
   reconciling: { tone: "info", label: { namespace: "common", key: "reconciling" } },
   failed: { tone: "danger", label: { namespace: "workloads", key: "failed" } },
+  suspended: { tone: "warning", label: { namespace: "workloads", key: "suspended" } },
   unknown: { tone: "neutral", label: { namespace: "common", key: "unknown" } },
 } as const satisfies Record<string, StatusBadgeConfig>;
 

@@ -42,7 +42,13 @@ export const helmReleaseColumns: Column<HelmReleaseInfo>[] = [
     key: "status",
     label: "STATUS",
     sortable: true,
-    render: (r) => <HelmStatusBadge status={r.status} />,
+    // Suspend doesn't change the Helm status, so surface it explicitly
+    render: (r) =>
+      r.suspended ? (
+        <FluxKustomizationStatusBadge status="suspended" />
+      ) : (
+        <HelmStatusBadge status={r.status} />
+      ),
   },
   {
     key: "chart",
@@ -108,7 +114,12 @@ export function getHelmReleaseColumns(t: TranslateFunc): Column<HelmReleaseInfo>
       key: "status",
       label: t("columns.status"),
       sortable: true,
-      render: (r) => <HelmStatusBadge status={r.status} />,
+      render: (r) =>
+        r.suspended ? (
+          <FluxKustomizationStatusBadge status="suspended" />
+        ) : (
+          <HelmStatusBadge status={r.status} />
+        ),
     },
     {
       key: "chart",
@@ -161,7 +172,10 @@ export const fluxKustomizationColumns: Column<FluxKustomizationInfo>[] = [
     key: "status",
     label: "STATUS",
     sortable: true,
-    render: (k) => <FluxKustomizationStatusBadge status={k.status} />,
+    // Suspend doesn't change the Ready condition, so surface it explicitly
+    render: (k) => (
+      <FluxKustomizationStatusBadge status={k.suspended ? "suspended" : k.status} />
+    ),
   },
   {
     key: "path",
