@@ -2,6 +2,18 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.83] - 2026-07-25
+
+- Added Trigger, Suspend, and Resume actions for CronJobs, with an Edit & Trigger flow to review the generated Job YAML before creating it
+- Added ServiceAccount links and scheduling information to the Pod detail view
+- Added clickable links for URL annotations
+- Improved Flux reconcile with source selection, force, reset, and result feedback, and resumed suspended resources before reconciling
+- Fixed pod list scroll jitter by measuring real row heights
+- Fixed the default namespace setting not being applied on cluster connect
+- Fixed small UI issues with table sizing, hover response, and static tabs
+- Updated dompurify, postcss, and js-yaml past security advisories
+- Pinned the sccache version in CI and renamed the SignPath upload artifact
+
 ## [0.3.82] - 2026-07-21
 
 - Kept port forwards alive when switching clusters and in the all-clusters view
