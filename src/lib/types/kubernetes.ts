@@ -1219,7 +1219,6 @@ export interface HelmReleaseDetail {
 // Flux Kustomization types
 export type FluxKustomizationStatus =
   | "ready"
-  | "notready"
   | "reconciling"
   | "failed"
   | "unknown";
