@@ -13,6 +13,7 @@ import {
 import type { LogEntry, LogOptions, LogEvent, PodInfo, WatchEvent } from "../types";
 import { type KubeliError, toKubeliError } from "../types/errors";
 import { useUIStore } from "../stores/ui-store";
+import { stampSeq } from "../stores/log-seq";
 
 /**
  * Explicit text + bg color pairs to avoid Tailwind purge issues.
@@ -262,11 +263,11 @@ export function useDeploymentLogs(
 
             switch (logEvent.type) {
               case "Line":
-                pendingLogsRef.current.push(logEvent.data);
+                pendingLogsRef.current.push(stampSeq(logEvent.data));
                 scheduleFlush();
                 break;
               case "Lines":
-                pendingLogsRef.current.push(...logEvent.data);
+                pendingLogsRef.current.push(...logEvent.data.map(stampSeq));
                 scheduleFlush();
                 break;
               case "Error":
