@@ -6,7 +6,7 @@ use k8s_openapi::api::admissionregistration::v1::{
     MutatingWebhookConfiguration, ValidatingWebhookConfiguration,
 };
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
-use k8s_openapi::api::autoscaling::v2::HorizontalPodAutoscaler;
+use k8s_openapi::api::autoscaling::v2::{HorizontalPodAutoscaler, MetricSpec, MetricStatus};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::ServiceAccount;
@@ -2980,6 +2980,72 @@ pub struct HPAInfo {
     pub labels: HashMap<String, String>,
 }
 
+fn hpa_metric_target(metric: MetricSpec) -> HPAMetricTarget {
+    let metric_type = metric.type_.clone();
+    match metric_type.as_str() {
+        "Resource" => {
+            let resource = metric.resource.unwrap_or_default();
+            HPAMetricTarget {
+                metric_type,
+                metric_name: Some(resource.name),
+                average_utilization: resource.target.average_utilization,
+                average_value: resource.target.average_value.map(|q| q.0),
+                value: resource.target.value.map(|q| q.0),
+            }
+        }
+        "ContainerResource" => {
+            let resource = metric.container_resource.unwrap_or_default();
+            HPAMetricTarget {
+                metric_type,
+                metric_name: Some(format!("{}/{}", resource.container, resource.name)),
+                average_utilization: resource.target.average_utilization,
+                average_value: resource.target.average_value.map(|q| q.0),
+                value: resource.target.value.map(|q| q.0),
+            }
+        }
+        _ => HPAMetricTarget {
+            metric_type,
+            metric_name: None,
+            average_utilization: None,
+            average_value: None,
+            value: None,
+        },
+    }
+}
+
+fn hpa_metric_status(metric: MetricStatus) -> HPAMetricStatus {
+    let metric_type = metric.type_.clone();
+    match metric_type.as_str() {
+        "Resource" => {
+            let resource = metric.resource.unwrap_or_default();
+            HPAMetricStatus {
+                metric_type,
+                metric_name: Some(resource.name),
+                current_average_utilization: resource.current.average_utilization,
+                current_average_value: resource.current.average_value.map(|q| q.0),
+                current_value: resource.current.value.map(|q| q.0),
+            }
+        }
+        "ContainerResource" => {
+            let resource = metric.container_resource.unwrap_or_default();
+            HPAMetricStatus {
+                metric_type,
+                metric_name: Some(format!("{}/{}", resource.container, resource.name)),
+                current_average_utilization: resource.current.average_utilization,
+                current_average_value: resource.current.average_value.map(|q| q.0),
+                current_value: resource.current.value.map(|q| q.0),
+            }
+        }
+        _ => HPAMetricStatus {
+            metric_type,
+            metric_name: None,
+            current_average_utilization: None,
+            current_average_value: None,
+            current_value: None,
+        },
+    }
+}
+
 /// List all HPAs
 #[command]
 pub async fn list_hpas(
@@ -3017,56 +3083,14 @@ pub async fn list_hpas(
                 .metrics
                 .unwrap_or_default()
                 .into_iter()
-                .map(|m| {
-                    let metric_type = m.type_.clone();
-                    match metric_type.as_str() {
-                        "Resource" => {
-                            let resource = m.resource.unwrap_or_default();
-                            HPAMetricTarget {
-                                metric_type,
-                                metric_name: Some(resource.name),
-                                average_utilization: resource.target.average_utilization,
-                                average_value: resource.target.average_value.map(|q| q.0),
-                                value: resource.target.value.map(|q| q.0),
-                            }
-                        }
-                        _ => HPAMetricTarget {
-                            metric_type,
-                            metric_name: None,
-                            average_utilization: None,
-                            average_value: None,
-                            value: None,
-                        },
-                    }
-                })
+                .map(hpa_metric_target)
                 .collect();
 
             let current_metrics: Vec<HPAMetricStatus> = status
                 .current_metrics
                 .unwrap_or_default()
                 .into_iter()
-                .map(|m| {
-                    let metric_type = m.type_.clone();
-                    match metric_type.as_str() {
-                        "Resource" => {
-                            let resource = m.resource.unwrap_or_default();
-                            HPAMetricStatus {
-                                metric_type,
-                                metric_name: Some(resource.name),
-                                current_average_utilization: resource.current.average_utilization,
-                                current_average_value: resource.current.average_value.map(|q| q.0),
-                                current_value: resource.current.value.map(|q| q.0),
-                            }
-                        }
-                        _ => HPAMetricStatus {
-                            metric_type,
-                            metric_name: None,
-                            current_average_utilization: None,
-                            current_average_value: None,
-                            current_value: None,
-                        },
-                    }
-                })
+                .map(hpa_metric_status)
                 .collect();
 
             let conditions: Vec<String> = status
@@ -4518,6 +4542,64 @@ pub async fn list_validating_webhooks(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hpa_container_resource_metrics_keep_utilization_and_container_identity() {
+        use k8s_openapi::api::autoscaling::v2::{
+            ContainerResourceMetricSource, ContainerResourceMetricStatus, MetricTarget,
+            MetricValueStatus,
+        };
+
+        let target = hpa_metric_target(MetricSpec {
+            type_: "ContainerResource".to_string(),
+            container_resource: Some(ContainerResourceMetricSource {
+                container: "api".to_string(),
+                name: "cpu".to_string(),
+                target: MetricTarget {
+                    average_utilization: Some(75),
+                    type_: "Utilization".to_string(),
+                    ..Default::default()
+                },
+            }),
+            ..Default::default()
+        });
+        let current = hpa_metric_status(MetricStatus {
+            type_: "ContainerResource".to_string(),
+            container_resource: Some(ContainerResourceMetricStatus {
+                container: "api".to_string(),
+                name: "cpu".to_string(),
+                current: MetricValueStatus {
+                    average_utilization: Some(60),
+                    ..Default::default()
+                },
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(target.metric_name.as_deref(), Some("api/cpu"));
+        assert_eq!(target.average_utilization, Some(75));
+        assert_eq!(current.metric_name.as_deref(), Some("api/cpu"));
+        assert_eq!(current.current_average_utilization, Some(60));
+    }
+
+    #[test]
+    fn hpa_container_resource_metric_identity_distinguishes_containers() {
+        use k8s_openapi::api::autoscaling::v2::{ContainerResourceMetricSource, MetricTarget};
+
+        let metric = |container: &str| {
+            hpa_metric_target(MetricSpec {
+                type_: "ContainerResource".to_string(),
+                container_resource: Some(ContainerResourceMetricSource {
+                    container: container.to_string(),
+                    name: "cpu".to_string(),
+                    target: MetricTarget::default(),
+                }),
+                ..Default::default()
+            })
+        };
+
+        assert_ne!(metric("api").metric_name, metric("sidecar").metric_name);
+    }
 
     #[test]
     fn manual_job_keeps_template_metadata_and_respects_name_limit() {
