@@ -16,6 +16,58 @@ use tokio::sync::RwLock;
 
 use super::config::KubeConfig as ParsedKubeConfig;
 
+/// Builds a kube client, optionally injecting the OIDC token per request.
+///
+/// Without `oidc`, this is exactly `Client::try_from` — the default stack for
+/// exec plugins, client certificates and static tokens is untouched.
+///
+/// With it, the layer sits on top of that same default stack. Kubeli's native
+/// OIDC path leaves `auth_info.token` unset, so kube-rs resolves `Auth::None`
+/// and installs no auth layer of its own; ours is the only one, and it reads
+/// the current token on every request rather than capturing one at build time.
+pub(crate) fn build_client(
+    config: Config,
+    oidc: Option<(
+        Arc<crate::oidc::commands::OidcState>,
+        crate::oidc::config::OidcExecConfig,
+    )>,
+) -> std::result::Result<Client, kube::Error> {
+    let Some((state, oidc_config)) = oidc else {
+        return Client::try_from(config);
+    };
+
+    // Rebuild kube's default stack with our layer in the auth slot. Mirrors
+    // kube_client::client::builder::make_generic_builder; the only difference
+    // is which auth layer goes in. Kubeli's native OIDC path leaves
+    // auth_info.token unset, so config.auth_layer() would resolve to None here.
+    use kube::client::ConfigExt;
+    use tower::ServiceBuilder;
+
+    let mut http_connector = hyper_util::client::legacy::connect::HttpConnector::new();
+    http_connector.enforce_http(false);
+
+    let https = config.rustls_https_connector_with_connector(http_connector)?;
+    let mut connector = hyper_timeout::TimeoutConnector::new(https);
+    // Same timeout policy as apply_shared_client_timeouts: no read/write
+    // timeout, or long-lived log and exec streams get cut (issue #292).
+    connector.set_connect_timeout(config.connect_timeout);
+    connector.set_read_timeout(config.read_timeout);
+    connector.set_write_timeout(config.write_timeout);
+
+    let hyper_client: hyper_util::client::legacy::Client<_, kube::client::Body> =
+        hyper_util::client::legacy::Builder::new(hyper_util::rt::TokioExecutor::new())
+            .build(connector);
+
+    let injector = crate::oidc::auth_layer::OidcTokenInjector::new(state, oidc_config);
+    let service = ServiceBuilder::new()
+        .layer(config.base_uri_layer())
+        .layer(tower::filter::AsyncFilterLayer::new(injector))
+        .layer(config.extra_headers_layer()?)
+        .service(hyper_client);
+
+    Ok(kube::client::ClientBuilder::new(service, config.default_namespace).build())
+}
+
 /// Apply timeout policy for the shared Kubernetes client.
 ///
 /// `read_timeout` and `write_timeout` are intentionally left unset: in
@@ -183,6 +235,12 @@ impl KubeClientManager {
         context_name: &str,
         kubeconfig: Kubeconfig,
         source_file: Option<&str>,
+        // Set for Kubeli's native OIDC path: the client then reads the token per
+        // request instead of having one baked in at construction.
+        oidc: Option<(
+            Arc<crate::oidc::commands::OidcState>,
+            crate::oidc::config::OidcExecConfig,
+        )>,
     ) -> Result<()> {
         tracing::info!("Attempting to connect to context: {}", context_name);
         let attempt_start = Instant::now();
@@ -294,7 +352,7 @@ impl KubeClientManager {
             context_name
         );
 
-        let client = match Client::try_from(config) {
+        let client = match build_client(config, oidc) {
             Ok(client) => {
                 steps.push("Kubernetes client created successfully".into());
                 client
@@ -343,7 +401,7 @@ impl KubeClientManager {
         kubeconfig: Kubeconfig,
         source_file: Option<&str>,
     ) -> Result<()> {
-        self.init_with_context(context_name, kubeconfig, source_file)
+        self.init_with_context(context_name, kubeconfig, source_file, None)
             .await
     }
 
@@ -555,6 +613,7 @@ users:
                 "does-not-exist",
                 test_kubeconfig("https://127.0.0.1:1"),
                 None,
+                None,
             )
             .await;
         assert!(result.is_err());
@@ -569,7 +628,12 @@ users:
         let manager = KubeClientManager::new();
         // init succeeds (no I/O yet) even though nothing listens on port 1
         manager
-            .init_with_context("test-ctx", test_kubeconfig("https://127.0.0.1:1"), None)
+            .init_with_context(
+                "test-ctx",
+                test_kubeconfig("https://127.0.0.1:1"),
+                None,
+                None,
+            )
             .await
             .expect("client creation is offline");
         assert!(manager.is_connected().await);
@@ -650,7 +714,7 @@ users:
 
         let kubeconfig = test_kubeconfig_two_contexts();
         manager
-            .init_with_context("ctx-a", kubeconfig.clone(), None)
+            .init_with_context("ctx-a", kubeconfig.clone(), None, None)
             .await
             .expect("client creation is offline");
 
@@ -661,7 +725,7 @@ users:
                 for i in 0..50 {
                     let ctx = if i % 2 == 0 { "ctx-b" } else { "ctx-a" };
                     manager
-                        .init_with_context(ctx, kubeconfig.clone(), None)
+                        .init_with_context(ctx, kubeconfig.clone(), None, None)
                         .await
                         .expect("client creation is offline");
                 }
