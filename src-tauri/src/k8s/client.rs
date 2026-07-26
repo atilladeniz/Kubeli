@@ -3,9 +3,12 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
 use dirs::home_dir;
+use http::{header::HeaderMap, Request, Response};
+use hyper::body::Incoming;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{
     api::ListParams,
+    client::retry::RetryPolicy,
     config::{KubeConfigOptions, Kubeconfig},
     Api, Client, Config,
 };
@@ -13,6 +16,9 @@ use std::env;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
+use tower::retry::RetryLayer;
+use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
+use tracing::Span;
 
 use super::config::KubeConfig as ParsedKubeConfig;
 
@@ -61,8 +67,57 @@ pub(crate) fn build_client(
     let injector = crate::oidc::auth_layer::OidcTokenInjector::new(state, oidc_config);
     let service = ServiceBuilder::new()
         .layer(config.base_uri_layer())
+        .option_layer(
+            config
+                .default_retry
+                .then_some(RetryLayer::new(RetryPolicy::server_retry())),
+        )
         .layer(tower::filter::AsyncFilterLayer::new(injector))
         .layer(config.extra_headers_layer()?)
+        .layer(
+            TraceLayer::new_for_http()
+                .make_span_with(|req: &Request<kube::client::Body>| {
+                    tracing::debug_span!(
+                        "HTTP",
+                        http.method = %req.method(),
+                        http.url = %req.uri(),
+                        http.status_code = tracing::field::Empty,
+                        otel.name = req.extensions().get::<&'static str>().unwrap_or(&"HTTP"),
+                        otel.kind = "client",
+                        otel.status_code = tracing::field::Empty,
+                    )
+                })
+                .on_request(|_req: &Request<kube::client::Body>, _span: &Span| {
+                    tracing::debug!("requesting");
+                })
+                .on_response(
+                    |res: &Response<Incoming>, _latency: Duration, span: &Span| {
+                        let status = res.status();
+                        span.record("http.status_code", status.as_u16());
+                        if status.is_client_error() || status.is_server_error() {
+                            span.record("otel.status_code", "ERROR");
+                        }
+                    },
+                )
+                .on_body_chunk(())
+                .on_eos(|_: Option<&HeaderMap>, _duration: Duration, _span: &Span| {
+                    tracing::debug!("stream closed");
+                })
+                .on_failure(
+                    |failure: ServerErrorsFailureClass, _latency: Duration, span: &Span| {
+                        span.record("otel.status_code", "ERROR");
+                        match failure {
+                            ServerErrorsFailureClass::StatusCode(status) => {
+                                span.record("http.status_code", status.as_u16());
+                                tracing::error!("failed with status {}", status);
+                            }
+                            ServerErrorsFailureClass::Error(error) => {
+                                tracing::error!("failed with error {}", error);
+                            }
+                        }
+                    },
+                ),
+        )
         .service(hyper_client);
 
     Ok(kube::client::ClientBuilder::new(service, config.default_namespace).build())
@@ -544,6 +599,10 @@ impl Default for AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::oidc::{config::OidcExecConfig, store::OidcTokens};
+    use chrono::{Duration as ChronoDuration, Utc};
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[test]
     fn test_path_hint_prefers_source_file() {
@@ -579,6 +638,64 @@ mod tests {
             config.write_timeout.is_none(),
             "write_timeout must be unset so idle exec sessions are not torn down (issue #292)"
         );
+    }
+
+    #[tokio::test]
+    async fn oidc_client_retries_transient_server_errors() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
+        let address = listener.local_addr().expect("test server address");
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let server_attempts = Arc::clone(&attempts);
+
+        let server = tokio::spawn(async move {
+            for status in ["503 Service Unavailable", "200 OK"] {
+                let (mut stream, _) = listener.accept().await.expect("accept request");
+                let mut request = vec![0; 4096];
+                stream.read(&mut request).await.expect("read request");
+                server_attempts.fetch_add(1, Ordering::SeqCst);
+
+                let body = if status == "200 OK" { "ok" } else { "" };
+                let response = format!(
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                stream
+                    .write_all(response.as_bytes())
+                    .await
+                    .expect("write response");
+            }
+        });
+
+        let oidc_config = OidcExecConfig {
+            issuer_url: "https://idp.test".to_string(),
+            client_id: "kubeli".to_string(),
+            ..Default::default()
+        };
+        let state = Arc::new(crate::oidc::commands::OidcState::default());
+        state.token_store.store_tokens(
+            &oidc_config.issuer_url,
+            &oidc_config.client_id,
+            OidcTokens {
+                id_token: "test-token".to_string(),
+                refresh_token: None,
+                expires_at: Utc::now() + ChronoDuration::hours(1),
+            },
+        );
+
+        let config = Config::new(format!("http://{address}").parse().unwrap());
+        assert!(config.default_retry, "kube defaults retries to enabled");
+        let client = build_client(config, Some((state, oidc_config))).expect("build OIDC client");
+        let body = client
+            .request_text(Request::get("/api/v1/namespaces").body(Vec::new()).unwrap())
+            .await
+            .expect("503 should be retried");
+
+        assert_eq!(body, "ok");
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        server.await.expect("test server completes");
     }
 
     fn test_kubeconfig(server: &str) -> Kubeconfig {
