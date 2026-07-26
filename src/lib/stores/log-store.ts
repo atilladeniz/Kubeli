@@ -257,6 +257,41 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
     if (!tab || tab.isStreaming || startingStreams.has(tabId)) return;
     startingStreams.add(tabId);
 
+    // A since_seconds resume deliberately overlaps the last received second so
+    // no lines are lost around the disconnect. Drop replayed lines up to the
+    // last timestamp already on screen; once a newer timestamp arrives, the
+    // stream is live again and no filtering is needed.
+    const lastTimestamp = sinceSeconds !== undefined ? tab.logs.at(-1)?.timestamp : null;
+    let resumeAfterMs = lastTimestamp ? new Date(lastTimestamp).getTime() : Number.NaN;
+    const boundaryEntries = new Map<string, number>();
+    const entryKey = (entry: LogEntry) =>
+      `${entry.timestamp}\0${entry.container}\0${entry.pod}\0${entry.namespace}\0${entry.message}`;
+    if (Number.isFinite(resumeAfterMs)) {
+      for (const entry of tab.logs) {
+        if (!entry.timestamp || new Date(entry.timestamp).getTime() !== resumeAfterMs) continue;
+        const key = entryKey(entry);
+        boundaryEntries.set(key, (boundaryEntries.get(key) ?? 0) + 1);
+      }
+    }
+    const shouldAppend = (entry: LogEntry): boolean => {
+      if (!Number.isFinite(resumeAfterMs) || !entry.timestamp) return true;
+      const timestampMs = new Date(entry.timestamp).getTime();
+      if (!Number.isFinite(timestampMs)) return true;
+      if (timestampMs < resumeAfterMs) return false;
+      if (timestampMs === resumeAfterMs) {
+        const key = entryKey(entry);
+        const remaining = boundaryEntries.get(key) ?? 0;
+        if (remaining > 0) {
+          boundaryEntries.set(key, remaining - 1);
+          return false;
+        }
+        return true;
+      }
+      resumeAfterMs = Number.NaN;
+      boundaryEntries.clear();
+      return true;
+    };
+
     // Stop existing stream if any
     if (tab.streamId) {
       await get().stopStream(tabId);
@@ -281,6 +316,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
 
         switch (logEvent.type) {
           case "Line": {
+            if (!shouldAppend(logEvent.data)) break;
             let pending = pendingLogs.get(tabId);
             if (!pending) {
               pending = [];
@@ -297,7 +333,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
               pendingLogs.set(tabId, pending);
             }
             for (const entry of logEvent.data) {
-              pending.push(stampSeq(entry));
+              if (shouldAppend(entry)) pending.push(stampSeq(entry));
             }
             scheduleFlush(tabId, set);
             break;

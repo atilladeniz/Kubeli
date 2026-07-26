@@ -1,4 +1,5 @@
 import { useLogStore, type LogTabState } from "../log-store";
+import { listen } from "@tauri-apps/api/event";
 
 // Mock Tauri commands
 const mockStreamPodLogs = jest.fn();
@@ -110,6 +111,55 @@ describe("log-store stream resume", () => {
     await useLogStore.getState().startStream("tab1", "default", "my-pod");
 
     expect(useLogStore.getState().logTabs.tab1.ended).toBeNull();
+  });
+
+  it("drops overlap replayed by a since-seconds reconnect", async () => {
+    const existing = {
+      timestamp: "2026-07-26T10:00:01.500Z",
+      message: "already visible",
+      container: "app",
+      pod: "my-pod",
+      namespace: "default",
+    };
+    useLogStore.setState({
+      logTabs: {
+        tab1: { ...makeTabState(), logs: [existing] },
+      },
+    });
+
+    await useLogStore
+      .getState()
+      .startStream("tab1", "default", "my-pod", undefined, undefined, 2);
+
+    const listener = (listen as jest.Mock).mock.calls.at(-1)?.[1] as
+      | ((event: { payload: unknown }) => void)
+      | undefined;
+    expect(listener).toBeDefined();
+
+    listener!({
+      payload: {
+        type: "Lines",
+        data: [
+          existing,
+          { ...existing, message: "new line at same timestamp" },
+          { ...existing, timestamp: "2026-07-26T10:00:01.750Z", message: "gap line" },
+          { ...existing, timestamp: "2026-07-26T10:00:02.000Z", message: "live line" },
+        ],
+      },
+    });
+    listener!({
+      payload: {
+        type: "Ended",
+        data: { stream_id: "stream", reason: null },
+      },
+    });
+
+    expect(useLogStore.getState().logTabs.tab1.logs.map((log) => log.message)).toEqual([
+      "already visible",
+      "new line at same timestamp",
+      "gap line",
+      "live line",
+    ]);
   });
 });
 
