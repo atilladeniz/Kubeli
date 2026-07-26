@@ -1285,5 +1285,22 @@
     "cancel": "Abbrechen",
     "closeConfirm": "Schließen",
     "dontAskAgain": "Nicht mehr fragen"
+  },
+  "secrets": {
+    "certificate": "Zertifikat",
+    "certSubject": "Antragsteller",
+    "certIssuer": "Aussteller",
+    "certSerial": "Seriennummer",
+    "certValidFrom": "Gültig ab",
+    "certValidTo": "Gültig bis",
+    "certSignatureAlgorithm": "Signaturalgorithmus",
+    "certSans": "Alternative Antragstellernamen",
+    "certValid": "Gültig",
+    "certExpired": "Abgelaufen",
+    "certNotYetValid": "Noch nicht gültig",
+    "certExpiresInDays": "Läuft in {days} Tagen ab",
+    "certLeaf": "Blatt",
+    "certIntermediate": "Zwischenzertifikat",
+    "certParseError": "Dieses Zertifikat konnte nicht gelesen werden."
   }
 }

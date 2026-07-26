@@ -15,3 +15,4 @@ export * from "./commands/ai";
 export * from "./commands/mcp";
 export * from "./commands/oidc";
 export * from "./commands/deeplinks";
+export * from "./commands/certificates";
