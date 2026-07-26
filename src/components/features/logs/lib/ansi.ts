@@ -7,9 +7,13 @@
  * stripped rather than interpreted — a log viewer has no cursor to move.
  */
 
-/** Matches any CSI sequence, e.g. \x1b[1;31m or \x1b[2K */
+/**
+ * Matches any CSI sequence: parameter bytes, optional intermediate bytes and
+ * one final byte. This includes private modes such as \x1b[?25l and
+ * non-letter final bytes such as \x1b[1~.
+ */
 // eslint-disable-next-line no-control-regex
-const CSI_PATTERN = /\x1b\[[0-9;:]*[A-Za-z]/g;
+const CSI_PATTERN = /\x1b\[[\x30-\x3f]*[\x20-\x2f]*[\x40-\x7e]/g;
 
 /** Matches OSC sequences terminated by BEL or ST, e.g. terminal hyperlinks */
 // eslint-disable-next-line no-control-regex

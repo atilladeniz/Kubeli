@@ -25,6 +25,14 @@ describe("stripAnsi", () => {
     expect(stripAnsi(`${ESC}[2K${ESC}[1Gprogress`)).toBe("progress");
   });
 
+  it("removes CSI private modes, intermediate bytes and non-letter finals", () => {
+    expect(
+      stripAnsi(
+        `${ESC}[?25lhidden cursor${ESC}[?25h${ESC}[1~${ESC}[>0c${ESC}[1 q`
+      )
+    ).toBe("hidden cursor");
+  });
+
   it("leaves plain text untouched", () => {
     expect(stripAnsi("nothing to strip")).toBe("nothing to strip");
   });
@@ -122,6 +130,15 @@ describe("parseAnsi", () => {
     const segments = parseAnsi(`before${ESC}[2Kafter`);
     expect(segments.map((s) => s.text).join("")).toBe("beforeafter");
     expect(segments.every((s) => Object.keys(s.style).length === 0)).toBe(true);
+  });
+
+  it("drops complete CSI syntax without disturbing surrounding styles", () => {
+    const raw = `${ESC}[31mred${ESC}[?25l${ESC}[1~${ESC}[>0c${ESC}[0mplain`;
+    const segments = parseAnsi(raw);
+
+    expect(segments.map((s) => s.text).join("")).toBe("redplain");
+    expect(segments[0].style.color).toBe("#cd3131");
+    expect(segments[segments.length - 1].style).toEqual({});
   });
 
   it("drops OSC hyperlinks while preserving SGR styles and offsets", () => {
