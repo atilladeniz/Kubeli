@@ -3,12 +3,9 @@
 use anyhow::{Context, Result};
 use chrono::Utc;
 use dirs::home_dir;
-use http::{header::HeaderMap, Request, Response};
-use hyper::body::Incoming;
 use k8s_openapi::api::core::v1::Namespace;
 use kube::{
     api::ListParams,
-    client::retry::RetryPolicy,
     config::{KubeConfigOptions, Kubeconfig},
     Api, Client, Config,
 };
@@ -16,9 +13,6 @@ use std::env;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::RwLock;
-use tower::retry::RetryLayer;
-use tower_http::{classify::ServerErrorsFailureClass, trace::TraceLayer};
-use tracing::Span;
 
 use super::config::KubeConfig as ParsedKubeConfig;
 
@@ -42,85 +36,20 @@ pub(crate) fn build_client(
         return Client::try_from(config);
     };
 
-    // Rebuild kube's default stack with our layer in the auth slot. Mirrors
-    // kube_client::client::builder::make_generic_builder; the only difference
-    // is which auth layer goes in. Kubeli's native OIDC path leaves
-    // auth_info.token unset, so config.auth_layer() would resolve to None here.
-    use kube::client::ConfigExt;
-    use tower::ServiceBuilder;
-
-    let mut http_connector = hyper_util::client::legacy::connect::HttpConnector::new();
-    http_connector.enforce_http(false);
-
-    let https = config.rustls_https_connector_with_connector(http_connector)?;
-    let mut connector = hyper_timeout::TimeoutConnector::new(https);
-    // Same timeout policy as apply_shared_client_timeouts: no read/write
-    // timeout, or long-lived log and exec streams get cut (issue #292).
-    connector.set_connect_timeout(config.connect_timeout);
-    connector.set_read_timeout(config.read_timeout);
-    connector.set_write_timeout(config.write_timeout);
-
-    let hyper_client: hyper_util::client::legacy::Client<_, kube::client::Body> =
-        hyper_util::client::legacy::Builder::new(hyper_util::rt::TokioExecutor::new())
-            .build(connector);
-
+    // Start with kube's own builder so proxy handling, TLS, timeouts, retries,
+    // tracing and future changes to the default stack stay identical to the
+    // non-OIDC path. Native OIDC leaves auth_info.token unset, so the default
+    // auth layer is empty and this injector is the only bearer-token layer.
     let injector = crate::oidc::auth_layer::OidcTokenInjector::new(state, oidc_config);
-    let service = ServiceBuilder::new()
-        .layer(config.base_uri_layer())
-        .option_layer(
-            config
-                .default_retry
-                .then_some(RetryLayer::new(RetryPolicy::server_retry())),
-        )
-        .layer(tower::filter::AsyncFilterLayer::new(injector))
-        .layer(config.extra_headers_layer()?)
-        .layer(
-            TraceLayer::new_for_http()
-                .make_span_with(|req: &Request<kube::client::Body>| {
-                    tracing::debug_span!(
-                        "HTTP",
-                        http.method = %req.method(),
-                        http.url = %req.uri(),
-                        http.status_code = tracing::field::Empty,
-                        otel.name = req.extensions().get::<&'static str>().unwrap_or(&"HTTP"),
-                        otel.kind = "client",
-                        otel.status_code = tracing::field::Empty,
-                    )
-                })
-                .on_request(|_req: &Request<kube::client::Body>, _span: &Span| {
-                    tracing::debug!("requesting");
-                })
-                .on_response(
-                    |res: &Response<Incoming>, _latency: Duration, span: &Span| {
-                        let status = res.status();
-                        span.record("http.status_code", status.as_u16());
-                        if status.is_client_error() || status.is_server_error() {
-                            span.record("otel.status_code", "ERROR");
-                        }
-                    },
-                )
-                .on_body_chunk(())
-                .on_eos(|_: Option<&HeaderMap>, _duration: Duration, _span: &Span| {
-                    tracing::debug!("stream closed");
-                })
-                .on_failure(
-                    |failure: ServerErrorsFailureClass, _latency: Duration, span: &Span| {
-                        span.record("otel.status_code", "ERROR");
-                        match failure {
-                            ServerErrorsFailureClass::StatusCode(status) => {
-                                span.record("http.status_code", status.as_u16());
-                                tracing::error!("failed with status {}", status);
-                            }
-                            ServerErrorsFailureClass::Error(error) => {
-                                tracing::error!("failed with error {}", error);
-                            }
-                        }
-                    },
-                ),
-        )
-        .service(hyper_client);
-
-    Ok(kube::client::ClientBuilder::new(service, config.default_namespace).build())
+    // ClientBuilder's default stack is type-erased behind BoxService, while
+    // AsyncFilter needs to clone its inner service into each async request.
+    // Buffer is the same clone boundary kube::Client itself uses.
+    let buffer = tower::buffer::BufferLayer::new(1024);
+    let layer = tower::filter::AsyncFilterLayer::new(injector);
+    Ok(kube::client::ClientBuilder::try_from(config)?
+        .with_layer(&buffer)
+        .with_layer(&layer)
+        .build())
 }
 
 /// Apply timeout policy for the shared Kubernetes client.
@@ -601,6 +530,7 @@ mod tests {
     use super::*;
     use crate::oidc::{config::OidcExecConfig, store::OidcTokens};
     use chrono::{Duration as ChronoDuration, Utc};
+    use http::Request;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
@@ -637,6 +567,27 @@ mod tests {
         assert!(
             config.write_timeout.is_none(),
             "write_timeout must be unset so idle exec sessions are not torn down (issue #292)"
+        );
+    }
+
+    #[test]
+    fn oidc_client_uses_the_same_proxy_handling_as_the_default_client() {
+        let mut config = Config::new("https://cluster.test".parse().unwrap());
+        config.proxy_url = Some("http://proxy.test:8080".parse().unwrap());
+
+        let default_result = Client::try_from(config.clone());
+        let oidc_result = build_client(
+            config,
+            Some((
+                Arc::new(crate::oidc::commands::OidcState::default()),
+                OidcExecConfig::default(),
+            )),
+        );
+
+        assert_eq!(
+            default_result.err().map(|error| error.to_string()),
+            oidc_result.err().map(|error| error.to_string()),
+            "OIDC must neither bypass a configured proxy nor change kube's proxy errors"
         );
     }
 
