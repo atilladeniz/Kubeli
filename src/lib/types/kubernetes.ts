@@ -141,12 +141,13 @@ export interface LogOptions {
   previous?: boolean;
 }
 
-export type LogEventType = "Line" | "Lines" | "Error" | "Started" | "Stopped";
+export type LogEventType = "Line" | "Lines" | "Error" | "Ended" | "Started" | "Stopped";
 
 export type LogEvent =
   | { type: "Line"; data: LogEntry }
   | { type: "Lines"; data: LogEntry[] }
   | { type: "Error"; data: KubeliError }
+  | { type: "Ended"; data: { stream_id: string; reason: string | null } }
   | { type: "Started"; data: { stream_id: string } }
   | { type: "Stopped"; data: { stream_id: string } };
 

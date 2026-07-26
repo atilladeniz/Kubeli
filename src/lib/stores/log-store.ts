@@ -22,6 +22,11 @@ export interface LogTabState {
   streamId: string | null;
   scrollTop: number;
   autoScroll: boolean;
+  /**
+   * Set when a running stream ended. Recoverable, unlike `error`: the viewer
+   * offers a reconnect instead of showing a failure.
+   */
+  ended: { reason: string | null } | null;
 }
 
 function defaultLogTabState(): LogTabState {
@@ -35,6 +40,7 @@ function defaultLogTabState(): LogTabState {
     streamId: null,
     scrollTop: 0,
     autoScroll: true,
+    ended: null,
   };
 }
 
@@ -47,7 +53,12 @@ interface LogStoreState {
     ns: string,
     pod: string,
     container?: string | null,
-    tailLines?: number
+    tailLines?: number,
+    /**
+     * Resumes from this many seconds ago instead of the tail. Used on
+     * reconnect so the gap is filled without re-fetching the whole history.
+     */
+    sinceSeconds?: number
   ): Promise<void>;
   stopStream(tabId: string): Promise<void>;
   fetchLogs(
@@ -241,7 +252,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
     startPodWatcher(tabId, ns, pod, set);
   },
 
-  async startStream(tabId, ns, pod, container, tailLines) {
+  async startStream(tabId, ns, pod, container, tailLines, sinceSeconds) {
     const tab = get().logTabs[tabId];
     if (!tab || tab.isStreaming || startingStreams.has(tabId)) return;
     startingStreams.add(tabId);
@@ -257,7 +268,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
     set((s) => ({
       logTabs: {
         ...s.logTabs,
-        [tabId]: { ...s.logTabs[tabId], streamId, error: null },
+        [tabId]: { ...s.logTabs[tabId], streamId, error: null, ended: null },
       },
     }));
 
@@ -304,6 +315,23 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
               };
             });
             break;
+          case "Ended":
+            flushPending(tabId, set);
+            set((s) => {
+              const t = s.logTabs[tabId];
+              if (!t) return {};
+              return {
+                logTabs: {
+                  ...s.logTabs,
+                  [tabId]: {
+                    ...t,
+                    isStreaming: false,
+                    ended: { reason: logEvent.data.reason },
+                  },
+                },
+              };
+            });
+            break;
           case "Started":
             set((s) => {
               const t = s.logTabs[tabId];
@@ -332,6 +360,11 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
         }
       });
 
+      // Drop any listener still registered for this tab before replacing it.
+      // A stream that ended on its own leaves streamId null, so stopStream
+      // returns early and never unsubscribes — without this, every reconnect
+      // would leak one webview listener.
+      listeners.get(tabId)?.();
       listeners.set(tabId, unlisten);
 
       const logOptions: LogOptions = {
@@ -340,7 +373,12 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
         container: effectiveContainer || undefined,
         follow: true,
         timestamps: true,
-        tail_lines: tailLines ?? 100,
+        // Send one or the other, never both: the API applies tail_lines
+        // within the since_seconds window, which would cap a resume at the
+        // last N lines of the gap instead of returning all of it.
+        ...(sinceSeconds !== undefined
+          ? { since_seconds: sinceSeconds }
+          : { tail_lines: tailLines ?? 100 }),
       };
 
       await streamPodLogs(streamId, logOptions);

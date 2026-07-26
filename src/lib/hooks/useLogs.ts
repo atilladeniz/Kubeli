@@ -16,6 +16,10 @@ export interface UseLogsReturn {
   setSelectedContainer: (container: string | null) => void;
   fetchLogs: (options: Omit<LogOptions, "namespace" | "pod_name">) => Promise<void>;
   startStream: (options?: Omit<LogOptions, "namespace" | "pod_name">) => Promise<void>;
+  /** Set when a running stream ended; the viewer offers a reconnect */
+  ended: { reason: string | null } | null;
+  /** Resumes the stream from where it left off, without re-fetching history */
+  reconnect: () => Promise<void>;
   stopStream: () => Promise<void>;
   clearLogs: () => void;
   downloadLogs: () => Promise<string>;
@@ -49,6 +53,28 @@ export function useLogs(
   }, [tabId, namespace, podName, store, overrideTabId]);
 
   const error = tab?.error ?? null;
+  const ended = tab?.ended ?? null;
+
+  const reconnect = useCallback(async () => {
+    const s = store();
+    const current = s.logTabs[tabId];
+    // Resume from the last line received, so the gap is filled but the history
+    // already on screen is not fetched again. One second of overlap is cheaper
+    // than a missing line.
+    const lastTimestamp = current?.logs.at(-1)?.timestamp;
+    const sinceSeconds = lastTimestamp
+      ? Math.max(1, Math.ceil((Date.now() - new Date(lastTimestamp).getTime()) / 1000) + 1)
+      : undefined;
+
+    await s.startStream(
+      tabId,
+      namespace,
+      podName,
+      current?.selectedContainer ?? undefined,
+      undefined,
+      sinceSeconds
+    );
+  }, [tabId, namespace, podName, store]);
 
   const selectedContainer = tab?.selectedContainer ?? null;
 
@@ -125,6 +151,8 @@ export function useLogs(
     isLoading: tab?.isLoading ?? false,
     isStreaming: tab?.isStreaming ?? false,
     error,
+    ended,
+    reconnect,
     containers: tab?.containers ?? [],
     selectedContainer,
     setSelectedContainer,
