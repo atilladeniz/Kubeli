@@ -11,13 +11,17 @@
 // eslint-disable-next-line no-control-regex
 const CSI_PATTERN = /\x1b\[[0-9;:]*[A-Za-z]/g;
 
+/** Matches OSC sequences terminated by BEL or ST, e.g. terminal hyperlinks */
+// eslint-disable-next-line no-control-regex
+const OSC_PATTERN = /\x1b\](?:[^\x07\x1b]|\x1b(?!\\))*(?:\x07|\x1b\\|$)/g;
+
 /** Matches SGR sequences specifically (CSI ... m) */
 // eslint-disable-next-line no-control-regex
 const SGR_PATTERN = /\x1b\[([0-9;:]*)m/;
 
 /** Cheap pre-check so log lines without escapes skip parsing entirely */
 // eslint-disable-next-line no-control-regex
-const HAS_ESCAPE = /\x1b\[/;
+const HAS_ESCAPE = /\x1b(?:\[|\])/;
 
 export interface AnsiStyle {
   color?: string;
@@ -153,7 +157,7 @@ export function hasAnsiCodes(text: string): boolean {
  */
 export function stripAnsi(text: string): string {
   if (!hasAnsiCodes(text)) return text;
-  return text.replace(CSI_PATTERN, "");
+  return text.replace(OSC_PATTERN, "").replace(CSI_PATTERN, "");
 }
 
 /**
@@ -166,12 +170,13 @@ export function parseAnsi(text: string): AnsiSegment[] {
     return [{ text, style: {}, start: 0 }];
   }
 
+  const sanitizedText = text.replace(OSC_PATTERN, "");
   const segments: AnsiSegment[] = [];
   let style: AnsiStyle = {};
   let buffer = "";
   let bufferStart = 0;
   let plainLength = 0;
-  let rest = text;
+  let rest = sanitizedText;
 
   const flush = () => {
     if (buffer) {

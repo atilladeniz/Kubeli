@@ -32,6 +32,17 @@ describe("stripAnsi", () => {
   it("handles truecolor sequences", () => {
     expect(stripAnsi(`${ESC}[38;2;255;100;0mwarn${ESC}[0m`)).toBe("warn");
   });
+
+  it.each([
+    ["BEL", `${ESC}]8;;https://example.com\x07link${ESC}]8;;\x07`],
+    ["ST", `${ESC}]8;;https://example.com${ESC}\\link${ESC}]8;;${ESC}\\`],
+  ])("removes OSC hyperlinks terminated by %s", (_terminator, text) => {
+    expect(stripAnsi(text)).toBe("link");
+  });
+
+  it("removes an unterminated OSC sequence instead of leaking control text", () => {
+    expect(stripAnsi(`${ESC}]8;;https://example.com`)).toBe("");
+  });
 });
 
 describe("parseAnsi", () => {
@@ -111,6 +122,17 @@ describe("parseAnsi", () => {
     const segments = parseAnsi(`before${ESC}[2Kafter`);
     expect(segments.map((s) => s.text).join("")).toBe("beforeafter");
     expect(segments.every((s) => Object.keys(s.style).length === 0)).toBe(true);
+  });
+
+  it("drops OSC hyperlinks while preserving SGR styles and offsets", () => {
+    const raw = `${ESC}]8;;https://example.com\x07${ESC}[31mlink${ESC}[0m${ESC}]8;;\x07 tail`;
+    const segments = parseAnsi(raw);
+    const plain = stripAnsi(raw);
+
+    expect(plain).toBe("link tail");
+    expect(segments.map((segment) => segment.text).join("")).toBe(plain);
+    expect(segments[0].style.color).toBe("#cd3131");
+    expect(segments.map((segment) => segment.start)).toEqual([0, 4]);
   });
 
   it("survives a malformed extended color sequence", () => {
