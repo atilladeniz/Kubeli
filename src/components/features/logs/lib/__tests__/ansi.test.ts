@@ -106,9 +106,19 @@ describe("parseAnsi", () => {
     expect(gray.style.color).toBe("rgb(128, 128, 128)");
   });
 
-  it("resolves truecolor", () => {
-    const [, rgb] = parseAnsi(`x${ESC}[38;2;12;34;56mcustom`);
+  it.each([
+    ["semicolon form", "38;2;12;34;56"],
+    ["colon form with an empty color-space slot", "38:2::12:34:56"],
+    ["colon form with a populated color-space slot", "38:2:1:12:34:56"],
+    ["short colon form without a color-space slot", "38:2:12:34:56"],
+  ])("resolves truecolor in the %s", (_description, sequence) => {
+    const [, rgb] = parseAnsi(`x${ESC}[${sequence}mcustom`);
     expect(rgb.style.color).toBe("rgb(12, 34, 56)");
+  });
+
+  it("resolves a colon-delimited 256-color index", () => {
+    const [, indexed] = parseAnsi(`x${ESC}[38:5:196mbright`);
+    expect(indexed.style.color).toBe("rgb(255, 0, 0)");
   });
 
   it("applies background colors", () => {

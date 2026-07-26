@@ -82,25 +82,68 @@ function color256(index: number): string {
  *
  * Supports both `38;5;n` (256-color) and `38;2;r;g;b` (truecolor).
  */
-function readExtendedColor(params: number[], i: number): { color?: string; consumed: number } {
+type SgrParameter = number | number[];
+
+function readExtendedColor(
+  params: SgrParameter[],
+  i: number
+): { color?: string; consumed: number } {
   const mode = params[i + 1];
-  if (mode === 5 && params.length > i + 2) {
-    return { color: color256(params[i + 2]), consumed: 2 };
+  const indexedColor = params[i + 2];
+  if (mode === 5 && typeof indexedColor === "number") {
+    return { color: color256(indexedColor), consumed: 2 };
   }
   if (mode === 2 && params.length > i + 4) {
     const [r, g, b] = [params[i + 2], params[i + 3], params[i + 4]];
-    return { color: `rgb(${r}, ${g}, ${b})`, consumed: 4 };
+    if (
+      typeof r === "number" &&
+      typeof g === "number" &&
+      typeof b === "number"
+    ) {
+      return { color: `rgb(${r}, ${g}, ${b})`, consumed: 4 };
+    }
   }
   // Malformed — swallow the mode byte so it isn't read as another attribute
   return { consumed: 1 };
 }
 
+/** Resolves an extended color encoded as one colon-delimited SGR parameter. */
+function readColonExtendedColor(params: number[]): string | undefined {
+  const mode = params[1];
+  if (mode === 5 && params.length > 2) {
+    return color256(params[2]);
+  }
+  if (mode === 2) {
+    // ITU T.416 includes a color-space slot (which is commonly empty), while
+    // some tools emit the shorter 38:2:r:g:b form without that slot.
+    const channelOffset = params.length >= 6 ? 3 : 2;
+    if (params.length > channelOffset + 2) {
+      const [r, g, b] = params.slice(channelOffset, channelOffset + 3);
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Keeps colon-delimited SGR subparameters grouped. Flattening them would turn
+ * the optional color-space slot in 38:2::r:g:b into the red channel.
+ */
+function parseSgrParameters(encoded: string): SgrParameter[] {
+  return encoded.split(";").map((parameter) => {
+    const values = parameter.split(":").map((value) => (value === "" ? 0 : Number(value)));
+    return values.length === 1 ? values[0] : values;
+  });
+}
+
 /** Applies one SGR parameter list to a style, returning the new style */
-function applySgr(style: AnsiStyle, params: number[]): AnsiStyle {
+function applySgr(style: AnsiStyle, params: SgrParameter[]): AnsiStyle {
   let next: AnsiStyle = { ...style };
 
   for (let i = 0; i < params.length; i++) {
-    const code = params[i];
+    const parameter = params[i];
+    const grouped = Array.isArray(parameter) ? parameter : undefined;
+    const code = Array.isArray(parameter) ? parameter[0] : parameter;
 
     if (code === 0) {
       next = {};
@@ -124,7 +167,9 @@ function applySgr(style: AnsiStyle, params: number[]): AnsiStyle {
     } else if (code >= 30 && code <= 37) {
       next.color = BASE_COLORS[code - 30];
     } else if (code === 38) {
-      const { color, consumed } = readExtendedColor(params, i);
+      const { color, consumed } = grouped
+        ? { color: readColonExtendedColor(grouped), consumed: 0 }
+        : readExtendedColor(params, i);
       if (color) next.color = color;
       i += consumed;
     } else if (code === 39) {
@@ -132,7 +177,9 @@ function applySgr(style: AnsiStyle, params: number[]): AnsiStyle {
     } else if (code >= 40 && code <= 47) {
       next.backgroundColor = BASE_COLORS[code - 40];
     } else if (code === 48) {
-      const { color, consumed } = readExtendedColor(params, i);
+      const { color, consumed } = grouped
+        ? { color: readColonExtendedColor(grouped), consumed: 0 }
+        : readExtendedColor(params, i);
       if (color) next.backgroundColor = color;
       i += consumed;
     } else if (code === 49) {
@@ -211,9 +258,7 @@ export function parseAnsi(text: string): AnsiSegment[] {
       flush();
       bufferStart = plainLength;
       // "\x1b[m" is shorthand for a full reset
-      const params = sgr[1]
-        ? sgr[1].split(/[;:]/).map((p) => (p === "" ? 0 : Number(p)))
-        : [0];
+      const params = sgr[1] ? parseSgrParameters(sgr[1]) : [0];
       style = applySgr(style, params);
     }
     // Non-SGR sequences (cursor moves, erases) are simply dropped
