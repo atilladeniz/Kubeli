@@ -8,6 +8,37 @@ import type { Column } from "../types";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { formatAge } from "../lib/utils";
 
+/**
+ * Highest current utilization across an HPA's metrics, in percent.
+ *
+ * An HPA scales on whichever metric is most under pressure, so the maximum is
+ * what decides its behaviour. Returns null when no metric reports a percentage
+ * — value-based metrics (e.g. requests-per-second) have no utilization ratio.
+ */
+function peakUtilization(hpa: HPAInfo): number | null {
+  const percentages = hpa.current_metrics
+    .map((m) => m.current_average_utilization)
+    .filter((v): v is number => v !== null && v !== undefined);
+  return percentages.length > 0 ? Math.max(...percentages) : null;
+}
+
+/** Target utilization matching the peak metric, for the "of X%" suffix */
+function targetUtilization(hpa: HPAInfo): number | null {
+  const targets = hpa.metrics
+    .map((m) => m.average_utilization)
+    .filter((v): v is number => v !== null && v !== undefined);
+  return targets.length > 0 ? Math.max(...targets) : null;
+}
+
+function utilizationColor(current: number, target: number | null): string {
+  // Relative to target when there is one: 90% CPU against a 95% target is
+  // healthy, against a 50% target it is not.
+  const ratio = target ? (current / target) * 100 : current;
+  if (ratio >= 100) return "text-red-500";
+  if (ratio >= 80) return "text-yellow-500";
+  return "text-green-500";
+}
+
 export const hpaColumns: Column<HPAInfo>[] = [
   {
     key: "name",
@@ -49,6 +80,30 @@ export const hpaColumns: Column<HPAInfo>[] = [
     label: "REPLICAS",
     sortable: true,
     render: (hpa) => `${hpa.current_replicas}/${hpa.desired_replicas}`,
+  },
+  {
+    key: "utilization",
+    label: "UTILIZATION",
+    sortable: true,
+    width: "w-32",
+    noTruncate: true,
+    sortValue: peakUtilization,
+    render: (hpa) => {
+      const current = peakUtilization(hpa);
+      if (current === null) return <span className="text-muted-foreground">-</span>;
+
+      const target = targetUtilization(hpa);
+      return (
+        <span className="tabular-nums">
+          <span className={`font-medium ${utilizationColor(current, target)}`}>
+            {current}%
+          </span>
+          {target !== null && (
+            <span className="text-muted-foreground"> / {target}%</span>
+          )}
+        </span>
+      );
+    },
   },
   {
     key: "created_at",
