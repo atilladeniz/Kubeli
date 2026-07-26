@@ -34,7 +34,7 @@ interface UseMetricsOptions {
  * An explicit option wins; otherwise the Settings value applies, where 0 means
  * the user turned automatic polling off and only manual refresh remains.
  */
-function useMetricsInterval(override?: number): number | null {
+export function useMetricsInterval(override?: number): number | null {
   const configuredSeconds = useUIStore((s) => s.settings.metricsRefreshInterval);
   if (override !== undefined) return override;
   return configuredSeconds > 0 ? configuredSeconds * 1000 : null;

@@ -12,16 +12,24 @@ const mockClusterState = {
 
 jest.mock("@/lib/stores/cluster-store", () => ({
   useClusterStore: Object.assign(
-    jest.fn(() => ({ isConnected: true })),
+    jest.fn((selector?: (s: typeof mockClusterState) => unknown) =>
+      selector ? selector(mockClusterState) : mockClusterState
+    ),
     { getState: () => mockClusterState }
   ),
 }));
 
+import { renderHook, act } from "@testing-library/react";
+import { useUIStore, defaultSettings } from "@/lib/stores/ui-store";
+import { getPodMetrics } from "@/lib/tauri/commands";
 import {
+  useMetricsHistory,
   getHistorySnapshot,
   seedHistoryFromBulkMetrics,
   clearMetricsHistory,
 } from "../useMetricsHistory";
+
+const mockGetPodMetrics = getPodMetrics as jest.Mock;
 
 function makePodMetrics(name: string, cpu: number, mem: number): PodMetrics {
   return {
@@ -148,6 +156,78 @@ describe("useMetricsHistory module", () => {
       }
 
       expect(getHistorySnapshot("kubeli-demo/web")).toHaveLength(30);
+    });
+  });
+
+  // Regression for the metrics-interval setting: the pod-detail sparkline
+  // polled on its own hardcoded 10s timer, so "Disabled" (0) never stopped it.
+  describe("polling interval setting", () => {
+    const setMetricsInterval = (seconds: number) =>
+      useUIStore.setState({
+        settings: { ...defaultSettings, metricsRefreshInterval: seconds },
+      });
+
+    const advance = async (ms: number) => {
+      await act(async () => {
+        jest.advanceTimersByTime(ms);
+      });
+    };
+
+    beforeEach(() => {
+      jest.useFakeTimers();
+      mockGetPodMetrics.mockClear();
+      mockGetPodMetrics.mockResolvedValue([
+        makePodMetrics("web", 100_000_000, 200_000_000),
+      ]);
+    });
+
+    afterEach(() => {
+      useUIStore.setState({ settings: defaultSettings });
+    });
+
+    it("polls at the configured cadence", async () => {
+      setMetricsInterval(5);
+      renderHook(() => useMetricsHistory("web", "kubeli-demo"));
+
+      // Initial mount poll (setTimeout 0)
+      await advance(0);
+      expect(mockGetPodMetrics).toHaveBeenCalledTimes(1);
+
+      await advance(5_000);
+      expect(mockGetPodMetrics).toHaveBeenCalledTimes(2);
+
+      await advance(5_000);
+      expect(mockGetPodMetrics).toHaveBeenCalledTimes(3);
+    });
+
+    it("stops after the mount poll when the interval is disabled", async () => {
+      setMetricsInterval(0);
+      renderHook(() => useMetricsHistory("web", "kubeli-demo"));
+
+      // One current reading beats an empty panel, so the mount poll stays
+      await advance(0);
+      expect(mockGetPodMetrics).toHaveBeenCalledTimes(1);
+
+      await advance(300_000);
+      expect(mockGetPodMetrics).toHaveBeenCalledTimes(1);
+    });
+
+    it("applies a changed setting without a remount", async () => {
+      setMetricsInterval(60);
+      renderHook(() => useMetricsHistory("web", "kubeli-demo"));
+
+      await advance(0);
+      expect(mockGetPodMetrics).toHaveBeenCalledTimes(1);
+
+      await advance(30_000);
+      expect(mockGetPodMetrics).toHaveBeenCalledTimes(1);
+
+      await act(async () => {
+        setMetricsInterval(5);
+      });
+
+      await advance(5_000);
+      expect(mockGetPodMetrics).toHaveBeenCalledTimes(2);
     });
   });
 
