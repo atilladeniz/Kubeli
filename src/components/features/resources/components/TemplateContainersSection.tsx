@@ -3,12 +3,15 @@
 import { useMemo } from "react";
 import { Box } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 import { parseTemplateContainers } from "../lib/utils";
 
 interface TemplateContainersSectionProps {
   /** Resource YAML; the pod template is read from spec.template.spec */
   yaml: string | undefined;
+  /** Opens the Set Image dialog; absent for workloads whose template is controller-owned */
+  onSetImage?: () => void;
 }
 
 /**
@@ -18,7 +21,7 @@ interface TemplateContainersSectionProps {
  * running pod. A template has no instance, so there is nothing to say beyond
  * name and image.
  */
-export function TemplateContainersSection({ yaml }: TemplateContainersSectionProps) {
+export function TemplateContainersSection({ yaml, onSetImage }: TemplateContainersSectionProps) {
   const t = useTranslations();
   const containers = useMemo(() => parseTemplateContainers(yaml), [yaml]);
 
@@ -32,6 +35,16 @@ export function TemplateContainersSection({ yaml }: TemplateContainersSectionPro
         <Badge variant="secondary" className="text-xs px-1.5 py-0.5">
           {containers.length}
         </Badge>
+        {onSetImage && (
+          <Button
+            variant="outline"
+            size="sm"
+            className="ml-auto h-6 px-2 text-xs"
+            onClick={onSetImage}
+          >
+            {t("workloads.setImage")}
+          </Button>
+        )}
       </h3>
       <div className="space-y-2">
         {containers.map((container) => (

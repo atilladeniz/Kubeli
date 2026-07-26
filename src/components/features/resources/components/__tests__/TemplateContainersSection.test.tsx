@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { TemplateContainersSection } from "../TemplateContainersSection";
 
 jest.mock("next-intl", () => ({
@@ -87,5 +88,31 @@ describe("TemplateContainersSection", () => {
       />
     );
     expect(screen.getByText("-")).toBeInTheDocument();
+  });
+
+  it("shows no Set Image button without a handler", () => {
+    render(
+      <TemplateContainersSection
+        yaml={yamlWith(`      containers:
+        - name: web
+          image: nginx:1.25`)}
+      />
+    );
+    expect(screen.queryByText("workloads.setImage")).toBeNull();
+  });
+
+  it("offers Set Image when a handler is provided", async () => {
+    const onSetImage = jest.fn();
+    render(
+      <TemplateContainersSection
+        yaml={yamlWith(`      containers:
+        - name: web
+          image: nginx:1.25`)}
+        onSetImage={onSetImage}
+      />
+    );
+
+    await userEvent.click(screen.getByRole("button", { name: "workloads.setImage" }));
+    expect(onSetImage).toHaveBeenCalledTimes(1);
   });
 });

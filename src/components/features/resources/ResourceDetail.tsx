@@ -57,6 +57,7 @@ export function ResourceDetail({
   onSave,
   onDelete,
   onNavigateToOwner,
+  onSetImage,
   onNavigateBack,
   onNavigateToPathIndex,
   navigationPath,
@@ -344,7 +345,12 @@ export function ResourceDetail({
         </div>
 
         <TabsContent value="overview" className="flex-1 overflow-hidden m-0">
-          <OverviewTab resource={resource} resourceType={resourceType} onNavigateToOwner={onNavigateToOwner} />
+          <OverviewTab
+            resource={resource}
+            resourceType={resourceType}
+            onNavigateToOwner={onNavigateToOwner}
+            onSetImage={onSetImage}
+          />
         </TabsContent>
 
         <TabsContent

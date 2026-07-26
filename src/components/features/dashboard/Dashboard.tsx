@@ -465,6 +465,23 @@ function DashboardContent() {
     }
   };
 
+  // Inline Set Image action for the detail view, bound only for workloads
+  // whose template can be patched (ReplicaSets/Jobs are controller-owned).
+  const detailSetImage = (() => {
+    if (!selectedResource) return undefined;
+    // Normalize plural list types ("deployments") the same way ResourceDetail does
+    const type = selectedResource.type.replace(/s$/, "");
+    const { name, namespace } = selectedResource.data;
+    if (!namespace || !["deployment", "statefulset", "daemonset"].includes(type)) {
+      return undefined;
+    }
+    return () =>
+      handleSetImageFromContext(type as ImagePatchTarget, name, namespace, () => {
+        // Reload the detail so the overview shows the patched image
+        void openResourceDetail(selectedResource.type, name, namespace);
+      });
+  })();
+
   const navigateToOwner = useCallback(
     async (kind: string, name: string, namespace?: string) => {
       if (selectedResource) {
@@ -573,6 +590,7 @@ function DashboardContent() {
                       onNavigateToOwner={(kind, name, namespace) =>
                         navigateToOwner(kind, name, namespace)
                       }
+                      onSetImage={detailSetImage}
                       onNavigateBack={navigationHistory.length > 0 ? navigateBack : undefined}
                       onNavigateToPathIndex={navigationHistory.length > 0 ? navigateToPathIndex : undefined}
                       navigationPath={navigationHistory.map((h) => ({
