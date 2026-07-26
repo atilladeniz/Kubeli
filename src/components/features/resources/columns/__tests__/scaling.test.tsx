@@ -4,16 +4,23 @@ import type { HPAInfo, HPAMetricStatus, HPAMetricTarget } from "@/lib/types";
 
 const currentMetric = (
   utilization: number | null,
-  type = "Resource"
+  type = "Resource",
+  metricName: string | null = "cpu"
 ): HPAMetricStatus => ({
   type,
+  metric_name: metricName,
   current_average_utilization: utilization,
   current_average_value: null,
   current_value: null,
 });
 
-const targetMetric = (utilization: number | null, type = "Resource"): HPAMetricTarget => ({
+const targetMetric = (
+  utilization: number | null,
+  type = "Resource",
+  metricName: string | null = "cpu"
+): HPAMetricTarget => ({
   type,
+  metric_name: metricName,
   average_utilization: utilization,
   average_value: null,
   value: null,
@@ -71,18 +78,47 @@ describe("HPA utilization column", () => {
     expect(container.textContent).toBe("-");
   });
 
+  it("pairs current and target values by metric identity", () => {
+    const { container } = renderCell(
+      hpa({
+        metrics: [
+          targetMetric(80, "Resource", "cpu"),
+          targetMetric(50, "Resource", "memory"),
+        ],
+        current_metrics: [
+          currentMetric(60, "Resource", "memory"),
+          currentMetric(70, "Resource", "cpu"),
+        ],
+      })
+    );
+
+    // memory is at 120% of its own target, while CPU is only at 87.5%.
+    expect(container.textContent).toBe("60% / 50%");
+  });
+
   describe("sort value", () => {
     const sortValue = (info: HPAInfo) => utilizationColumn.sortValue!(info);
 
-    it("reports the current utilization", () => {
-      expect(sortValue(hpa())).toBe(45);
+    it("reports pressure relative to the matching target", () => {
+      expect(sortValue(hpa())).toBe(56.25);
     });
 
     // An HPA scales on whichever metric is most under pressure
-    it("reports the peak across multiple metrics", () => {
+    it("reports the peak pressure across multiple metrics", () => {
       expect(
-        sortValue(hpa({ current_metrics: [currentMetric(30), currentMetric(92)] }))
-      ).toBe(92);
+        sortValue(
+          hpa({
+            metrics: [
+              targetMetric(80, "Resource", "cpu"),
+              targetMetric(50, "Resource", "memory"),
+            ],
+            current_metrics: [
+              currentMetric(60, "Resource", "memory"),
+              currentMetric(70, "Resource", "cpu"),
+            ],
+          })
+        )
+      ).toBe(120);
     });
 
     it("returns null when no metric reports a percentage", () => {
@@ -91,11 +127,14 @@ describe("HPA utilization column", () => {
     });
 
     it("sorts numerically, not lexically", () => {
-      const values = [hpa({ current_metrics: [currentMetric(9)] }), hpa()]
+      const values = [
+        hpa({ current_metrics: [currentMetric(9)] }),
+        hpa({ current_metrics: [currentMetric(45)] }),
+      ]
         .map(sortValue)
         .sort((a, b) => (a as number) - (b as number));
       // Lexical ordering would put "45" before "9"
-      expect(values).toEqual([9, 45]);
+      expect(values).toEqual([11.25, 56.25]);
     });
   });
 

@@ -8,26 +8,44 @@ import type { Column } from "../types";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { formatAge } from "../lib/utils";
 
-/**
- * Highest current utilization across an HPA's metrics, in percent.
- *
- * An HPA scales on whichever metric is most under pressure, so the maximum is
- * what decides its behaviour. Returns null when no metric reports a percentage
- * — value-based metrics (e.g. requests-per-second) have no utilization ratio.
- */
-function peakUtilization(hpa: HPAInfo): number | null {
-  const percentages = hpa.current_metrics
-    .map((m) => m.current_average_utilization)
-    .filter((v): v is number => v !== null && v !== undefined);
-  return percentages.length > 0 ? Math.max(...percentages) : null;
+interface UtilizationMetric {
+  current: number;
+  target: number | null;
+  pressure: number;
 }
 
-/** Target utilization matching the peak metric, for the "of X%" suffix */
-function targetUtilization(hpa: HPAInfo): number | null {
-  const targets = hpa.metrics
-    .map((m) => m.average_utilization)
-    .filter((v): v is number => v !== null && v !== undefined);
-  return targets.length > 0 ? Math.max(...targets) : null;
+/**
+ * Selects the HPA metric with the highest pressure relative to its own target.
+ * Current and target metrics are paired by resource name because their array
+ * order is not part of the Kubernetes API contract.
+ */
+function peakUtilizationMetric(hpa: HPAInfo): UtilizationMetric | null {
+  const targetsByName = new Map(
+    hpa.metrics
+      .filter(
+        (metric) =>
+          metric.metric_name &&
+          metric.average_utilization !== null &&
+          metric.average_utilization !== undefined
+      )
+      .map((metric) => [metric.metric_name, metric.average_utilization as number])
+  );
+
+  const metrics = hpa.current_metrics.flatMap((metric): UtilizationMetric[] => {
+    const current = metric.current_average_utilization;
+    if (current === null || current === undefined) return [];
+
+    const target = metric.metric_name
+      ? (targetsByName.get(metric.metric_name) ?? null)
+      : null;
+    const pressure = target && target > 0 ? (current / target) * 100 : current;
+    return [{ current, target, pressure }];
+  });
+
+  return metrics.reduce<UtilizationMetric | null>(
+    (peak, metric) => (!peak || metric.pressure > peak.pressure ? metric : peak),
+    null
+  );
 }
 
 function utilizationColor(current: number, target: number | null): string {
@@ -87,19 +105,20 @@ export const hpaColumns: Column<HPAInfo>[] = [
     sortable: true,
     width: "w-32",
     noTruncate: true,
-    sortValue: peakUtilization,
+    sortValue: (hpa) => peakUtilizationMetric(hpa)?.pressure ?? null,
     render: (hpa) => {
-      const current = peakUtilization(hpa);
-      if (current === null) return <span className="text-muted-foreground">-</span>;
+      const peak = peakUtilizationMetric(hpa);
+      if (!peak) return <span className="text-muted-foreground">-</span>;
 
-      const target = targetUtilization(hpa);
       return (
         <span className="tabular-nums">
-          <span className={`font-medium ${utilizationColor(current, target)}`}>
-            {current}%
+          <span
+            className={`font-medium ${utilizationColor(peak.current, peak.target)}`}
+          >
+            {peak.current}%
           </span>
-          {target !== null && (
-            <span className="text-muted-foreground"> / {target}%</span>
+          {peak.target !== null && (
+            <span className="text-muted-foreground"> / {peak.target}%</span>
           )}
         </span>
       );

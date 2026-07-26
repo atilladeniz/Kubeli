@@ -2945,6 +2945,7 @@ pub async fn list_ingress_classes(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HPAMetricTarget {
     pub metric_type: String,
+    pub metric_name: Option<String>,
     pub average_utilization: Option<i32>,
     pub average_value: Option<String>,
     pub value: Option<String>,
@@ -2954,6 +2955,7 @@ pub struct HPAMetricTarget {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HPAMetricStatus {
     pub metric_type: String,
+    pub metric_name: Option<String>,
     pub current_average_utilization: Option<i32>,
     pub current_average_value: Option<String>,
     pub current_value: Option<String>,
@@ -3022,6 +3024,7 @@ pub async fn list_hpas(
                             let resource = m.resource.unwrap_or_default();
                             HPAMetricTarget {
                                 metric_type,
+                                metric_name: Some(resource.name),
                                 average_utilization: resource.target.average_utilization,
                                 average_value: resource.target.average_value.map(|q| q.0),
                                 value: resource.target.value.map(|q| q.0),
@@ -3029,6 +3032,7 @@ pub async fn list_hpas(
                         }
                         _ => HPAMetricTarget {
                             metric_type,
+                            metric_name: None,
                             average_utilization: None,
                             average_value: None,
                             value: None,
@@ -3048,6 +3052,7 @@ pub async fn list_hpas(
                             let resource = m.resource.unwrap_or_default();
                             HPAMetricStatus {
                                 metric_type,
+                                metric_name: Some(resource.name),
                                 current_average_utilization: resource.current.average_utilization,
                                 current_average_value: resource.current.average_value.map(|q| q.0),
                                 current_value: resource.current.value.map(|q| q.0),
@@ -3055,6 +3060,7 @@ pub async fn list_hpas(
                         }
                         _ => HPAMetricStatus {
                             metric_type,
+                            metric_name: None,
                             current_average_utilization: None,
                             current_average_value: None,
                             current_value: None,
