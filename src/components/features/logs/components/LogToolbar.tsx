@@ -43,6 +43,8 @@ export interface DisplayOptionsProps {
   onLineWrapChange: (checked: boolean) => void;
   logColoring: boolean;
   onLogColoringChange: (checked: boolean) => void;
+  ansiColors: boolean;
+  onAnsiColorsChange: (checked: boolean) => void;
   timestampMode: TimestampMode;
   onTimestampModeChange: (mode: TimestampMode) => void;
   labels: DisplayOptionsLabels;
@@ -183,6 +185,8 @@ export function LogToolbar({
             lineWrap={displayOptions.lineWrap}
             onLineWrapChange={displayOptions.onLineWrapChange}
             logColoring={displayOptions.logColoring}
+            ansiColors={displayOptions.ansiColors}
+            onAnsiColorsChange={displayOptions.onAnsiColorsChange}
             onLogColoringChange={displayOptions.onLogColoringChange}
             timestampMode={displayOptions.timestampMode}
             onTimestampModeChange={displayOptions.onTimestampModeChange}

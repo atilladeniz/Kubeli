@@ -6,7 +6,7 @@ import { useAIStore } from "@/lib/stores/ai-store";
 import { useClusterStore, selectCurrentNamespace } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { aiCheckCliAvailable, aiCheckCodexCliAvailable } from "@/lib/tauri/commands";
-import { getLogLevel, formatTimestamp } from "../lib";
+import { getLogLevel, formatTimestamp, stripAnsi } from "../lib";
 import { LOG_DEFAULTS } from "../types";
 
 interface UseLogAnalysisOptions {
@@ -89,7 +89,7 @@ export function useLogAnalysis({
       .map(
         (log) =>
           `${log.timestamp ? `[${formatTimestamp(log.timestamp)}] ` : ""}` +
-          `${workloadKind ? `[${log.pod}] ` : ""}${log.message}`
+          `${workloadKind ? `[${log.pod}] ` : ""}${stripAnsi(log.message)}`
       )
       .join("\n");
 

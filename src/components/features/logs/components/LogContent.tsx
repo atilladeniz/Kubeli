@@ -24,6 +24,8 @@ interface LogContentProps {
   streamDisabled?: boolean;
   /** Per-pod colors for aggregated multi-pod logs; enables the pod name prefix */
   podColorMap?: Map<string, PodColorEntry>;
+  /** Render ANSI escape codes as colors/styles instead of stripping them */
+  ansiColors?: boolean;
   /** Ref for scroll-to-bottom target (placed at end of logs) */
   endRef?: React.RefObject<HTMLDivElement | null>;
   // i18n
@@ -61,6 +63,7 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
       onStartStream,
       streamDisabled,
       podColorMap,
+      ansiColors,
       endRef,
       loadingText,
       searchingText,
@@ -209,6 +212,7 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
                     useRegex={useRegex}
                     searchRegex={searchRegex}
                     podColor={podColorMap?.get(log.pod)?.text}
+                    ansiColors={ansiColors}
                   />
                 </div>
               );
