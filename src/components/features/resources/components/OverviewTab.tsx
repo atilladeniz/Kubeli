@@ -9,6 +9,7 @@ import { useLocale } from "@/components/providers/I18nProvider";
 import { MetadataItem } from "./MetadataItem";
 import { SecretDataSection } from "./SecretDataSection";
 import { ContainerStatusSection } from "./ContainerStatusSection";
+import { TemplateContainersSection } from "./TemplateContainersSection";
 import { PodMetricsSection } from "./PodMetricsSection";
 import { AnnotationsSection } from "./AnnotationsSection";
 import { OwnerReferencesSection } from "./OwnerReferencesSection";
@@ -22,6 +23,20 @@ function formatDate(dateString: string, locale: string): string {
   const resolvedLocale = locale === "system" ? undefined : locale;
   return date.toLocaleString(resolvedLocale);
 }
+
+/**
+ * Workloads whose YAML carries a pod template at spec.template.
+ *
+ * CronJobs are absent on purpose: theirs sits one level deeper, under
+ * spec.jobTemplate.spec.template.
+ */
+const WORKLOADS_WITH_POD_TEMPLATE = new Set([
+  "deployment",
+  "statefulset",
+  "daemonset",
+  "replicaset",
+  "job",
+]);
 
 interface OverviewTabProps {
   resource: ResourceData;
@@ -168,6 +183,11 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner }: Overv
             containers={containers}
             namespace={resource.namespace ?? ""}
           />
+        )}
+
+        {/* Pod template containers (for workloads that own pods) */}
+        {WORKLOADS_WITH_POD_TEMPLATE.has(resourceType) && (
+          <TemplateContainersSection yaml={resource.yaml} />
         )}
 
         {/* Labels Section */}

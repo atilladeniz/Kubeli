@@ -1017,6 +1017,7 @@
   },
   "podDetail": {
     "initContainers": "Init-Container",
+    "initContainer": "Init",
     "containers": "Container",
     "lastTermination": "Letzte Beendigung",
     "exitCode": "Exit-Code",
