@@ -643,6 +643,11 @@
       "description": "Pre-select this namespace when connecting to clusters",
       "placeholder": "All namespaces"
     },
+    "metricsRefreshInterval": {
+      "title": "Metrics Refresh Interval",
+      "description": "How often to poll CPU and memory metrics, independently of resource lists",
+      "disabled": "Disabled"
+    },
     "refreshInterval": {
       "title": "Refresh Interval",
       "description": "How often to refresh resource data (in seconds)",
@@ -951,6 +956,9 @@
     "removedMissingResourceDescription": "The resource \"{name}\" no longer exists."
   },
   "metrics": {
+    "refresh": "Refresh metrics",
+    "refreshWithInterval": "Refresh metrics (auto every {seconds}s)",
+    "refreshAutoDisabled": "Refresh metrics (auto-refresh off)",
     "title": "Metrics",
     "cpu": "CPU",
     "memory": "Memory",

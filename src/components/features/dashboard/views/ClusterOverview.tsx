@@ -12,6 +12,7 @@ import {
 } from "@/lib/hooks/useK8sResources";
 import { getEffectivePodStatus } from "../../resources/columns";
 import { useClusterMetrics } from "@/lib/hooks/useMetrics";
+import { MetricsRefreshButton } from "../components/MetricsRefreshButton";
 import { SummaryCard } from "../components/SummaryCard";
 import { StatusRow } from "../components/StatusRow";
 import { MetricsProgressBar } from "../components/MetricsProgressBar";
@@ -23,10 +24,12 @@ export function ClusterOverview() {
   const { data: deployments } = useDeployments();
   const { data: services } = useServices();
   const { data: nodes } = useNodes();
-  const { summary: metrics, metricsAvailable, isLoading: metricsLoading } = useClusterMetrics({
-    autoRefresh: true,
-    refreshInterval: 15000,
-  });
+  const {
+    summary: metrics,
+    metricsAvailable,
+    isLoading: metricsLoading,
+    refresh: refreshMetrics,
+  } = useClusterMetrics({ autoRefresh: true });
 
   const runningPods = pods.filter((p) => getEffectivePodStatus(p) === "Running").length;
   const pendingPods = pods.filter((p) => p.phase === "Pending").length;
@@ -70,6 +73,13 @@ export function ClusterOverview() {
 
       {/* Metrics Section */}
       {metricsAvailable && metrics && (
+        <>
+        <div className="mb-2 flex items-center justify-between">
+          <h2 className="text-sm font-semibold text-muted-foreground">
+            {t("metrics.title")}
+          </h2>
+          <MetricsRefreshButton onRefresh={refreshMetrics} isLoading={metricsLoading} />
+        </div>
         <div className="mb-6 @2xl:mb-8 grid grid-cols-1 @xl:grid-cols-2 gap-4 @2xl:gap-6">
           <Card>
             <CardHeader className="pb-2">
@@ -105,6 +115,7 @@ export function ClusterOverview() {
             </CardContent>
           </Card>
         </div>
+        </>
       )}
 
       {!metricsAvailable && !metricsLoading && (

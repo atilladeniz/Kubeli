@@ -643,6 +643,11 @@
       "description": "Diesen Namespace beim Verbinden mit Clustern vorauswählen",
       "placeholder": "Alle Namespaces"
     },
+    "metricsRefreshInterval": {
+      "title": "Metrik-Aktualisierungsintervall",
+      "description": "Wie oft CPU- und Speicher-Metriken abgerufen werden, unabhängig von Ressourcenlisten",
+      "disabled": "Deaktiviert"
+    },
     "refreshInterval": {
       "title": "Aktualisierungsintervall",
       "description": "Wie oft sollen Ressourcendaten aktualisiert werden (in Sekunden)",
@@ -951,6 +956,9 @@
     "removedMissingResourceDescription": "Die Ressource \"{name}\" existiert nicht mehr."
   },
   "metrics": {
+    "refresh": "Metriken aktualisieren",
+    "refreshWithInterval": "Metriken aktualisieren (automatisch alle {seconds}s)",
+    "refreshAutoDisabled": "Metriken aktualisieren (Auto-Aktualisierung aus)",
     "title": "Metriken",
     "cpu": "CPU",
     "memory": "Arbeitsspeicher",

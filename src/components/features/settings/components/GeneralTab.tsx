@@ -61,6 +61,34 @@ export function GeneralTab() {
       <Separator />
 
       <SettingSection
+        title={t("metricsRefreshInterval.title")}
+        description={t("metricsRefreshInterval.description")}
+      >
+        <Select
+          value={settings.metricsRefreshInterval.toString()}
+          onValueChange={(value) =>
+            updateSettings({ metricsRefreshInterval: parseInt(value) })
+          }
+        >
+          <SelectTrigger className="w-32">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="5">{t("refreshInterval.seconds", { count: 5 })}</SelectItem>
+            <SelectItem value="10">{t("refreshInterval.seconds", { count: 10 })}</SelectItem>
+            <SelectItem value="15">{t("refreshInterval.seconds", { count: 15 })}</SelectItem>
+            <SelectItem value="30">{t("refreshInterval.seconds", { count: 30 })}</SelectItem>
+            <SelectItem value="60">{t("refreshInterval.minute")}</SelectItem>
+            <SelectItem value="300">{t("refreshInterval.minutes", { count: 5 })}</SelectItem>
+            {/* 0 keeps the manual refresh button as the only trigger */}
+            <SelectItem value="0">{t("metricsRefreshInterval.disabled")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingSection>
+
+      <Separator />
+
+      <SettingSection
         title={t("portForwardBrowser.title")}
         description={t("portForwardBrowser.description")}
       >
