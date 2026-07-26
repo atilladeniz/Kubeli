@@ -21,6 +21,7 @@ import { splitImageRef, joinImageRef } from "./image-ref";
 export interface SetImageContainer {
   name: string;
   image: string;
+  init: boolean;
 }
 
 export interface SetImageDialogState {
@@ -82,7 +83,8 @@ export function SetImageDialog({ state, onClose }: SetImageDialogProps) {
         state.name,
         state.namespace,
         selectedContainer,
-        nextImage
+        nextImage,
+        current?.init ?? false
       );
       toast.success(t("workloads.setImage"), {
         description: `${selectedContainer} → ${nextImage}`,

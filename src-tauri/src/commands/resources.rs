@@ -1643,19 +1643,28 @@ pub enum ImagePatchTarget {
 /// with the single entry below. A strategic merge patch merges by the
 /// container's `name` instead, leaving sibling containers and every other
 /// field on the patched one intact.
-fn container_image_patch(container_name: &str, image: &str) -> serde_json::Value {
-    serde_json::json!({
+fn container_image_patch(
+    container_name: &str,
+    image: &str,
+    init_container: bool,
+) -> serde_json::Value {
+    let mut patch = serde_json::json!({
         "spec": {
             "template": {
-                "spec": {
-                    "containers": [{
-                        "name": container_name,
-                        "image": image,
-                    }]
-                }
+                "spec": {}
             }
         }
-    })
+    });
+    let list_name = if init_container {
+        "initContainers"
+    } else {
+        "containers"
+    };
+    patch["spec"]["template"]["spec"][list_name] = serde_json::json!([{
+        "name": container_name,
+        "image": image,
+    }]);
+    patch
 }
 
 /// Sets the image of a single container in a workload's pod template.
@@ -1667,6 +1676,7 @@ pub async fn set_container_image(
     namespace: String,
     container_name: String,
     image: String,
+    init_container: bool,
 ) -> Result<(), KubeliError> {
     let image = image.trim();
     if image.is_empty() {
@@ -1674,7 +1684,7 @@ pub async fn set_container_image(
     }
 
     let client = state.k8s.get_client().await?;
-    let patch = container_image_patch(&container_name, image);
+    let patch = container_image_patch(&container_name, image, init_container);
 
     let params = PatchParams::default();
     match resource_type {
@@ -1693,7 +1703,8 @@ pub async fn set_container_image(
     }
 
     tracing::info!(
-        "Set image of container {} in {}/{} to {}",
+        "Set image of {}container {} in {}/{} to {}",
+        if init_container { "init " } else { "" },
         container_name,
         namespace,
         name,
@@ -4589,7 +4600,7 @@ mod tests {
 
     #[test]
     fn image_patch_targets_the_named_container_only() {
-        let patch = container_image_patch("web", "nginx:1.26");
+        let patch = container_image_patch("web", "nginx:1.26", false);
         let containers = patch["spec"]["template"]["spec"]["containers"]
             .as_array()
             .expect("containers must be a list");
@@ -4603,7 +4614,7 @@ mod tests {
 
     #[test]
     fn image_patch_carries_nothing_but_name_and_image() {
-        let patch = container_image_patch("web", "nginx:1.26");
+        let patch = container_image_patch("web", "nginx:1.26", false);
         let container = &patch["spec"]["template"]["spec"]["containers"][0];
 
         // Any extra key here would overwrite that field on the live container
@@ -4613,13 +4624,28 @@ mod tests {
 
     #[test]
     fn image_patch_touches_only_the_pod_template() {
-        let patch = container_image_patch("web", "nginx:1.26");
+        let patch = container_image_patch("web", "nginx:1.26", false);
         let spec = patch["spec"].as_object().unwrap();
 
         // replicas, selector, strategy and the rest must stay untouched
         assert_eq!(spec.keys().collect::<Vec<_>>(), vec!["template"]);
         let template = patch["spec"]["template"].as_object().unwrap();
         assert_eq!(template.keys().collect::<Vec<_>>(), vec!["spec"]);
+    }
+
+    #[test]
+    fn image_patch_targets_init_containers_when_requested() {
+        let patch = container_image_patch("migrate", "busybox:1.37", true);
+        let pod_spec = patch["spec"]["template"]["spec"].as_object().unwrap();
+
+        assert!(!pod_spec.contains_key("containers"));
+        assert_eq!(
+            pod_spec["initContainers"],
+            serde_json::json!([{
+                "name": "migrate",
+                "image": "busybox:1.37",
+            }])
+        );
     }
 
     #[test]

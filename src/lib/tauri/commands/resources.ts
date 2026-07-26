@@ -305,7 +305,8 @@ export async function setContainerImage(
   name: string,
   namespace: string,
   containerName: string,
-  image: string
+  image: string,
+  initContainer: boolean
 ): Promise<void> {
   return invoke("set_container_image", {
     resourceType,
@@ -313,6 +314,7 @@ export async function setContainerImage(
     namespace,
     containerName,
     image,
+    initContainer,
   });
 }
 
