@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { ImagePatchTarget } from "@/lib/tauri/commands";
 import type { ResourceData } from "../../resources/ResourceDetail";
 
 export type OpenResourceDetailResult =
@@ -20,6 +21,12 @@ export interface ResourceDetailContextType {
   handleDeleteFromContext: (resourceType: string, name: string, namespace?: string, onSuccess?: () => void) => void;
   handleUninstallFromContext: (name: string, namespace: string, onSuccess?: () => void) => void;
   handleScaleFromContext: (name: string, namespace: string, currentReplicas: number, onSuccess?: () => void) => void;
+  handleSetImageFromContext: (
+    resourceType: ImagePatchTarget,
+    name: string,
+    namespace: string,
+    onSuccess?: () => void
+  ) => void;
   closeResourceDetail: () => void;
 }
 

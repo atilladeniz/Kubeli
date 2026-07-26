@@ -1628,6 +1628,80 @@ pub async fn scale_deployment(
     Ok(())
 }
 
+/// Workload kinds whose pod template can have a container image patched.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImagePatchTarget {
+    Deployment,
+    StatefulSet,
+    DaemonSet,
+}
+
+/// Builds the strategic merge patch that retargets one container's image.
+///
+/// `containers` is a list, so a plain merge patch would replace it wholesale
+/// with the single entry below. A strategic merge patch merges by the
+/// container's `name` instead, leaving sibling containers and every other
+/// field on the patched one intact.
+fn container_image_patch(container_name: &str, image: &str) -> serde_json::Value {
+    serde_json::json!({
+        "spec": {
+            "template": {
+                "spec": {
+                    "containers": [{
+                        "name": container_name,
+                        "image": image,
+                    }]
+                }
+            }
+        }
+    })
+}
+
+/// Sets the image of a single container in a workload's pod template.
+#[command]
+pub async fn set_container_image(
+    state: State<'_, AppState>,
+    resource_type: ImagePatchTarget,
+    name: String,
+    namespace: String,
+    container_name: String,
+    image: String,
+) -> Result<(), KubeliError> {
+    let image = image.trim();
+    if image.is_empty() {
+        return Err(KubeliError::unknown("Image must not be empty"));
+    }
+
+    let client = state.k8s.get_client().await?;
+    let patch = container_image_patch(&container_name, image);
+
+    let params = PatchParams::default();
+    match resource_type {
+        ImagePatchTarget::Deployment => {
+            let api: Api<Deployment> = Api::namespaced(client, &namespace);
+            api.patch(&name, &params, &Patch::Strategic(&patch)).await?;
+        }
+        ImagePatchTarget::StatefulSet => {
+            let api: Api<StatefulSet> = Api::namespaced(client, &namespace);
+            api.patch(&name, &params, &Patch::Strategic(&patch)).await?;
+        }
+        ImagePatchTarget::DaemonSet => {
+            let api: Api<DaemonSet> = Api::namespaced(client, &namespace);
+            api.patch(&name, &params, &Patch::Strategic(&patch)).await?;
+        }
+    }
+
+    tracing::info!(
+        "Set image of container {} in {}/{} to {}",
+        container_name,
+        namespace,
+        name,
+        image
+    );
+    Ok(())
+}
+
 async fn set_cronjob_suspend(
     state: State<'_, AppState>,
     name: &str,
@@ -4512,6 +4586,58 @@ pub async fn list_validating_webhooks(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn image_patch_targets_the_named_container_only() {
+        let patch = container_image_patch("web", "nginx:1.26");
+        let containers = patch["spec"]["template"]["spec"]["containers"]
+            .as_array()
+            .expect("containers must be a list");
+
+        // The name is the strategic-merge key; without it Kubernetes would
+        // replace the whole container list instead of merging into one entry.
+        assert_eq!(containers.len(), 1);
+        assert_eq!(containers[0]["name"], "web");
+        assert_eq!(containers[0]["image"], "nginx:1.26");
+    }
+
+    #[test]
+    fn image_patch_carries_nothing_but_name_and_image() {
+        let patch = container_image_patch("web", "nginx:1.26");
+        let container = &patch["spec"]["template"]["spec"]["containers"][0];
+
+        // Any extra key here would overwrite that field on the live container
+        let keys: Vec<&String> = container.as_object().unwrap().keys().collect();
+        assert_eq!(keys.len(), 2, "unexpected keys in patch: {:?}", keys);
+    }
+
+    #[test]
+    fn image_patch_touches_only_the_pod_template() {
+        let patch = container_image_patch("web", "nginx:1.26");
+        let spec = patch["spec"].as_object().unwrap();
+
+        // replicas, selector, strategy and the rest must stay untouched
+        assert_eq!(spec.keys().collect::<Vec<_>>(), vec!["template"]);
+        let template = patch["spec"]["template"].as_object().unwrap();
+        assert_eq!(template.keys().collect::<Vec<_>>(), vec!["spec"]);
+    }
+
+    #[test]
+    fn image_patch_target_serializes_to_lowercase() {
+        // The frontend sends these as plain strings
+        assert_eq!(
+            serde_json::to_value(ImagePatchTarget::Deployment).unwrap(),
+            serde_json::json!("deployment")
+        );
+        assert_eq!(
+            serde_json::to_value(ImagePatchTarget::StatefulSet).unwrap(),
+            serde_json::json!("statefulset")
+        );
+        assert_eq!(
+            serde_json::to_value(ImagePatchTarget::DaemonSet).unwrap(),
+            serde_json::json!("daemonset")
+        );
+    }
 
     #[test]
     fn manual_job_keeps_template_metadata_and_respects_name_limit() {
