@@ -29,7 +29,9 @@ const mockListen = listen as jest.Mock;
 describe("useWorkloadLogs unmount during watch setup", () => {
   beforeEach(() => {
     jest.clearAllMocks();
-    mockListDeployments.mockResolvedValue([]);
+    mockListDeployments.mockResolvedValue([
+      { name: "demo-web", namespace: "default", selector_query: "app=demo-web" },
+    ]);
     mockListPods.mockResolvedValue([]);
     mockWatchPods.mockResolvedValue(undefined);
     mockStopWatch.mockResolvedValue(undefined);
@@ -97,7 +99,7 @@ describe("useWorkloadLogs seq stamping", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     mockListDeployments.mockResolvedValue([
-      { name: "demo-web", namespace: "default", selector: { app: "demo-web" } },
+      { name: "demo-web", namespace: "default", selector_query: "app=demo-web" },
     ]);
     mockListPods.mockResolvedValue([podEntry]);
     mockWatchPods.mockResolvedValue(undefined);
@@ -182,15 +184,17 @@ describe("useWorkloadLogs pod resolution per workload kind", () => {
   });
 
   it.each([
-    ["deployment", "demo-web", { app: "demo-web" }],
-    ["statefulset", "demo-db", { app: "demo-db" }],
-    ["daemonset", "demo-log-collector", { app: "demo-log-collector" }],
-    ["replicaset", "demo-web-7d4b8c", { "pod-template-hash": "7d4b8c" }],
-    ["job", "demo-migration", { "batch.kubernetes.io/controller-uid": "abc-123" }],
+    ["deployment", "demo-web", "app=demo-web"],
+    ["statefulset", "demo-db", "app=demo-db"],
+    ["daemonset", "demo-log-collector", "app=demo-log-collector"],
+    ["replicaset", "demo-web-7d4b8c", "pod-template-hash=7d4b8c"],
+    ["job", "demo-migration", "batch.kubernetes.io/controller-uid=abc-123"],
   ] as const)(
     "resolves %s pods through its own lister and selector",
-    async (kind, name, selector) => {
-      listerFor[kind].mockResolvedValue([{ name, namespace: "default", selector }]);
+    async (kind, name, selectorQuery) => {
+      listerFor[kind].mockResolvedValue([
+        { name, namespace: "default", selector_query: selectorQuery },
+      ]);
 
       renderHook(() => useWorkloadLogs(name, "default", kind));
       await act(async () => {});
@@ -201,13 +205,15 @@ describe("useWorkloadLogs pod resolution per workload kind", () => {
         if (otherKind !== kind) expect(lister).not.toHaveBeenCalled();
       }
 
-      const expectedLabelSelector = Object.entries(selector)
-        .map(([k, v]) => `${k}=${v}`)
-        .join(",");
       expect(mockListPods).toHaveBeenCalledWith({
         namespace: "default",
-        label_selector: expectedLabelSelector,
+        label_selector: selectorQuery,
       });
+      expect(mockWatchPods).toHaveBeenCalledWith(
+        expect.stringContaining(`workload-pods-${kind}-default-${name}`),
+        "default",
+        selectorQuery
+      );
     }
   );
 
@@ -223,7 +229,7 @@ describe("useWorkloadLogs pod resolution per workload kind", () => {
 
   it("skips the pod query when the selector is empty", async () => {
     mockListJobs.mockResolvedValue([
-      { name: "demo-migration", namespace: "default", selector: {} },
+      { name: "demo-migration", namespace: "default", selector_query: "" },
     ]);
 
     const { result } = renderHook(() =>
@@ -237,7 +243,7 @@ describe("useWorkloadLogs pod resolution per workload kind", () => {
 
   it("defaults to deployment when no kind is given", async () => {
     mockListDeployments.mockResolvedValue([
-      { name: "demo-web", namespace: "default", selector: { app: "demo-web" } },
+      { name: "demo-web", namespace: "default", selector_query: "app=demo-web" },
     ]);
 
     renderHook(() => useWorkloadLogs("demo-web", "default"));

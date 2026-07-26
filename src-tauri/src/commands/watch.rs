@@ -245,6 +245,7 @@ pub async fn watch_pods(
     state: State<'_, AppState>,
     watch_manager: State<'_, Arc<WatchManager>>,
     namespace: Option<String>,
+    label_selector: Option<String>,
     watch_id: String,
 ) -> Result<(), KubeliError> {
     let client = state.k8s.get_client().await.map_err(KubeliError::from)?;
@@ -259,7 +260,12 @@ pub async fn watch_pods(
 
     let watch_id_clone = watch_id.clone();
     tokio::spawn(async move {
-        let stream = watcher(pods, Config::default()).boxed();
+        let config = label_selector
+            .as_deref()
+            .filter(|selector| !selector.is_empty())
+            .map(|selector| Config::default().labels(selector))
+            .unwrap_or_default();
+        let stream = watcher(pods, config).boxed();
         run_watch_loop(
             app,
             manager,

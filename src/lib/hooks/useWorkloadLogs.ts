@@ -72,12 +72,12 @@ export const WORKLOAD_KIND_LABELS: Record<WorkloadLogKind, string> = {
 };
 
 /**
- * Every supported workload exposes spec.selector.matchLabels as `selector`,
- * so resolving its pods only differs by which lister to call.
+ * Every supported workload exposes its complete Kubernetes label selector as
+ * `selector_query`, so resolving its pods only differs by which lister to call.
  */
 const WORKLOAD_LISTERS: Record<
   WorkloadLogKind,
-  (namespace: string) => Promise<Array<{ name: string; selector: Record<string, string> }>>
+  (namespace: string) => Promise<Array<{ name: string; selector_query: string }>>
 > = {
   deployment: (namespace) => listDeployments({ namespace }),
   statefulset: (namespace) => listStatefulsets({ namespace }),
@@ -123,7 +123,7 @@ export function useWorkloadLogs(
   const pendingLogsRef = useRef<LogEntry[]>([]);
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
-  const selectorRef = useRef<Record<string, string>>({});
+  const selectorQueryRef = useRef("");
   // Stable color assignment - remembers colors for pods that have disappeared
   const colorAssignmentsRef = useRef(new Map<string, PodColorEntry>());
   const nextColorIndexRef = useRef(0);
@@ -208,15 +208,6 @@ export function useWorkloadLogs(
     }, 150);
   }, [flushPending]);
 
-  /** Check if a pod matches the workload's selector */
-  const podMatchesSelector = useCallback((pod: PodInfo): boolean => {
-    const selector = selectorRef.current;
-    if (!selector || Object.keys(selector).length === 0) return false;
-    return Object.entries(selector).every(
-      ([k, v]) => pod.labels && pod.labels[k] === v
-    );
-  }, []);
-
   // Fetch workload selector + initial pod list
   const fetchPods = useCallback(async () => {
     try {
@@ -231,11 +222,8 @@ export function useWorkloadLogs(
         return [];
       }
 
-      selectorRef.current = workload.selector;
-
-      const labelSelector = Object.entries(workload.selector)
-        .map(([k, v]) => `${k}=${v}`)
-        .join(",");
+      const labelSelector = workload.selector_query;
+      selectorQueryRef.current = labelSelector;
 
       if (!labelSelector) {
         if (mountedRef.current) setPods([]);
@@ -395,14 +383,15 @@ export function useWorkloadLogs(
   // Initial fetch + pod watch for real-time badge updates
   useEffect(() => {
     mountedRef.current = true;
-    fetchPods();
-
     const watchId = `workload-pods-${kind}-${namespace}-${workloadName}-${Date.now()}`;
     let watchUnlisten: UnlistenFn | null = null;
     let cancelled = false;
 
     const setupWatch = async () => {
       try {
+        await fetchPods();
+        if (cancelled || !selectorQueryRef.current) return;
+
         // Listen for pod watch events
         const unlisten = await listen<WatchEvent<PodInfo>>(
           `pods-watch-${watchId}`,
@@ -414,7 +403,6 @@ export function useWorkloadLogs(
               switch (watchEvent.type) {
                 case "Added": {
                   const pod = watchEvent.data as PodInfo;
-                  if (!podMatchesSelector(pod)) return prev;
                   if (pod.phase !== "Running" && pod.phase !== "Pending") return prev;
                   // Don't add duplicates
                   if (prev.some((p) => p.uid === pod.uid)) {
@@ -424,10 +412,6 @@ export function useWorkloadLogs(
                 }
                 case "Modified": {
                   const pod = watchEvent.data as PodInfo;
-                  if (!podMatchesSelector(pod)) {
-                    // No longer matches selector - remove
-                    return prev.filter((p) => p.uid !== pod.uid);
-                  }
                   if (pod.phase !== "Running" && pod.phase !== "Pending") {
                     // No longer active - remove
                     return prev.filter((p) => p.uid !== pod.uid);
@@ -445,7 +429,7 @@ export function useWorkloadLogs(
                 case "Restarted": {
                   const allPods = watchEvent.data as PodInfo[];
                   return allPods.filter(
-                    (p) => podMatchesSelector(p) && (p.phase === "Running" || p.phase === "Pending")
+                    (p) => p.phase === "Running" || p.phase === "Pending"
                   );
                 }
                 default:
@@ -463,7 +447,7 @@ export function useWorkloadLogs(
         watchUnlisten = unlisten;
 
         // Start the watch
-        await watchPods(watchId, namespace);
+        await watchPods(watchId, namespace, selectorQueryRef.current);
 
         // Cleanup ran while watchPods() was pending - its stopWatch was a
         // no-op back then, so stop the watch here
@@ -497,7 +481,7 @@ export function useWorkloadLogs(
         clearTimeout(flushTimerRef.current);
       }
     };
-  }, [fetchPods, namespace, workloadName, kind, podMatchesSelector]);
+  }, [fetchPods, namespace, workloadName, kind]);
 
   return {
     logs,
