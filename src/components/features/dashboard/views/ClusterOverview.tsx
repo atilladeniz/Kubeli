@@ -72,14 +72,17 @@ export function ClusterOverview() {
       </div>
 
       {/* Metrics Section */}
+      <div className="mb-2 flex items-center justify-between">
+        <h2 className="text-sm font-semibold text-muted-foreground">
+          {t("metrics.title")}
+        </h2>
+        <MetricsRefreshButton
+          onRefresh={refreshMetrics}
+          isLoading={metricsLoading}
+        />
+      </div>
+
       {metricsAvailable && metrics && (
-        <>
-        <div className="mb-2 flex items-center justify-between">
-          <h2 className="text-sm font-semibold text-muted-foreground">
-            {t("metrics.title")}
-          </h2>
-          <MetricsRefreshButton onRefresh={refreshMetrics} isLoading={metricsLoading} />
-        </div>
         <div className="mb-6 @2xl:mb-8 grid grid-cols-1 @xl:grid-cols-2 gap-4 @2xl:gap-6">
           <Card>
             <CardHeader className="pb-2">
@@ -115,7 +118,6 @@ export function ClusterOverview() {
             </CardContent>
           </Card>
         </div>
-        </>
       )}
 
       {!metricsAvailable && !metricsLoading && (
