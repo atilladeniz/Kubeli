@@ -47,10 +47,17 @@ export function PodsView() {
     refreshInterval: 10000,
   });
   const { data: services } = useServices({ autoRefresh: true, refreshInterval: 30000 });
-  const { data: podMetricsData, isLoading: metricsLoading } = usePodMetrics(undefined, {
+  const {
+    data: podMetricsData,
+    isLoading: metricsLoading,
+    refresh: refreshMetrics,
+  } = usePodMetrics(undefined, {
     autoRefresh: true,
     initialRefreshInterval: 3000,
   });
+  const handleRefresh = useCallback(async () => {
+    await Promise.all([refresh(), refreshMetrics()]);
+  }, [refresh, refreshMetrics]);
 
   // Build a lookup map for pod metrics AND seed sparkline history.
   // Seeding inside useMemo (not useEffect) ensures history is populated
@@ -486,7 +493,7 @@ export function PodsView() {
       columns={columnsWithActions}
       isLoading={isLoading}
       error={error}
-      onRefresh={refresh}
+      onRefresh={handleRefresh}
       onRetry={retry}
       isWatching={isWatching}
       onStartWatch={startWatch}
