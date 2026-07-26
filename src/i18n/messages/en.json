@@ -477,6 +477,7 @@
     "previousLogsNoStream": "Streaming not available for previous logs",
     "sendToAI": "Send to AI",
     "aiSelectionPrompt": "Analyze the following selected log lines from pod {namespace}/{podName}:",
+    "aiSelectionPromptWorkload": "Analyze the following selected log lines from {workloadKind} {namespace}/{workloadName}. Each line includes its source pod:",
     "podLegend": "Pods",
     "noPodsFound": "No running pods found for this deployment",
     "copyAll": "Copy all",

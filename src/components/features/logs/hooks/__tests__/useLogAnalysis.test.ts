@@ -2,6 +2,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { useLogAnalysis } from "../useLogAnalysis";
 import type { LogEntry } from "@/lib/types";
 import type { ExtractState } from "zustand";
+import { LOG_DEFAULTS } from "../../types";
 
 // Mock stores
 jest.mock("@/lib/stores/ai-store", () => ({
@@ -302,6 +303,39 @@ describe("useLogAnalysis aggregated (multi-pod) analysis", () => {
     expect(mockT).not.toHaveBeenCalledWith("logs.aiPromptTitle", expect.any(Object));
   });
 
+  it("keeps errors in the relevant-log limit ahead of lower-severity lines", async () => {
+    const infoLogs = Array.from(
+      { length: LOG_DEFAULTS.AI_ANALYSIS_MAX_LINES },
+      (_, index) =>
+        fromPod(
+          "demo-web-info",
+          `INFO: routine line ${index}`,
+          `2024-01-01T10:${String(index % 60).padStart(2, "0")}:00Z`
+        )
+    );
+    const error = fromPod(
+      "demo-web-error",
+      "ERROR: must survive the relevance limit",
+      "2024-01-01T09:00:00Z"
+    );
+    const { result } = renderHook(() =>
+      useLogAnalysis({ ...workloadOptions, logs: [...infoLogs, error] })
+    );
+    await waitFor(() => {
+      expect(result.current.isAICliAvailable).toBe(true);
+    });
+
+    act(() => {
+      result.current.analyzeWithAI();
+    });
+
+    const message = mockSetPendingAnalysis.mock.calls[0][0].message as string;
+    expect(message).toContain("ERROR: must survive the relevance limit");
+    expect(message.indexOf("ERROR: must survive the relevance limit")).toBeLessThan(
+      message.indexOf("INFO: routine line")
+    );
+  });
+
   it("keeps single-pod logs unprefixed", async () => {
     const { result } = renderHook(() =>
       useLogAnalysis({ ...workloadOptions, workloadKind: undefined })
@@ -335,6 +369,27 @@ describe("useLogAnalysis aggregated (multi-pod) analysis", () => {
       })
     );
     expect(mockSetAIAssistantOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("labels an aggregated selection as a workload rather than a pod", async () => {
+    const { result } = renderHook(() => useLogAnalysis(workloadOptions));
+    await waitFor(() => {
+      expect(result.current.isAICliAvailable).toBe(true);
+    });
+
+    act(() => {
+      result.current.sendSelectionToAI("ERROR: Connection failed");
+    });
+
+    expect(mockT).toHaveBeenCalledWith("logs.aiSelectionPromptWorkload", {
+      namespace: "default",
+      workloadKind: "Deployment",
+      workloadName: "demo-web",
+    });
+    expect(mockT).not.toHaveBeenCalledWith(
+      "logs.aiSelectionPrompt",
+      expect.any(Object)
+    );
   });
 
   it("ignores a selection when no AI CLI is available", async () => {

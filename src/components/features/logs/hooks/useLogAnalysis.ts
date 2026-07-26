@@ -146,11 +146,14 @@ ${instructions}`;
   const sendSelectionToAI = useCallback(
     (selectedText: string) => {
       if (!isAICliAvailable || !currentCluster) return;
-      const message =
-        t("logs.aiSelectionPrompt", { namespace, podName: sourceName }) +
-        "\n```\n" +
-        selectedText +
-        "\n```";
+      const selectionTitle = workloadKind
+        ? t("logs.aiSelectionPromptWorkload", {
+            namespace,
+            workloadKind,
+            workloadName: sourceName,
+          })
+        : t("logs.aiSelectionPrompt", { namespace, podName: sourceName });
+      const message = selectionTitle + "\n```\n" + selectedText + "\n```";
       setPendingAnalysis({
         message,
         clusterContext: currentCluster.context,
@@ -164,6 +167,7 @@ ${instructions}`;
       currentNamespace,
       namespace,
       sourceName,
+      workloadKind,
       setPendingAnalysis,
       setAIAssistantOpen,
       t,
@@ -193,7 +197,7 @@ function sortLogsByRelevance(logs: LogEntry[]): LogEntry[] {
     const levelA = getLogLevel(a.message);
     const levelB = getLogLevel(b.message);
 
-    const priorityDiff = (priority[levelA] || 4) - (priority[levelB] || 4);
+    const priorityDiff = (priority[levelA] ?? 4) - (priority[levelB] ?? 4);
     if (priorityDiff !== 0) return priorityDiff;
 
     // Same priority, sort by timestamp (newest first)
