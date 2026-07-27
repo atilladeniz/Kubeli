@@ -4,7 +4,8 @@ import { memo, useMemo } from "react";
 import type { LogEntry } from "@/lib/types";
 import { LOG_LEVEL_COLORS } from "../types";
 import { getLogLevel, formatTimestamp } from "../lib";
-import { highlightMessage } from "./highlight";
+import { hasAnsiCodes, parseAnsi, stripAnsi } from "../lib/ansi";
+import { highlightMessage, findMatchRanges, renderStyledSegments } from "./highlight";
 
 interface LogLineProps {
   log: LogEntry;
@@ -16,6 +17,8 @@ interface LogLineProps {
   searchRegex: RegExp | null;
   /** Color class for the pod name prefix; when set, the pod name is shown */
   podColor?: string;
+  /** Render ANSI escape codes as colors/styles instead of stripping them */
+  ansiColors?: boolean;
 }
 
 /**
@@ -38,13 +41,28 @@ export const LogLine = memo(function LogLine({
   useRegex,
   searchRegex,
   podColor,
+  ansiColors = true,
 }: LogLineProps) {
   const logLevel = useMemo(() => getLogLevel(log.message), [log.message]);
 
-  const highlightedMessage = useMemo(
-    () => highlightMessage(log.message, searchQuery, useRegex, searchRegex),
-    [log.message, searchQuery, useRegex, searchRegex]
+  // Escape codes are only parsed when the line actually contains them, so the
+  // common case stays on the plain-string path.
+  const isAnsi = useMemo(
+    () => ansiColors && hasAnsiCodes(log.message),
+    [ansiColors, log.message]
   );
+
+  const renderedMessage = useMemo(() => {
+    if (isAnsi) {
+      const segments = parseAnsi(log.message);
+      const plain = segments.map((s) => s.text).join("");
+      const matches = findMatchRanges(plain, searchQuery, useRegex, searchRegex);
+      return renderStyledSegments(segments, matches);
+    }
+    // ansiColors off (or no codes present): strip so raw escapes never render
+    const plain = ansiColors ? log.message : stripAnsi(log.message);
+    return highlightMessage(plain, searchQuery, useRegex, searchRegex);
+  }, [isAnsi, ansiColors, log.message, searchQuery, useRegex, searchRegex]);
 
   // Pod names typically follow: <deployment>-<replicaset-hash>-<pod-hash>.
   // Show the last two segments for brevity; full name stays in the title.
@@ -54,9 +72,12 @@ export const LogLine = memo(function LogLine({
     return parts.length > 2 ? parts.slice(-2).join("-") : log.pod;
   }, [log.pod, podColor]);
 
-  const colorClass = logColoring
-    ? LOG_LEVEL_COLORS[logLevel] || LOG_LEVEL_COLORS.default
-    : "text-foreground";
+  // ANSI segments carry their own inline colors; the level heuristic would only
+  // fight them, so it applies to uncolored lines.
+  const colorClass =
+    logColoring && !isAnsi
+      ? LOG_LEVEL_COLORS[logLevel] || LOG_LEVEL_COLORS.default
+      : "text-foreground";
 
   return (
     <>
@@ -71,7 +92,7 @@ export const LogLine = memo(function LogLine({
         </span>
       )}
       <span className={colorClass}>
-        {highlightedMessage}
+        {renderedMessage}
       </span>
       {"\n"}
     </>

@@ -5,6 +5,7 @@ import { save } from "@tauri-apps/plugin-dialog";
 import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { toast } from "sonner";
 import type { LogEntry } from "@/lib/types";
+import { stripAnsi } from "../lib";
 import type { DownloadFormat } from "../types";
 
 interface UseLogDownloadOptions {
@@ -99,11 +100,17 @@ function formatLogsForExport(
   const containerSuffix = container || "logs";
   // JSON already carries log.pod per entry, so the prefix only applies to text.
   const podPrefix = (log: LogEntry) => (includePodNames ? `[${log.pod}] ` : "");
+  // Escape codes are display-only; an exported file should be readable text.
+  const plain = (log: LogEntry) => stripAnsi(log.message);
 
   switch (format) {
     case "json":
       return {
-        content: JSON.stringify(logs, null, 2),
+        content: JSON.stringify(
+          logs.map((log) => ({ ...log, message: plain(log) })),
+          null,
+          2
+        ),
         filename: `${sourceName}-${containerSuffix}`,
         extension: "json",
       };
@@ -111,7 +118,7 @@ function formatLogsForExport(
     case "timestamps":
       return {
         content: logs
-          .map((log) => `${log.timestamp || ""}\t${podPrefix(log)}${log.message}`)
+          .map((log) => `${log.timestamp || ""}\t${podPrefix(log)}${plain(log)}`)
           .join("\n"),
         filename: `${sourceName}-${containerSuffix}-timestamps`,
         extension: "log",
@@ -120,7 +127,7 @@ function formatLogsForExport(
     case "text":
     default:
       return {
-        content: logs.map((log) => `${podPrefix(log)}${log.message}`).join("\n"),
+        content: logs.map((log) => `${podPrefix(log)}${plain(log)}`).join("\n"),
         filename: `${sourceName}-${containerSuffix}`,
         extension: "log",
       };

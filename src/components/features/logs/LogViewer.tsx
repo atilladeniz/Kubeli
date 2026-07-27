@@ -8,6 +8,7 @@ import { useTabsStore } from "@/lib/stores/tabs-store";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTranslations } from "next-intl";
 import { LogHeader, LogToolbar, LogContent, LogFooter } from "./components";
+import { stripAnsi } from "./lib";
 import { useLogFilter, useLogAnalysis, useLogDownload, useAutoScroll } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
 import type { TimestampMode } from "./types";
@@ -54,6 +55,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
   // Display options state
   const [lineWrap, setLineWrap] = useState(true);
   const [logColoring, setLogColoring] = useState(true);
+  const [ansiColors, setAnsiColors] = useState(true);
   const [timestampMode, setTimestampMode] = useState<TimestampMode>("local");
 
   const showTimestamps = timestampMode !== "off";
@@ -121,7 +123,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
   // Copy all logs to clipboard
   const copyAllLogs = useCallback(async () => {
     try {
-      const text = filteredLogs.map((l) => l.message).join("\n");
+      const text = filteredLogs.map((l) => stripAnsi(l.message)).join("\n");
       await navigator.clipboard.writeText(text);
     } catch {
       // Clipboard write may fail in some environments
@@ -200,6 +202,8 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
           onLineWrapChange: setLineWrap,
           logColoring,
           onLogColoringChange: setLogColoring,
+          ansiColors,
+          onAnsiColorsChange: setAnsiColors,
           timestampMode,
           onTimestampModeChange: setTimestampMode,
           labels: {
@@ -207,6 +211,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
             displayOptions: t("logs.displayOptions"),
             lineWrap: t("logs.lineWrap"),
             logColoring: t("logs.logColoring"),
+            ansiColors: t("logs.ansiColors"),
             timestamp: t("logs.timestampSection"),
             timestampOff: t("logs.timestampOff"),
             timestampUtc: t("logs.timestampUtc"),
@@ -275,6 +280,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
         timestampLocal={timestampLocal}
         lineWrap={lineWrap}
         logColoring={logColoring}
+        ansiColors={ansiColors}
         useRegex={useRegex}
         searchRegex={searchRegex}
         onScroll={handleScroll}

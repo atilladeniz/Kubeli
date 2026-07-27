@@ -484,6 +484,7 @@
     "displayOptions": "Anzeigeoptionen",
     "lineWrap": "Zeilenumbruch",
     "logColoring": "Log-Einfärbung",
+    "ansiColors": "ANSI-Farben",
     "timestampSection": "Zeitstempel",
     "timestampOff": "Aus",
     "timestampUtc": "UTC",

@@ -1,4 +1,5 @@
 import type { LogLevel } from "../types";
+import { stripAnsi } from "./ansi";
 
 /**
  * Detects log level from message content.
@@ -13,8 +14,11 @@ const LEVEL_PATTERNS: [RegExp, LogLevel][] = [
 ];
 
 export function getLogLevel(message: string): LogLevel {
+  // Colored logs put escape codes right against the level word ("\x1b[31mERROR"),
+  // which defeats the leading \b.
+  const plain = stripAnsi(message);
   for (const [pattern, level] of LEVEL_PATTERNS) {
-    if (pattern.test(message)) {
+    if (pattern.test(plain)) {
       return level;
     }
   }

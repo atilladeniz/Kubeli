@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useTranslations } from "next-intl";
 import { LogToolbar, LogFooter, LogContent } from "./components";
+import { stripAnsi } from "./lib";
 import { useLogFilter, useAutoScroll, useLogAnalysis, useLogDownload } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
 import type { TimestampMode } from "./types";
@@ -58,6 +59,7 @@ export function WorkloadLogViewer({
   // Display options state
   const [lineWrap, setLineWrap] = useState(true);
   const [logColoring, setLogColoring] = useState(true);
+  const [ansiColors, setAnsiColors] = useState(true);
   const [timestampMode, setTimestampMode] = useState<TimestampMode>("local");
 
   const showTimestamps = timestampMode !== "off";
@@ -98,7 +100,7 @@ export function WorkloadLogViewer({
 
   const copyAllLogs = useCallback(async () => {
     try {
-      const text = filteredLogs.map((l) => l.message).join("\n");
+      const text = filteredLogs.map((l) => stripAnsi(l.message)).join("\n");
       await navigator.clipboard.writeText(text);
     } catch {
       // Clipboard write may fail in some environments
@@ -245,6 +247,8 @@ export function WorkloadLogViewer({
           onLineWrapChange: setLineWrap,
           logColoring,
           onLogColoringChange: setLogColoring,
+          ansiColors,
+          onAnsiColorsChange: setAnsiColors,
           timestampMode,
           onTimestampModeChange: setTimestampMode,
           labels: {
@@ -252,6 +256,7 @@ export function WorkloadLogViewer({
             displayOptions: t("logs.displayOptions"),
             lineWrap: t("logs.lineWrap"),
             logColoring: t("logs.logColoring"),
+            ansiColors: t("logs.ansiColors"),
             timestamp: t("logs.timestampSection"),
             timestampOff: t("logs.timestampOff"),
             timestampUtc: t("logs.timestampUtc"),
@@ -311,6 +316,7 @@ export function WorkloadLogViewer({
         timestampLocal={timestampLocal}
         lineWrap={lineWrap}
         logColoring={logColoring}
+        ansiColors={ansiColors}
         searchQuery={searchQuery}
         useRegex={useRegex}
         searchRegex={searchRegex}
