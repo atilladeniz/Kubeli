@@ -3088,7 +3088,9 @@ dependencies = [
  "flate2",
  "futures",
  "futures-util",
+ "http",
  "hyper",
+ "hyper-timeout",
  "hyper-util",
  "jsonpath-rust",
  "k8s-openapi",
@@ -6684,10 +6686,12 @@ dependencies = [
  "bitflags 2.13.1",
  "bytes",
  "http",
+ "http-body",
  "percent-encoding",
  "pin-project-lite",
  "tower-layer",
  "tower-service",
+ "tracing",
 ]
 
 [[package]]

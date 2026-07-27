@@ -36,6 +36,20 @@ returns the token and the connect goes green.
 > Need the cert admin back (e.g. if OIDC breaks)? `minikube update-context -p
 > kubeli-oidc` restores the certificate-based `kubeli-oidc` context.
 
+## Automated end-to-end test (no browser)
+
+```bash
+make oidc-e2e
+```
+
+Runs `src-tauri/src/oidc/live_tests.rs` against the live Dex: Dex's login page
+is a plain HTML form, so the test drives the full native flow over HTTP —
+`start_auth` (PKCE + nonce), form login, `exchange_code`, then simulates an
+expired token mid-stream and asserts a kube client refreshes against Dex and
+stamps the fresh Bearer token per request. Only the Dex container is needed
+(minikube can be stopped); the OS browser hand-off and the `kubeli://`
+deep-link stay manual, everything else is covered.
+
 ## Testing the exec fallback (#335)
 
 Native OIDC is the default. The same `kubeli-oidc` context also declares a

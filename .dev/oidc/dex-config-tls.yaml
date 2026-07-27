@@ -23,6 +23,9 @@ staticClients:
     public: true
     redirectURIs:
       - kubeli://oidc/callback
+      # kubelogin's default loopback redirect, for the kubeconfig exec path
+      # (kubectl oidc-login) that the kubeli-oidc-exec context tests.
+      - http://localhost:8000
 
 enablePasswordDB: true
 staticPasswords:

@@ -16,6 +16,50 @@ use tokio::sync::RwLock;
 
 use super::config::KubeConfig as ParsedKubeConfig;
 
+/// Builds a kube client, optionally injecting the OIDC token per request.
+///
+/// Without `oidc`, this is exactly `Client::try_from` — the default stack for
+/// exec plugins, client certificates and static tokens is untouched.
+///
+/// With it, the layer sits on top of that same default stack, and the
+/// kubeconfig's own auth mechanisms are stripped first: the injector must be
+/// the only source of the Authorization header, and it reads the current token
+/// on every request rather than capturing one at build time.
+pub(crate) fn build_client(
+    mut config: Config,
+    oidc: Option<(
+        Arc<crate::oidc::commands::OidcState>,
+        crate::oidc::config::OidcExecConfig,
+    )>,
+) -> std::result::Result<Client, kube::Error> {
+    let Some((state, oidc_config)) = oidc else {
+        return Client::try_from(config);
+    };
+
+    // Native OIDC is chosen precisely when the kubeconfig's exec plugin is NOT
+    // runnable, but the config still carries it. kube's Auth::try_from runs the
+    // exec plugin synchronously inside ClientBuilder::try_from below, so leaving
+    // it in place fails the whole client build on the missing binary (and an
+    // auth_provider would likewise resolve its own competing token). Strip both:
+    // this injector must be the only source of the Authorization header.
+    config.auth_info.exec = None;
+    config.auth_info.auth_provider = None;
+
+    // Start with kube's own builder so proxy handling, TLS, timeouts, retries,
+    // tracing and future changes to the default stack stay identical to the
+    // non-OIDC path.
+    let injector = crate::oidc::auth_layer::OidcTokenInjector::new(state, oidc_config);
+    // ClientBuilder's default stack is type-erased behind BoxService, while
+    // AsyncFilter needs to clone its inner service into each async request.
+    // Buffer is the same clone boundary kube::Client itself uses.
+    let buffer = tower::buffer::BufferLayer::new(1024);
+    let layer = tower::filter::AsyncFilterLayer::new(injector);
+    Ok(kube::client::ClientBuilder::try_from(config)?
+        .with_layer(&buffer)
+        .with_layer(&layer)
+        .build())
+}
+
 /// Apply timeout policy for the shared Kubernetes client.
 ///
 /// `read_timeout` and `write_timeout` are intentionally left unset: in
@@ -183,6 +227,12 @@ impl KubeClientManager {
         context_name: &str,
         kubeconfig: Kubeconfig,
         source_file: Option<&str>,
+        // Set for Kubeli's native OIDC path: the client then reads the token per
+        // request instead of having one baked in at construction.
+        oidc: Option<(
+            Arc<crate::oidc::commands::OidcState>,
+            crate::oidc::config::OidcExecConfig,
+        )>,
     ) -> Result<()> {
         tracing::info!("Attempting to connect to context: {}", context_name);
         let attempt_start = Instant::now();
@@ -294,7 +344,7 @@ impl KubeClientManager {
             context_name
         );
 
-        let client = match Client::try_from(config) {
+        let client = match build_client(config, oidc) {
             Ok(client) => {
                 steps.push("Kubernetes client created successfully".into());
                 client
@@ -343,7 +393,7 @@ impl KubeClientManager {
         kubeconfig: Kubeconfig,
         source_file: Option<&str>,
     ) -> Result<()> {
-        self.init_with_context(context_name, kubeconfig, source_file)
+        self.init_with_context(context_name, kubeconfig, source_file, None)
             .await
     }
 
@@ -486,6 +536,11 @@ impl Default for AppState {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::oidc::{config::OidcExecConfig, store::OidcTokens};
+    use chrono::{Duration as ChronoDuration, Utc};
+    use http::Request;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[test]
     fn test_path_hint_prefers_source_file() {
@@ -523,6 +578,150 @@ mod tests {
         );
     }
 
+    #[test]
+    fn oidc_client_uses_the_same_proxy_handling_as_the_default_client() {
+        let mut config = Config::new("https://cluster.test".parse().unwrap());
+        config.proxy_url = Some("http://proxy.test:8080".parse().unwrap());
+
+        let default_result = Client::try_from(config.clone());
+        let oidc_result = build_client(
+            config,
+            Some((
+                Arc::new(crate::oidc::commands::OidcState::default()),
+                OidcExecConfig::default(),
+            )),
+        );
+
+        assert_eq!(
+            default_result.err().map(|error| error.to_string()),
+            oidc_result.err().map(|error| error.to_string()),
+            "OIDC must neither bypass a configured proxy nor change kube's proxy errors"
+        );
+    }
+
+    #[tokio::test]
+    async fn oidc_client_retries_transient_server_errors() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
+        let address = listener.local_addr().expect("test server address");
+        let attempts = Arc::new(AtomicUsize::new(0));
+        let server_attempts = Arc::clone(&attempts);
+
+        let server = tokio::spawn(async move {
+            for status in ["503 Service Unavailable", "200 OK"] {
+                let (mut stream, _) = listener.accept().await.expect("accept request");
+                let mut request = vec![0; 4096];
+                let _ = stream.read(&mut request).await.expect("read request");
+                server_attempts.fetch_add(1, Ordering::SeqCst);
+
+                let body = if status == "200 OK" { "ok" } else { "" };
+                let response = format!(
+                    "HTTP/1.1 {status}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                    body.len()
+                );
+                stream
+                    .write_all(response.as_bytes())
+                    .await
+                    .expect("write response");
+            }
+        });
+
+        let oidc_config = OidcExecConfig {
+            issuer_url: "https://idp.test".to_string(),
+            client_id: "kubeli".to_string(),
+            ..Default::default()
+        };
+        let state = Arc::new(crate::oidc::commands::OidcState::default());
+        state.token_store.store_tokens(
+            &oidc_config.issuer_url,
+            &oidc_config.client_id,
+            OidcTokens {
+                id_token: "test-token".to_string(),
+                refresh_token: None,
+                expires_at: Utc::now() + ChronoDuration::hours(1),
+            },
+        );
+
+        let config = Config::new(format!("http://{address}").parse().unwrap());
+        assert!(config.default_retry, "kube defaults retries to enabled");
+        let client = build_client(config, Some((state, oidc_config))).expect("build OIDC client");
+        let body = client
+            .request_text(Request::get("/api/v1/namespaces").body(Vec::new()).unwrap())
+            .await
+            .expect("503 should be retried");
+
+        assert_eq!(body, "ok");
+        assert_eq!(attempts.load(Ordering::SeqCst), 2);
+        server.await.expect("test server completes");
+    }
+
+    /// Regression test: native OIDC is chosen exactly when the kubeconfig's
+    /// exec plugin is NOT runnable, and the config still carries that exec
+    /// entry. kube's `Auth::try_from` runs the plugin synchronously inside
+    /// `ClientBuilder::try_from`, so without stripping it the client build
+    /// fails on the missing binary — and a runnable one would override the
+    /// injected header. The request must go out with the injector's token.
+    #[tokio::test]
+    async fn oidc_client_ignores_the_kubeconfigs_unrunnable_exec_plugin() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind test server");
+        let address = listener.local_addr().expect("test server address");
+
+        let server = tokio::spawn(async move {
+            let (mut stream, _) = listener.accept().await.expect("accept request");
+            let mut request = vec![0; 4096];
+            let n = stream.read(&mut request).await.expect("read request");
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\nConnection: close\r\n\r\nok")
+                .await
+                .expect("write response");
+            String::from_utf8_lossy(&request[..n]).to_string()
+        });
+
+        let oidc_config = OidcExecConfig {
+            issuer_url: "https://idp.test".to_string(),
+            client_id: "kubeli".to_string(),
+            ..Default::default()
+        };
+        let state = Arc::new(crate::oidc::commands::OidcState::default());
+        state.token_store.store_tokens(
+            &oidc_config.issuer_url,
+            &oidc_config.client_id,
+            OidcTokens {
+                id_token: "injected-token".to_string(),
+                refresh_token: None,
+                expires_at: Utc::now() + ChronoDuration::hours(1),
+            },
+        );
+
+        let mut config = Config::new(format!("http://{address}").parse().unwrap());
+        config.auth_info.exec = Some(kube::config::ExecConfig {
+            api_version: Some("client.authentication.k8s.io/v1".to_string()),
+            command: Some("kubeli-test-binary-that-does-not-exist".to_string()),
+            ..Default::default()
+        });
+
+        let client = build_client(config, Some((state, oidc_config)))
+            .expect("client build must not run the kubeconfig's exec plugin");
+        let body = client
+            .request_text(Request::get("/api/v1/namespaces").body(Vec::new()).unwrap())
+            .await
+            .expect("request must succeed without the exec plugin");
+        assert_eq!(body, "ok");
+
+        let raw_request = server.await.expect("test server completes");
+        assert!(
+            raw_request
+                .to_lowercase()
+                .contains("authorization: bearer injected-token"),
+            "the injector must be the only source of the Authorization header, got:\n{raw_request}"
+        );
+    }
+
     fn test_kubeconfig(server: &str) -> Kubeconfig {
         let yaml = format!(
             r#"
@@ -555,6 +754,7 @@ users:
                 "does-not-exist",
                 test_kubeconfig("https://127.0.0.1:1"),
                 None,
+                None,
             )
             .await;
         assert!(result.is_err());
@@ -569,7 +769,12 @@ users:
         let manager = KubeClientManager::new();
         // init succeeds (no I/O yet) even though nothing listens on port 1
         manager
-            .init_with_context("test-ctx", test_kubeconfig("https://127.0.0.1:1"), None)
+            .init_with_context(
+                "test-ctx",
+                test_kubeconfig("https://127.0.0.1:1"),
+                None,
+                None,
+            )
             .await
             .expect("client creation is offline");
         assert!(manager.is_connected().await);
@@ -650,7 +855,7 @@ users:
 
         let kubeconfig = test_kubeconfig_two_contexts();
         manager
-            .init_with_context("ctx-a", kubeconfig.clone(), None)
+            .init_with_context("ctx-a", kubeconfig.clone(), None, None)
             .await
             .expect("client creation is offline");
 
@@ -661,7 +866,7 @@ users:
                 for i in 0..50 {
                     let ctx = if i % 2 == 0 { "ctx-b" } else { "ctx-a" };
                     manager
-                        .init_with_context(ctx, kubeconfig.clone(), None)
+                        .init_with_context(ctx, kubeconfig.clone(), None, None)
                         .await
                         .expect("client creation is offline");
                 }
