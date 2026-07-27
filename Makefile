@@ -12,7 +12,7 @@
 .PHONY: minikube-start minikube-stop minikube-status minikube-serve minikube-setup-samples minikube-clean-samples minikube-setup-flux minikube-setup-argocd minikube-setup-helm
 .PHONY: minikube-setup-openshift minikube-clean-openshift minikube-setup-scale minikube-clean-scale
 .PHONY: kubeconfig-setup-samples kubeconfig-clean-samples kubeconfig-fake-eks kubeconfig-fake-gke kubeconfig-fake-aks kubeconfig-auth-error kubeconfig-same-user kubeconfig-cleanup
-.PHONY: k8s-pods k8s-services k8s-namespaces oidc-dev oidc-dev-stop
+.PHONY: k8s-pods k8s-services k8s-namespaces oidc-dev oidc-dev-stop oidc-e2e
 .PHONY: sbom sbom-npm sbom-rust sbom-validate security-scan security-trivy security-semgrep
 .PHONY: screenshots screenshot-setup screenshot-build
 
@@ -661,6 +661,12 @@ oidc-dev: ## Start local OIDC stack (HTTPS Dex + minikube that trusts it) to tes
 
 oidc-dev-stop: ## Tear down the local OIDC stack (Dex + minikube profile + context)
 	@./scripts/oidc-dev.sh down
+
+oidc-e2e: ## Run the browserless OIDC end-to-end test against the local Dex (needs make oidc-dev; minikube not required)
+	@curl -sf --cacert .dev/oidc/certs/ca.crt https://host.minikube.internal:5556/dex/.well-known/openid-configuration >/dev/null \
+		|| { echo "Dex is not reachable — run 'make oidc-dev' first (the Dex container is enough)."; exit 1; }
+	@mkdir -p dist
+	cd src-tauri && cargo test --bin kubeli live_tests -- --ignored --nocapture
 
 ## Software Bill of Materials (SBOM)
 
