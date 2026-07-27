@@ -5,6 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Loader2, Copy, Check, Sparkles, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LogEntry } from "@/lib/types";
+import type { PodColorEntry } from "@/lib/hooks/useDeploymentLogs";
 import { LogLine } from "./LogLine";
 
 interface LogContentProps {
@@ -21,6 +22,8 @@ interface LogContentProps {
   onStartStream: () => void;
   /** Disables the Follow button in empty state (e.g., when viewing previous logs) */
   streamDisabled?: boolean;
+  /** Per-pod colors for aggregated multi-pod logs; enables the pod name prefix */
+  podColorMap?: Map<string, PodColorEntry>;
   /** Ref for scroll-to-bottom target (placed at end of logs) */
   endRef?: React.RefObject<HTMLDivElement | null>;
   // i18n
@@ -57,6 +60,7 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
       onScroll,
       onStartStream,
       streamDisabled,
+      podColorMap,
       endRef,
       loadingText,
       searchingText,
@@ -204,6 +208,7 @@ export const LogContent = forwardRef<HTMLDivElement, LogContentProps>(
                     searchQuery={searchQuery}
                     useRegex={useRegex}
                     searchRegex={searchRegex}
+                    podColor={podColorMap?.get(log.pod)?.text}
                   />
                 </div>
               );

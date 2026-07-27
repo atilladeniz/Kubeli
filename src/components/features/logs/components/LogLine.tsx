@@ -1,9 +1,10 @@
 "use client";
 
-import React, { memo, useMemo } from "react";
+import { memo, useMemo } from "react";
 import type { LogEntry } from "@/lib/types";
 import { LOG_LEVEL_COLORS } from "../types";
-import { getLogLevel, formatTimestamp, escapeRegExp } from "../lib";
+import { getLogLevel, formatTimestamp } from "../lib";
+import { highlightMessage } from "./highlight";
 
 interface LogLineProps {
   log: LogEntry;
@@ -13,12 +14,17 @@ interface LogLineProps {
   searchQuery: string;
   useRegex: boolean;
   searchRegex: RegExp | null;
+  /** Color class for the pod name prefix; when set, the pod name is shown */
+  podColor?: string;
 }
 
 /**
  * Renders a single log line as inline content (spans + newline).
  * Must be placed inside a <pre> so that \n produces visible line breaks
  * and ::selection only highlights text, not full-width blocks.
+ *
+ * When `podColor` is set (aggregated multi-pod viewers), the line is prefixed
+ * with a color-coded short pod name so the source replica is identifiable.
  *
  * Memoized to prevent unnecessary re-renders when parent updates.
  * Critical for performance with 10k+ log lines.
@@ -31,20 +37,22 @@ export const LogLine = memo(function LogLine({
   searchQuery,
   useRegex,
   searchRegex,
+  podColor,
 }: LogLineProps) {
   const logLevel = useMemo(() => getLogLevel(log.message), [log.message]);
 
-  const highlightedMessage = useMemo(() => {
-    if (!searchQuery) return log.message;
+  const highlightedMessage = useMemo(
+    () => highlightMessage(log.message, searchQuery, useRegex, searchRegex),
+    [log.message, searchQuery, useRegex, searchRegex]
+  );
 
-    // Use regex for highlighting if enabled
-    if (useRegex && searchRegex) {
-      return highlightWithRegex(log.message, searchRegex);
-    }
-
-    // Simple string search highlighting
-    return highlightWithString(log.message, searchQuery);
-  }, [log.message, searchQuery, useRegex, searchRegex]);
+  // Pod names typically follow: <deployment>-<replicaset-hash>-<pod-hash>.
+  // Show the last two segments for brevity; full name stays in the title.
+  const shortPodName = useMemo(() => {
+    if (!podColor) return null;
+    const parts = log.pod.split("-");
+    return parts.length > 2 ? parts.slice(-2).join("-") : log.pod;
+  }, [log.pod, podColor]);
 
   const colorClass = logColoring
     ? LOG_LEVEL_COLORS[logLevel] || LOG_LEVEL_COLORS.default
@@ -57,6 +65,11 @@ export const LogLine = memo(function LogLine({
           {formatTimestamp(log.timestamp, timestampLocal)}
         </span>
       )}
+      {shortPodName && (
+        <span className={`mr-2 font-semibold ${podColor}`} title={log.pod}>
+          [{shortPodName}]
+        </span>
+      )}
       <span className={colorClass}>
         {highlightedMessage}
       </span>
@@ -64,69 +77,3 @@ export const LogLine = memo(function LogLine({
     </>
   );
 });
-
-/**
- * Highlights matches in text using a regex pattern.
- */
-function highlightWithRegex(text: string, regex: RegExp): React.ReactNode {
-  // The filter regex is deliberately non-global (.test() with "g" is stateful);
-  // highlighting needs all occurrences, so build a local global copy. The
-  // source already passed validateRegexSafety() in compileRegex (ReDoS check).
-  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
-  const globalRegex = new RegExp(
-    regex.source,
-    regex.flags.includes("g") ? regex.flags : `${regex.flags}g`
-  );
-  // Slice by match indices instead of split(): split() with user capture
-  // groups injects the captures into the parts array and corrupts the output.
-  const result: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let key = 0;
-
-  for (const match of text.matchAll(globalRegex)) {
-    if (match[0] === "") continue;
-    const index = match.index ?? 0;
-    result.push(text.slice(lastIndex, index));
-    result.push(
-      <mark key={key++} className="bg-yellow-500/30 text-yellow-200">
-        {match[0]}
-      </mark>
-    );
-    lastIndex = index + match[0].length;
-  }
-  result.push(text.slice(lastIndex));
-
-  return result;
-}
-
-/** Maximum query length for highlighting to prevent performance issues */
-const MAX_HIGHLIGHT_QUERY_LENGTH = 200;
-
-/**
- * Highlights matches in text using simple string matching.
- * Uses escapeRegExp to safely handle special characters in the query.
- * Query is length-limited to prevent ReDoS attacks.
- */
-function highlightWithString(text: string, query: string): React.ReactNode {
-  // Prevent ReDoS by limiting query length
-  if (!query || query.length > MAX_HIGHLIGHT_QUERY_LENGTH) {
-    return text;
-  }
-
-  // escapeRegExp makes the pattern safe by escaping all special regex characters
-  // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
-  const regex = new RegExp(`(${escapeRegExp(query)})`, "gi");
-  const parts = text.split(regex);
-
-  // split() with a capture group puts matches at odd indices; checking via
-  // regex.test(part) on a global regex is stateful and skips every other match.
-  return parts.map((part, i) =>
-    i % 2 === 1 ? (
-      <mark key={i} className="bg-yellow-500/30 text-yellow-200">
-        {part}
-      </mark>
-    ) : (
-      part
-    )
-  );
-}

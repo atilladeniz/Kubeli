@@ -77,3 +77,78 @@ describe("useDeploymentLogs unmount during watch setup", () => {
     );
   });
 });
+
+describe("useDeploymentLogs seq stamping", () => {
+  const podEntry = {
+    name: "demo-web-7d4b8c-abcde",
+    namespace: "default",
+    phase: "Running",
+    labels: { app: "demo-web" },
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListDeployments.mockResolvedValue([
+      { name: "demo-web", namespace: "default", selector: { app: "demo-web" } },
+    ]);
+    mockListPods.mockResolvedValue([podEntry]);
+    mockWatchPods.mockResolvedValue(undefined);
+    mockStopWatch.mockResolvedValue(undefined);
+    mockListen.mockResolvedValue(jest.fn());
+  });
+
+  // Regression: aggregated logs were pushed unstamped, so LogContent's
+  // key={log.seq ?? item.index} always fell back to the index. Timestamp-ordered
+  // merge-insertion shifts indices on nearly every flush, which recycles rows.
+  it("stamps every ingested log entry with a unique, increasing seq", async () => {
+    const logListeners: Array<(event: { payload: unknown }) => void> = [];
+    mockListen.mockImplementation((eventName: string, handler: (e: { payload: unknown }) => void) => {
+      if (eventName.startsWith("log-stream-")) logListeners.push(handler);
+      return Promise.resolve(jest.fn());
+    });
+
+    const { result } = renderHook(() => useDeploymentLogs("demo-web", "default"));
+    await act(async () => {});
+
+    await act(async () => {
+      await result.current.startStream();
+    });
+
+    expect(logListeners.length).toBeGreaterThan(0);
+    const emit = logListeners[0];
+
+    const line = (message: string, timestamp: string) => ({
+      message,
+      timestamp,
+      container: "main",
+      pod: podEntry.name,
+      namespace: "default",
+    });
+
+    await act(async () => {
+      emit({ payload: { type: "Line", data: line("first", "2024-01-01T10:00:02Z") } });
+      emit({
+        payload: {
+          type: "Lines",
+          data: [
+            // Out of order on purpose: merge-insertion puts this before "first"
+            line("second", "2024-01-01T10:00:01Z"),
+            line("third", "2024-01-01T10:00:03Z"),
+          ],
+        },
+      });
+      // Flush is debounced at 150ms
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    });
+
+    const seqs = result.current.logs.map((l) => l.seq);
+    expect(seqs).toHaveLength(3);
+    expect(seqs.every((s) => typeof s === "number")).toBe(true);
+    expect(new Set(seqs).size).toBe(3);
+
+    // seq reflects ingest order, not the timestamp-sorted display order
+    const bySeq = [...result.current.logs].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
+    expect(bySeq.map((l) => l.message)).toEqual(["first", "second", "third"]);
+    expect(result.current.logs.map((l) => l.message)).toEqual(["second", "first", "third"]);
+  });
+});
