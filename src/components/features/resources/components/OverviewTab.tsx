@@ -9,6 +9,7 @@ import { useLocale } from "@/components/providers/I18nProvider";
 import { MetadataItem } from "./MetadataItem";
 import { SecretDataSection } from "./SecretDataSection";
 import { ContainerStatusSection } from "./ContainerStatusSection";
+import { TemplateContainersSection } from "./TemplateContainersSection";
 import { PodMetricsSection } from "./PodMetricsSection";
 import { AnnotationsSection } from "./AnnotationsSection";
 import { OwnerReferencesSection } from "./OwnerReferencesSection";
@@ -23,13 +24,33 @@ function formatDate(dateString: string, locale: string): string {
   return date.toLocaleString(resolvedLocale);
 }
 
+/**
+ * Workloads whose YAML carries a pod template at spec.template.
+ *
+ * CronJobs are absent on purpose: theirs sits one level deeper, under
+ * spec.jobTemplate.spec.template.
+ */
+const WORKLOADS_WITH_POD_TEMPLATE = new Set([
+  "deployment",
+  "statefulset",
+  "daemonset",
+  "replicaset",
+  "job",
+]);
+
+/** Workloads whose pod template images can be patched in place; ReplicaSets
+ *  and Jobs are excluded because a controller owns their template. */
+const IMAGE_PATCHABLE = new Set(["deployment", "statefulset", "daemonset"]);
+
 interface OverviewTabProps {
   resource: ResourceData;
   resourceType: string;
   onNavigateToOwner?: (kind: string, name: string, namespace?: string) => void;
+  /** Opens the Set Image dialog; only forwarded for image-patchable workloads */
+  onSetImage?: () => void;
 }
 
-export function OverviewTab({ resource, resourceType, onNavigateToOwner }: OverviewTabProps) {
+export function OverviewTab({ resource, resourceType, onNavigateToOwner, onSetImage }: OverviewTabProps) {
   const t = useTranslations();
   const locale = useLocale();
   const resourceKey = `${resourceType}-${resource.name}-${resource.namespace}`;
@@ -167,6 +188,14 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner }: Overv
             initContainers={initContainers}
             containers={containers}
             namespace={resource.namespace ?? ""}
+          />
+        )}
+
+        {/* Pod template containers (for workloads that own pods) */}
+        {WORKLOADS_WITH_POD_TEMPLATE.has(resourceType) && (
+          <TemplateContainersSection
+            yaml={resource.yaml}
+            onSetImage={IMAGE_PATCHABLE.has(resourceType) ? onSetImage : undefined}
           />
         )}
 

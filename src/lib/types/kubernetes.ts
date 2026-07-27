@@ -350,6 +350,8 @@ export interface DeploymentInfo {
   created_at: string | null;
   labels: Record<string, string>;
   selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 export interface ServiceInfo {
@@ -607,6 +609,8 @@ export interface ReplicaSetInfo {
   created_at: string | null;
   labels: Record<string, string>;
   selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 // DaemonSet info
@@ -623,6 +627,10 @@ export interface DaemonSetInfo {
   created_at: string | null;
   labels: Record<string, string>;
   node_selector: Record<string, string>;
+  /** Pod selector from spec.selector — resolves the DaemonSet's pods */
+  selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 // StatefulSet info
@@ -637,6 +645,10 @@ export interface StatefulSetInfo {
   service_name: string | null;
   created_at: string | null;
   labels: Record<string, string>;
+  /** Pod selector from spec.selector — resolves the StatefulSet's pods */
+  selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 // Job info
@@ -655,6 +667,13 @@ export interface JobInfo {
   created_at: string | null;
   labels: Record<string, string>;
   status: string;
+  /**
+   * Pod selector from spec.selector — resolves the Job's pods. Normally the
+   * controller-generated `batch.kubernetes.io/controller-uid` label.
+   */
+  selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 // CronJob info
@@ -800,6 +819,7 @@ export interface IngressClassInfo {
 // HPA (Horizontal Pod Autoscaler) v2 info
 export interface HPAMetricTarget {
   type: string;
+  metric_name: string | null;
   average_utilization: number | null;
   average_value: string | null;
   value: string | null;
@@ -807,6 +827,7 @@ export interface HPAMetricTarget {
 
 export interface HPAMetricStatus {
   type: string;
+  metric_name: string | null;
   current_average_utilization: number | null;
   current_average_value: string | null;
   current_value: string | null;
@@ -1282,4 +1303,33 @@ export interface ArgoCDApplicationInfo {
   message: string | null;
   current_revision: string | null;
   created_at: string | null;
+}
+
+// X.509 certificate inspection (TLS secrets)
+export interface CertificateInfo {
+  subject: string;
+  /** Common Name pulled out of the subject, when present */
+  subject_common_name: string | null;
+  issuer: string;
+  issuer_common_name: string | null;
+  /** Uppercase hex, colon-separated (AB:CD:...) */
+  serial_number: string;
+  /** RFC 3339 */
+  not_before: string;
+  not_after: string;
+  /** Negative once expired */
+  days_until_expiry: number;
+  is_expired: boolean;
+  /** True before not_before — a certificate issued for future use */
+  not_yet_valid: boolean;
+  signature_algorithm: string;
+  /** Already rendered, e.g. "DNS:example.com", "IP:10.0.0.1" */
+  subject_alt_names: string[];
+  is_ca: boolean;
+}
+
+export interface CertificateChain {
+  certificates: CertificateInfo[];
+  /** Set when the PEM could not be parsed at all */
+  error: string | null;
 }

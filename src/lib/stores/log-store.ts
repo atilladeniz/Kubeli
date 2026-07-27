@@ -11,6 +11,7 @@ import {
 import type { LogEntry, LogOptions, LogEvent, PodInfo, WatchEvent } from "../types";
 import { type KubeliError, toKubeliError, getErrorMessage } from "../types/errors";
 import { useUIStore } from "./ui-store";
+import { stampSeq } from "./log-seq";
 
 export interface LogTabState {
   logs: LogEntry[];
@@ -75,10 +76,6 @@ interface LogStoreState {
 }
 
 // External state not in Zustand (no re-renders needed)
-// Monotonic ID for stable React keys across ring-buffer trims.
-let logSeq = 0;
-const stampSeq = (entry: LogEntry): LogEntry => ({ ...entry, seq: ++logSeq });
-
 const listeners = new Map<string, UnlistenFn>();
 // Tabs with a startStream call in flight - isStreaming only turns true after
 // an await, so this synchronous marker is what stops rapid double-starts

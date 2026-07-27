@@ -293,6 +293,31 @@ export async function scaleDeployment(
   return invoke("scale_deployment", { name, namespace, replicas });
 }
 
+/** Workload kinds whose container images can be patched */
+export type ImagePatchTarget = "deployment" | "statefulset" | "daemonset";
+
+/**
+ * Points one container in a workload's pod template at a new image.
+ * Other containers and their remaining fields are left untouched.
+ */
+export async function setContainerImage(
+  resourceType: ImagePatchTarget,
+  name: string,
+  namespace: string,
+  containerName: string,
+  image: string,
+  initContainer: boolean
+): Promise<void> {
+  return invoke("set_container_image", {
+    resourceType,
+    name,
+    namespace,
+    containerName,
+    image,
+    initContainer,
+  });
+}
+
 export async function triggerCronjob(name: string, namespace: string): Promise<void> {
   return invoke("trigger_cronjob", { name, namespace });
 }

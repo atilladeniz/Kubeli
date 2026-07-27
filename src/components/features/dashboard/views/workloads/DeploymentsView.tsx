@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Copy, Trash2, Eye, Scale, RefreshCw, Star, FileText } from "lucide-react";
+import { Box, Copy, Trash2, Eye, Scale, RefreshCw, Star, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useDeployments } from "@/lib/hooks/useK8sResources";
@@ -17,7 +17,7 @@ import {
   type ContextMenuItemDef,
 } from "../../../resources/columns";
 import { useResourceDetail } from "../../context";
-import { useTabsStore } from "@/lib/stores/tabs-store";
+import { useOpenWorkloadLogsTab } from "@/lib/hooks/useOpenWorkloadLogsTab";
 import type { DeploymentInfo } from "@/lib/types";
 
 export function DeploymentsView() {
@@ -26,8 +26,13 @@ export function DeploymentsView() {
     autoRefresh: true,
     refreshInterval: 30000,
   });
-  const { openResourceDetail, handleDeleteFromContext, handleScaleFromContext } = useResourceDetail();
-  const openOrActivateTab = useTabsStore((s) => s.openOrActivateTab);
+  const {
+    openResourceDetail,
+    handleDeleteFromContext,
+    handleScaleFromContext,
+    handleSetImageFromContext,
+  } = useResourceDetail();
+  const openWorkloadLogsTab = useOpenWorkloadLogsTab();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const currentCluster = useClusterStore((s) => s.currentCluster);
@@ -50,22 +55,17 @@ export function DeploymentsView() {
     {
       label: t("logs.viewLogs"),
       icon: <FileText className="size-4" />,
-      onClick: () => {
-        const result = openOrActivateTab(
-          "deployment-logs",
-          `Logs: ${dep.name} (${dep.namespace})`,
-          { namespace: dep.namespace, deploymentName: dep.name },
-          (tab) => tab.type === "deployment-logs" &&
-            tab.metadata?.deploymentName === dep.name &&
-            tab.metadata?.namespace === dep.namespace,
-        );
-        if (result === null) toast.warning(t("tabs.limitToast"));
-      },
+      onClick: () => openWorkloadLogsTab("deployment", dep.name, dep.namespace),
     },
     {
       label: "Scale",
       icon: <Scale className="size-4" />,
       onClick: () => handleScaleFromContext(dep.name, dep.namespace, dep.replicas, refresh),
+    },
+    {
+      label: t("workloads.setImage"),
+      icon: <Box className="size-4" />,
+      onClick: () => handleSetImageFromContext("deployment", dep.name, dep.namespace, refresh),
     },
     { separator: true, label: "", onClick: () => {} },
     {

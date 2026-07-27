@@ -11,4 +11,7 @@ export const HPAsView = createResourceView<HPAInfo>({
   titleKey: "navigation.hpa",
   emptyMessageKey: "empty.hpas",
   resourceType: "hpa",
+  // The most loaded autoscalers are the ones worth looking at first
+  defaultSortKey: "utilization",
+  defaultSortDirection: "desc",
 });

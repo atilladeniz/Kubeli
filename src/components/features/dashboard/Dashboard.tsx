@@ -40,7 +40,10 @@ import {
   listEvents,
   aiCheckCliAvailable,
   aiCheckCodexCliAvailable,
+  type ImagePatchTarget,
 } from "@/lib/tauri/commands";
+import { getErrorMessage } from "@/lib/types/errors";
+import { parseTemplateContainers } from "../resources/lib/utils";
 
 import {
   ResourceDetailContext,
@@ -51,9 +54,11 @@ import {
   DeleteConfirmDialog,
   UninstallHelmDialog,
   ScaleDeploymentDialog,
+  SetImageDialog,
   type DeleteDialogState,
   type UninstallDialogState,
   type ScaleDialogState,
+  type SetImageDialogState,
 } from "./dialogs";
 import { useDashboardShortcuts } from "./hooks/useDashboardShortcuts";
 
@@ -122,6 +127,7 @@ function DashboardContent() {
   const [deleteDialog, setDeleteDialog] = useState<DeleteDialogState | null>(null);
   const [uninstallDialog, setUninstallDialog] = useState<UninstallDialogState | null>(null);
   const [scaleDialog, setScaleDialog] = useState<ScaleDialogState | null>(null);
+  const [setImageDialog, setSetImageDialog] = useState<SetImageDialogState | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const getFavorites = useFavoritesStore((s) => s.getFavorites);
   const removeFavorite = useFavoritesStore((s) => s.removeFavorite);
@@ -438,6 +444,44 @@ function DashboardContent() {
     setScaleDialog({ open: true, name, namespace, currentReplicas, onSuccess });
   };
 
+  const handleSetImageFromContext = async (
+    resourceType: ImagePatchTarget,
+    name: string,
+    namespace: string,
+    onSuccess?: () => void
+  ) => {
+    // The container list is not on the list payload; read it from the YAML,
+    // which is the same source the detail view's container section uses.
+    try {
+      const { yaml } = await getResourceYaml(resourceType, name, namespace);
+      const containers = parseTemplateContainers(yaml);
+      if (containers.length === 0) {
+        toast.error(t("workloads.setImageNoContainers"));
+        return;
+      }
+      setSetImageDialog({ open: true, resourceType, name, namespace, containers, onSuccess });
+    } catch (err) {
+      toast.error(t("workloads.setImageFailed"), { description: getErrorMessage(err) });
+    }
+  };
+
+  // Inline Set Image action for the detail view, bound only for workloads
+  // whose template can be patched (ReplicaSets/Jobs are controller-owned).
+  const detailSetImage = (() => {
+    if (!selectedResource) return undefined;
+    // Normalize plural list types ("deployments") the same way ResourceDetail does
+    const type = selectedResource.type.replace(/s$/, "");
+    const { name, namespace } = selectedResource.data;
+    if (!namespace || !["deployment", "statefulset", "daemonset"].includes(type)) {
+      return undefined;
+    }
+    return () =>
+      handleSetImageFromContext(type as ImagePatchTarget, name, namespace, () => {
+        // Reload the detail so the overview shows the patched image
+        void openResourceDetail(selectedResource.type, name, namespace);
+      });
+  })();
+
   const navigateToOwner = useCallback(
     async (kind: string, name: string, namespace?: string) => {
       if (selectedResource) {
@@ -485,6 +529,7 @@ function DashboardContent() {
         handleDeleteFromContext,
         handleUninstallFromContext,
         handleScaleFromContext,
+        handleSetImageFromContext,
         closeResourceDetail,
       }}
     >
@@ -545,6 +590,7 @@ function DashboardContent() {
                       onNavigateToOwner={(kind, name, namespace) =>
                         navigateToOwner(kind, name, namespace)
                       }
+                      onSetImage={detailSetImage}
                       onNavigateBack={navigationHistory.length > 0 ? navigateBack : undefined}
                       onNavigateToPathIndex={navigationHistory.length > 0 ? navigateToPathIndex : undefined}
                       navigationPath={navigationHistory.map((h) => ({
@@ -575,6 +621,7 @@ function DashboardContent() {
         <DeleteConfirmDialog state={deleteDialog} onClose={() => setDeleteDialog(null)} />
         <UninstallHelmDialog state={uninstallDialog} onClose={() => setUninstallDialog(null)} />
         <ScaleDeploymentDialog state={scaleDialog} onClose={() => setScaleDialog(null)} />
+        <SetImageDialog state={setImageDialog} onClose={() => setSetImageDialog(null)} />
         <ShortcutsHelpDialog open={showShortcutsHelp} onOpenChange={setShowShortcutsHelp} />
       </div>
     </ResourceDetailContext.Provider>

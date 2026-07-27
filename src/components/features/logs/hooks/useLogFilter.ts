@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useCallback } from "react";
 import type { LogEntry } from "@/lib/types";
-import { compileRegex, validateRegex, getLogLevel } from "../lib";
+import { compileRegex, validateRegex, getLogLevel, stripAnsi } from "../lib";
 
 interface UseLogFilterOptions {
   logs: LogEntry[];
@@ -55,13 +55,16 @@ export function useLogFilter({ logs }: UseLogFilterOptions): UseLogFilterReturn 
   const filteredLogs = useMemo(() => {
     let result = logs;
 
-    // Filter by search query
+    // Filter by search query. Matching runs on ANSI-stripped text so an escape
+    // sequence sitting inside a phrase doesn't hide the line from search.
     if (searchQuery) {
       if (useRegex && searchRegex) {
-        result = result.filter((log) => searchRegex.test(log.message));
+        result = result.filter((log) => searchRegex.test(stripAnsi(log.message)));
       } else if (!useRegex) {
         const query = searchQuery.toLowerCase();
-        result = result.filter((log) => log.message.toLowerCase().includes(query));
+        result = result.filter((log) =>
+          stripAnsi(log.message).toLowerCase().includes(query)
+        );
       }
     }
 
