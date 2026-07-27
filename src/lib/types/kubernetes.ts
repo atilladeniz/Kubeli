@@ -818,6 +818,7 @@ export interface IngressClassInfo {
 // HPA (Horizontal Pod Autoscaler) v2 info
 export interface HPAMetricTarget {
   type: string;
+  metric_name: string | null;
   average_utilization: number | null;
   average_value: string | null;
   value: string | null;
@@ -825,6 +826,7 @@ export interface HPAMetricTarget {
 
 export interface HPAMetricStatus {
   type: string;
+  metric_name: string | null;
   current_average_utilization: number | null;
   current_average_value: string | null;
   current_value: string | null;

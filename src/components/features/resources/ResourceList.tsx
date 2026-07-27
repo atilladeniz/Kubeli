@@ -121,12 +121,23 @@ export function ResourceList<T>({
           return sortDirection === "asc" ? comparison : -comparison;
         }
 
-        const aValue = (a as Record<string, unknown>)[sortKey];
-        const bValue = (b as Record<string, unknown>)[sortKey];
+        // Computed columns (e.g. HPA utilization) have no field behind their
+        // key, so they supply the sort value themselves.
+        const sortColumn = columns.find((col) => col.key === sortKey);
+        const aValue = sortColumn?.sortValue
+          ? sortColumn.sortValue(a)
+          : (a as Record<string, unknown>)[sortKey];
+        const bValue = sortColumn?.sortValue
+          ? sortColumn.sortValue(b)
+          : (b as Record<string, unknown>)[sortKey];
 
         if (aValue === bValue) return 0;
-        if (aValue === null || aValue === undefined) return 1;
-        if (bValue === null || bValue === undefined) return -1;
+        // Nulls sort last in both directions: an HPA without metrics is not
+        // "least utilized", it has no reading at all. These return early, so
+        // the direction flip below never reaches them.
+        const isEmpty = (v: unknown) => v === null || v === undefined;
+        if (isEmpty(aValue)) return 1;
+        if (isEmpty(bValue)) return -1;
 
         let comparison: number;
 
