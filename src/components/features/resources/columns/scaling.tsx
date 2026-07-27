@@ -8,6 +8,55 @@ import type { Column } from "../types";
 import { NamespaceColorDot } from "../components/NamespaceColorDot";
 import { formatAge } from "../lib/utils";
 
+interface UtilizationMetric {
+  current: number;
+  target: number | null;
+  pressure: number;
+}
+
+/**
+ * Selects the HPA metric with the highest pressure relative to its own target.
+ * Current and target metrics are paired by resource name because their array
+ * order is not part of the Kubernetes API contract.
+ */
+function peakUtilizationMetric(hpa: HPAInfo): UtilizationMetric | null {
+  const targetsByName = new Map(
+    hpa.metrics
+      .filter(
+        (metric) =>
+          metric.metric_name &&
+          metric.average_utilization !== null &&
+          metric.average_utilization !== undefined
+      )
+      .map((metric) => [metric.metric_name, metric.average_utilization as number])
+  );
+
+  const metrics = hpa.current_metrics.flatMap((metric): UtilizationMetric[] => {
+    const current = metric.current_average_utilization;
+    if (current === null || current === undefined) return [];
+
+    const target = metric.metric_name
+      ? (targetsByName.get(metric.metric_name) ?? null)
+      : null;
+    const pressure = target && target > 0 ? (current / target) * 100 : current;
+    return [{ current, target, pressure }];
+  });
+
+  return metrics.reduce<UtilizationMetric | null>(
+    (peak, metric) => (!peak || metric.pressure > peak.pressure ? metric : peak),
+    null
+  );
+}
+
+function utilizationColor(current: number, target: number | null): string {
+  // Relative to target when there is one: 90% CPU against a 95% target is
+  // healthy, against a 50% target it is not.
+  const ratio = target ? (current / target) * 100 : current;
+  if (ratio >= 100) return "text-red-500";
+  if (ratio >= 80) return "text-yellow-500";
+  return "text-green-500";
+}
+
 export const hpaColumns: Column<HPAInfo>[] = [
   {
     key: "name",
@@ -49,6 +98,31 @@ export const hpaColumns: Column<HPAInfo>[] = [
     label: "REPLICAS",
     sortable: true,
     render: (hpa) => `${hpa.current_replicas}/${hpa.desired_replicas}`,
+  },
+  {
+    key: "utilization",
+    label: "UTILIZATION",
+    sortable: true,
+    width: "w-32",
+    noTruncate: true,
+    sortValue: (hpa) => peakUtilizationMetric(hpa)?.pressure ?? null,
+    render: (hpa) => {
+      const peak = peakUtilizationMetric(hpa);
+      if (!peak) return <span className="text-muted-foreground">-</span>;
+
+      return (
+        <span className="tabular-nums">
+          <span
+            className={`font-medium ${utilizationColor(peak.current, peak.target)}`}
+          >
+            {peak.current}%
+          </span>
+          {peak.target !== null && (
+            <span className="text-muted-foreground"> / {peak.target}%</span>
+          )}
+        </span>
+      );
+    },
   },
   {
     key: "created_at",

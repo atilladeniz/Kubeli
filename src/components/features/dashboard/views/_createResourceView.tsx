@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { Copy, Trash2, Eye } from "lucide-react";
+import { Box, Copy, Trash2, Eye, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { ResourceList } from "../../resources/ResourceList";
 import {
@@ -15,6 +15,18 @@ import {
 } from "../../resources/columns";
 import { useResourceDetail } from "../context";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
+import type { ImagePatchTarget } from "@/lib/tauri/commands";
+import { supportsAggregatedLogs } from "@/lib/hooks/useWorkloadLogs";
+import { useOpenWorkloadLogsTab } from "@/lib/hooks/useOpenWorkloadLogsTab";
+
+/**
+ * Workloads whose container images can be retargeted in place.
+ *
+ * DeploymentsView has its own hand-written menu and adds the action there;
+ * ReplicaSets and Jobs are excluded because their pod template is owned by a
+ * controller and would be reverted.
+ */
+const IMAGE_PATCHABLE = new Set(["statefulset", "daemonset"]);
 
 // Base resource type - all K8s resources have these
 interface BaseResource {
@@ -96,11 +108,13 @@ export function createResourceView<T extends BaseResource>(
 
   return function ResourceView() {
     const t = useTranslations();
+    const openWorkloadLogsTab = useOpenWorkloadLogsTab();
     const { data, isLoading, error, refresh, retry } = hook({
       autoRefresh: true,
       refreshInterval: 30000,
     });
-    const { openResourceDetail, handleDeleteFromContext } = useResourceDetail();
+    const { openResourceDetail, handleDeleteFromContext, handleSetImageFromContext } =
+      useResourceDetail();
     const [sortKey, setSortKey] = useState<string | null>(defaultSortKey);
     const [sortDirection, setSortDirection] = useState<SortDirection>(defaultSortDirection);
 
@@ -132,6 +146,31 @@ export function createResourceView<T extends BaseResource>(
           ),
         },
       ];
+
+      // Aggregated logs across the workload's pods
+      if (supportsAggregatedLogs(resourceType) && resource.namespace) {
+        items.push({
+          label: t("logs.viewLogs"),
+          icon: <FileText className="size-4" />,
+          onClick: () =>
+            openWorkloadLogsTab(resourceType, resource.name, resource.namespace!),
+        });
+      }
+
+      // Set Image, for workloads whose pod template can be patched
+      if (IMAGE_PATCHABLE.has(resourceType) && resource.namespace) {
+        items.push({
+          label: t("workloads.setImage"),
+          icon: <Box className="size-4" />,
+          onClick: () =>
+            handleSetImageFromContext(
+              resourceType as ImagePatchTarget,
+              resource.name,
+              resource.namespace!,
+              refresh
+            ),
+        });
+      }
 
       // Add custom menu items if provided
       if (additionalMenuItems) {

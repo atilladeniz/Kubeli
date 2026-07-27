@@ -25,6 +25,8 @@
 # misc
 .DS_Store
 *.pem
+# Test fixtures are checked in; they contain no real keys
+!src-tauri/test-data/*.pem
 
 # SBOM outputs
 sbom-*.json

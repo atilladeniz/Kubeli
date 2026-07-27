@@ -18,7 +18,7 @@ import { WorkloadsOverview } from "./WorkloadsOverview";
 import { PortForwardsView } from "./PortForwardsView";
 import { AllPortForwardsView } from "./AllPortForwardsView";
 import { PodLogsView } from "./PodLogsView";
-import { DeploymentLogsView } from "./DeploymentLogsView";
+import { WorkloadLogsView } from "./WorkloadLogsView";
 
 // Cluster views
 import {
@@ -230,7 +230,7 @@ export function ResourceView({ activeResource }: ResourceViewProps) {
     case "pod-logs":
       return <PodLogsView />;
     case "deployment-logs":
-      return <DeploymentLogsView />;
+      return <WorkloadLogsView />;
 
     default:
       return <ComingSoon resource={activeResource} />;

@@ -128,3 +128,48 @@ describe("OverviewTab scheduling section", () => {
     expect(screen.queryByText("podDetail.scheduling")).toBeNull();
   });
 });
+
+// The Set Image inline action must reach patchable workloads and only those:
+// ReplicaSets and Jobs are controller-owned, so patching them would be reverted.
+describe("OverviewTab set image action", () => {
+  const workloadYaml = [
+    "spec:",
+    "  template:",
+    "    spec:",
+    "      containers:",
+    "        - name: web",
+    "          image: nginx:1.25",
+    "",
+  ].join("\n");
+
+  const workload: ResourceData = {
+    name: "demo-web",
+    namespace: "kubeli-demo",
+    uid: "workload-uid",
+    yaml: workloadYaml,
+  };
+
+  it.each(["deployment", "statefulset", "daemonset"])(
+    "forwards the action for a %s",
+    async (type) => {
+      const onSetImage = jest.fn();
+      render(
+        <OverviewTab resource={workload} resourceType={type} onSetImage={onSetImage} />
+      );
+
+      const button = await screen.findByRole("button", { name: "workloads.setImage" });
+      await userEvent.click(button);
+      expect(onSetImage).toHaveBeenCalledTimes(1);
+    }
+  );
+
+  it.each(["replicaset", "job"])("does not offer it for a %s", (type) => {
+    render(
+      <OverviewTab resource={workload} resourceType={type} onSetImage={jest.fn()} />
+    );
+
+    // The containers section itself still renders
+    expect(screen.getByText("web")).toBeInTheDocument();
+    expect(screen.queryByText("workloads.setImage")).toBeNull();
+  });
+});

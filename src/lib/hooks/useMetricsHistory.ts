@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useClusterStore } from "../stores/cluster-store";
 import { getPodMetrics } from "../tauri/commands";
+import { useMetricsInterval } from "./useMetrics";
 import type { PodMetrics } from "../types";
 
 /** A single metrics snapshot for a pod */
@@ -12,9 +13,8 @@ export interface MetricsSnapshot {
   memoryBytes: number;
 }
 
-/** Max data points to keep per pod (5 min at 10s interval = 30 points) */
+/** Max data points to keep per pod (7.5 min at the default 15s cadence) */
 const MAX_POINTS = 30;
-const POLL_INTERVAL = 10_000; // 10 seconds
 
 /**
  * In-memory store for metrics history.
@@ -108,6 +108,7 @@ export function useMetricsHistory(
 ): MetricsHistoryResult {
   const isConnected = useClusterStore((s) => s.isConnected);
   const context = useClusterStore((s) => s.currentCluster?.context ?? null);
+  const intervalMs = useMetricsInterval();
   const key = `${namespace}/${podName}`;
   const [history, setHistory] = useState<MetricsSnapshot[]>(() => [...getHistory(key)]);
   const [polled, setPolled] = useState(() => getHistory(key).length > 0);
@@ -142,15 +143,20 @@ export function useMetricsHistory(
     }
   }, [isConnected, podName, namespace, key]);
 
+  // Mount poll, kept separate from the recurring timer: it runs even when
+  // polling is disabled (one current reading beats an empty panel) and must
+  // not re-fire when only the interval setting changes.
   useEffect(() => {
     // Use setTimeout(0) for initial poll to avoid synchronous setState in effect
     const initial = setTimeout(poll, 0);
-    const interval = setInterval(poll, POLL_INTERVAL);
-    return () => {
-      clearTimeout(initial);
-      clearInterval(interval);
-    };
+    return () => clearTimeout(initial);
   }, [poll]);
+
+  useEffect(() => {
+    if (intervalMs === null) return;
+    const interval = setInterval(poll, intervalMs);
+    return () => clearInterval(interval);
+  }, [poll, intervalMs]);
 
   return { history, polled };
 }

@@ -14,6 +14,11 @@ export interface Column<T> {
    * underlying value is an object (which would stringify to "[object Object]").
    */
   getSearchText?: (item: T) => string;
+  /**
+   * Value used when sorting by this column. Needed for computed columns whose
+   * key does not name a field on the item. Null sorts last in both directions.
+   */
+  sortValue?: (item: T) => number | string | null;
 }
 
 export interface FilterOption<T> {

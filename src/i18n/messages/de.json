@@ -214,6 +214,12 @@
     "lastSchedule": "Letzte Ausführung",
     "suspend": "Pausieren",
     "resume": "Fortsetzen",
+    "setImage": "Image ändern",
+    "setImageFailed": "Image konnte nicht geändert werden",
+    "setImageNoContainers": "Diese Workload hat keine Container zum Ändern",
+    "currentImage": "Aktuell",
+    "imageRepository": "Repository",
+    "imageTag": "Tag",
     "scale": "Skalieren",
     "restart": "Neustarten",
     "trigger": "Auslösen",
@@ -462,6 +468,7 @@
     "enableRegex": "Regex aktivieren",
     "disableRegex": "Regex deaktivieren",
     "aiPromptTitle": "Analysiere die Logs des Pods {namespace}/{podName}{containerInfo}:",
+    "aiPromptTitleWorkload": "Analysiere die aggregierten Logs von {workloadKind} {namespace}/{workloadName} über {podCount} Pods. Jede Zeile ist mit ihrem Quell-Pod präfixiert:",
     "aiPromptStats": "**Log-Statistik**: {total} Zeilen gesamt, {errors} Errors, {warnings} Warnings",
     "aiPromptLogsHeader": "**Logs** (sortiert nach Relevanz, max. {maxLines} Zeilen):",
     "aiPromptInstructions": "Bitte analysiere diese Logs und:\n1. Identifiziere kritische Fehler oder Probleme\n2. Erklaere was die Hauptursache sein koennte\n3. Fasse die wichtigsten Muster zusammen",
@@ -476,12 +483,14 @@
     "previousLogsNoStream": "Streaming für vorherige Logs nicht verfügbar",
     "sendToAI": "An KI senden",
     "aiSelectionPrompt": "Analysiere die folgenden ausgewählten Log-Zeilen vom Pod {namespace}/{podName}:",
+    "aiSelectionPromptWorkload": "Analysiere die folgenden ausgewählten Log-Zeilen von {workloadKind} {namespace}/{workloadName}. Jede Zeile enthält ihren Quell-Pod:",
     "podLegend": "Pods",
     "noPodsFound": "Keine laufenden Pods für dieses Deployment gefunden",
     "copyAll": "Alles kopieren",
     "displayOptions": "Anzeigeoptionen",
     "lineWrap": "Zeilenumbruch",
     "logColoring": "Log-Einfärbung",
+    "ansiColors": "ANSI-Farben",
     "timestampSection": "Zeitstempel",
     "timestampOff": "Aus",
     "timestampUtc": "UTC",
@@ -642,6 +651,11 @@
       "title": "Standard-Namespace",
       "description": "Diesen Namespace beim Verbinden mit Clustern vorauswählen",
       "placeholder": "Alle Namespaces"
+    },
+    "metricsRefreshInterval": {
+      "title": "Metrik-Aktualisierungsintervall",
+      "description": "Wie oft CPU- und Speicher-Metriken abgerufen werden, unabhängig von Ressourcenlisten",
+      "disabled": "Deaktiviert"
     },
     "refreshInterval": {
       "title": "Aktualisierungsintervall",
@@ -951,6 +965,9 @@
     "removedMissingResourceDescription": "Die Ressource \"{name}\" existiert nicht mehr."
   },
   "metrics": {
+    "refresh": "Metriken aktualisieren",
+    "refreshWithInterval": "Metriken aktualisieren (automatisch alle {seconds}s)",
+    "refreshAutoDisabled": "Metriken aktualisieren (Auto-Aktualisierung aus)",
     "title": "Metriken",
     "cpu": "CPU",
     "memory": "Arbeitsspeicher",
@@ -1017,6 +1034,7 @@
   },
   "podDetail": {
     "initContainers": "Init-Container",
+    "initContainer": "Init",
     "containers": "Container",
     "lastTermination": "Letzte Beendigung",
     "exitCode": "Exit-Code",
@@ -1285,5 +1303,23 @@
     "cancel": "Abbrechen",
     "closeConfirm": "Schließen",
     "dontAskAgain": "Nicht mehr fragen"
+  },
+  "secrets": {
+    "certificate": "Zertifikat",
+    "certSubject": "Antragsteller",
+    "certIssuer": "Aussteller",
+    "certSerial": "Seriennummer",
+    "certValidFrom": "Gültig ab",
+    "certValidTo": "Gültig bis",
+    "certSignatureAlgorithm": "Signaturalgorithmus",
+    "certSans": "Alternative Antragstellernamen",
+    "certValid": "Gültig",
+    "certExpired": "Abgelaufen",
+    "certNotYetValid": "Noch nicht gültig",
+    "certExpiresInDays": "Läuft in {days} Tagen ab",
+    "certExpiresToday": "Läuft heute ab",
+    "certLeaf": "Blattzertifikat",
+    "certIntermediate": "Zwischenzertifikat",
+    "certParseError": "Dieses Zertifikat konnte nicht gelesen werden."
   }
 }
