@@ -6,14 +6,21 @@ import { useAIStore } from "@/lib/stores/ai-store";
 import { useClusterStore, selectCurrentNamespace } from "@/lib/stores/cluster-store";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { aiCheckCliAvailable, aiCheckCodexCliAvailable } from "@/lib/tauri/commands";
-import { getLogLevel, formatTimestamp } from "../lib";
+import { getLogLevel, formatTimestamp, stripAnsi } from "../lib";
 import { LOG_DEFAULTS } from "../types";
 
 interface UseLogAnalysisOptions {
   namespace: string;
-  podName: string;
+  /** Pod name, or workload name when analyzing aggregated logs */
+  sourceName: string;
   container: string | null;
   logs: LogEntry[];
+  /**
+   * Labels each log line with its source pod and titles the prompt as a
+   * workload analysis. Set for aggregated multi-pod logs so the AI can tell
+   * a single bad replica apart from a cluster-wide problem.
+   */
+  workloadKind?: string;
   t: (key: string, values?: Record<string, string | number>) => string;
 }
 
@@ -22,6 +29,8 @@ interface UseLogAnalysisReturn {
   isAICliAvailable: boolean | null;
   /** Analyze logs with AI assistant */
   analyzeWithAI: () => void;
+  /** Send a user-selected excerpt to the AI assistant */
+  sendSelectionToAI: (selectedText: string) => void;
 }
 
 /**
@@ -30,9 +39,10 @@ interface UseLogAnalysisReturn {
  */
 export function useLogAnalysis({
   namespace,
-  podName,
+  sourceName,
   container,
   logs,
+  workloadKind,
   t,
 }: UseLogAnalysisOptions): UseLogAnalysisReturn {
   const [isAICliAvailable, setIsAICliAvailable] = useState<boolean | null>(null);
@@ -73,14 +83,26 @@ export function useLogAnalysis({
     const errorCount = relevantLogs.filter((l) => getLogLevel(l.message) === "error").length;
     const warnCount = relevantLogs.filter((l) => getLogLevel(l.message) === "warn").length;
 
-    // Format logs for AI
+    // Format logs for AI. Aggregated logs carry the pod name per line so the
+    // AI can attribute a failure to one replica instead of the whole workload.
     const logsText = relevantLogs
-      .map((log) => `${log.timestamp ? `[${formatTimestamp(log.timestamp)}] ` : ""}${log.message}`)
+      .map(
+        (log) =>
+          `${log.timestamp ? `[${formatTimestamp(log.timestamp)}] ` : ""}` +
+          `${workloadKind ? `[${log.pod}] ` : ""}${stripAnsi(log.message)}`
+      )
       .join("\n");
 
     // Build the analysis request message using i18n
     const containerInfo = container ? ` (Container: ${container})` : "";
-    const title = t("logs.aiPromptTitle", { namespace, podName, containerInfo });
+    const title = workloadKind
+      ? t("logs.aiPromptTitleWorkload", {
+          namespace,
+          workloadKind,
+          workloadName: sourceName,
+          podCount: new Set(relevantLogs.map((l) => l.pod)).size,
+        })
+      : t("logs.aiPromptTitle", { namespace, podName: sourceName, containerInfo });
     const stats = t("logs.aiPromptStats", {
       total: logs.length,
       errors: errorCount,
@@ -111,8 +133,9 @@ ${instructions}`;
   }, [
     logs,
     namespace,
-    podName,
+    sourceName,
     container,
+    workloadKind,
     currentCluster,
     currentNamespace,
     setPendingAnalysis,
@@ -120,9 +143,41 @@ ${instructions}`;
     t,
   ]);
 
+  const sendSelectionToAI = useCallback(
+    (selectedText: string) => {
+      if (!isAICliAvailable || !currentCluster) return;
+      const selectionTitle = workloadKind
+        ? t("logs.aiSelectionPromptWorkload", {
+            namespace,
+            workloadKind,
+            workloadName: sourceName,
+          })
+        : t("logs.aiSelectionPrompt", { namespace, podName: sourceName });
+      const message = selectionTitle + "\n```\n" + selectedText + "\n```";
+      setPendingAnalysis({
+        message,
+        clusterContext: currentCluster.context,
+        namespace: currentNamespace || undefined,
+      });
+      setAIAssistantOpen(true);
+    },
+    [
+      isAICliAvailable,
+      currentCluster,
+      currentNamespace,
+      namespace,
+      sourceName,
+      workloadKind,
+      setPendingAnalysis,
+      setAIAssistantOpen,
+      t,
+    ]
+  );
+
   return {
     isAICliAvailable,
     analyzeWithAI,
+    sendSelectionToAI,
   };
 }
 
@@ -142,7 +197,7 @@ function sortLogsByRelevance(logs: LogEntry[]): LogEntry[] {
     const levelA = getLogLevel(a.message);
     const levelB = getLogLevel(b.message);
 
-    const priorityDiff = (priority[levelA] || 4) - (priority[levelB] || 4);
+    const priorityDiff = (priority[levelA] ?? 4) - (priority[levelB] ?? 4);
     if (priorityDiff !== 0) return priorityDiff;
 
     // Same priority, sort by timestamp (newest first)

@@ -6,7 +6,6 @@ use crate::oidc::commands::OidcState;
 use crate::oidc::config::{detect_oidc_exec, exec_provider_runnable};
 use crate::oidc::flow::RefreshError;
 use kube::config::Kubeconfig;
-use kube::Client;
 use std::sync::Arc;
 use tauri::{command, AppHandle, Manager, State};
 
@@ -186,7 +185,7 @@ pub async fn connect_cluster(
     // However, some setups intentionally split contexts, clusters, and users across files
     // (merge_mode). If the single file doesn't contain the referenced cluster or user,
     // fall back to the merged kubeconfig.
-    let mut kubeconfig = if let Some(ref src) = source_file {
+    let kubeconfig = if let Some(ref src) = source_file {
         let path = std::path::PathBuf::from(src);
         if path.exists() {
             let single = Kubeconfig::read_from(&path)
@@ -269,8 +268,10 @@ pub async fn connect_cluster(
             let token = resolve_oidc_token(&app, &oidc_state, &oidc_config).await;
 
             match token {
-                Some(id_token) => {
-                    inject_oidc_token(&mut kubeconfig, user, &id_token);
+                Some(_id_token) => {
+                    // The token is deliberately NOT written into the kubeconfig:
+                    // the client reads it per request via the auth layer, so a
+                    // later refresh reaches streams that are already running.
                     active_oidc = Some(oidc_config);
                 }
                 None => {
@@ -294,9 +295,15 @@ pub async fn connect_cluster(
     // waiting for a device-code login that never happens).
     let init_result = tokio::time::timeout(
         std::time::Duration::from_secs(30),
-        state
-            .k8s
-            .init_with_context(&context, kubeconfig.clone(), source_file.as_deref()),
+        state.k8s.init_with_context(
+            &context,
+            kubeconfig.clone(),
+            source_file.as_deref(),
+            active_oidc.clone().map(|cfg| {
+                let state: State<'_, Arc<OidcState>> = app.state();
+                (Arc::clone(&state), cfg)
+            }),
+        ),
     )
     .await;
 
@@ -332,13 +339,10 @@ pub async fn connect_cluster(
                         if let (Some(oidc_config), Some(ref user)) = (active_oidc, &user_name) {
                             let oidc_state: State<'_, Arc<OidcState>> = app.state();
                             spawn_oidc_refresh_task(
-                                app.clone(),
                                 state.k8s.connection_handle(),
                                 Arc::clone(&oidc_state),
                                 oidc_config,
                                 context.clone(),
-                                kubeconfig,
-                                user.clone(),
                             );
                         }
 
@@ -554,14 +558,16 @@ async fn sleep_cancellable(seconds: u64, stop_flag: &std::sync::atomic::AtomicBo
 }
 
 #[allow(clippy::too_many_arguments)]
+/// Renews the OIDC token ahead of expiry.
+///
+/// Since the client reads the token per request, this no longer rebuilds or
+/// swaps anything — it exists so no user-facing request has to wait on a
+/// refresh, and it stops once this context is no longer the connected one.
 fn spawn_oidc_refresh_task(
-    app_handle: AppHandle,
     connection: crate::k8s::client::SharedConnection,
     oidc_state: Arc<OidcState>,
     oidc_config: crate::oidc::config::OidcExecConfig,
     context_name: String,
-    kubeconfig: Kubeconfig,
-    user_name: String,
 ) {
     let stop_flag = oidc_state.arm_refresh();
 
@@ -625,43 +631,24 @@ fn spawn_oidc_refresh_task(
                 break;
             };
 
-            let mut refreshed_kubeconfig = kubeconfig.clone();
-            inject_oidc_token(&mut refreshed_kubeconfig, &user_name, &new_token);
+            // refresh() already stored the new token, and the client's auth
+            // layer reads it per request — nothing to rebuild or swap. The loop
+            // exists only to renew ahead of expiry so no request has to block
+            // on a refresh.
+            let _ = new_token;
 
-            match build_client_from_kubeconfig(refreshed_kubeconfig, &context_name).await {
-                Ok(new_client) => {
-                    // Check and swap under the one connection lock: a cluster
-                    // switch may have landed while we were refreshing/building,
-                    // and the stored pair is the single source of truth for
-                    // which context owns the client. If the context no longer
-                    // matches, a newer connection owns the slot and this stale
-                    // client must be dropped instead of clobbering it.
-                    let mut guard = connection.write().await;
-                    // Check the stop flag under the same lock: a reconnect to
-                    // the SAME context arms a new refresh task - the context
-                    // check alone would not stop this superseded one from
-                    // clobbering the new connection's client.
-                    if stop_flag.load(std::sync::atomic::Ordering::Relaxed)
-                        || !refresh_target_is_current(&guard, &context_name)
-                    {
-                        tracing::debug!(
-                            "OIDC refresh: superseded during refresh, discarding stale client"
-                        );
-                        break;
-                    }
-                    *guard = Some((new_client, Some(context_name.clone())));
-                    drop(guard);
-                    tracing::info!("OIDC token refreshed and kube client reinitialized");
-                    use tauri::Emitter;
-                    // Carry the refreshed context: forwards survive a cluster
-                    // switch, so the frontend must restart only this cluster's.
-                    let _ = app_handle.emit("oidc-token-refreshed", context_name.clone());
-                }
-                Err(e) => {
-                    tracing::error!("Failed to create client after OIDC refresh: {}", e);
-                    break;
-                }
+            // Stop once this context is no longer the connected one, or once a
+            // reconnect to the same context armed a newer refresh task.
+            let guard = connection.read().await;
+            if stop_flag.load(std::sync::atomic::Ordering::Relaxed)
+                || !refresh_target_is_current(&guard, &context_name)
+            {
+                tracing::debug!("OIDC refresh loop stopping: superseded");
+                break;
             }
+            drop(guard);
+
+            tracing::info!("OIDC token refreshed; in-flight streams keep working");
         }
     });
 }
@@ -679,48 +666,6 @@ fn refresh_target_is_current<C>(stored: &Option<(C, Option<String>)>, context_na
     stored.as_ref().and_then(|(_, ctx)| ctx.as_deref()) == Some(context_name)
 }
 
-async fn config_from_kubeconfig(
-    kubeconfig: Kubeconfig,
-    context_name: &str,
-) -> Result<kube::Config, String> {
-    let mut config = kube::Config::from_custom_kubeconfig(
-        kubeconfig,
-        &kube::config::KubeConfigOptions {
-            context: Some(context_name.to_string()),
-            cluster: None,
-            user: None,
-        },
-    )
-    .await
-    .map_err(|e| format!("Config creation failed: {}", e))?;
-
-    // Mirror the connect path: keep long-lived streams (log_stream, exec) alive
-    // after a token refresh by not reinstating per-read/write timeouts. See #292.
-    crate::k8s::client::apply_shared_client_timeouts(&mut config);
-    Ok(config)
-}
-
-async fn build_client_from_kubeconfig(
-    kubeconfig: Kubeconfig,
-    context_name: &str,
-) -> Result<Client, String> {
-    let config = config_from_kubeconfig(kubeconfig, context_name).await?;
-    Client::try_from(config).map_err(|e| format!("Client creation failed: {}", e))
-}
-
-fn inject_oidc_token(kubeconfig: &mut Kubeconfig, user_name: &str, token: &str) {
-    if let Some(auth_entry) = kubeconfig
-        .auth_infos
-        .iter_mut()
-        .find(|a| a.name == user_name)
-    {
-        if let Some(ref mut auth_info) = auth_entry.auth_info {
-            auth_info.exec = None;
-            auth_info.token = Some(secrecy::SecretString::from(token.to_string()));
-        }
-    }
-}
-
 /// Check if kubeconfig exists
 #[command]
 pub async fn has_kubeconfig() -> Result<bool, KubeliError> {
@@ -729,7 +674,7 @@ pub async fn has_kubeconfig() -> Result<bool, KubeliError> {
 
 #[cfg(test)]
 mod refresh_tests {
-    use super::{config_from_kubeconfig, refresh_delay_secs, refresh_target_is_current};
+    use super::{refresh_delay_secs, refresh_target_is_current};
     use kube::config::Kubeconfig;
 
     #[test]
@@ -766,11 +711,11 @@ mod refresh_tests {
         );
     }
 
-    // Regression for #292: the client rebuilt after an OIDC token refresh must
-    // carry the same no-stream-timeout policy as the initial connect, otherwise
-    // long-lived log/exec streams die ~295s after a refresh.
+    // Regression for #292: long-lived log/exec streams die ~295s in if
+    // per-read/write timeouts are set. A refresh no longer rebuilds the client,
+    // so the policy only has to hold on the connect path — this pins it there.
     #[tokio::test]
-    async fn refreshed_client_keeps_streams_alive() {
+    async fn connect_config_keeps_streams_alive() {
         let kubeconfig = Kubeconfig::from_yaml(
             r#"
 apiVersion: v1
@@ -793,17 +738,25 @@ current-context: test
         )
         .expect("valid kubeconfig");
 
-        let config = config_from_kubeconfig(kubeconfig, "test")
-            .await
-            .expect("config builds");
+        let mut config = kube::Config::from_custom_kubeconfig(
+            kubeconfig,
+            &kube::config::KubeConfigOptions {
+                context: Some("test".to_string()),
+                cluster: None,
+                user: None,
+            },
+        )
+        .await
+        .expect("config builds");
+        crate::k8s::client::apply_shared_client_timeouts(&mut config);
 
         assert!(
             config.read_timeout.is_none(),
-            "read_timeout must stay unset after refresh (issue #292)"
+            "read_timeout must stay unset (issue #292)"
         );
         assert!(
             config.write_timeout.is_none(),
-            "write_timeout must stay unset after refresh (issue #292)"
+            "write_timeout must stay unset (issue #292)"
         );
     }
 }

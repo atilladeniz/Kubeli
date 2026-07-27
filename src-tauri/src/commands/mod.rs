@@ -1,4 +1,5 @@
 pub mod argocd;
+pub mod certificates;
 pub mod cluster_settings;
 pub mod clusters;
 pub mod debug;

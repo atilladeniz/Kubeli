@@ -6,7 +6,7 @@ use k8s_openapi::api::admissionregistration::v1::{
     MutatingWebhookConfiguration, ValidatingWebhookConfiguration,
 };
 use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
-use k8s_openapi::api::autoscaling::v2::HorizontalPodAutoscaler;
+use k8s_openapi::api::autoscaling::v2::{HorizontalPodAutoscaler, MetricSpec, MetricStatus};
 use k8s_openapi::api::batch::v1::{CronJob, Job};
 use k8s_openapi::api::coordination::v1::Lease;
 use k8s_openapi::api::core::v1::ServiceAccount;
@@ -23,7 +23,7 @@ use k8s_openapi::api::rbac::v1::{ClusterRole, ClusterRoleBinding, Role, RoleBind
 use k8s_openapi::api::scheduling::v1::PriorityClass;
 use k8s_openapi::api::storage::v1::{CSIDriver, CSINode, StorageClass, VolumeAttachment};
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
 use k8s_openapi::Resource;
 use kube::api::{Api, DeleteParams, ListParams, Patch, PatchParams, PostParams};
 use kube::core::DynamicObject;
@@ -41,6 +41,33 @@ fn btree_to_hashmap(
     btree: Option<std::collections::BTreeMap<String, String>>,
 ) -> HashMap<String, String> {
     btree.map(|b| b.into_iter().collect()).unwrap_or_default()
+}
+
+/// Converts a Kubernetes LabelSelector into the query syntax accepted by
+/// ListParams and watcher Config, preserving both matchLabels and
+/// matchExpressions.
+fn label_selector_to_query(selector: &LabelSelector) -> String {
+    let mut parts = Vec::new();
+
+    if let Some(labels) = &selector.match_labels {
+        parts.extend(labels.iter().map(|(key, value)| format!("{key}={value}")));
+    }
+
+    if let Some(expressions) = &selector.match_expressions {
+        for expression in expressions {
+            let values = expression.values.as_deref().unwrap_or_default().join(",");
+            let part = match expression.operator.as_str() {
+                "In" => format!("{} in ({})", expression.key, values),
+                "NotIn" => format!("{} notin ({})", expression.key, values),
+                "Exists" => expression.key.clone(),
+                "DoesNotExist" => format!("!{}", expression.key),
+                _ => continue,
+            };
+            parts.push(part);
+        }
+    }
+
+    parts.join(",")
 }
 
 pub fn extract_container_info(
@@ -293,6 +320,8 @@ pub struct DeploymentInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// Service-specific information
@@ -494,6 +523,7 @@ pub async fn list_deployments(
             let spec = deployment.spec.unwrap_or_default();
             let status = deployment.status.unwrap_or_default();
 
+            let selector_query = label_selector_to_query(&spec.selector);
             DeploymentInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -505,6 +535,7 @@ pub async fn list_deployments(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 selector: btree_to_hashmap(spec.selector.match_labels),
+                selector_query,
             }
         })
         .collect();
@@ -1628,6 +1659,91 @@ pub async fn scale_deployment(
     Ok(())
 }
 
+/// Workload kinds whose pod template can have a container image patched.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImagePatchTarget {
+    Deployment,
+    StatefulSet,
+    DaemonSet,
+}
+
+/// Builds the strategic merge patch that retargets one container's image.
+///
+/// `containers` is a list, so a plain merge patch would replace it wholesale
+/// with the single entry below. A strategic merge patch merges by the
+/// container's `name` instead, leaving sibling containers and every other
+/// field on the patched one intact.
+fn container_image_patch(
+    container_name: &str,
+    image: &str,
+    init_container: bool,
+) -> serde_json::Value {
+    let mut patch = serde_json::json!({
+        "spec": {
+            "template": {
+                "spec": {}
+            }
+        }
+    });
+    let list_name = if init_container {
+        "initContainers"
+    } else {
+        "containers"
+    };
+    patch["spec"]["template"]["spec"][list_name] = serde_json::json!([{
+        "name": container_name,
+        "image": image,
+    }]);
+    patch
+}
+
+/// Sets the image of a single container in a workload's pod template.
+#[command]
+pub async fn set_container_image(
+    state: State<'_, AppState>,
+    resource_type: ImagePatchTarget,
+    name: String,
+    namespace: String,
+    container_name: String,
+    image: String,
+    init_container: bool,
+) -> Result<(), KubeliError> {
+    let image = image.trim();
+    if image.is_empty() {
+        return Err(KubeliError::unknown("Image must not be empty"));
+    }
+
+    let client = state.k8s.get_client().await?;
+    let patch = container_image_patch(&container_name, image, init_container);
+
+    let params = PatchParams::default();
+    match resource_type {
+        ImagePatchTarget::Deployment => {
+            let api: Api<Deployment> = Api::namespaced(client, &namespace);
+            api.patch(&name, &params, &Patch::Strategic(&patch)).await?;
+        }
+        ImagePatchTarget::StatefulSet => {
+            let api: Api<StatefulSet> = Api::namespaced(client, &namespace);
+            api.patch(&name, &params, &Patch::Strategic(&patch)).await?;
+        }
+        ImagePatchTarget::DaemonSet => {
+            let api: Api<DaemonSet> = Api::namespaced(client, &namespace);
+            api.patch(&name, &params, &Patch::Strategic(&patch)).await?;
+        }
+    }
+
+    tracing::info!(
+        "Set image of {}container {} in {}/{} to {}",
+        if init_container { "init " } else { "" },
+        container_name,
+        namespace,
+        name,
+        image
+    );
+    Ok(())
+}
+
 async fn set_cronjob_suspend(
     state: State<'_, AppState>,
     name: &str,
@@ -2024,6 +2140,8 @@ pub struct ReplicaSetInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// List all replica sets
@@ -2065,6 +2183,7 @@ pub async fn list_replicasets(
                 .map(|r| (Some(r.name.clone()), Some(r.kind.clone())))
                 .unwrap_or((None, None));
 
+            let selector_query = label_selector_to_query(&spec.selector);
             ReplicaSetInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -2077,6 +2196,7 @@ pub async fn list_replicasets(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 selector: btree_to_hashmap(spec.selector.match_labels),
+                selector_query,
             }
         })
         .collect();
@@ -2100,6 +2220,10 @@ pub struct DaemonSetInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub node_selector: HashMap<String, String>,
+    /// Pod selector from spec.selector — resolves the DaemonSet's pods
+    pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// List all daemon sets
@@ -2134,6 +2258,8 @@ pub async fn list_daemonsets(
             let spec = ds.spec.unwrap_or_default();
             let status = ds.status.unwrap_or_default();
 
+            let selector_query = label_selector_to_query(&spec.selector);
+            let selector = btree_to_hashmap(spec.selector.match_labels);
             let node_selector = spec
                 .template
                 .spec
@@ -2154,6 +2280,8 @@ pub async fn list_daemonsets(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 node_selector,
+                selector,
+                selector_query,
             }
         })
         .collect();
@@ -2175,6 +2303,10 @@ pub struct StatefulSetInfo {
     pub service_name: Option<String>,
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
+    /// Pod selector from spec.selector — resolves the StatefulSet's pods
+    pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// List all stateful sets
@@ -2209,6 +2341,9 @@ pub async fn list_statefulsets(
             let spec = sts.spec.unwrap_or_default();
             let status = sts.status.unwrap_or_default();
 
+            let selector_query = label_selector_to_query(&spec.selector);
+            let selector = btree_to_hashmap(spec.selector.match_labels);
+
             StatefulSetInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -2220,6 +2355,8 @@ pub async fn list_statefulsets(
                 service_name: spec.service_name,
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
+                selector,
+                selector_query,
             }
         })
         .collect();
@@ -2245,6 +2382,11 @@ pub struct JobInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub status: String,
+    /// Pod selector from spec.selector — resolves the Job's pods. Normally
+    /// the controller-generated `batch.kubernetes.io/controller-uid` label.
+    pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// List all jobs
@@ -2297,6 +2439,12 @@ pub async fn list_jobs(
                 "Pending"
             };
 
+            let selector_query = spec
+                .selector
+                .as_ref()
+                .map(label_selector_to_query)
+                .unwrap_or_default();
+
             JobInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -2312,6 +2460,12 @@ pub async fn list_jobs(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 status: job_status.to_string(),
+                selector: spec
+                    .selector
+                    .and_then(|s| s.match_labels)
+                    .map(|l| l.into_iter().collect())
+                    .unwrap_or_default(),
+                selector_query,
             }
         })
         .collect();
@@ -2945,6 +3099,7 @@ pub async fn list_ingress_classes(
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HPAMetricTarget {
     pub metric_type: String,
+    pub metric_name: Option<String>,
     pub average_utilization: Option<i32>,
     pub average_value: Option<String>,
     pub value: Option<String>,
@@ -2954,6 +3109,7 @@ pub struct HPAMetricTarget {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HPAMetricStatus {
     pub metric_type: String,
+    pub metric_name: Option<String>,
     pub current_average_utilization: Option<i32>,
     pub current_average_value: Option<String>,
     pub current_value: Option<String>,
@@ -2976,6 +3132,72 @@ pub struct HPAInfo {
     pub conditions: Vec<String>,
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
+}
+
+fn hpa_metric_target(metric: MetricSpec) -> HPAMetricTarget {
+    let metric_type = metric.type_.clone();
+    match metric_type.as_str() {
+        "Resource" => {
+            let resource = metric.resource.unwrap_or_default();
+            HPAMetricTarget {
+                metric_type,
+                metric_name: Some(resource.name),
+                average_utilization: resource.target.average_utilization,
+                average_value: resource.target.average_value.map(|q| q.0),
+                value: resource.target.value.map(|q| q.0),
+            }
+        }
+        "ContainerResource" => {
+            let resource = metric.container_resource.unwrap_or_default();
+            HPAMetricTarget {
+                metric_type,
+                metric_name: Some(format!("{}/{}", resource.container, resource.name)),
+                average_utilization: resource.target.average_utilization,
+                average_value: resource.target.average_value.map(|q| q.0),
+                value: resource.target.value.map(|q| q.0),
+            }
+        }
+        _ => HPAMetricTarget {
+            metric_type,
+            metric_name: None,
+            average_utilization: None,
+            average_value: None,
+            value: None,
+        },
+    }
+}
+
+fn hpa_metric_status(metric: MetricStatus) -> HPAMetricStatus {
+    let metric_type = metric.type_.clone();
+    match metric_type.as_str() {
+        "Resource" => {
+            let resource = metric.resource.unwrap_or_default();
+            HPAMetricStatus {
+                metric_type,
+                metric_name: Some(resource.name),
+                current_average_utilization: resource.current.average_utilization,
+                current_average_value: resource.current.average_value.map(|q| q.0),
+                current_value: resource.current.value.map(|q| q.0),
+            }
+        }
+        "ContainerResource" => {
+            let resource = metric.container_resource.unwrap_or_default();
+            HPAMetricStatus {
+                metric_type,
+                metric_name: Some(format!("{}/{}", resource.container, resource.name)),
+                current_average_utilization: resource.current.average_utilization,
+                current_average_value: resource.current.average_value.map(|q| q.0),
+                current_value: resource.current.value.map(|q| q.0),
+            }
+        }
+        _ => HPAMetricStatus {
+            metric_type,
+            metric_name: None,
+            current_average_utilization: None,
+            current_average_value: None,
+            current_value: None,
+        },
+    }
 }
 
 /// List all HPAs
@@ -3015,52 +3237,14 @@ pub async fn list_hpas(
                 .metrics
                 .unwrap_or_default()
                 .into_iter()
-                .map(|m| {
-                    let metric_type = m.type_.clone();
-                    match metric_type.as_str() {
-                        "Resource" => {
-                            let resource = m.resource.unwrap_or_default();
-                            HPAMetricTarget {
-                                metric_type,
-                                average_utilization: resource.target.average_utilization,
-                                average_value: resource.target.average_value.map(|q| q.0),
-                                value: resource.target.value.map(|q| q.0),
-                            }
-                        }
-                        _ => HPAMetricTarget {
-                            metric_type,
-                            average_utilization: None,
-                            average_value: None,
-                            value: None,
-                        },
-                    }
-                })
+                .map(hpa_metric_target)
                 .collect();
 
             let current_metrics: Vec<HPAMetricStatus> = status
                 .current_metrics
                 .unwrap_or_default()
                 .into_iter()
-                .map(|m| {
-                    let metric_type = m.type_.clone();
-                    match metric_type.as_str() {
-                        "Resource" => {
-                            let resource = m.resource.unwrap_or_default();
-                            HPAMetricStatus {
-                                metric_type,
-                                current_average_utilization: resource.current.average_utilization,
-                                current_average_value: resource.current.average_value.map(|q| q.0),
-                                current_value: resource.current.value.map(|q| q.0),
-                            }
-                        }
-                        _ => HPAMetricStatus {
-                            metric_type,
-                            current_average_utilization: None,
-                            current_average_value: None,
-                            current_value: None,
-                        },
-                    }
-                })
+                .map(hpa_metric_status)
                 .collect();
 
             let conditions: Vec<String> = status
@@ -4512,6 +4696,170 @@ pub async fn list_validating_webhooks(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement;
+
+    #[test]
+    fn label_selector_query_preserves_labels_and_expressions() {
+        let selector = LabelSelector {
+            match_labels: Some(
+                [("app".to_string(), "demo".to_string())]
+                    .into_iter()
+                    .collect(),
+            ),
+            match_expressions: Some(vec![
+                LabelSelectorRequirement {
+                    key: "tier".to_string(),
+                    operator: "In".to_string(),
+                    values: Some(vec!["api".to_string(), "worker".to_string()]),
+                },
+                LabelSelectorRequirement {
+                    key: "track".to_string(),
+                    operator: "NotIn".to_string(),
+                    values: Some(vec!["legacy".to_string()]),
+                },
+                LabelSelectorRequirement {
+                    key: "managed".to_string(),
+                    operator: "Exists".to_string(),
+                    values: None,
+                },
+                LabelSelectorRequirement {
+                    key: "debug".to_string(),
+                    operator: "DoesNotExist".to_string(),
+                    values: None,
+                },
+            ]),
+        };
+
+        assert_eq!(
+            label_selector_to_query(&selector),
+            "app=demo,tier in (api,worker),track notin (legacy),managed,!debug"
+        );
+    }
+
+    #[test]
+    fn image_patch_targets_the_named_container_only() {
+        let patch = container_image_patch("web", "nginx:1.26", false);
+        let containers = patch["spec"]["template"]["spec"]["containers"]
+            .as_array()
+            .expect("containers must be a list");
+
+        // The name is the strategic-merge key; without it Kubernetes would
+        // replace the whole container list instead of merging into one entry.
+        assert_eq!(containers.len(), 1);
+        assert_eq!(containers[0]["name"], "web");
+        assert_eq!(containers[0]["image"], "nginx:1.26");
+    }
+
+    #[test]
+    fn image_patch_carries_nothing_but_name_and_image() {
+        let patch = container_image_patch("web", "nginx:1.26", false);
+        let container = &patch["spec"]["template"]["spec"]["containers"][0];
+
+        // Any extra key here would overwrite that field on the live container
+        let keys: Vec<&String> = container.as_object().unwrap().keys().collect();
+        assert_eq!(keys.len(), 2, "unexpected keys in patch: {:?}", keys);
+    }
+
+    #[test]
+    fn image_patch_touches_only_the_pod_template() {
+        let patch = container_image_patch("web", "nginx:1.26", false);
+        let spec = patch["spec"].as_object().unwrap();
+
+        // replicas, selector, strategy and the rest must stay untouched
+        assert_eq!(spec.keys().collect::<Vec<_>>(), vec!["template"]);
+        let template = patch["spec"]["template"].as_object().unwrap();
+        assert_eq!(template.keys().collect::<Vec<_>>(), vec!["spec"]);
+    }
+
+    #[test]
+    fn image_patch_targets_init_containers_when_requested() {
+        let patch = container_image_patch("migrate", "busybox:1.37", true);
+        let pod_spec = patch["spec"]["template"]["spec"].as_object().unwrap();
+
+        assert!(!pod_spec.contains_key("containers"));
+        assert_eq!(
+            pod_spec["initContainers"],
+            serde_json::json!([{
+                "name": "migrate",
+                "image": "busybox:1.37",
+            }])
+        );
+    }
+
+    #[test]
+    fn image_patch_target_serializes_to_lowercase() {
+        // The frontend sends these as plain strings
+        assert_eq!(
+            serde_json::to_value(ImagePatchTarget::Deployment).unwrap(),
+            serde_json::json!("deployment")
+        );
+        assert_eq!(
+            serde_json::to_value(ImagePatchTarget::StatefulSet).unwrap(),
+            serde_json::json!("statefulset")
+        );
+        assert_eq!(
+            serde_json::to_value(ImagePatchTarget::DaemonSet).unwrap(),
+            serde_json::json!("daemonset")
+        );
+    }
+
+    #[test]
+    fn hpa_container_resource_metrics_keep_utilization_and_container_identity() {
+        use k8s_openapi::api::autoscaling::v2::{
+            ContainerResourceMetricSource, ContainerResourceMetricStatus, MetricTarget,
+            MetricValueStatus,
+        };
+
+        let target = hpa_metric_target(MetricSpec {
+            type_: "ContainerResource".to_string(),
+            container_resource: Some(ContainerResourceMetricSource {
+                container: "api".to_string(),
+                name: "cpu".to_string(),
+                target: MetricTarget {
+                    average_utilization: Some(75),
+                    type_: "Utilization".to_string(),
+                    ..Default::default()
+                },
+            }),
+            ..Default::default()
+        });
+        let current = hpa_metric_status(MetricStatus {
+            type_: "ContainerResource".to_string(),
+            container_resource: Some(ContainerResourceMetricStatus {
+                container: "api".to_string(),
+                name: "cpu".to_string(),
+                current: MetricValueStatus {
+                    average_utilization: Some(60),
+                    ..Default::default()
+                },
+            }),
+            ..Default::default()
+        });
+
+        assert_eq!(target.metric_name.as_deref(), Some("api/cpu"));
+        assert_eq!(target.average_utilization, Some(75));
+        assert_eq!(current.metric_name.as_deref(), Some("api/cpu"));
+        assert_eq!(current.current_average_utilization, Some(60));
+    }
+
+    #[test]
+    fn hpa_container_resource_metric_identity_distinguishes_containers() {
+        use k8s_openapi::api::autoscaling::v2::{ContainerResourceMetricSource, MetricTarget};
+
+        let metric = |container: &str| {
+            hpa_metric_target(MetricSpec {
+                type_: "ContainerResource".to_string(),
+                container_resource: Some(ContainerResourceMetricSource {
+                    container: container.to_string(),
+                    name: "cpu".to_string(),
+                    target: MetricTarget::default(),
+                }),
+                ..Default::default()
+            })
+        };
+
+        assert_ne!(metric("api").metric_name, metric("sidecar").metric_name);
+    }
 
     #[test]
     fn manual_job_keeps_template_metadata_and_respects_name_limit() {

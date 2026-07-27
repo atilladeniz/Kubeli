@@ -58,53 +58,7 @@ make build
 
 The release flow: `make release` → changelog generation tries Claude, then Codex, then OpenCode → if all CLIs fail, `.changelog-ai-prompt.md` is created for use in any AI chat and the generated bullet points can be pasted back into the terminal → release files and notes are shown for review → pressing Enter confirms commit, push, and tag creation; any other input aborts → tag push triggers GitHub Actions → builds macOS (ARM + x86), Windows, Linux → waits for manual approval → deploys to FTP + publishes GitHub Release. After an abort, edit the prepared files and run `make release-push` to review and continue without another version bump.
 
-### Using npm
-
-| Command | Description |
-|---------|-------------|
-| `npm run dev` | Start Vite dev server |
-| `npm run tauri:dev` | Start Tauri dev environment |
-| `npm run tauri:build` | Build Tauri app |
-| `npm run build` | Build Vite app |
-| `npm run lint` | Run ESLint |
-| `npm run typecheck` | TypeScript checking |
-
-### Rust (src-tauri)
-
-```bash
-cd src-tauri
-cargo check      # Check for errors
-cargo build      # Build
-cargo test       # Run tests
-cargo fmt        # Format code
-cargo clippy     # Lint
-```
-
-## Project Structure
-
-```
-Kubeli/
-├── src/                    # Vite frontend
-│   ├── App.tsx
-│   ├── main.tsx
-│   ├── components/         # React components
-│   │   ├── features/       # AI, Dashboard, Home, Logs, Resources, Terminal, etc.
-│   │   ├── layout/         # Sidebar, Tabbar, Titlebar
-│   │   └── ui/             # Radix UI components
-│   └── lib/
-│       ├── hooks/          # Custom React hooks
-│       ├── stores/         # Zustand stores
-│       ├── tauri/          # Tauri command bindings
-│       └── types/          # TypeScript types
-├── src-tauri/              # Tauri/Rust backend
-│   └── src/
-│       ├── commands/       # Tauri command handlers
-│       ├── k8s/            # Kubernetes client logic
-│       ├── ai/             # AI assistant integration
-│       └── mcp/            # MCP server
-├── web/                    # Landing page (Astro)
-└── Makefile                # Development shortcuts
-```
+npm scripts are listed in `package.json`; Rust uses the standard cargo commands in `src-tauri/`.
 
 ## Architecture
 
@@ -152,25 +106,9 @@ sign-in connects all the way through. See `.dev/oidc/README.md` for details
 
 ### Sample Resources (kubeli-demo namespace)
 
-The `make minikube-start` command automatically creates sample Kubernetes resources:
-
-| Resource Type | Count | Names |
-|--------------|-------|-------|
-| Deployments | 4 | demo-web, demo-api, demo-frontend, demo-auth |
-| StatefulSets | 1 | demo-db |
-| DaemonSets | 1 | demo-log-collector |
-| Jobs | 1 | demo-migration |
-| CronJobs | 1 | demo-cleanup |
-| Ingresses | 2 | demo-web-ingress, demo-secure-ingress |
-| NetworkPolicies | 4 | deny, allow-web, allow-api, allow-dns |
-| HPAs | 2 | demo-web-hpa, demo-api-hpa (v2) |
-| PDBs | 2 | demo-web-pdb, demo-api-pdb |
-| PVs | 10 | demo-pv-100mi to demo-pv-256gi |
-| Roles | 2 | pod-manager, deployment-manager |
-| ResourceQuotas | 1 | demo-quota |
-| LimitRanges | 1 | demo-limit-range |
-
-Sample manifests are located in `.dev/k8s-samples/`.
+The `make minikube-start` command automatically creates sample Kubernetes resources
+covering all major workload and policy types. The manifests (and the authoritative
+list of what gets created) live in `.dev/k8s-samples/`.
 
 ## Windows Development
 
@@ -218,12 +156,7 @@ function MyComponent() {
 }
 ```
 
-Available properties:
-- `platform`: "macos" | "windows" | "linux" | "unknown"
-- `isMac`, `isWindows`, `isLinux`: boolean helpers
-- `modKey`: "⌘" or "Ctrl"
-- `modKeySymbol`: "⌘" or "Ctrl+" (with plus for clarity)
-- `altKey`, `shiftKey`: OS-specific symbols
+The full property list is in `src/lib/hooks/usePlatform.ts`.
 
 ## Key Files
 
@@ -302,54 +235,6 @@ Not needed for code comments, commit messages, or internal CLAUDE.md notes.
 
 ## Resource Diagram (React Flow)
 
-Visual resource diagram showing Kubernetes resources as nested sub-flows.
-
-### Architecture
-
-```
-Namespace (GroupNode)
-  └── Deployment (GroupNode)
-        └── Pod (ResourceNode)
-```
-
-### Key Files
-
-| File | Description |
-|------|-------------|
-| `src/components/features/visualization/ResourceDiagram.tsx` | Main diagram component |
-| `src/components/features/visualization/useDiagramLayout.ts` | Node conversion + layout orchestration (topology signature skips relayout when unchanged) |
-| `src/components/features/visualization/nodes/GroupNode.tsx` | Namespace/Deployment container node |
-| `src/components/features/visualization/nodes/ResourceNode.tsx` | Pod/resource node |
-| `src/lib/workers/layout-worker.ts` | ELK.js layout calculation (real Web Worker) |
-| `src/lib/hooks/useLayout.ts` | Layout hook wrapping the worker (token-guarded requests) |
-| `src/lib/stores/diagram-store.ts` | Diagram state (Zustand) |
-
-### Design Decisions
-
-1. **No Edges**: Visual grouping via React Flow sub-flows (nested nodes) instead of edge connections
-2. **Labeled Group Nodes**: GroupNode uses "Labeled Group Node" style with label in top-left corner
-3. **No Resize**: Group nodes are not resizable - sizes calculated by ELK layout
-4. **No Automatic fitView**: Prevents jarring zoom animations on navigation/refresh
-5. **Cached translateExtent**: Panning limits cached to prevent viewport jumps during refresh
-6. **Position Validation**: Nodes only shown after layout calculation with valid positions
-
-### Viewport Behavior
-
-- **defaultViewport**: `{ x: 90, y: 70, zoom: 0.7 }` - stable starting point
-- **No fitView on navigation**: Component uses defaultViewport when mounted
-- **No fitView on refresh**: Keeps current viewport position
-- **translateExtent**: Limits panning to node bounds + 500px padding
-
-### Preventing Flicker/Shifting
-
-Key patterns to prevent visual issues during data refresh:
-
-1. **Don't reset layoutCalculated immediately** - Keep old nodes visible
-2. **Check for valid positions** before updating React Flow nodes
-3. **Cache translateExtent** - Use last valid extent during refresh
-4. **Position validation**: `(node.position.x !== 0 || node.position.y !== 0)`
-
-### Dependencies
-
-- `@xyflow/react` - React Flow v12
-- `elkjs` - ELK layout algorithm (via Web Worker)
+Design decisions, viewport rules and flicker-prevention patterns for the visual
+resource diagram live in `src/components/features/visualization/CLAUDE.md`
+(loaded automatically when working in that area).

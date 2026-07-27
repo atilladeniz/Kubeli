@@ -54,6 +54,8 @@ export interface ResourceDetailProps {
   onSave?: (yaml: string) => Promise<void>;
   onDelete?: () => Promise<void>;
   onNavigateToOwner?: (kind: string, name: string, namespace?: string) => void;
+  /** Opens the Set Image dialog for image-patchable workloads */
+  onSetImage?: () => void;
   onNavigateBack?: () => void;
   onNavigateToPathIndex?: (index: number) => void;
   navigationPath?: NavigationPathEntry[];

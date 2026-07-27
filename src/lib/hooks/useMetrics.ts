@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useClusterStore, selectCurrentNamespace } from "../stores/cluster-store";
+import { useUIStore } from "../stores/ui-store";
 import {
   getNodeMetrics,
   getPodMetrics,
@@ -17,9 +18,26 @@ import type {
 
 interface UseMetricsOptions {
   autoRefresh?: boolean;
+  /**
+   * Overrides the user's metrics interval, in ms. No caller sets it today —
+   * they all defer to the Settings value — but it stays available for a view
+   * that genuinely needs its own cadence.
+   */
   refreshInterval?: number;
   /** Faster interval for the first few polls to build sparkline data quickly */
   initialRefreshInterval?: number;
+}
+
+/**
+ * Resolves the effective polling interval in ms, or null when polling is off.
+ *
+ * An explicit option wins; otherwise the Settings value applies, where 0 means
+ * the user turned automatic polling off and only manual refresh remains.
+ */
+export function useMetricsInterval(override?: number): number | null {
+  const configuredSeconds = useUIStore((s) => s.settings.metricsRefreshInterval);
+  if (override !== undefined) return override;
+  return configuredSeconds > 0 ? configuredSeconds * 1000 : null;
 }
 
 interface UseClusterMetricsReturn {
@@ -50,6 +68,7 @@ export function useClusterMetrics(options: UseMetricsOptions = {}): UseClusterMe
   const [error, setError] = useState<string | null>(null);
   const [metricsAvailable, setMetricsAvailable] = useState(false);
   const isConnected = useClusterStore((s) => s.isConnected);
+  const intervalMs = useMetricsInterval(options.refreshInterval);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -78,10 +97,10 @@ export function useClusterMetrics(options: UseMetricsOptions = {}): UseClusterMe
   }, [isConnected, refresh]);
 
   useEffect(() => {
-    if (!options.autoRefresh || !isConnected) return;
-    const interval = setInterval(refresh, options.refreshInterval || 15000);
+    if (!options.autoRefresh || !isConnected || intervalMs === null) return;
+    const interval = setInterval(refresh, intervalMs);
     return () => clearInterval(interval);
-  }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
+  }, [options.autoRefresh, intervalMs, isConnected, refresh]);
 
   return {
     summary,
@@ -97,6 +116,7 @@ export function useNodeMetrics(options: UseMetricsOptions = {}): UseNodeMetricsR
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const isConnected = useClusterStore((s) => s.isConnected);
+  const intervalMs = useMetricsInterval(options.refreshInterval);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -119,10 +139,10 @@ export function useNodeMetrics(options: UseMetricsOptions = {}): UseNodeMetricsR
   }, [isConnected, refresh]);
 
   useEffect(() => {
-    if (!options.autoRefresh || !isConnected) return;
-    const interval = setInterval(refresh, options.refreshInterval || 15000);
+    if (!options.autoRefresh || !isConnected || intervalMs === null) return;
+    const interval = setInterval(refresh, intervalMs);
     return () => clearInterval(interval);
-  }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
+  }, [options.autoRefresh, intervalMs, isConnected, refresh]);
 
   return {
     data,
@@ -145,6 +165,7 @@ export function usePodMetrics(
   const pollCount = useRef(0);
   /** Track whether kubelet direct endpoint is available */
   const useDirectRef = useRef(true);
+  const intervalMs = useMetricsInterval(options.refreshInterval);
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -182,10 +203,10 @@ export function usePodMetrics(
   // Burst-then-normal polling: fast initial polls to build sparkline data
   // quickly with real values, then settle to normal interval.
   useEffect(() => {
-    if (!options.autoRefresh || !isConnected) return;
+    if (!options.autoRefresh || !isConnected || intervalMs === null) return;
 
     const burstMs = options.initialRefreshInterval;
-    const normalMs = options.refreshInterval || 10000;
+    const normalMs = intervalMs;
     const BURST_POLLS = burstMs ? 3 : 0;
     let timer: ReturnType<typeof setTimeout>;
 
@@ -200,7 +221,7 @@ export function usePodMetrics(
 
     scheduleNext();
     return () => clearTimeout(timer);
-  }, [options.autoRefresh, options.refreshInterval, options.initialRefreshInterval, isConnected, refresh]);
+  }, [options.autoRefresh, intervalMs, options.initialRefreshInterval, isConnected, refresh]);
 
   return {
     data,

@@ -127,3 +127,70 @@ describe("ResourceList search", () => {
     expect(screen.getAllByTestId("row")).toHaveLength(2);
   });
 });
+
+interface MetricItem {
+  uid: string;
+  name: string;
+  readings: (number | null)[];
+}
+
+const metricItems: MetricItem[] = [
+  { uid: "low", name: "low", readings: [9] },
+  { uid: "none", name: "none", readings: [] },
+  { uid: "high", name: "high", readings: [45, 92] },
+];
+
+// A computed column: "peak" names no field on the item
+const metricColumns: Column<MetricItem>[] = [
+  { key: "name", label: "NAME" },
+  {
+    key: "peak",
+    label: "PEAK",
+    sortable: true,
+    sortValue: (item) => {
+      const values = item.readings.filter((v): v is number => v !== null);
+      return values.length > 0 ? Math.max(...values) : null;
+    },
+  },
+];
+
+function renderSorted(direction: "asc" | "desc") {
+  return render(
+    <ResourceList
+      title="Metrics"
+      data={metricItems}
+      columns={metricColumns}
+      isLoading={false}
+      error={null}
+      onRefresh={jest.fn()}
+      getRowKey={(item) => item.uid}
+      sortKey="peak"
+      sortDirection={direction}
+      onSortChange={jest.fn()}
+    />
+  );
+}
+
+describe("ResourceList sorting by computed columns", () => {
+  const rowOrder = () => screen.getAllByTestId("row").map((r) => r.textContent);
+
+  // Without sortValue the sort reads item["peak"], which is undefined for
+  // every row, so the order never changes.
+  it("sorts ascending by the column's sortValue", () => {
+    renderSorted("asc");
+    expect(rowOrder()).toEqual(["low", "high", "none"]);
+  });
+
+  it("sorts descending by the column's sortValue", () => {
+    renderSorted("desc");
+    expect(rowOrder()).toEqual(["high", "low", "none"]);
+  });
+
+  // An item without a reading is not "least utilized" — it has no value at all,
+  // so it belongs at the bottom either way. Regression: returning the null
+  // comparison direction-adjusted made it flip to the top on desc.
+  it.each(["asc", "desc"] as const)("keeps null values last when %s", (direction) => {
+    renderSorted(direction);
+    expect(rowOrder().slice(-1)[0]).toBe("none");
+  });
+});

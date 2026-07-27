@@ -29,6 +29,18 @@ pub enum LogEvent {
     /// pod does not cause one IPC event per line.
     Lines(Vec<LogEntry>),
     Error(KubeliError),
+    /// The stream ended after it had been running.
+    ///
+    /// Distinct from `Error`, which stays reserved for a connection that never
+    /// established (RBAC, pod not found). A stream can end for entirely normal
+    /// reasons — the container exited, the kubelet hit its idle timeout, a load
+    /// balancer dropped an idle TCP connection — so this is a recoverable state
+    /// offering reconnection, not a failure.
+    Ended {
+        stream_id: String,
+        /// Present when the stream was cut rather than reaching a clean EOF
+        reason: Option<String>,
+    },
     Started {
         stream_id: String,
     },
@@ -153,6 +165,26 @@ pub async fn get_pod_logs(
     Ok(entries)
 }
 
+/// Builds the LogParams for a streaming request.
+///
+/// The 100-line tail default must not apply alongside `since_seconds`: the
+/// kubelet honours both parameters, so a resume would return at most the last
+/// 100 lines within the window and silently drop the rest of the gap.
+fn stream_log_params(options: &LogOptions) -> LogParams {
+    LogParams {
+        follow: options.follow.unwrap_or(true),
+        timestamps: options.timestamps.unwrap_or(true),
+        tail_lines: match options.since_seconds {
+            Some(_) => options.tail_lines,
+            None => options.tail_lines.or(Some(100)),
+        },
+        since_seconds: options.since_seconds,
+        previous: options.previous.unwrap_or(false),
+        container: options.container.clone(),
+        ..Default::default()
+    }
+}
+
 /// Stream logs from a pod in real-time
 #[command]
 pub async fn stream_pod_logs(
@@ -182,18 +214,7 @@ pub async fn stream_pod_logs(
 
     let pods: Api<Pod> = Api::namespaced(client, &options.namespace);
 
-    let mut log_params = LogParams {
-        follow: options.follow.unwrap_or(true),
-        timestamps: options.timestamps.unwrap_or(true),
-        tail_lines: options.tail_lines.or(Some(100)),
-        since_seconds: options.since_seconds,
-        previous: options.previous.unwrap_or(false),
-        ..Default::default()
-    };
-
-    if let Some(container) = &options.container {
-        log_params.container = Some(container.clone());
-    }
+    let log_params = stream_log_params(&options);
 
     // Create stop flag
     let stop_flag = Arc::new(AtomicBool::new(false));
@@ -264,13 +285,30 @@ pub async fn stream_pod_logs(
                             }
                         }
                         Ok(Some(Err(e))) => {
-                            tracing::error!("Log stream read error: {}", e);
+                            // The stream was already running, so this is a drop
+                            // rather than a failure to connect: report it as an
+                            // end the user can reconnect from.
+                            tracing::info!("Log stream {} dropped: {}", stream_id_clone, e);
                             flush(&mut batch);
-                            let _ = app.emit(&event_name, LogEvent::Error(KubeliError::from(e)));
+                            let _ = app.emit(
+                                &event_name,
+                                LogEvent::Ended {
+                                    stream_id: stream_id_clone.clone(),
+                                    reason: Some(e.to_string()),
+                                },
+                            );
                             break;
                         }
                         Ok(None) => {
+                            // Clean EOF — the container exited or stopped writing
                             flush(&mut batch);
+                            let _ = app.emit(
+                                &event_name,
+                                LogEvent::Ended {
+                                    stream_id: stream_id_clone.clone(),
+                                    reason: None,
+                                },
+                            );
                             break;
                         }
                     }
@@ -407,6 +445,76 @@ fn parse_log_line(line: &str, container: &str, pod: &str, namespace: &str) -> Lo
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn options_with(since_seconds: Option<i64>, tail_lines: Option<i64>) -> LogOptions {
+        LogOptions {
+            namespace: "default".to_string(),
+            pod_name: "my-pod".to_string(),
+            since_seconds,
+            tail_lines,
+            ..Default::default()
+        }
+    }
+
+    // Regression: the 100-line default was applied unconditionally, so a
+    // resume asked for since_seconds AND tailLines=100. The kubelet honours
+    // both, returning only the last 100 lines of the gap and silently dropping
+    // everything before them.
+    #[test]
+    fn resume_does_not_get_a_tail_default() {
+        let params = stream_log_params(&options_with(Some(300), None));
+
+        assert_eq!(params.since_seconds, Some(300));
+        assert_eq!(params.tail_lines, None);
+    }
+
+    #[test]
+    fn normal_start_gets_the_tail_default() {
+        let params = stream_log_params(&options_with(None, None));
+
+        assert_eq!(params.tail_lines, Some(100));
+        assert_eq!(params.since_seconds, None);
+    }
+
+    #[test]
+    fn an_explicit_tail_is_respected() {
+        let params = stream_log_params(&options_with(None, Some(500)));
+        assert_eq!(params.tail_lines, Some(500));
+
+        // Even together with since_seconds, if the caller really asks for both
+        let both = stream_log_params(&options_with(Some(60), Some(500)));
+        assert_eq!(both.tail_lines, Some(500));
+        assert_eq!(both.since_seconds, Some(60));
+    }
+
+    // A stream that drops mid-run is recoverable; only a connection that never
+    // established is an Error. The frontend branches on this tag to decide
+    // between an error banner and a reconnect prompt.
+    #[test]
+    fn ended_is_a_distinct_event_from_error() {
+        let ended = serde_json::to_value(LogEvent::Ended {
+            stream_id: "logs-1".to_string(),
+            reason: Some("connection reset".to_string()),
+        })
+        .unwrap();
+
+        assert_eq!(ended["type"], "Ended");
+        assert_eq!(ended["data"]["stream_id"], "logs-1");
+        assert_eq!(ended["data"]["reason"], "connection reset");
+    }
+
+    #[test]
+    fn clean_end_of_stream_carries_no_reason() {
+        let ended = serde_json::to_value(LogEvent::Ended {
+            stream_id: "logs-1".to_string(),
+            reason: None,
+        })
+        .unwrap();
+
+        // null rather than a placeholder string: the viewer distinguishes a
+        // container that exited from a connection that was cut
+        assert!(ended["data"]["reason"].is_null());
+    }
 
     #[test]
     fn parses_timestamped_log_line() {

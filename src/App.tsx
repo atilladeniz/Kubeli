@@ -1,8 +1,5 @@
 import { useEffect, useState, useRef, lazy, Suspense } from "react";
-import { toast } from "sonner";
 import { useClusterStore } from "@/lib/stores/cluster-store";
-import { usePortForwardStore } from "@/lib/stores/portforward-store";
-import { forwardsToRestartAfterRefresh } from "@/components/features/portforward/forwardsToRestartAfterRefresh";
 import { useUIStore } from "@/lib/stores/ui-store";
 import { applyProxyFromSettings } from "@/lib/tauri/commands/network";
 import { useKubeconfigWatcher } from "@/lib/hooks/useKubeconfigWatcher";
@@ -103,62 +100,6 @@ export default function Home() {
       unlisten?.();
     };
   }, [isTauri, fetchClusters, connect]);
-
-  // Restart long-running connections after OIDC token refresh
-  useEffect(() => {
-    if (!isTauri) return;
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-    import("@tauri-apps/api/event").then(({ listen }) => {
-      listen<string>("oidc-token-refreshed", async (event) => {
-        const pfStore = usePortForwardStore.getState();
-        const activeForwards = forwardsToRestartAfterRefresh(pfStore.forwards, event.payload);
-        for (const fwd of activeForwards) {
-          // stopForward/startForward report failure via false/null, not by
-          // throwing - check the results, or a forward dies silently here.
-          const stopped = await pfStore.stopForward(fwd.forward_id);
-          const restarted = stopped
-            ? await pfStore.startForward(
-                fwd.namespace,
-                fwd.name,
-                fwd.target_type,
-                fwd.target_port,
-                fwd.local_port,
-                fwd.port_name,
-                undefined,
-                // A switch can land between the stop and the start; bind to
-                // this forward's own cluster or fail, never to the active one.
-                fwd.cluster_context
-              )
-            : null;
-          if (!restarted) {
-            console.error(`Failed to restart port-forward ${fwd.forward_id} after OIDC refresh`);
-            toast.error("Port forward restart failed", {
-              description: `${fwd.name}:${fwd.local_port} (${fwd.cluster_context})`,
-            });
-          }
-        }
-        const clusterStore = useClusterStore.getState();
-        if (clusterStore.namespaceSource === "auto") {
-          await clusterStore.stopNamespaceWatch();
-          await clusterStore.startNamespaceWatch();
-        }
-      })
-        .then((fn) => {
-          if (cancelled) fn();
-          else unlisten = fn;
-        })
-        .catch((err) => {
-          console.error("Failed to register oidc-token-refreshed listener", err);
-        });
-    }).catch((err) => {
-      console.error("Failed to load Tauri event module for OIDC refresh", err);
-    });
-    return () => {
-      cancelled = true;
-      unlisten?.();
-    };
-  }, [isTauri]);
 
   // Disable native context menu globally
   useEffect(() => {
