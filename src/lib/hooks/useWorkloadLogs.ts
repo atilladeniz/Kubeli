@@ -313,6 +313,17 @@ export function useWorkloadLogs(
                 flushPending();
                 console.error(`Stream error for pod ${pod.name}:`, logEvent.data);
                 break;
+              case "Ended":
+                // One pod's stream ending is routine here — a replica finishes
+                // or is replaced while the others keep streaming. Flush what it
+                // produced; the pod watch handles the roster.
+                flushPending();
+                if (logEvent.data.reason) {
+                  console.info(
+                    `Log stream for pod ${pod.name} ended: ${logEvent.data.reason}`
+                  );
+                }
+                break;
               case "Started":
                 startedCount++;
                 if (startedCount === currentPods.length && mountedRef.current) {

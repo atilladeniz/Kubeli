@@ -7,8 +7,17 @@ import { useLogStore } from "@/lib/stores/log-store";
 import { useTabsStore } from "@/lib/stores/tabs-store";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useTranslations } from "next-intl";
-import { LogHeader, LogToolbar, LogContent, LogFooter } from "./components";
+import {
+  LogHeader,
+  LogToolbar,
+  LogContent,
+  LogFooter,
+  StreamEndedNotice,
+} from "./components";
 import { stripAnsi } from "./lib";
+import { useAIStore } from "@/lib/stores/ai-store";
+import { useClusterStore, selectCurrentNamespace } from "@/lib/stores/cluster-store";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { useLogFilter, useLogAnalysis, useLogDownload, useAutoScroll } from "./hooks";
 import { LOG_DEFAULTS } from "./types";
 import type { TimestampMode } from "./types";
@@ -42,6 +51,8 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
     startStream,
     stopStream,
     clearLogs,
+    ended,
+    reconnect,
   } = useLogs(namespace, podName, logTabId);
 
   const isPodNotFound = useMemo(
@@ -296,6 +307,14 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
         onSendToAI={isAICliAvailable ? sendSelectionToAI : undefined}
         sendToAILabel={t("logs.sendToAI")}
       />
+
+      {ended && (
+        <StreamEndedNotice
+          reason={ended.reason}
+          podDeleted={isPodNotFound}
+          onReconnect={reconnect}
+        />
+      )}
 
       <LogFooter
         filteredCount={filteredLogs.length}

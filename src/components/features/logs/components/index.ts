@@ -4,3 +4,4 @@ export { LogHeader } from "./LogHeader";
 export { LogToolbar } from "./LogToolbar";
 export { LogContent } from "./LogContent";
 export { LogFooter } from "./LogFooter";
+export { StreamEndedNotice } from "./StreamEndedNotice";
