@@ -2,6 +2,7 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 import { useLogAnalysis } from "../useLogAnalysis";
 import type { LogEntry } from "@/lib/types";
 import type { ExtractState } from "zustand";
+import { LOG_DEFAULTS } from "../../types";
 
 // Mock stores
 jest.mock("@/lib/stores/ai-store", () => ({
@@ -79,7 +80,7 @@ describe("useLogAnalysis", () => {
 
   const defaultOptions = {
     namespace: "default",
-    podName: "test-pod",
+    sourceName: "test-pod",
     container: "main",
     logs: mockLogs,
     t: mockT,
@@ -230,5 +231,180 @@ describe("useLogAnalysis", () => {
     expect(mockT).toHaveBeenCalledWith("logs.aiPromptStats", expect.any(Object));
     expect(mockT).toHaveBeenCalledWith("logs.aiPromptLogsHeader", expect.any(Object));
     expect(mockT).toHaveBeenCalledWith("logs.aiPromptInstructions");
+  });
+});
+
+describe("useLogAnalysis aggregated (multi-pod) analysis", () => {
+  const fromPod = (pod: string, message: string, timestamp: string): LogEntry => ({
+    message,
+    timestamp,
+    container: "main",
+    pod,
+    namespace: "default",
+  });
+
+  const aggregatedLogs: LogEntry[] = [
+    fromPod("demo-web-abc", "ERROR: Connection failed", "2024-01-01T10:00:00Z"),
+    fromPod("demo-web-xyz", "INFO: Started", "2024-01-01T10:01:00Z"),
+  ];
+
+  const mockSetPendingAnalysis = jest.fn();
+  const mockSetAIAssistantOpen = jest.fn();
+  const mockT = jest.fn((key: string) => `translated:${key}`);
+
+  const workloadOptions = {
+    namespace: "default",
+    sourceName: "demo-web",
+    container: null,
+    logs: aggregatedLogs,
+    workloadKind: "Deployment",
+    t: mockT,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    setAIStoreState({ setPendingAnalysis: mockSetPendingAnalysis });
+    setClusterStoreState({
+      currentCluster: { context: "test-cluster" },
+      selectedNamespaces: ["default"],
+    });
+    setUIStoreState({ setAIAssistantOpen: mockSetAIAssistantOpen });
+    mockAiCheckCliAvailable.mockResolvedValue(createCliInfo("authenticated"));
+    mockAiCheckCodexCliAvailable.mockResolvedValue(createCliInfo("error"));
+  });
+
+  const runAnalysis = async () => {
+    const { result } = renderHook(() => useLogAnalysis(workloadOptions));
+    await waitFor(() => {
+      expect(result.current.isAICliAvailable).toBe(true);
+    });
+    act(() => {
+      result.current.analyzeWithAI();
+    });
+    return mockSetPendingAnalysis.mock.calls[0][0].message as string;
+  };
+
+  // Without a per-line pod label the AI cannot tell one bad replica apart
+  // from a workload-wide failure.
+  it("labels every log line with its source pod", async () => {
+    const message = await runAnalysis();
+    expect(message).toContain("[demo-web-abc] ERROR: Connection failed");
+    expect(message).toContain("[demo-web-xyz] INFO: Started");
+  });
+
+  it("uses the workload prompt title with the distinct pod count", async () => {
+    await runAnalysis();
+    expect(mockT).toHaveBeenCalledWith("logs.aiPromptTitleWorkload", {
+      namespace: "default",
+      workloadKind: "Deployment",
+      workloadName: "demo-web",
+      podCount: 2,
+    });
+    expect(mockT).not.toHaveBeenCalledWith("logs.aiPromptTitle", expect.any(Object));
+  });
+
+  it("keeps errors in the relevant-log limit ahead of lower-severity lines", async () => {
+    const infoLogs = Array.from(
+      { length: LOG_DEFAULTS.AI_ANALYSIS_MAX_LINES },
+      (_, index) =>
+        fromPod(
+          "demo-web-info",
+          `INFO: routine line ${index}`,
+          `2024-01-01T10:${String(index % 60).padStart(2, "0")}:00Z`
+        )
+    );
+    const error = fromPod(
+      "demo-web-error",
+      "ERROR: must survive the relevance limit",
+      "2024-01-01T09:00:00Z"
+    );
+    const { result } = renderHook(() =>
+      useLogAnalysis({ ...workloadOptions, logs: [...infoLogs, error] })
+    );
+    await waitFor(() => {
+      expect(result.current.isAICliAvailable).toBe(true);
+    });
+
+    act(() => {
+      result.current.analyzeWithAI();
+    });
+
+    const message = mockSetPendingAnalysis.mock.calls[0][0].message as string;
+    expect(message).toContain("ERROR: must survive the relevance limit");
+    expect(message.indexOf("ERROR: must survive the relevance limit")).toBeLessThan(
+      message.indexOf("INFO: routine line")
+    );
+  });
+
+  it("keeps single-pod logs unprefixed", async () => {
+    const { result } = renderHook(() =>
+      useLogAnalysis({ ...workloadOptions, workloadKind: undefined })
+    );
+    await waitFor(() => {
+      expect(result.current.isAICliAvailable).toBe(true);
+    });
+    act(() => {
+      result.current.analyzeWithAI();
+    });
+
+    const message = mockSetPendingAnalysis.mock.calls[0][0].message as string;
+    expect(message).not.toContain("[demo-web-abc]");
+    expect(mockT).toHaveBeenCalledWith("logs.aiPromptTitle", expect.any(Object));
+  });
+
+  it("sends a selected excerpt to the AI assistant", async () => {
+    const { result } = renderHook(() => useLogAnalysis(workloadOptions));
+    await waitFor(() => {
+      expect(result.current.isAICliAvailable).toBe(true);
+    });
+
+    act(() => {
+      result.current.sendSelectionToAI("ERROR: Connection failed");
+    });
+
+    expect(mockSetPendingAnalysis).toHaveBeenCalledWith(
+      expect.objectContaining({
+        message: expect.stringContaining("ERROR: Connection failed"),
+        clusterContext: "test-cluster",
+      })
+    );
+    expect(mockSetAIAssistantOpen).toHaveBeenCalledWith(true);
+  });
+
+  it("labels an aggregated selection as a workload rather than a pod", async () => {
+    const { result } = renderHook(() => useLogAnalysis(workloadOptions));
+    await waitFor(() => {
+      expect(result.current.isAICliAvailable).toBe(true);
+    });
+
+    act(() => {
+      result.current.sendSelectionToAI("ERROR: Connection failed");
+    });
+
+    expect(mockT).toHaveBeenCalledWith("logs.aiSelectionPromptWorkload", {
+      namespace: "default",
+      workloadKind: "Deployment",
+      workloadName: "demo-web",
+    });
+    expect(mockT).not.toHaveBeenCalledWith(
+      "logs.aiSelectionPrompt",
+      expect.any(Object)
+    );
+  });
+
+  it("ignores a selection when no AI CLI is available", async () => {
+    mockAiCheckCliAvailable.mockResolvedValue(createCliInfo("notinstalled"));
+    mockAiCheckCodexCliAvailable.mockResolvedValue(createCliInfo("notinstalled"));
+
+    const { result } = renderHook(() => useLogAnalysis(workloadOptions));
+    await waitFor(() => {
+      expect(result.current.isAICliAvailable).toBe(false);
+    });
+
+    act(() => {
+      result.current.sendSelectionToAI("ERROR: Connection failed");
+    });
+
+    expect(mockSetPendingAnalysis).not.toHaveBeenCalled();
   });
 });
