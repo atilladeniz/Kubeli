@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Copy, Trash2, Eye, Scale, RefreshCw, Star, FileText } from "lucide-react";
+import { Box, Copy, Trash2, Eye, Scale, RefreshCw, Star, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useDeployments } from "@/lib/hooks/useK8sResources";
@@ -26,7 +26,12 @@ export function DeploymentsView() {
     autoRefresh: true,
     refreshInterval: 30000,
   });
-  const { openResourceDetail, handleDeleteFromContext, handleScaleFromContext } = useResourceDetail();
+  const {
+    openResourceDetail,
+    handleDeleteFromContext,
+    handleScaleFromContext,
+    handleSetImageFromContext,
+  } = useResourceDetail();
   const openWorkloadLogsTab = useOpenWorkloadLogsTab();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
@@ -56,6 +61,11 @@ export function DeploymentsView() {
       label: "Scale",
       icon: <Scale className="size-4" />,
       onClick: () => handleScaleFromContext(dep.name, dep.namespace, dep.replicas, refresh),
+    },
+    {
+      label: t("workloads.setImage"),
+      icon: <Box className="size-4" />,
+      onClick: () => handleSetImageFromContext("deployment", dep.name, dep.namespace, refresh),
     },
     { separator: true, label: "", onClick: () => {} },
     {
