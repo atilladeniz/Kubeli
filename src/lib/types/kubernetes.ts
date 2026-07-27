@@ -349,6 +349,8 @@ export interface DeploymentInfo {
   created_at: string | null;
   labels: Record<string, string>;
   selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 export interface ServiceInfo {
@@ -606,6 +608,8 @@ export interface ReplicaSetInfo {
   created_at: string | null;
   labels: Record<string, string>;
   selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 // DaemonSet info
@@ -622,6 +626,10 @@ export interface DaemonSetInfo {
   created_at: string | null;
   labels: Record<string, string>;
   node_selector: Record<string, string>;
+  /** Pod selector from spec.selector — resolves the DaemonSet's pods */
+  selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 // StatefulSet info
@@ -636,6 +644,10 @@ export interface StatefulSetInfo {
   service_name: string | null;
   created_at: string | null;
   labels: Record<string, string>;
+  /** Pod selector from spec.selector — resolves the StatefulSet's pods */
+  selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 // Job info
@@ -654,6 +666,13 @@ export interface JobInfo {
   created_at: string | null;
   labels: Record<string, string>;
   status: string;
+  /**
+   * Pod selector from spec.selector — resolves the Job's pods. Normally the
+   * controller-generated `batch.kubernetes.io/controller-uid` label.
+   */
+  selector: Record<string, string>;
+  /** Full selector, including matchExpressions, in Kubernetes query syntax */
+  selector_query: string;
 }
 
 // CronJob info

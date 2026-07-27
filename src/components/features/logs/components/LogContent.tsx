@@ -5,7 +5,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { Loader2, Copy, Check, Sparkles, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { LogEntry } from "@/lib/types";
-import type { PodColorEntry } from "@/lib/hooks/useDeploymentLogs";
+import type { PodColorEntry } from "@/lib/hooks/useWorkloadLogs";
 import { LogLine } from "./LogLine";
 
 interface LogContentProps {

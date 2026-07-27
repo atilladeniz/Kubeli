@@ -23,7 +23,7 @@ use k8s_openapi::api::rbac::v1::{ClusterRole, ClusterRoleBinding, Role, RoleBind
 use k8s_openapi::api::scheduling::v1::PriorityClass;
 use k8s_openapi::api::storage::v1::{CSIDriver, CSINode, StorageClass, VolumeAttachment};
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::CustomResourceDefinition;
-use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::{LabelSelector, OwnerReference};
 use k8s_openapi::Resource;
 use kube::api::{Api, DeleteParams, ListParams, Patch, PatchParams, PostParams};
 use kube::core::DynamicObject;
@@ -41,6 +41,33 @@ fn btree_to_hashmap(
     btree: Option<std::collections::BTreeMap<String, String>>,
 ) -> HashMap<String, String> {
     btree.map(|b| b.into_iter().collect()).unwrap_or_default()
+}
+
+/// Converts a Kubernetes LabelSelector into the query syntax accepted by
+/// ListParams and watcher Config, preserving both matchLabels and
+/// matchExpressions.
+fn label_selector_to_query(selector: &LabelSelector) -> String {
+    let mut parts = Vec::new();
+
+    if let Some(labels) = &selector.match_labels {
+        parts.extend(labels.iter().map(|(key, value)| format!("{key}={value}")));
+    }
+
+    if let Some(expressions) = &selector.match_expressions {
+        for expression in expressions {
+            let values = expression.values.as_deref().unwrap_or_default().join(",");
+            let part = match expression.operator.as_str() {
+                "In" => format!("{} in ({})", expression.key, values),
+                "NotIn" => format!("{} notin ({})", expression.key, values),
+                "Exists" => expression.key.clone(),
+                "DoesNotExist" => format!("!{}", expression.key),
+                _ => continue,
+            };
+            parts.push(part);
+        }
+    }
+
+    parts.join(",")
 }
 
 pub fn extract_container_info(
@@ -293,6 +320,8 @@ pub struct DeploymentInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// Service-specific information
@@ -494,6 +523,7 @@ pub async fn list_deployments(
             let spec = deployment.spec.unwrap_or_default();
             let status = deployment.status.unwrap_or_default();
 
+            let selector_query = label_selector_to_query(&spec.selector);
             DeploymentInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -505,6 +535,7 @@ pub async fn list_deployments(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 selector: btree_to_hashmap(spec.selector.match_labels),
+                selector_query,
             }
         })
         .collect();
@@ -2024,6 +2055,8 @@ pub struct ReplicaSetInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// List all replica sets
@@ -2065,6 +2098,7 @@ pub async fn list_replicasets(
                 .map(|r| (Some(r.name.clone()), Some(r.kind.clone())))
                 .unwrap_or((None, None));
 
+            let selector_query = label_selector_to_query(&spec.selector);
             ReplicaSetInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -2077,6 +2111,7 @@ pub async fn list_replicasets(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 selector: btree_to_hashmap(spec.selector.match_labels),
+                selector_query,
             }
         })
         .collect();
@@ -2100,6 +2135,10 @@ pub struct DaemonSetInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub node_selector: HashMap<String, String>,
+    /// Pod selector from spec.selector — resolves the DaemonSet's pods
+    pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// List all daemon sets
@@ -2134,6 +2173,8 @@ pub async fn list_daemonsets(
             let spec = ds.spec.unwrap_or_default();
             let status = ds.status.unwrap_or_default();
 
+            let selector_query = label_selector_to_query(&spec.selector);
+            let selector = btree_to_hashmap(spec.selector.match_labels);
             let node_selector = spec
                 .template
                 .spec
@@ -2154,6 +2195,8 @@ pub async fn list_daemonsets(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 node_selector,
+                selector,
+                selector_query,
             }
         })
         .collect();
@@ -2175,6 +2218,10 @@ pub struct StatefulSetInfo {
     pub service_name: Option<String>,
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
+    /// Pod selector from spec.selector — resolves the StatefulSet's pods
+    pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// List all stateful sets
@@ -2209,6 +2256,9 @@ pub async fn list_statefulsets(
             let spec = sts.spec.unwrap_or_default();
             let status = sts.status.unwrap_or_default();
 
+            let selector_query = label_selector_to_query(&spec.selector);
+            let selector = btree_to_hashmap(spec.selector.match_labels);
+
             StatefulSetInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -2220,6 +2270,8 @@ pub async fn list_statefulsets(
                 service_name: spec.service_name,
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
+                selector,
+                selector_query,
             }
         })
         .collect();
@@ -2245,6 +2297,11 @@ pub struct JobInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub status: String,
+    /// Pod selector from spec.selector — resolves the Job's pods. Normally
+    /// the controller-generated `batch.kubernetes.io/controller-uid` label.
+    pub selector: HashMap<String, String>,
+    /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
+    pub selector_query: String,
 }
 
 /// List all jobs
@@ -2297,6 +2354,12 @@ pub async fn list_jobs(
                 "Pending"
             };
 
+            let selector_query = spec
+                .selector
+                .as_ref()
+                .map(label_selector_to_query)
+                .unwrap_or_default();
+
             JobInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -2312,6 +2375,12 @@ pub async fn list_jobs(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 status: job_status.to_string(),
+                selector: spec
+                    .selector
+                    .and_then(|s| s.match_labels)
+                    .map(|l| l.into_iter().collect())
+                    .unwrap_or_default(),
+                selector_query,
             }
         })
         .collect();
@@ -4512,6 +4581,45 @@ pub async fn list_validating_webhooks(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelectorRequirement;
+
+    #[test]
+    fn label_selector_query_preserves_labels_and_expressions() {
+        let selector = LabelSelector {
+            match_labels: Some(
+                [("app".to_string(), "demo".to_string())]
+                    .into_iter()
+                    .collect(),
+            ),
+            match_expressions: Some(vec![
+                LabelSelectorRequirement {
+                    key: "tier".to_string(),
+                    operator: "In".to_string(),
+                    values: Some(vec!["api".to_string(), "worker".to_string()]),
+                },
+                LabelSelectorRequirement {
+                    key: "track".to_string(),
+                    operator: "NotIn".to_string(),
+                    values: Some(vec!["legacy".to_string()]),
+                },
+                LabelSelectorRequirement {
+                    key: "managed".to_string(),
+                    operator: "Exists".to_string(),
+                    values: None,
+                },
+                LabelSelectorRequirement {
+                    key: "debug".to_string(),
+                    operator: "DoesNotExist".to_string(),
+                    values: None,
+                },
+            ]),
+        };
+
+        assert_eq!(
+            label_selector_to_query(&selector),
+            "app=demo,tier in (api,worker),track notin (legacy),managed,!debug"
+        );
+    }
 
     #[test]
     fn manual_job_keeps_template_metadata_and_respects_name_limit() {

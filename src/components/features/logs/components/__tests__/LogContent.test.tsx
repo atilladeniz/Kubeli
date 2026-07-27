@@ -1,6 +1,6 @@
 import { render } from "@testing-library/react";
 import { LogContent } from "../LogContent";
-import type { PodColorEntry } from "@/lib/hooks/useDeploymentLogs";
+import type { PodColorEntry } from "@/lib/hooks/useWorkloadLogs";
 import type { LogEntry } from "@/lib/types";
 
 const makeLogs = (count: number, pod = "test-pod"): LogEntry[] =>
