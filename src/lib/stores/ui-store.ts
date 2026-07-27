@@ -26,6 +26,8 @@ export interface AppSettings {
   // General
   defaultNamespace: string;
   refreshInterval: number; // in seconds
+  /** Metrics polling interval in seconds; 0 disables automatic polling */
+  metricsRefreshInterval: number;
 
   // Port Forward
   portForwardOpenBrowser: PortForwardBrowserBehavior;
@@ -66,6 +68,8 @@ export const defaultSettings: AppSettings = {
   locale: defaultLocale,
   defaultNamespace: "",
   refreshInterval: 30,
+  // Matches the previous hardcoded cluster-overview cadence
+  metricsRefreshInterval: 15,
   portForwardOpenBrowser: "ask",
   autoInstallUpdates: false,
   logRetentionLines: 5000,
