@@ -1303,3 +1303,32 @@ export interface ArgoCDApplicationInfo {
   current_revision: string | null;
   created_at: string | null;
 }
+
+// X.509 certificate inspection (TLS secrets)
+export interface CertificateInfo {
+  subject: string;
+  /** Common Name pulled out of the subject, when present */
+  subject_common_name: string | null;
+  issuer: string;
+  issuer_common_name: string | null;
+  /** Uppercase hex, colon-separated (AB:CD:...) */
+  serial_number: string;
+  /** RFC 3339 */
+  not_before: string;
+  not_after: string;
+  /** Negative once expired */
+  days_until_expiry: number;
+  is_expired: boolean;
+  /** True before not_before — a certificate issued for future use */
+  not_yet_valid: boolean;
+  signature_algorithm: string;
+  /** Already rendered, e.g. "DNS:example.com", "IP:10.0.0.1" */
+  subject_alt_names: string[];
+  is_ca: boolean;
+}
+
+export interface CertificateChain {
+  certificates: CertificateInfo[];
+  /** Set when the PEM could not be parsed at all */
+  error: string | null;
+}

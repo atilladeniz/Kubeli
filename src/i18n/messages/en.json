@@ -1295,5 +1295,23 @@
     "cancel": "Cancel",
     "closeConfirm": "Close",
     "dontAskAgain": "Don't ask again"
+  },
+  "secrets": {
+    "certificate": "Certificate",
+    "certSubject": "Subject",
+    "certIssuer": "Issuer",
+    "certSerial": "Serial Number",
+    "certValidFrom": "Valid From",
+    "certValidTo": "Valid To",
+    "certSignatureAlgorithm": "Signature Algorithm",
+    "certSans": "Subject Alternative Names",
+    "certValid": "Valid",
+    "certExpired": "Expired",
+    "certNotYetValid": "Not yet valid",
+    "certExpiresInDays": "Expires in {days} days",
+    "certExpiresToday": "Expires today",
+    "certLeaf": "Leaf",
+    "certIntermediate": "Intermediate",
+    "certParseError": "Could not read this certificate."
   }
 }

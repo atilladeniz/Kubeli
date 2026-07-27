@@ -1,12 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Check, Eye, EyeOff, Key } from "lucide-react";
+import { Copy, Check, Eye, EyeOff, Key, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useTranslations } from "next-intl";
 import { parseSecretFromYaml, decodeBase64 } from "../lib/utils";
+import { TlsCertificateView } from "./TlsCertificateView";
+
+/** Secrets of this type carry an X.509 certificate in tls.crt */
+const TLS_SECRET_TYPE = "kubernetes.io/tls";
 
 export function SecretDataSection({ yaml }: { yaml: string }) {
+  const t = useTranslations();
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const [timeouts, setTimeouts] = useState<Map<string, NodeJS.Timeout>>(
@@ -18,6 +24,11 @@ export function SecretDataSection({ yaml }: { yaml: string }) {
   if (!secretData || Object.keys(secretData.data).length === 0) {
     return null;
   }
+
+  const isTlsSecret = secretData.type === TLS_SECRET_TYPE;
+  const certificatePem = isTlsSecret && secretData.data["tls.crt"]
+    ? decodeBase64(secretData.data["tls.crt"])
+    : null;
 
   const toggleReveal = (key: string) => {
     setRevealedKeys((prev) => {
@@ -74,6 +85,18 @@ export function SecretDataSection({ yaml }: { yaml: string }) {
         </h3>
         <p className="text-base font-medium">{secretData.type}</p>
       </section>
+
+      {/* Certificate details for TLS secrets — the raw tls.crt blob below is
+          unreadable, so the parsed view goes first. */}
+      {isTlsSecret && certificatePem && (
+        <section>
+          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+            <ShieldCheck className="size-4" />
+            {t("secrets.certificate")}
+          </h3>
+          <TlsCertificateView pem={certificatePem} />
+        </section>
+      )}
 
       {/* Data Section */}
       <section>

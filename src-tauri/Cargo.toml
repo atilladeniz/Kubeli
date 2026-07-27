@@ -89,6 +89,7 @@ clap = { version = "4.5", features = ["derive"] }
 
 # TOML for Codex config
 toml_edit = "0.25"
+x509-parser = { version = "0.18.1", default-features = false }
 
 # macOS window management for tray popup
 [target."cfg(target_os = \"macos\")".dependencies]
