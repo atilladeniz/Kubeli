@@ -1299,7 +1299,8 @@
     "certExpired": "Abgelaufen",
     "certNotYetValid": "Noch nicht gültig",
     "certExpiresInDays": "Läuft in {days} Tagen ab",
-    "certLeaf": "Blatt",
+    "certExpiresToday": "Läuft heute ab",
+    "certLeaf": "Blattzertifikat",
     "certIntermediate": "Zwischenzertifikat",
     "certParseError": "Dieses Zertifikat konnte nicht gelesen werden."
   }

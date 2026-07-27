@@ -48,7 +48,9 @@ function ValidityBadge({ cert }: { cert: CertificateInfo }) {
     return (
       <Badge variant="outline" className="gap-1 border-0 bg-yellow-500/10 text-yellow-500">
         <ShieldAlert className="size-3.5" />
-        {t("secrets.certExpiresInDays", { days: cert.days_until_expiry })}
+        {cert.days_until_expiry <= 0
+          ? t("secrets.certExpiresToday")
+          : t("secrets.certExpiresInDays", { days: cert.days_until_expiry })}
       </Badge>
     );
   }

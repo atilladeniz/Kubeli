@@ -32,7 +32,6 @@ const cert = (overrides: Partial<CertificateInfo> = {}): CertificateInfo => ({
   signature_algorithm: "sha256WithRSAEncryption",
   subject_alt_names: ["DNS:kubeli.test", "IP:127.0.0.1"],
   is_ca: false,
-  version: "3",
   ...overrides,
 });
 
@@ -86,6 +85,14 @@ describe("TlsCertificateView", () => {
     expect(
       await screen.findByText('secrets.certExpiresInDays:{"days":30}')
     ).toBeInTheDocument();
+  });
+
+  // Under 24h the day count is 0 — "expires in 0 days" reads like a bug
+  it("says expires today instead of 0 days", async () => {
+    resolveWith([cert({ days_until_expiry: 0 })]);
+    render(<TlsCertificateView pem="PEM" />);
+
+    expect(await screen.findByText("secrets.certExpiresToday")).toBeInTheDocument();
   });
 
   it("flags an expired certificate", async () => {

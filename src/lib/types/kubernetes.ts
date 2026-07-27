@@ -1304,7 +1304,6 @@ export interface CertificateInfo {
   /** Already rendered, e.g. "DNS:example.com", "IP:10.0.0.1" */
   subject_alt_names: string[];
   is_ca: boolean;
-  version: string;
 }
 
 export interface CertificateChain {

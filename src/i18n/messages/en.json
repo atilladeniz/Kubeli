@@ -1299,6 +1299,7 @@
     "certExpired": "Expired",
     "certNotYetValid": "Not yet valid",
     "certExpiresInDays": "Expires in {days} days",
+    "certExpiresToday": "Expires today",
     "certLeaf": "Leaf",
     "certIntermediate": "Intermediate",
     "certParseError": "Could not read this certificate."

@@ -29,7 +29,6 @@ pub struct CertificateInfo {
     /// Subject Alternative Names, already rendered (DNS names, IPs, URIs, emails)
     pub subject_alt_names: Vec<String>,
     pub is_ca: bool,
-    pub version: String,
 }
 
 /// Result of inspecting one certificate chain (a `tls.crt` may hold several).
@@ -79,11 +78,10 @@ fn format_san(name: &GeneralName) -> Option<String> {
                 bytes[0], bytes[1], bytes[2], bytes[3]
             )),
             16 => {
-                let groups: Vec<String> = bytes
-                    .chunks(2)
-                    .map(|c| format!("{:x}", u16::from_be_bytes([c[0], c[1]])))
-                    .collect();
-                Some(format!("IP:{}", groups.join(":")))
+                // std's Display gives RFC 5952 zero compression (2001:db8::1)
+                let mut octets = [0u8; 16];
+                octets.copy_from_slice(bytes);
+                Some(format!("IP:{}", std::net::Ipv6Addr::from(octets)))
             }
             _ => None,
         },
@@ -144,7 +142,6 @@ fn to_info(cert: &X509Certificate) -> CertificateInfo {
             .unwrap_or_else(|_| cert.signature_algorithm.algorithm.to_id_string()),
         subject_alt_names,
         is_ca: cert.is_ca(),
-        version: cert.version().to_string(),
     }
 }
 
@@ -265,5 +262,12 @@ mod tests {
         let result = parse_certificate(chain);
         assert!(result.error.is_none());
         assert_eq!(result.certificates.len(), 2);
+    }
+
+    #[test]
+    fn ipv6_sans_are_rfc5952_compressed() {
+        let bytes: [u8; 16] = [0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1];
+        let san = format_san(&GeneralName::IPAddress(&bytes)).expect("valid IPv6 SAN");
+        assert_eq!(san, "IP:2001:db8::1", "zero runs must be compressed");
     }
 }
