@@ -1,3 +1,5 @@
+import { parse as parseYaml } from "yaml";
+
 /** Format a timestamp into a human-readable relative age string */
 export function formatAge(timestamp: string): string {
   const date = new Date(timestamp);
@@ -111,5 +113,50 @@ export function decodeBase64(value: string): string {
     return atob(value);
   } catch {
     return value;
+  }
+}
+
+/** A container as declared in a workload's pod template */
+export interface TemplateContainer {
+  name: string;
+  image: string;
+  /** True for entries from initContainers */
+  init: boolean;
+}
+
+/**
+ * Reads the containers of a workload's pod template out of its YAML.
+ *
+ * The detail view already loads the full YAML, so the containers are on hand
+ * without extending the list payload for every workload in the cluster.
+ * Init containers come first — that is the order they run in.
+ */
+export function parseTemplateContainers(yaml: string | undefined): TemplateContainer[] {
+  if (!yaml) return [];
+
+  try {
+    const doc = parseYaml(yaml) as
+      | { spec?: { template?: { spec?: Record<string, unknown> } } }
+      | null;
+    const podSpec = doc?.spec?.template?.spec;
+    if (!podSpec) return [];
+
+    const collect = (key: string, init: boolean): TemplateContainer[] => {
+      const list = podSpec[key];
+      if (!Array.isArray(list)) return [];
+      return list
+        .filter((c): c is Record<string, unknown> => !!c && typeof c === "object")
+        .map((c) => ({
+          name: typeof c.name === "string" ? c.name : "",
+          image: typeof c.image === "string" ? c.image : "",
+          init,
+        }))
+        .filter((c) => c.name !== "");
+    };
+
+    return [...collect("initContainers", true), ...collect("containers", false)];
+  } catch {
+    // Malformed YAML is the editor's problem to report, not this section's
+    return [];
   }
 }
