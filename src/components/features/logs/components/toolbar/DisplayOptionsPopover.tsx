@@ -1,6 +1,6 @@
 "use client";
 
-import { SlidersHorizontal, WrapText, Palette } from "lucide-react";
+import { SlidersHorizontal, WrapText, Palette, Terminal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
@@ -13,6 +13,7 @@ export interface DisplayOptionsLabels {
   displayOptions: string;
   lineWrap: string;
   logColoring: string;
+  ansiColors: string;
   timestamp: string;
   timestampOff: string;
   timestampUtc: string;
@@ -24,6 +25,8 @@ interface DisplayOptionsPopoverProps {
   onLineWrapChange: (checked: boolean) => void;
   logColoring: boolean;
   onLogColoringChange: (checked: boolean) => void;
+  ansiColors: boolean;
+  onAnsiColorsChange: (checked: boolean) => void;
   timestampMode: TimestampMode;
   onTimestampModeChange: (mode: TimestampMode) => void;
   labels: DisplayOptionsLabels;
@@ -36,6 +39,8 @@ export function DisplayOptionsPopover({
   onLineWrapChange,
   logColoring,
   onLogColoringChange,
+  ansiColors,
+  onAnsiColorsChange,
   timestampMode,
   onTimestampModeChange,
   labels,
@@ -86,6 +91,18 @@ export function DisplayOptionsPopover({
             <Label htmlFor="log-coloring" className="text-xs cursor-pointer flex items-center gap-1.5 text-foreground">
               <Palette className="size-3.5 text-muted-foreground" />
               {labels.logColoring}
+            </Label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="ansi-colors"
+              checked={ansiColors}
+              onCheckedChange={(checked) => onAnsiColorsChange(checked as boolean)}
+              className="size-4"
+            />
+            <Label htmlFor="ansi-colors" className="text-xs cursor-pointer flex items-center gap-1.5 text-foreground">
+              <Terminal className="size-3.5 text-muted-foreground" />
+              {labels.ansiColors}
             </Label>
           </div>
         </div>

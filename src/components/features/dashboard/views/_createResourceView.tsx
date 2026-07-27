@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useTranslations } from "next-intl";
-import { Box, Copy, Trash2, Eye } from "lucide-react";
+import { Box, Copy, Trash2, Eye, FileText } from "lucide-react";
 import { toast } from "sonner";
 import { ResourceList } from "../../resources/ResourceList";
 import {
@@ -16,6 +16,8 @@ import {
 import { useResourceDetail } from "../context";
 import { useRefreshOnDelete } from "@/lib/hooks/useRefreshOnDelete";
 import type { ImagePatchTarget } from "@/lib/tauri/commands";
+import { supportsAggregatedLogs } from "@/lib/hooks/useWorkloadLogs";
+import { useOpenWorkloadLogsTab } from "@/lib/hooks/useOpenWorkloadLogsTab";
 
 /**
  * Workloads whose container images can be retargeted in place.
@@ -106,6 +108,7 @@ export function createResourceView<T extends BaseResource>(
 
   return function ResourceView() {
     const t = useTranslations();
+    const openWorkloadLogsTab = useOpenWorkloadLogsTab();
     const { data, isLoading, error, refresh, retry } = hook({
       autoRefresh: true,
       refreshInterval: 30000,
@@ -143,6 +146,16 @@ export function createResourceView<T extends BaseResource>(
           ),
         },
       ];
+
+      // Aggregated logs across the workload's pods
+      if (supportsAggregatedLogs(resourceType) && resource.namespace) {
+        items.push({
+          label: t("logs.viewLogs"),
+          icon: <FileText className="size-4" />,
+          onClick: () =>
+            openWorkloadLogsTab(resourceType, resource.name, resource.namespace!),
+        });
+      }
 
       // Set Image, for workloads whose pod template can be patched
       if (IMAGE_PATCHABLE.has(resourceType) && resource.namespace) {

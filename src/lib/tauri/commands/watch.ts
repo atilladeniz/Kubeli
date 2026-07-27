@@ -1,8 +1,16 @@
 import { invoke } from "./core";
 
 // Watch commands
-export async function watchPods(watchId: string, namespace?: string): Promise<void> {
-  return invoke("watch_pods", { watchId, namespace });
+export async function watchPods(
+  watchId: string,
+  namespace?: string,
+  labelSelector?: string
+): Promise<void> {
+  return invoke("watch_pods", {
+    watchId,
+    namespace,
+    ...(labelSelector ? { labelSelector } : {}),
+  });
 }
 
 export async function watchNamespaces(watchId: string): Promise<void> {

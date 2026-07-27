@@ -1,11 +1,18 @@
 import { create } from "zustand";
 import type { ResourceType } from "@/components/layout/sidebar/Sidebar";
+import type { WorkloadLogKind } from "@/lib/hooks/useWorkloadLogs";
 import { useLogStore } from "./log-store";
 
 export interface TabMetadata {
   namespace?: string;
   podName?: string;
+  /**
+   * @deprecated Use workloadName. Kept so tabs persisted by older versions
+   * keep resolving after an update.
+   */
   deploymentName?: string;
+  workloadName?: string;
+  workloadKind?: WorkloadLogKind;
   autoStream?: boolean;
 }
 

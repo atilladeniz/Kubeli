@@ -22,7 +22,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { useTranslations } from "next-intl";
 import { LogViewer } from "../logs/LogViewer";
-import { DeploymentLogViewer } from "../logs/DeploymentLogViewer";
+import { WorkloadLogViewer } from "../logs/WorkloadLogViewer";
+import { supportsAggregatedLogs } from "@/lib/hooks/useWorkloadLogs";
 import { useTabsStore } from "@/lib/stores/tabs-store";
 import { OverviewTab } from "./components/OverviewTab";
 import { YamlTab, type YamlTabHandle } from "./components/YamlTab";
@@ -168,14 +169,20 @@ export function ResourceDetail({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleOpenDeploymentLogsTab = useCallback((isCurrentlyStreaming: boolean) => {
-    if (!resource?.namespace) return;
+  const handleOpenWorkloadLogsTab = useCallback((isCurrentlyStreaming: boolean) => {
+    if (!resource?.namespace || !supportsAggregatedLogs(resourceType)) return;
     const result = openOrActivateTab(
       "deployment-logs",
       `Logs: ${resource.name} (${resource.namespace})`,
-      { namespace: resource.namespace, deploymentName: resource.name, autoStream: isCurrentlyStreaming },
+      {
+        namespace: resource.namespace,
+        workloadName: resource.name,
+        workloadKind: resourceType,
+        autoStream: isCurrentlyStreaming,
+      },
       (tab) => tab.type === "deployment-logs" &&
-        tab.metadata?.deploymentName === resource.name &&
+        tab.metadata?.workloadName === resource.name &&
+        tab.metadata?.workloadKind === resourceType &&
         tab.metadata?.namespace === resource.namespace,
     );
     if (result === null) {
@@ -183,7 +190,7 @@ export function ResourceDetail({
       return;
     }
     onClose();
-  }, [openOrActivateTab, resource?.name, resource?.namespace, t, onClose]);
+  }, [openOrActivateTab, resource?.name, resource?.namespace, resourceType, t, onClose]);
 
   const handleOpenPodLogsTab = useCallback(() => {
     if (!resource?.namespace) return;
@@ -302,7 +309,7 @@ export function ResourceDetail({
               <FileJson className="size-4" />
               {t("resourceDetail.yaml")}
             </TabsTrigger>
-            {(resourceType === "pod" || resourceType === "deployment") && resource.namespace && (
+            {(resourceType === "pod" || supportsAggregatedLogs(resourceType)) && resource.namespace && (
               <TabsTrigger value="logs" className="gap-2">
                 <FileText className="size-4" />
                 {t("resourceDetail.logs")}
@@ -388,12 +395,13 @@ export function ResourceDetail({
           </TabsContent>
         )}
 
-        {resourceType === "deployment" && resource.namespace && (
+        {supportsAggregatedLogs(resourceType) && resource.namespace && (
           <TabsContent value="logs" className="flex-1 overflow-hidden m-0">
-            <DeploymentLogViewer
-              deploymentName={resource.name}
+            <WorkloadLogViewer
+              workloadName={resource.name}
               namespace={resource.namespace}
-              onOpenInTab={handleOpenDeploymentLogsTab}
+              kind={resourceType}
+              onOpenInTab={handleOpenWorkloadLogsTab}
             />
           </TabsContent>
         )}
