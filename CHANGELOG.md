@@ -2,6 +2,20 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.84] - 2026-07-27
+
+- Added Set Image action for Deployments, StatefulSets and DaemonSets
+- Added aggregated logs for StatefulSets, DaemonSets, ReplicaSets and Jobs
+- Added download and AI analysis for aggregated deployment logs
+- Added ANSI escape code parsing and rendering in the log viewer
+- Added configurable metrics refresh interval with disable option
+- Added TLS certificate details display for TLS secrets
+- Added container list to the workload overview
+- Added smart HPA sorting by current utilization
+- Fixed OIDC authentication by reading the token per request instead of baking it into the client
+- Fixed log stream endings to offer a reconnect instead of showing a raw ServiceError
+- Updated elkjs to 0.12.0 and CI dependencies
+
 ## [0.3.83] - 2026-07-25
 
 - Added Trigger, Suspend, and Resume actions for CronJobs, with an Edit & Trigger flow to review the generated Job YAML before creating it
