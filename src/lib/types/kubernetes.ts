@@ -177,7 +177,7 @@ export type ShellEvent =
   | { type: "Output"; data: string }
   | { type: "Error"; data: string }
   | { type: "Started"; data: { session_id: string } }
-  | { type: "Closed"; data: { session_id: string } };
+  | { type: "Closed"; data: { session_id: string; reason: string | null } };
 
 export interface PortForward {
   id: string;

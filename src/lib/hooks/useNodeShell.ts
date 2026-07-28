@@ -15,7 +15,8 @@ export interface UseNodeShellOptions {
   onOutput?: (data: string) => void;
   onError?: (error: string) => void;
   onStarted?: () => void;
-  onClosed?: () => void;
+  /** `reason` is set when the session was cut, null when it exited cleanly */
+  onClosed?: (reason: string | null) => void;
 }
 
 export interface UseNodeShellReturn {
@@ -104,7 +105,7 @@ export function useNodeShell(
             setIsConnected(false);
             setIsConnecting(false);
             sessionIdRef.current = null;
-            onClosed?.();
+            onClosed?.(shellEvent.data.reason);
             break;
         }
       });
