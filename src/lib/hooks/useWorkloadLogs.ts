@@ -379,12 +379,22 @@ export function useWorkloadLogs(
 
     void (async () => {
       try {
-        const { streamId: newId, unlisten } = await subscribePodRef.current(podName, {
-          follow: true,
-          timestamps: true,
-          since_seconds: sinceSeconds,
-          tail_lines: sinceSeconds === undefined ? 100 : undefined,
-        });
+        const { streamId: newId, unlisten } = await subscribePodRef.current(
+          podName,
+          {
+            follow: true,
+            timestamps: true,
+            since_seconds: sinceSeconds,
+            tail_lines: sinceSeconds === undefined ? 100 : undefined,
+          },
+          // The dead stream's Stopped event arrives before this one is
+          // registered and can drop the roster to empty, clearing isStreaming.
+          // Restore it once the replacement is live, or the view claims to be
+          // stopped while lines keep arriving.
+          () => {
+            if (mountedRef.current) setIsStreaming(true);
+          },
+        );
         if (!mountedRef.current) {
           unlisten();
           stopLogStream(newId).catch(() => {});

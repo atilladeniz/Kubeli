@@ -257,6 +257,33 @@ describe("useWorkloadLogs stream drop vs pod rotation", () => {
     expect(logUnlistens[1]).not.toHaveBeenCalled();
   });
 
+  // Regression: the backend always emits Ended and then Stopped for the same
+  // stream. Stopped emptied the roster and cleared isStreaming, while the
+  // replacement stream had no Started handler to set it again — so the view
+  // reported "not streaming" while resubscribed lines kept arriving.
+  it("keeps reporting isStreaming after a drop is recovered", async () => {
+    const { result, logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Started" } });
+    });
+    expect(result.current.isStreaming).toBe(true);
+
+    // Real backend order for a dropped stream
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+      logListeners[0]({ payload: { type: "Stopped", data: {} } });
+    });
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
+
+    // The replacement stream reports Started just like any other
+    await act(async () => {
+      logListeners[1]({ payload: { type: "Started" } });
+    });
+
+    expect(result.current.isStreaming).toBe(true);
+  });
+
   // Regression: stream IDs were Date.now()-only, so a resubscribe landing in
   // the same millisecond reused the dead stream's ID — two live streams then
   // shared one event channel and one stop handle.
