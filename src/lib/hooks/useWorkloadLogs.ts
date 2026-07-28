@@ -133,6 +133,8 @@ export function useWorkloadLogs(
   const resubscribedRef = useRef(new Set<string>());
   // Lets a resubscribe drop the dead stream's listener without leaking it
   const unlistenByStreamRef = useRef(new Map<string, UnlistenFn>());
+  // Disambiguates stream IDs created within the same millisecond
+  const nextStreamSeqRef = useRef(0);
   // Stable color assignment - remembers colors for pods that have disappeared
   const colorAssignmentsRef = useRef(new Map<string, PodColorEntry>());
   const nextColorIndexRef = useRef(0);
@@ -292,7 +294,10 @@ export function useWorkloadLogs(
       logOptions: Omit<LogOptions, "namespace" | "pod_name">,
       onStarted?: () => void,
     ): Promise<{ streamId: string; unlisten: UnlistenFn }> => {
-      const streamId = `workload-logs-${kind}-${namespace}-${workloadName}-${podName}-${Date.now()}`;
+      // Counter, not just Date.now(): a resubscribe can land in the same
+      // millisecond as the stream it replaces, and two live streams sharing an
+      // ID would share one event channel and one stop handle.
+      const streamId = `workload-logs-${kind}-${namespace}-${workloadName}-${podName}-${Date.now()}-${nextStreamSeqRef.current++}`;
       const unlisten = await listen<LogEvent>(`log-stream-${streamId}`, (event) => {
         const logEvent = event.payload;
 

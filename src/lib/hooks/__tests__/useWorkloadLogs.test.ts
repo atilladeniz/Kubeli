@@ -1,4 +1,4 @@
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
 import { useWorkloadLogs, supportsAggregatedLogs } from "../useWorkloadLogs";
 
@@ -233,7 +233,8 @@ describe("useWorkloadLogs stream drop vs pod rotation", () => {
       logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
     });
 
-    expect(mockStreamPodLogs).toHaveBeenCalledTimes(2);
+    // The resubscribe runs off an async chain, so poll instead of assuming ticks
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
     const [, resumeOptions] = mockStreamPodLogs.mock.calls[1];
     expect(resumeOptions).toMatchObject({
       namespace: "default",
@@ -252,8 +253,24 @@ describe("useWorkloadLogs stream drop vs pod rotation", () => {
       logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
     });
 
-    expect(logUnlistens[0]).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(logUnlistens[0]).toHaveBeenCalledTimes(1));
     expect(logUnlistens[1]).not.toHaveBeenCalled();
+  });
+
+  // Regression: stream IDs were Date.now()-only, so a resubscribe landing in
+  // the same millisecond reused the dead stream's ID — two live streams then
+  // shared one event channel and one stop handle.
+  it("gives the resubscribed stream an ID of its own", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
+
+    const [firstId] = mockStreamPodLogs.mock.calls[0];
+    const [secondId] = mockStreamPodLogs.mock.calls[1];
+    expect(secondId).not.toBe(firstId);
   });
 
   it("stays silent when the pod rotated out of the roster", async () => {
@@ -266,6 +283,7 @@ describe("useWorkloadLogs stream drop vs pod rotation", () => {
     await act(async () => {
       logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
     });
+    await act(async () => { await Promise.resolve(); });
 
     expect(mockStreamPodLogs).toHaveBeenCalledTimes(1);
   });
@@ -276,12 +294,14 @@ describe("useWorkloadLogs stream drop vs pod rotation", () => {
     await act(async () => {
       logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
     });
-    expect(mockStreamPodLogs).toHaveBeenCalledTimes(2);
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
 
     // The resubscribed stream drops too
     await act(async () => {
       logListeners[1]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
     });
+    // Give a would-be third subscribe every chance to appear before asserting
+    await act(async () => { await Promise.resolve(); });
     expect(mockStreamPodLogs).toHaveBeenCalledTimes(2);
   });
 
@@ -293,6 +313,7 @@ describe("useWorkloadLogs stream drop vs pod rotation", () => {
     await act(async () => {
       logListeners[0]({ payload: { type: "Ended", data: { reason: null } } });
     });
+    await act(async () => { await Promise.resolve(); });
 
     expect(mockStreamPodLogs).toHaveBeenCalledTimes(1);
   });
