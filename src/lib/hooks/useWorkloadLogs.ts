@@ -95,10 +95,12 @@ const CONTROLLER_UID_KEYS = ["batch.kubernetes.io/controller-uid", "controller-u
  * The Job history is already bounded server-side by the CronJob's
  * successful/failedJobsHistoryLimit, so every owned Job can be included.
  *
- * ponytail: the selector is resolved once per open, so a Job created by a later
- * cron run is not picked up by the running view — reopening the logs (or
- * refreshPods) resolves it. Following new Jobs live needs the pod watch to be
- * restarted under a new selector; deferred until it is actually asked for.
+ * ponytail: a Job created by a later cron run is not followed live. Re-resolving
+ * (refreshPods, or restarting the stream) picks the new Job up for the pod list
+ * and the streams, but the pod watch keeps the selector it was started with —
+ * the hook hands it over once and never restarts it. Reopening the view is what
+ * actually resyncs everything. Following new Jobs live needs the watch to be
+ * restarted under the new selector; deferred until it is actually asked for.
  */
 async function cronjobSelectors(
   namespace: string,
