@@ -2,6 +2,7 @@ import { renderHook, act } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
 import { useWorkloadLogs, supportsAggregatedLogs } from "../useWorkloadLogs";
 
+const mockStreamPodLogs = jest.fn();
 const mockListPods = jest.fn();
 const mockListDeployments = jest.fn();
 const mockListStatefulsets = jest.fn();
@@ -18,7 +19,7 @@ jest.mock("../../tauri/commands", () => ({
   listDaemonsets: (...args: unknown[]) => mockListDaemonsets(...args),
   listReplicasets: (...args: unknown[]) => mockListReplicasets(...args),
   listJobs: (...args: unknown[]) => mockListJobs(...args),
-  streamPodLogs: jest.fn(),
+  streamPodLogs: (...args: unknown[]) => mockStreamPodLogs(...args),
   stopLogStream: jest.fn().mockResolvedValue(undefined),
   watchPods: (...args: unknown[]) => mockWatchPods(...args),
   stopWatch: (...args: unknown[]) => mockStopWatch(...args),
@@ -160,6 +161,140 @@ describe("useWorkloadLogs seq stamping", () => {
     const bySeq = [...result.current.logs].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
     expect(bySeq.map((l) => l.message)).toEqual(["first", "second", "third"]);
     expect(result.current.logs.map((l) => l.message)).toEqual(["second", "first", "third"]);
+  });
+});
+
+// Regression: every Ended event was treated as routine pod rotation, so a real
+// network drop silently killed that pod's stream — no lines, no notice.
+describe("useWorkloadLogs stream drop vs pod rotation", () => {
+  const podEntry = {
+    uid: "uid-1",
+    name: "demo-web-7d4b8c-abcde",
+    namespace: "default",
+    phase: "Running",
+    labels: { app: "demo-web" },
+  };
+
+  /** Starts an aggregated stream for one running pod and returns its emitters */
+  async function startStreamingOnePod() {
+    const logListeners: Array<(event: { payload: unknown }) => void> = [];
+    const logUnlistens: jest.Mock[] = [];
+    let watchListener: ((event: { payload: unknown }) => void) | undefined;
+    mockListen.mockImplementation(
+      (eventName: string, handler: (e: { payload: unknown }) => void) => {
+        const unlisten = jest.fn();
+        if (eventName.startsWith("log-stream-")) {
+          logListeners.push(handler);
+          logUnlistens.push(unlisten);
+        }
+        if (eventName.startsWith("pods-watch-")) watchListener = handler;
+        return Promise.resolve(unlisten);
+      }
+    );
+
+    const { result } = renderHook(() => useWorkloadLogs("demo-web", "default"));
+    await act(async () => {});
+    await act(async () => {
+      await result.current.startStream();
+    });
+
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(1);
+    return { result, logListeners, logUnlistens, watchListener: watchListener! };
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListDeployments.mockResolvedValue([
+      { name: "demo-web", namespace: "default", selector_query: "app=demo-web" },
+    ]);
+    mockListPods.mockResolvedValue([podEntry]);
+    mockWatchPods.mockResolvedValue(undefined);
+    mockStopWatch.mockResolvedValue(undefined);
+    mockStreamPodLogs.mockResolvedValue(undefined);
+    mockListen.mockResolvedValue(jest.fn());
+  });
+
+  it("resubscribes when a stream drops while the pod is still on the roster", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({
+        payload: {
+          type: "Line",
+          data: {
+            message: "hello",
+            timestamp: new Date(Date.now() - 5000).toISOString(),
+            container: "main",
+            pod: podEntry.name,
+            namespace: "default",
+          },
+        },
+      });
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(2);
+    const [, resumeOptions] = mockStreamPodLogs.mock.calls[1];
+    expect(resumeOptions).toMatchObject({
+      namespace: "default",
+      pod_name: podEntry.name,
+      follow: true,
+    });
+    // Resumes from the last line seen instead of refetching the tail
+    expect(resumeOptions.since_seconds).toBeGreaterThan(0);
+    expect(resumeOptions.tail_lines).toBeUndefined();
+  });
+
+  it("drops the dead stream's listener when resubscribing", async () => {
+    const { logListeners, logUnlistens } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+
+    expect(logUnlistens[0]).toHaveBeenCalledTimes(1);
+    expect(logUnlistens[1]).not.toHaveBeenCalled();
+  });
+
+  it("stays silent when the pod rotated out of the roster", async () => {
+    const { logListeners, watchListener } = await startStreamingOnePod();
+
+    // Rolling update: the pod leaves the roster, then its stream ends
+    await act(async () => {
+      watchListener({ payload: { type: "Deleted", data: podEntry } });
+    });
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up after one retry instead of looping", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(2);
+
+    // The resubscribed stream drops too
+    await act(async () => {
+      logListeners[1]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(2);
+  });
+
+  // A container that simply exited ends cleanly; retrying would fight the pod's
+  // own lifecycle instead of a network problem.
+  it("does not resubscribe on a clean end of stream", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: null } } });
+    });
+
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(1);
   });
 });
 
