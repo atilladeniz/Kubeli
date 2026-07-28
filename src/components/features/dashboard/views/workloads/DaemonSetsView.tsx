@@ -7,6 +7,7 @@ import type { DaemonSetInfo } from "@/lib/types";
 
 export const DaemonSetsView = createResourceView<DaemonSetInfo>({
   hook: useDaemonSets,
+  autoWatch: true,
   columns: daemonSetColumns,
   titleKey: "navigation.daemonSets",
   emptyMessageKey: "empty.daemonsets",

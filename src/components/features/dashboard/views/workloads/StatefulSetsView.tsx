@@ -7,6 +7,7 @@ import type { StatefulSetInfo } from "@/lib/types";
 
 export const StatefulSetsView = createResourceView<StatefulSetInfo>({
   hook: useStatefulSets,
+  autoWatch: true,
   columns: statefulSetColumns,
   titleKey: "navigation.statefulSets",
   emptyMessageKey: "empty.statefulsets",

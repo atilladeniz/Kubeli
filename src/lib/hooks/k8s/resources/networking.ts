@@ -6,6 +6,7 @@ import {
   listEndpointSlices,
   listNetworkPolicies,
   listIngressClasses,
+  watchServices,
 } from "../../../tauri/commands";
 import type {
   ServiceInfo,
@@ -17,9 +18,13 @@ import type {
 import { createListOptionsHook, createClusterScopedHook } from "../factory";
 
 /**
- * Hook for fetching Services.
+ * Hook for fetching Services with optional watch support.
  */
-export const useServices = createListOptionsHook<ServiceInfo>("Services", listServices);
+export const useServices = createListOptionsHook<ServiceInfo>("Services", listServices, {
+  supportsWatch: true,
+  watchFn: watchServices,
+  watchEventPrefix: "services",
+});
 
 /**
  * Hook for fetching Ingresses.

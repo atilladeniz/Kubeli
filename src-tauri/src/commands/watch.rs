@@ -1,12 +1,13 @@
 use crate::commands::resources::{
-    deployment_to_info, extract_container_info, extract_tolerations, ContainerInfo, NamespaceInfo,
+    daemonset_to_info, deployment_to_info, extract_container_info, extract_tolerations,
+    replicaset_to_info, service_to_info, statefulset_to_info, ContainerInfo, NamespaceInfo,
     PodInfo,
 };
 use crate::error::KubeliError;
 use crate::k8s::AppState;
 use futures::StreamExt;
-use k8s_openapi::api::apps::v1::Deployment;
-use k8s_openapi::api::core::v1::{Namespace, Pod};
+use k8s_openapi::api::apps::v1::{DaemonSet, Deployment, ReplicaSet, StatefulSet};
+use k8s_openapi::api::core::v1::{Namespace, Pod, Service};
 use kube::api::Api;
 use kube::runtime::watcher::{watcher, Config, Event};
 use serde::{Deserialize, Serialize};
@@ -284,49 +285,81 @@ pub async fn watch_pods(
     Ok(())
 }
 
-/// Start watching deployments in a namespace (or all namespaces)
-#[command]
-pub async fn watch_deployments(
-    app: AppHandle,
-    state: State<'_, AppState>,
-    watch_manager: State<'_, Arc<WatchManager>>,
-    namespace: Option<String>,
-    label_selector: Option<String>,
-    watch_id: String,
-) -> Result<(), KubeliError> {
-    let client = state.k8s.get_client().await.map_err(KubeliError::from)?;
-    let manager = Arc::clone(watch_manager.inner());
-    let token = manager.add_session(watch_id.clone()).await;
+/// Define a namespaced watch command. All of them do the same thing and only
+/// differ in the Kubernetes kind, the mapper and the event prefix, so they are
+/// generated instead of copied five times.
+macro_rules! namespaced_watch_command {
+    ($name:ident, $kind:ty, $to_info:path, $prefix:literal) => {
+        #[command]
+        pub async fn $name(
+            app: AppHandle,
+            state: State<'_, AppState>,
+            watch_manager: State<'_, Arc<WatchManager>>,
+            namespace: Option<String>,
+            label_selector: Option<String>,
+            watch_id: String,
+        ) -> Result<(), KubeliError> {
+            let client = state.k8s.get_client().await.map_err(KubeliError::from)?;
+            let manager = Arc::clone(watch_manager.inner());
+            let token = manager.add_session(watch_id.clone()).await;
 
-    let deployments: Api<Deployment> = if let Some(ns) = &namespace {
-        Api::namespaced(client, ns)
-    } else {
-        Api::all(client)
+            let api: Api<$kind> = if let Some(ns) = &namespace {
+                Api::namespaced(client, ns)
+            } else {
+                Api::all(client)
+            };
+
+            let watch_id_clone = watch_id.clone();
+            tokio::spawn(async move {
+                let config = label_selector
+                    .as_deref()
+                    .filter(|selector| !selector.is_empty())
+                    .map(|selector| Config::default().labels(selector))
+                    .unwrap_or_default();
+                let stream = watcher(api, config).boxed();
+                run_watch_loop(
+                    app,
+                    manager,
+                    watch_id_clone,
+                    $prefix,
+                    stream,
+                    $to_info,
+                    token,
+                )
+                .await;
+            });
+
+            tracing::info!("Started {} watch: {}", $prefix, watch_id);
+            Ok(())
+        }
     };
-
-    let watch_id_clone = watch_id.clone();
-    tokio::spawn(async move {
-        let config = label_selector
-            .as_deref()
-            .filter(|selector| !selector.is_empty())
-            .map(|selector| Config::default().labels(selector))
-            .unwrap_or_default();
-        let stream = watcher(deployments, config).boxed();
-        run_watch_loop(
-            app,
-            manager,
-            watch_id_clone,
-            "deployments-watch",
-            stream,
-            deployment_to_info,
-            token,
-        )
-        .await;
-    });
-
-    tracing::info!("Started deployments watch: {}", watch_id);
-    Ok(())
 }
+
+namespaced_watch_command!(
+    watch_deployments,
+    Deployment,
+    deployment_to_info,
+    "deployments-watch"
+);
+namespaced_watch_command!(watch_services, Service, service_to_info, "services-watch");
+namespaced_watch_command!(
+    watch_statefulsets,
+    StatefulSet,
+    statefulset_to_info,
+    "statefulsets-watch"
+);
+namespaced_watch_command!(
+    watch_daemonsets,
+    DaemonSet,
+    daemonset_to_info,
+    "daemonsets-watch"
+);
+namespaced_watch_command!(
+    watch_replicasets,
+    ReplicaSet,
+    replicaset_to_info,
+    "replicasets-watch"
+);
 
 fn namespace_to_info(ns: Namespace) -> NamespaceInfo {
     let metadata = ns.metadata;
@@ -510,6 +543,235 @@ mod tests {
             deployment_to_info,
         ) {
             Some(WatchEvent::Deleted(info)) => assert_eq!(info.uid, "uid-web"),
+            _ => panic!("expected Deleted"),
+        }
+    }
+
+    fn test_service(name: &str, cluster_ip: &str) -> Service {
+        let mut service = Service::default();
+        service.metadata.name = Some(name.to_string());
+        service.metadata.namespace = Some("default".to_string());
+        service.metadata.uid = Some(format!("uid-{name}"));
+        service.spec = Some(k8s_openapi::api::core::v1::ServiceSpec {
+            type_: Some("ClusterIP".to_string()),
+            cluster_ip: Some(cluster_ip.to_string()),
+            ports: Some(vec![k8s_openapi::api::core::v1::ServicePort {
+                port: 80,
+                protocol: Some("TCP".to_string()),
+                ..Default::default()
+            }]),
+            ..Default::default()
+        });
+        service
+    }
+
+    #[test]
+    fn service_events_map_to_service_info() {
+        let mut buf: Option<Vec<crate::commands::resources::ServiceInfo>> = None;
+
+        assert!(map_watch_event(Ok(Event::Init), &mut buf, service_to_info).is_none());
+        assert!(map_watch_event(
+            Ok(Event::InitApply(test_service("api", "10.0.0.1"))),
+            &mut buf,
+            service_to_info
+        )
+        .is_none());
+        match map_watch_event(Ok(Event::InitDone), &mut buf, service_to_info) {
+            Some(WatchEvent::Restarted(items)) => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].name, "api");
+                assert_eq!(items[0].uid, "uid-api");
+                assert_eq!(items[0].service_type, "ClusterIP");
+                assert_eq!(items[0].cluster_ip.as_deref(), Some("10.0.0.1"));
+                assert_eq!(items[0].ports.len(), 1);
+                assert_eq!(items[0].ports[0].port, 80);
+            }
+            _ => panic!("expected Restarted"),
+        }
+
+        // InitApply without a preceding Init falls back to Added
+        match map_watch_event(
+            Ok(Event::InitApply(test_service("web", "10.0.0.2"))),
+            &mut buf,
+            service_to_info,
+        ) {
+            Some(WatchEvent::Added(info)) => assert_eq!(info.name, "web"),
+            _ => panic!("expected Added"),
+        }
+
+        match map_watch_event(
+            Ok(Event::Apply(test_service("api", "10.0.0.9"))),
+            &mut buf,
+            service_to_info,
+        ) {
+            Some(WatchEvent::Modified(info)) => {
+                assert_eq!(info.cluster_ip.as_deref(), Some("10.0.0.9"))
+            }
+            _ => panic!("expected Modified"),
+        }
+
+        match map_watch_event(
+            Ok(Event::Delete(test_service("api", "10.0.0.9"))),
+            &mut buf,
+            service_to_info,
+        ) {
+            Some(WatchEvent::Deleted(info)) => assert_eq!(info.uid, "uid-api"),
+            _ => panic!("expected Deleted"),
+        }
+    }
+
+    fn test_statefulset(name: &str, ready: i32) -> StatefulSet {
+        let mut sts = StatefulSet::default();
+        sts.metadata.name = Some(name.to_string());
+        sts.metadata.namespace = Some("default".to_string());
+        sts.metadata.uid = Some(format!("uid-{name}"));
+        sts.spec = Some(k8s_openapi::api::apps::v1::StatefulSetSpec {
+            service_name: Some(format!("{name}-svc")),
+            ..Default::default()
+        });
+        sts.status = Some(k8s_openapi::api::apps::v1::StatefulSetStatus {
+            replicas: 3,
+            ready_replicas: Some(ready),
+            ..Default::default()
+        });
+        sts
+    }
+
+    #[test]
+    fn statefulset_events_map_to_statefulset_info() {
+        let mut buf: Option<Vec<crate::commands::resources::StatefulSetInfo>> = None;
+
+        assert!(map_watch_event(Ok(Event::Init), &mut buf, statefulset_to_info).is_none());
+        assert!(map_watch_event(
+            Ok(Event::InitApply(test_statefulset("db", 1))),
+            &mut buf,
+            statefulset_to_info
+        )
+        .is_none());
+        match map_watch_event(Ok(Event::InitDone), &mut buf, statefulset_to_info) {
+            Some(WatchEvent::Restarted(items)) => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].name, "db");
+                assert_eq!(items[0].replicas, 3);
+                assert_eq!(items[0].ready_replicas, 1);
+                assert_eq!(items[0].service_name.as_deref(), Some("db-svc"));
+            }
+            _ => panic!("expected Restarted"),
+        }
+
+        match map_watch_event(
+            Ok(Event::Apply(test_statefulset("db", 3))),
+            &mut buf,
+            statefulset_to_info,
+        ) {
+            Some(WatchEvent::Modified(info)) => assert_eq!(info.ready_replicas, 3),
+            _ => panic!("expected Modified"),
+        }
+
+        match map_watch_event(
+            Ok(Event::Delete(test_statefulset("db", 0))),
+            &mut buf,
+            statefulset_to_info,
+        ) {
+            Some(WatchEvent::Deleted(info)) => assert_eq!(info.uid, "uid-db"),
+            _ => panic!("expected Deleted"),
+        }
+    }
+
+    fn test_daemonset(name: &str, ready: i32) -> DaemonSet {
+        let mut ds = DaemonSet::default();
+        ds.metadata.name = Some(name.to_string());
+        ds.metadata.namespace = Some("default".to_string());
+        ds.metadata.uid = Some(format!("uid-{name}"));
+        ds.status = Some(k8s_openapi::api::apps::v1::DaemonSetStatus {
+            desired_number_scheduled: 2,
+            current_number_scheduled: 2,
+            number_ready: ready,
+            ..Default::default()
+        });
+        ds
+    }
+
+    #[test]
+    fn daemonset_events_map_to_daemonset_info() {
+        let mut buf: Option<Vec<crate::commands::resources::DaemonSetInfo>> = None;
+
+        assert!(map_watch_event(Ok(Event::Init), &mut buf, daemonset_to_info).is_none());
+        assert!(map_watch_event(
+            Ok(Event::InitApply(test_daemonset("agent", 1))),
+            &mut buf,
+            daemonset_to_info
+        )
+        .is_none());
+        match map_watch_event(Ok(Event::InitDone), &mut buf, daemonset_to_info) {
+            Some(WatchEvent::Restarted(items)) => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].name, "agent");
+                assert_eq!(items[0].desired_number_scheduled, 2);
+                assert_eq!(items[0].number_ready, 1);
+            }
+            _ => panic!("expected Restarted"),
+        }
+
+        match map_watch_event(
+            Ok(Event::Apply(test_daemonset("agent", 2))),
+            &mut buf,
+            daemonset_to_info,
+        ) {
+            Some(WatchEvent::Modified(info)) => assert_eq!(info.number_ready, 2),
+            _ => panic!("expected Modified"),
+        }
+    }
+
+    fn test_replicaset(name: &str, ready: i32) -> ReplicaSet {
+        let mut rs = ReplicaSet::default();
+        rs.metadata.name = Some(name.to_string());
+        rs.metadata.namespace = Some("default".to_string());
+        rs.metadata.uid = Some(format!("uid-{name}"));
+        rs.metadata.owner_references = Some(vec![
+            k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference {
+                kind: "Deployment".to_string(),
+                name: "web".to_string(),
+                ..Default::default()
+            },
+        ]);
+        rs.status = Some(k8s_openapi::api::apps::v1::ReplicaSetStatus {
+            replicas: 3,
+            ready_replicas: Some(ready),
+            ..Default::default()
+        });
+        rs
+    }
+
+    #[test]
+    fn replicaset_events_map_to_replicaset_info() {
+        let mut buf: Option<Vec<crate::commands::resources::ReplicaSetInfo>> = None;
+
+        assert!(map_watch_event(Ok(Event::Init), &mut buf, replicaset_to_info).is_none());
+        assert!(map_watch_event(
+            Ok(Event::InitApply(test_replicaset("web-abc", 1))),
+            &mut buf,
+            replicaset_to_info
+        )
+        .is_none());
+        match map_watch_event(Ok(Event::InitDone), &mut buf, replicaset_to_info) {
+            Some(WatchEvent::Restarted(items)) => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].name, "web-abc");
+                assert_eq!(items[0].replicas, 3);
+                assert_eq!(items[0].ready_replicas, 1);
+                assert_eq!(items[0].owner_kind.as_deref(), Some("Deployment"));
+                assert_eq!(items[0].owner_name.as_deref(), Some("web"));
+            }
+            _ => panic!("expected Restarted"),
+        }
+
+        match map_watch_event(
+            Ok(Event::Delete(test_replicaset("web-abc", 0))),
+            &mut buf,
+            replicaset_to_info,
+        ) {
+            Some(WatchEvent::Deleted(info)) => assert_eq!(info.uid, "uid-web-abc"),
             _ => panic!("expected Deleted"),
         }
     }

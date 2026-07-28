@@ -49,7 +49,16 @@ interface ResourceHookResult<T> {
 // Configuration for creating a resource view
 export interface ResourceViewConfig<T extends BaseResource> {
   // Data hook
-  hook: (options?: { autoRefresh?: boolean; refreshInterval?: number }) => ResourceHookResult<T>;
+  hook: (options?: {
+    autoRefresh?: boolean;
+    refreshInterval?: number;
+    autoWatch?: boolean;
+  }) => ResourceHookResult<T>;
+
+  // Whether to start a real-time watch (only for hooks with supportsWatch).
+  // autoRefresh stays on as the polling fallback: useK8sResource pauses the
+  // interval while the watch is live and resumes it if the watch fails.
+  autoWatch?: boolean;
 
   // Column definitions
   columns: Column<T>[];
@@ -104,12 +113,14 @@ export function createResourceView<T extends BaseResource>(
     additionalMenuItems,
     hideDelete = false,
     copyItems = [],
+    autoWatch = false,
   } = config;
 
   return function ResourceView() {
     const t = useTranslations();
     const openWorkloadLogsTab = useOpenWorkloadLogsTab();
     const { data, isLoading, error, refresh, retry } = hook({
+      autoWatch,
       autoRefresh: true,
       refreshInterval: 30000,
     });

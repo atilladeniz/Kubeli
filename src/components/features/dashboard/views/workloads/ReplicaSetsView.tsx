@@ -7,6 +7,7 @@ import type { ReplicaSetInfo } from "@/lib/types";
 
 export const ReplicaSetsView = createResourceView<ReplicaSetInfo>({
   hook: useReplicaSets,
+  autoWatch: true,
   columns: replicaSetColumns,
   titleKey: "navigation.replicaSets",
   emptyMessageKey: "empty.replicasets",

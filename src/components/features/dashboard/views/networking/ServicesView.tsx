@@ -24,7 +24,10 @@ import type { ServiceInfo, ServicePortInfo } from "@/lib/types";
 
 export function ServicesView() {
   const t = useTranslations();
+  // autoRefresh stays on as the polling fallback: useK8sResource pauses the
+  // interval while the watch is live and resumes it if the watch fails.
   const { data, isLoading, error, refresh, retry } = useServices({
+    autoWatch: true,
     autoRefresh: true,
     refreshInterval: 30000,
   });
