@@ -80,6 +80,13 @@ export const WORKLOAD_KIND_LABELS: Record<WorkloadLogKind, string> = {
 };
 
 /**
+ * Label carrying a Job's controller UID, newest spelling first. Kubernetes
+ * moved it to the `batch.kubernetes.io` prefix in 1.27; older clusters only
+ * set the bare key.
+ */
+const CONTROLLER_UID_KEYS = ["batch.kubernetes.io/controller-uid", "controller-uid"] as const;
+
+/**
  * Resolves a CronJob to the pod selector covering all of its Jobs.
  *
  * Each Job carries its own `controller-uid` selector, so the union is a
@@ -97,26 +104,28 @@ async function cronjobSelectors(
   namespace: string,
 ): Promise<Array<{ name: string; selector_query: string }>> {
   const jobs = await listJobs({ namespace });
-  const byCronjob = new Map<string, string[]>();
+  const byCronjob = new Map<string, { key: string; uids: string[] }>();
 
   for (const job of jobs) {
     if (job.owner_kind !== "CronJob" || !job.owner_name) continue;
     // Only the controller-uid form collapses into one set-based query; a Job
     // with a hand-written selector is skipped rather than silently widening
-    // the query to unrelated pods.
-    const uid = job.selector["batch.kubernetes.io/controller-uid"] ?? job.selector["controller-uid"];
-    if (!uid) continue;
-    const uids = byCronjob.get(job.owner_name);
-    if (uids) {
-      uids.push(uid);
+    // the query to unrelated pods. Kubernetes moved this label to the
+    // batch.kubernetes.io prefix in 1.27, so the query has to use whichever
+    // key the cluster actually set — querying the other one matches nothing.
+    const key = CONTROLLER_UID_KEYS.find((k) => job.selector[k]);
+    if (!key) continue;
+    const group = byCronjob.get(job.owner_name);
+    if (group) {
+      group.uids.push(job.selector[key]);
     } else {
-      byCronjob.set(job.owner_name, [uid]);
+      byCronjob.set(job.owner_name, { key, uids: [job.selector[key]] });
     }
   }
 
-  return [...byCronjob].map(([name, uids]) => ({
+  return [...byCronjob].map(([name, { key, uids }]) => ({
     name,
-    selector_query: `batch.kubernetes.io/controller-uid in (${uids.join(",")})`,
+    selector_query: `${key} in (${uids.join(",")})`,
   }));
 }
 

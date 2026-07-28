@@ -517,6 +517,34 @@ describe("useWorkloadLogs CronJob resolution", () => {
     expect(result.current.error).toBeNull();
   });
 
+  // Regression: the UID was read with a fallback to the pre-1.27 bare
+  // `controller-uid` key, but the query was always built with the prefixed
+  // one. On older clusters that queried a label no pod carries, so CronJob
+  // logs came up empty instead of falling back.
+  it("queries the legacy controller-uid key on pre-1.27 clusters", async () => {
+    const legacyJob = {
+      name: "nightly-28900",
+      namespace: "default",
+      owner_kind: "CronJob",
+      owner_name: "nightly",
+      selector: { "controller-uid": "uid-legacy" },
+      selector_query: "controller-uid=uid-legacy",
+    };
+    mockListJobs.mockResolvedValue([legacyJob]);
+    mockListPods.mockResolvedValue([pod("nightly-28900-xxxxx", "pod-a")]);
+
+    const { result } = renderHook(() =>
+      useWorkloadLogs("nightly", "default", "cronjob")
+    );
+
+    await waitFor(() => expect(result.current.pods).toHaveLength(1));
+
+    expect(mockListPods).toHaveBeenCalledWith({
+      namespace: "default",
+      label_selector: "controller-uid in (uid-legacy)",
+    });
+  });
+
   it("streams every pod of every owned Job, tagged with its own pod name", async () => {
     mockListJobs.mockResolvedValue([
       job("nightly-28900", "uid-a"),
