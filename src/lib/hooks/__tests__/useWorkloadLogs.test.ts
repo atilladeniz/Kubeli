@@ -332,6 +332,30 @@ describe("useWorkloadLogs stream drop vs pod rotation", () => {
     expect(mockStreamPodLogs).toHaveBeenCalledTimes(2);
   });
 
+  // Regression: the retry guard was permanent, so a pod that dropped once was
+  // locked out for the rest of the session — a later, unrelated drop after
+  // hours of healthy streaming got no reconnect at all.
+  it("retries again after a drop that follows a healthy stretch", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
+
+    // The replacement streams happily well past the loop-guard cooldown
+    const realNow = Date.now;
+    Date.now = () => realNow() + 60_000;
+    try {
+      await act(async () => {
+        logListeners[1]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+      });
+      await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(3));
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
   // A container that simply exited ends cleanly; retrying would fight the pod's
   // own lifecycle instead of a network problem.
   it("does not resubscribe on a clean end of stream", async () => {

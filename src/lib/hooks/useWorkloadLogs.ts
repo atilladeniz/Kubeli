@@ -37,6 +37,12 @@ export const POD_COLOR_PAIRS = [
   { text: "text-amber-400", bg: "bg-amber-400" },
 ] as const;
 
+/**
+ * A drop this soon after the previous retry means reconnecting is not working,
+ * so stop instead of hammering the API server.
+ */
+const RESUBSCRIBE_COOLDOWN_MS = 30_000;
+
 export interface PodColorEntry {
   text: string;
   bg: string;
@@ -129,8 +135,8 @@ export function useWorkloadLogs(
   const podsRef = useRef<PodInfo[]>([]);
   // Last timestamp seen per pod, to resume a resubscribe without refetching
   const lastTimestampRef = useRef(new Map<string, string>());
-  // Pods already auto-resubscribed once; guards against a reconnect loop
-  const resubscribedRef = useRef(new Set<string>());
+  // When each pod was last auto-resubscribed; guards against a reconnect loop
+  const resubscribedRef = useRef(new Map<string, number>());
   // Lets a resubscribe drop the dead stream's listener without leaking it
   const unlistenByStreamRef = useRef(new Map<string, UnlistenFn>());
   // Disambiguates stream IDs created within the same millisecond
@@ -363,13 +369,15 @@ export function useWorkloadLogs(
   function handleStreamEnded(podName: string, streamId: string, reason: string | null) {
     if (!reason || !mountedRef.current) return;
     if (!podsRef.current.some((p) => p.name === podName)) return;
-    if (resubscribedRef.current.has(podName)) {
-      // ponytail: one retry per pod, then give up quietly. A notice with a
-      // manual reconnect is the upgrade path if one retry proves too few.
+    // Guard against a reconnect loop, not against retrying ever again: only a
+    // drop that follows hard on the heels of the last retry means reconnecting
+    // is not working. A stream that ran fine for a while has earned another try.
+    const lastRetry = resubscribedRef.current.get(podName);
+    if (lastRetry !== undefined && Date.now() - lastRetry < RESUBSCRIBE_COOLDOWN_MS) {
       console.warn(`Log stream for pod ${podName} dropped again, not retrying: ${reason}`);
       return;
     }
-    resubscribedRef.current.add(podName);
+    resubscribedRef.current.set(podName, Date.now());
 
     const lastTimestamp = lastTimestampRef.current.get(podName);
     // One second of overlap is cheaper than a missing line.
