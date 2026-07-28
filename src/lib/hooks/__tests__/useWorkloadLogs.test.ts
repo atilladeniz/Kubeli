@@ -460,16 +460,201 @@ describe("useWorkloadLogs pod resolution per workload kind", () => {
   });
 });
 
+describe("useWorkloadLogs CronJob resolution", () => {
+  const job = (name: string, uid: string, owner: string | null = "nightly") => ({
+    name,
+    namespace: "default",
+    owner_kind: owner === null ? null : "CronJob",
+    owner_name: owner,
+    selector: { "batch.kubernetes.io/controller-uid": uid },
+    selector_query: `batch.kubernetes.io/controller-uid=${uid}`,
+  });
+
+  const pod = (name: string, uid: string) => ({
+    name,
+    uid,
+    namespace: "default",
+    phase: "Running",
+    labels: {},
+  });
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListPods.mockResolvedValue([]);
+    mockWatchPods.mockResolvedValue(undefined);
+    mockStopWatch.mockResolvedValue(undefined);
+    mockListen.mockResolvedValue(jest.fn());
+  });
+
+  // A CronJob owns Jobs, not pods. Both Jobs' pods must end up in one view, so
+  // their per-Job controller-uid selectors collapse into one set-based query.
+  it("unions the pods of every Job the CronJob owns", async () => {
+    mockListJobs.mockResolvedValue([
+      job("nightly-28900", "uid-a"),
+      job("nightly-28901", "uid-b"),
+      // Belongs to a different CronJob - must not leak into the query
+      job("other-1", "uid-c", "weekly"),
+    ]);
+    mockListPods.mockResolvedValue([
+      pod("nightly-28900-xxxxx", "pod-a"),
+      pod("nightly-28901-yyyyy", "pod-b"),
+    ]);
+
+    const { result } = renderHook(() =>
+      useWorkloadLogs("nightly", "default", "cronjob")
+    );
+
+    await waitFor(() => expect(result.current.pods).toHaveLength(2));
+
+    expect(mockListPods).toHaveBeenCalledWith({
+      namespace: "default",
+      label_selector: "batch.kubernetes.io/controller-uid in (uid-a,uid-b)",
+    });
+    expect(result.current.pods.map((p) => p.name)).toEqual([
+      "nightly-28900-xxxxx",
+      "nightly-28901-yyyyy",
+    ]);
+    expect(result.current.error).toBeNull();
+  });
+
+  it("streams every pod of every owned Job, tagged with its own pod name", async () => {
+    mockListJobs.mockResolvedValue([
+      job("nightly-28900", "uid-a"),
+      job("nightly-28901", "uid-b"),
+    ]);
+    mockListPods.mockResolvedValue([
+      pod("nightly-28900-xxxxx", "pod-a"),
+      pod("nightly-28901-yyyyy", "pod-b"),
+    ]);
+    mockStreamPodLogs.mockResolvedValue(undefined);
+
+    const logListeners: Array<(event: { payload: unknown }) => void> = [];
+    mockListen.mockImplementation(
+      (eventName: string, handler: (e: { payload: unknown }) => void) => {
+        if (eventName.startsWith("log-stream-")) logListeners.push(handler);
+        return Promise.resolve(jest.fn());
+      }
+    );
+
+    const { result } = renderHook(() =>
+      useWorkloadLogs("nightly", "default", "cronjob")
+    );
+    await waitFor(() => expect(result.current.pods).toHaveLength(2));
+
+    await act(async () => {
+      await result.current.startStream();
+    });
+
+    await waitFor(() => expect(logListeners).toHaveLength(2));
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(2);
+    expect(mockStreamPodLogs).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ pod_name: "nightly-28900-xxxxx" })
+    );
+    expect(mockStreamPodLogs).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ pod_name: "nightly-28901-yyyyy" })
+    );
+
+    act(() => {
+      logListeners[0]({
+        payload: {
+          type: "Line",
+          data: {
+            message: "from job a",
+            timestamp: "2024-01-01T10:00:00Z",
+            container: "main",
+            pod: "nightly-28900-xxxxx",
+            namespace: "default",
+          },
+        },
+      });
+      logListeners[1]({
+        payload: {
+          type: "Line",
+          data: {
+            message: "from job b",
+            timestamp: "2024-01-01T10:00:01Z",
+            container: "main",
+            pod: "nightly-28901-yyyyy",
+            namespace: "default",
+          },
+        },
+      });
+    });
+
+    await waitFor(() => expect(result.current.logs).toHaveLength(2));
+    expect(result.current.logs.map((l) => [l.pod, l.message])).toEqual([
+      ["nightly-28900-xxxxx", "from job a"],
+      ["nightly-28901-yyyyy", "from job b"],
+    ]);
+  });
+
+  // Between runs the history limit can leave a CronJob with no Jobs at all.
+  // That is an empty view, not the "not found" error other kinds report.
+  it("shows an empty view without erroring when no Jobs are left", async () => {
+    mockListJobs.mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useWorkloadLogs("nightly", "default", "cronjob")
+    );
+    await act(async () => {});
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.pods).toEqual([]);
+    expect(mockListPods).not.toHaveBeenCalled();
+    expect(mockWatchPods).not.toHaveBeenCalled();
+  });
+
+  // An owned Job whose pods are already garbage-collected still resolves; it
+  // just contributes no pods.
+  it("resolves without error when an owned Job has no pods left", async () => {
+    mockListJobs.mockResolvedValue([job("nightly-28900", "uid-a")]);
+    mockListPods.mockResolvedValue([]);
+
+    const { result } = renderHook(() =>
+      useWorkloadLogs("nightly", "default", "cronjob")
+    );
+    await act(async () => {});
+
+    expect(result.current.error).toBeNull();
+    expect(result.current.pods).toEqual([]);
+    expect(mockListPods).toHaveBeenCalledWith({
+      namespace: "default",
+      label_selector: "batch.kubernetes.io/controller-uid in (uid-a)",
+    });
+  });
+
+  it("ignores Jobs that are not owned by a CronJob", async () => {
+    mockListJobs.mockResolvedValue([
+      job("nightly-28900", "uid-a"),
+      job("standalone", "uid-z", null),
+    ]);
+    mockListPods.mockResolvedValue([pod("nightly-28900-xxxxx", "pod-a")]);
+
+    const { result } = renderHook(() =>
+      useWorkloadLogs("nightly", "default", "cronjob")
+    );
+    await waitFor(() => expect(result.current.pods).toHaveLength(1));
+
+    expect(mockListPods).toHaveBeenCalledWith({
+      namespace: "default",
+      label_selector: "batch.kubernetes.io/controller-uid in (uid-a)",
+    });
+  });
+});
+
 describe("supportsAggregatedLogs", () => {
-  it.each(["deployment", "statefulset", "daemonset", "replicaset", "job"])(
+  // CronJobs are included: they own Jobs, not pods, and the extra resolution
+  // hop through those Jobs is what cronjobSelectors() does.
+  it.each(["deployment", "statefulset", "daemonset", "replicaset", "job", "cronjob"])(
     "accepts %s",
     (kind) => {
       expect(supportsAggregatedLogs(kind)).toBe(true);
     }
   );
 
-  // CronJobs own Jobs, not pods, so they need a second resolution hop.
-  it.each(["cronjob", "pod", "service", "configmap"])("rejects %s", (kind) => {
+  it.each(["pod", "service", "configmap"])("rejects %s", (kind) => {
     expect(supportsAggregatedLogs(kind)).toBe(false);
   });
 });

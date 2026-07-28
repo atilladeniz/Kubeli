@@ -667,6 +667,9 @@ export interface JobInfo {
   created_at: string | null;
   labels: Record<string, string>;
   status: string;
+  /** Controller that created this Job, e.g. the CronJob it belongs to */
+  owner_name: string | null;
+  owner_kind: string | null;
   /**
    * Pod selector from spec.selector — resolves the Job's pods. Normally the
    * controller-generated `batch.kubernetes.io/controller-uid` label.
