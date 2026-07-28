@@ -22,7 +22,10 @@ import type { DeploymentInfo } from "@/lib/types";
 
 export function DeploymentsView() {
   const t = useTranslations();
+  // autoRefresh stays on as the polling fallback: useK8sResource pauses the
+  // interval while the watch is live and resumes it if the watch fails.
   const { data, isLoading, error, refresh, retry } = useDeployments({
+    autoWatch: true,
     autoRefresh: true,
     refreshInterval: 30000,
   });

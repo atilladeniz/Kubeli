@@ -80,6 +80,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Syn
         crate::commands::resources::suspend_cronjob,
         crate::commands::resources::resume_cronjob,
         crate::commands::watch::watch_pods,
+        crate::commands::watch::watch_deployments,
         crate::commands::watch::watch_namespaces,
         crate::commands::watch::stop_watch,
         crate::commands::logs::get_pod_logs,

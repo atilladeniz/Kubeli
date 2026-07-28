@@ -1,9 +1,11 @@
 use crate::commands::resources::{
-    extract_container_info, extract_tolerations, ContainerInfo, NamespaceInfo, PodInfo,
+    deployment_to_info, extract_container_info, extract_tolerations, ContainerInfo, NamespaceInfo,
+    PodInfo,
 };
 use crate::error::KubeliError;
 use crate::k8s::AppState;
 use futures::StreamExt;
+use k8s_openapi::api::apps::v1::Deployment;
 use k8s_openapi::api::core::v1::{Namespace, Pod};
 use kube::api::Api;
 use kube::runtime::watcher::{watcher, Config, Event};
@@ -282,6 +284,50 @@ pub async fn watch_pods(
     Ok(())
 }
 
+/// Start watching deployments in a namespace (or all namespaces)
+#[command]
+pub async fn watch_deployments(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    watch_manager: State<'_, Arc<WatchManager>>,
+    namespace: Option<String>,
+    label_selector: Option<String>,
+    watch_id: String,
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await.map_err(KubeliError::from)?;
+    let manager = Arc::clone(watch_manager.inner());
+    let token = manager.add_session(watch_id.clone()).await;
+
+    let deployments: Api<Deployment> = if let Some(ns) = &namespace {
+        Api::namespaced(client, ns)
+    } else {
+        Api::all(client)
+    };
+
+    let watch_id_clone = watch_id.clone();
+    tokio::spawn(async move {
+        let config = label_selector
+            .as_deref()
+            .filter(|selector| !selector.is_empty())
+            .map(|selector| Config::default().labels(selector))
+            .unwrap_or_default();
+        let stream = watcher(deployments, config).boxed();
+        run_watch_loop(
+            app,
+            manager,
+            watch_id_clone,
+            "deployments-watch",
+            stream,
+            deployment_to_info,
+            token,
+        )
+        .await;
+    });
+
+    tracing::info!("Started deployments watch: {}", watch_id);
+    Ok(())
+}
+
 fn namespace_to_info(ns: Namespace) -> NamespaceInfo {
     let metadata = ns.metadata;
     let status = ns
@@ -394,6 +440,78 @@ mod tests {
             map_watch_event(Ok(Event::Delete(5)), &mut buf, |v| v),
             Some(WatchEvent::Deleted(5))
         ));
+    }
+
+    fn test_deployment(name: &str, ready: i32) -> Deployment {
+        let mut deployment = Deployment::default();
+        deployment.metadata.name = Some(name.to_string());
+        deployment.metadata.namespace = Some("default".to_string());
+        deployment.metadata.uid = Some(format!("uid-{name}"));
+        deployment.spec = Some(k8s_openapi::api::apps::v1::DeploymentSpec {
+            replicas: Some(3),
+            ..Default::default()
+        });
+        deployment.status = Some(k8s_openapi::api::apps::v1::DeploymentStatus {
+            ready_replicas: Some(ready),
+            ..Default::default()
+        });
+        deployment
+    }
+
+    #[test]
+    fn deployment_events_map_to_deployment_info() {
+        let mut buf: Option<Vec<crate::commands::resources::DeploymentInfo>> = None;
+
+        // Initial listing is buffered into one Restarted event
+        assert!(map_watch_event(Ok(Event::Init), &mut buf, deployment_to_info).is_none());
+        assert!(map_watch_event(
+            Ok(Event::InitApply(test_deployment("web", 1))),
+            &mut buf,
+            deployment_to_info
+        )
+        .is_none());
+        match map_watch_event(Ok(Event::InitDone), &mut buf, deployment_to_info) {
+            Some(WatchEvent::Restarted(items)) => {
+                assert_eq!(items.len(), 1);
+                assert_eq!(items[0].name, "web");
+                assert_eq!(items[0].uid, "uid-web");
+                assert_eq!(items[0].replicas, 3);
+                assert_eq!(items[0].ready_replicas, 1);
+            }
+            _ => panic!("expected Restarted"),
+        }
+
+        // Apply without a preceding Init falls back to Added
+        match map_watch_event(
+            Ok(Event::InitApply(test_deployment("api", 2))),
+            &mut buf,
+            deployment_to_info,
+        ) {
+            Some(WatchEvent::Added(info)) => assert_eq!(info.name, "api"),
+            _ => panic!("expected Added"),
+        }
+
+        // A rollout scaling up arrives as Modified
+        match map_watch_event(
+            Ok(Event::Apply(test_deployment("web", 3))),
+            &mut buf,
+            deployment_to_info,
+        ) {
+            Some(WatchEvent::Modified(info)) => {
+                assert_eq!(info.name, "web");
+                assert_eq!(info.ready_replicas, 3);
+            }
+            _ => panic!("expected Modified"),
+        }
+
+        match map_watch_event(
+            Ok(Event::Delete(test_deployment("web", 0))),
+            &mut buf,
+            deployment_to_info,
+        ) {
+            Some(WatchEvent::Deleted(info)) => assert_eq!(info.uid, "uid-web"),
+            _ => panic!("expected Deleted"),
+        }
     }
 
     #[tokio::test]
