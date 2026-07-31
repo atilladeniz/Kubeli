@@ -131,10 +131,27 @@ jobs:
             label: Windows-x64
             args: ''
             rust_target: ''
+          # Two Linux builds on purpose. The AppImage bundles the build host's
+          # WebKitGTK, so one build cannot serve every target:
+          #   22.04 -> WebKit 2.50, glibc 2.35 — works back to Ubuntu 22.04 /
+          #            Debian 12, but its WebKit aborts with EGL_BAD_PARAMETER
+          #            against Mesa >= 25 (Fedora 43, Arch). See #429.
+          #   24.04 -> WebKit 2.52, glibc 2.39 — fixes that crash, but will not
+          #            start on distros older than Ubuntu 24.04 / Debian 13.
+          # 22.04 stays the updater target, so existing installs keep the
+          # widest-compatibility build unless the user picks the other one.
           - platform: ubuntu-22.04
             label: Linux-x64
             args: ''
             rust_target: ''
+          - platform: ubuntu-24.04
+            label: Linux-x64-modern
+            # Only the AppImage: deb/rpm link against the system WebKit, so the
+            # 22.04 job's packages already work on new distros. Building them
+            # twice would collide on identical filenames at upload.
+            args: '--bundles appimage'
+            rust_target: ''
+            appimage_suffix: '-modern'
     runs-on: ${{ matrix.platform }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -156,10 +173,12 @@ jobs:
           workspaces: src-tauri
 
       - name: Install Linux dependencies
-        if: matrix.platform == 'ubuntu-22.04'
+        if: startsWith(matrix.platform, 'ubuntu-')
         run: |
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          echo "Bundling WebKitGTK: $(dpkg-query -W -f='${Version}' libwebkit2gtk-4.1-0)"
+          echo "Against glibc: $(dpkg-query -W -f='${Version}' libc6)"
 
       - name: Install dependencies
         run: npm ci
@@ -190,11 +209,45 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          releaseId: ${{ needs.create-release.outputs.release_id }}
+          # The modern Linux build uploads itself in the next step instead: its
+          # AppImage has to be renamed first, or it would overwrite the 22.04
+          # one on the release (Tauri has no filename option for AppImage).
+          releaseId: ${{ matrix.appimage_suffix == '-modern' && '' || needs.create-release.outputs.release_id }}
           tagName: ${{ needs.create-release.outputs.tag }}
           releaseDraft: true
           retryAttempts: 3
           args: ${{ matrix.args }}
+
+      # Renames to Kubeli_<version>_amd64-modern.AppImage and uploads it (plus
+      # its updater signature) by hand, since tauri-action was told not to.
+      - name: Upload modern Linux AppImage
+        if: matrix.appimage_suffix == '-modern'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ needs.create-release.outputs.tag }}
+          SUFFIX: ${{ matrix.appimage_suffix }}
+        run: |
+          set -euo pipefail
+          bundle_dir=src-tauri/target/release/bundle/appimage
+          shopt -s nullglob
+          images=("$bundle_dir"/*.AppImage)
+          if [ ${#images[@]} -eq 0 ]; then
+            echo "No AppImage produced in $bundle_dir" >&2
+            exit 1
+          fi
+          for image in "${images[@]}"; do
+            renamed="${image%.AppImage}${SUFFIX}.AppImage"
+            mv "$image" "$renamed"
+            gh release upload "$RELEASE_TAG" "$renamed" --clobber
+            echo "Uploaded $(basename "$renamed")"
+            # The .sig belongs to the file the updater would fetch. Ship it so
+            # the artifact stays verifiable even though latest.json points at
+            # the 22.04 build.
+            if [ -f "$image.sig" ]; then
+              mv "$image.sig" "$renamed.sig"
+              gh release upload "$RELEASE_TAG" "$renamed.sig" --clobber
+            fi
+          done
 
   sign-windows:
     name: Sign Windows Installers
@@ -342,20 +395,30 @@ jobs:
             fi
           done
 
-          # Linux
-          for f in artifacts/*.AppImage.sig; do
-            if [ -f "$f" ]; then
-              LINUX_SIG=$(cat "$f")
-              echo "Found Linux signature: $f"
-              break
-            fi
-          done
+          # Linux — must be the 22.04 build, never the "-modern" one: it has the
+          # lower glibc floor, so it is the only AppImage safe to push to every
+          # existing install through the updater's single linux-x86_64 slot.
+          # Selection rule lives in scripts/select-linux-artifacts.js so it is
+          # covered by tests instead of only by a glob here.
+          LINUX_SIG_FILE=$(node -e '
+            const { selectUpdaterSignature } = require("./scripts/select-linux-artifacts");
+            const fs = require("fs");
+            process.stdout.write(selectUpdaterSignature(fs.readdirSync("artifacts")) ?? "");
+          ')
+          if [ -n "$LINUX_SIG_FILE" ]; then
+            LINUX_SIG=$(cat "artifacts/$LINUX_SIG_FILE")
+            echo "Found Linux signature: $LINUX_SIG_FILE"
+          fi
 
           # Find artifact filenames for FTP URLs
           MAC_TAR=$(ls artifacts/*.app.tar.gz 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
           WIN_EXE=$(ls artifacts/*x64-setup.exe 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
           WIN_EXE=${WIN_EXE:-$(ls artifacts/*x64_setup.exe 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")}
-          LINUX_APPIMAGE=$(ls artifacts/*.AppImage 2>/dev/null | grep -v '.sig' | head -1 | xargs basename 2>/dev/null || echo "")
+          LINUX_APPIMAGE=$(node -e '
+            const { selectUpdaterAppImage } = require("./scripts/select-linux-artifacts");
+            const fs = require("fs");
+            process.stdout.write(selectUpdaterAppImage(fs.readdirSync("artifacts")) ?? "");
+          ')
 
           # Build FTP latest.json
           PLATFORMS=""
@@ -491,16 +554,21 @@ jobs:
               "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/Kubeli_latest_x64-setup.exe" --ftp-create-dirs
           fi
 
-          # Linux AppImage
-          APPIMAGE=$(ls artifacts/*.AppImage 2>/dev/null | grep -v '.sig' | head -1)
-          if [ -n "$APPIMAGE" ]; then
+          # Linux AppImages — both variants, each with its own "latest" alias.
+          # Kubeli_latest_amd64.AppImage stays the 22.04 build so existing
+          # download links keep serving the widest-compatibility one.
+          for APPIMAGE in $(ls artifacts/*.AppImage 2>/dev/null | grep -v '.sig'); do
             BASENAME=$(basename "$APPIMAGE")
-            echo "Uploading $BASENAME (versioned + latest)..."
+            ALIAS=$(BASENAME="$BASENAME" node -e '
+              const { landingAliasFor } = require("./scripts/select-linux-artifacts");
+              process.stdout.write(landingAliasFor(process.env.BASENAME));
+            ')
+            echo "Uploading $BASENAME (versioned + $ALIAS)..."
             curl -s -T "$APPIMAGE" --user "$FTP_USER:$FTP_PASSWORD" \
               "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$BASENAME" --ftp-create-dirs
             curl -s -T "$APPIMAGE" --user "$FTP_USER:$FTP_PASSWORD" \
-              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/Kubeli_latest_amd64.AppImage" --ftp-create-dirs
-          fi
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$ALIAS" --ftp-create-dirs
+          done
 
           echo "Landing page deployment complete"
 

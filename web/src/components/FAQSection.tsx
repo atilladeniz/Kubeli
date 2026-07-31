@@ -24,7 +24,11 @@ const faqs = [
   },
   {
     question: "Which platforms are supported?",
-    answer: "Kubeli runs natively on macOS (10.15+), Windows (10/11), and Linux (x64 AppImage). All platforms support auto-updates, so you'll always have the latest features and security fixes."
+    answer: "Kubeli runs natively on macOS (10.15+), Windows (10/11), and Linux (x64 AppImage, .deb and .rpm). All platforms support auto-updates, so you'll always have the latest features and security fixes."
+  },
+  {
+    question: "The Linux AppImage shows a blank window or exits with EGL_BAD_PARAMETER. What now?",
+    answer: "Use the \"AppImage (new distros)\" download, or install the .deb/.rpm. An AppImage carries its own copy of WebKitGTK, and the standard build's copy is too old for the graphics drivers on Fedora 43, Arch and other distros running Mesa 25 or newer. The \"new distros\" build bundles a current WebKitGTK and needs glibc 2.39+ (Ubuntu 24.04, Debian 13, Fedora 39 and up). The .deb and .rpm sidestep the problem entirely because they use the WebKitGTK your distribution already ships."
   },
   {
     question: "Is my cluster data secure?",

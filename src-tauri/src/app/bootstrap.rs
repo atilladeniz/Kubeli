@@ -34,6 +34,14 @@ pub fn initialize() -> Args {
 /// Both variables are only set when the user hasn't already provided them,
 /// so users with working GPU setups can opt back in via the environment.
 ///
+/// What this does **not** cover: an AppImage carries the WebKitGTK of the
+/// machine that built it. If that copy is older than the host's Mesa, it
+/// aborts during EGL setup before rendering is ever configured, so neither
+/// variable helps — the abort happens no matter what they are set to. That
+/// is a packaging problem, fixed by the second AppImage built on a newer
+/// base (see `.github/workflows/publish.yml`) or by the .deb/.rpm, which
+/// link against the system WebKitGTK. See #429.
+///
 /// See: https://github.com/nicbarker/clay/issues/224
 ///      https://bugs.webkit.org/show_bug.cgi?id=297921
 ///      https://bugs.webkit.org/show_bug.cgi?id=302796
