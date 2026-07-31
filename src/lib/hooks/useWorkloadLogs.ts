@@ -37,6 +37,12 @@ export const POD_COLOR_PAIRS = [
   { text: "text-amber-400", bg: "bg-amber-400" },
 ] as const;
 
+/**
+ * A drop this soon after the previous retry means reconnecting is not working,
+ * so stop instead of hammering the API server.
+ */
+const RESUBSCRIBE_COOLDOWN_MS = 30_000;
+
 export interface PodColorEntry {
   text: string;
   bg: string;
@@ -124,9 +130,22 @@ export function useWorkloadLogs(
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mountedRef = useRef(true);
   const selectorQueryRef = useRef("");
+  // Pod roster mirror, so the Ended handler can tell a rotated-away pod from a
+  // pod that is still supposed to be streaming
+  const podsRef = useRef<PodInfo[]>([]);
+  // Last timestamp seen per pod, to resume a resubscribe without refetching
+  const lastTimestampRef = useRef(new Map<string, string>());
+  // When each pod was last auto-resubscribed; guards against a reconnect loop
+  const resubscribedRef = useRef(new Map<string, number>());
+  // Lets a resubscribe drop the dead stream's listener without leaking it
+  const unlistenByStreamRef = useRef(new Map<string, UnlistenFn>());
+  // Disambiguates stream IDs created within the same millisecond
+  const nextStreamSeqRef = useRef(0);
   // Stable color assignment - remembers colors for pods that have disappeared
   const colorAssignmentsRef = useRef(new Map<string, PodColorEntry>());
   const nextColorIndexRef = useRef(0);
+
+  podsRef.current = pods;
 
   // Pod color map - assigns stable colors, never forgets a pod
   const podColorMap = useMemo(() => {
@@ -262,6 +281,7 @@ export function useWorkloadLogs(
       unlisten();
     }
     activeListeners.current = [];
+    unlistenByStreamRef.current.clear();
 
     flushPending();
 
@@ -269,6 +289,142 @@ export function useWorkloadLogs(
       setIsStreaming(false);
     }
   }, [flushPending]);
+
+  /**
+   * Subscribes to one pod's log stream. `onStarted` only fires for the initial
+   * fan-out, where it counts down to isStreaming; a resubscribe passes nothing.
+   */
+  const subscribePod = useCallback(
+    async (
+      podName: string,
+      logOptions: Omit<LogOptions, "namespace" | "pod_name">,
+      onStarted?: () => void,
+    ): Promise<{ streamId: string; unlisten: UnlistenFn }> => {
+      // Counter, not just Date.now(): a resubscribe can land in the same
+      // millisecond as the stream it replaces, and two live streams sharing an
+      // ID would share one event channel and one stop handle.
+      const streamId = `workload-logs-${kind}-${namespace}-${workloadName}-${podName}-${Date.now()}-${nextStreamSeqRef.current++}`;
+      const unlisten = await listen<LogEvent>(`log-stream-${streamId}`, (event) => {
+        const logEvent = event.payload;
+
+        switch (logEvent.type) {
+          case "Line":
+            rememberTimestamp(podName, logEvent.data.timestamp);
+            pendingLogsRef.current.push(stampSeq(logEvent.data));
+            scheduleFlush();
+            break;
+          case "Lines":
+            rememberTimestamp(podName, logEvent.data.at(-1)?.timestamp);
+            pendingLogsRef.current.push(...logEvent.data.map(stampSeq));
+            scheduleFlush();
+            break;
+          case "Error":
+            flushPending();
+            console.error(`Stream error for pod ${podName}:`, logEvent.data);
+            break;
+          case "Ended":
+            flushPending();
+            handleStreamEnded(podName, streamId, logEvent.data.reason ?? null);
+            break;
+          case "Started":
+            onStarted?.();
+            break;
+          case "Stopped": {
+            const idx = activeStreamIds.current.indexOf(streamId);
+            if (idx !== -1) {
+              activeStreamIds.current.splice(idx, 1);
+            }
+            if (activeStreamIds.current.length === 0 && mountedRef.current) {
+              flushPending();
+              setIsStreaming(false);
+            }
+            break;
+          }
+        }
+      });
+
+      unlistenByStreamRef.current.set(streamId, unlisten);
+      await streamPodLogs(streamId, { namespace, pod_name: podName, ...logOptions });
+      return { streamId, unlisten };
+    },
+    // handleStreamEnded/rememberTimestamp only read refs, so the first-render
+    // closures stay correct and do not belong in the dep list
+    [kind, namespace, workloadName, scheduleFlush, flushPending],
+  );
+
+  const subscribePodRef = useRef(subscribePod);
+  subscribePodRef.current = subscribePod;
+
+  function rememberTimestamp(podName: string, timestamp: string | null | undefined) {
+    if (timestamp) lastTimestampRef.current.set(podName, timestamp);
+  }
+
+  /**
+   * A stream ending is routine here: replicas finish or get replaced by a
+   * rolling update while the others keep streaming. It is only a real drop when
+   * the backend reports a reason AND the pod is still on the roster — then the
+   * view would silently go quiet, so resubscribe from the last line seen.
+   * A clean end (reason null) means the container itself stopped producing.
+   */
+  function handleStreamEnded(podName: string, streamId: string, reason: string | null) {
+    if (!reason || !mountedRef.current) return;
+    if (!podsRef.current.some((p) => p.name === podName)) return;
+    // Guard against a reconnect loop, not against retrying ever again: only a
+    // drop that follows hard on the heels of the last retry means reconnecting
+    // is not working. A stream that ran fine for a while has earned another try.
+    const lastRetry = resubscribedRef.current.get(podName);
+    if (lastRetry !== undefined && Date.now() - lastRetry < RESUBSCRIBE_COOLDOWN_MS) {
+      console.warn(`Log stream for pod ${podName} dropped again, not retrying: ${reason}`);
+      return;
+    }
+    resubscribedRef.current.set(podName, Date.now());
+
+    const lastTimestamp = lastTimestampRef.current.get(podName);
+    // One second of overlap is cheaper than a missing line.
+    const sinceSeconds = lastTimestamp
+      ? Math.max(1, Math.ceil((Date.now() - new Date(lastTimestamp).getTime()) / 1000) + 1)
+      : undefined;
+
+    void (async () => {
+      try {
+        const { streamId: newId, unlisten } = await subscribePodRef.current(
+          podName,
+          {
+            follow: true,
+            timestamps: true,
+            since_seconds: sinceSeconds,
+            tail_lines: sinceSeconds === undefined ? 100 : undefined,
+          },
+          // The dead stream's Stopped event arrives before this one is
+          // registered and can drop the roster to empty, clearing isStreaming.
+          // Restore it once the replacement is live, or the view claims to be
+          // stopped while lines keep arriving.
+          () => {
+            if (mountedRef.current) setIsStreaming(true);
+          },
+        );
+        if (!mountedRef.current) {
+          unlisten();
+          stopLogStream(newId).catch(() => {});
+          return;
+        }
+        // Retire the dead stream: its listener would otherwise outlive it
+        const dead = unlistenByStreamRef.current.get(streamId);
+        if (dead) {
+          dead();
+          unlistenByStreamRef.current.delete(streamId);
+          const listenerIdx = activeListeners.current.indexOf(dead);
+          if (listenerIdx !== -1) activeListeners.current.splice(listenerIdx, 1);
+        }
+        const idx = activeStreamIds.current.indexOf(streamId);
+        if (idx !== -1) activeStreamIds.current.splice(idx, 1);
+        activeStreamIds.current.push(newId);
+        activeListeners.current.push(unlisten);
+      } catch (e) {
+        console.error(`Failed to resubscribe log stream for pod ${podName}:`, e);
+      }
+    })();
+  }
 
   const startStream = useCallback(
     async (tailLines = 100) => {
@@ -286,76 +442,29 @@ export function useWorkloadLogs(
           return;
         }
 
+        resubscribedRef.current.clear();
+
         const streamIds: string[] = [];
         const listeners: UnlistenFn[] = [];
         let startedCount = 0;
 
+        const onStarted = () => {
+          startedCount++;
+          if (startedCount === currentPods.length && mountedRef.current) {
+            setIsStreaming(true);
+            setIsLoading(false);
+          }
+        };
+
         for (const pod of currentPods) {
           if (!mountedRef.current) break;
-          const streamId = `workload-logs-${kind}-${namespace}-${workloadName}-${pod.name}-${Date.now()}`;
+          const { streamId, unlisten } = await subscribePod(
+            pod.name,
+            { follow: true, timestamps: true, tail_lines: tailLines },
+            onStarted,
+          );
           streamIds.push(streamId);
-
-          const eventName = `log-stream-${streamId}`;
-
-          const unlisten = await listen<LogEvent>(eventName, (event) => {
-            const logEvent = event.payload;
-
-            switch (logEvent.type) {
-              case "Line":
-                pendingLogsRef.current.push(stampSeq(logEvent.data));
-                scheduleFlush();
-                break;
-              case "Lines":
-                pendingLogsRef.current.push(...logEvent.data.map(stampSeq));
-                scheduleFlush();
-                break;
-              case "Error":
-                flushPending();
-                console.error(`Stream error for pod ${pod.name}:`, logEvent.data);
-                break;
-              case "Ended":
-                // One pod's stream ending is routine here — a replica finishes
-                // or is replaced while the others keep streaming. Flush what it
-                // produced; the pod watch handles the roster.
-                flushPending();
-                if (logEvent.data.reason) {
-                  console.info(
-                    `Log stream for pod ${pod.name} ended: ${logEvent.data.reason}`
-                  );
-                }
-                break;
-              case "Started":
-                startedCount++;
-                if (startedCount === currentPods.length && mountedRef.current) {
-                  setIsStreaming(true);
-                  setIsLoading(false);
-                }
-                break;
-              case "Stopped": {
-                const idx = activeStreamIds.current.indexOf(streamId);
-                if (idx !== -1) {
-                  activeStreamIds.current.splice(idx, 1);
-                }
-                if (activeStreamIds.current.length === 0 && mountedRef.current) {
-                  flushPending();
-                  setIsStreaming(false);
-                }
-                break;
-              }
-            }
-          });
-
           listeners.push(unlisten);
-
-          const logOptions: LogOptions = {
-            namespace,
-            pod_name: pod.name,
-            follow: true,
-            timestamps: true,
-            tail_lines: tailLines,
-          };
-
-          await streamPodLogs(streamId, logOptions);
         }
 
         activeStreamIds.current = streamIds;
@@ -374,7 +483,7 @@ export function useWorkloadLogs(
         }
       }
     },
-    [isStreaming, stopAllStreams, fetchPods, namespace, workloadName, kind, scheduleFlush, flushPending]
+    [isStreaming, stopAllStreams, fetchPods, subscribePod]
   );
 
   const clearLogs = useCallback(() => {

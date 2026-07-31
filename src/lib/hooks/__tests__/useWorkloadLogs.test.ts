@@ -1,7 +1,8 @@
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, waitFor } from "@testing-library/react";
 import { listen } from "@tauri-apps/api/event";
 import { useWorkloadLogs, supportsAggregatedLogs } from "../useWorkloadLogs";
 
+const mockStreamPodLogs = jest.fn();
 const mockListPods = jest.fn();
 const mockListDeployments = jest.fn();
 const mockListStatefulsets = jest.fn();
@@ -18,7 +19,7 @@ jest.mock("../../tauri/commands", () => ({
   listDaemonsets: (...args: unknown[]) => mockListDaemonsets(...args),
   listReplicasets: (...args: unknown[]) => mockListReplicasets(...args),
   listJobs: (...args: unknown[]) => mockListJobs(...args),
-  streamPodLogs: jest.fn(),
+  streamPodLogs: (...args: unknown[]) => mockStreamPodLogs(...args),
   stopLogStream: jest.fn().mockResolvedValue(undefined),
   watchPods: (...args: unknown[]) => mockWatchPods(...args),
   stopWatch: (...args: unknown[]) => mockStopWatch(...args),
@@ -160,6 +161,212 @@ describe("useWorkloadLogs seq stamping", () => {
     const bySeq = [...result.current.logs].sort((a, b) => (a.seq ?? 0) - (b.seq ?? 0));
     expect(bySeq.map((l) => l.message)).toEqual(["first", "second", "third"]);
     expect(result.current.logs.map((l) => l.message)).toEqual(["second", "first", "third"]);
+  });
+});
+
+// Regression: every Ended event was treated as routine pod rotation, so a real
+// network drop silently killed that pod's stream — no lines, no notice.
+describe("useWorkloadLogs stream drop vs pod rotation", () => {
+  const podEntry = {
+    uid: "uid-1",
+    name: "demo-web-7d4b8c-abcde",
+    namespace: "default",
+    phase: "Running",
+    labels: { app: "demo-web" },
+  };
+
+  /** Starts an aggregated stream for one running pod and returns its emitters */
+  async function startStreamingOnePod() {
+    const logListeners: Array<(event: { payload: unknown }) => void> = [];
+    const logUnlistens: jest.Mock[] = [];
+    let watchListener: ((event: { payload: unknown }) => void) | undefined;
+    mockListen.mockImplementation(
+      (eventName: string, handler: (e: { payload: unknown }) => void) => {
+        const unlisten = jest.fn();
+        if (eventName.startsWith("log-stream-")) {
+          logListeners.push(handler);
+          logUnlistens.push(unlisten);
+        }
+        if (eventName.startsWith("pods-watch-")) watchListener = handler;
+        return Promise.resolve(unlisten);
+      }
+    );
+
+    const { result } = renderHook(() => useWorkloadLogs("demo-web", "default"));
+    await act(async () => {});
+    await act(async () => {
+      await result.current.startStream();
+    });
+
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(1);
+    return { result, logListeners, logUnlistens, watchListener: watchListener! };
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockListDeployments.mockResolvedValue([
+      { name: "demo-web", namespace: "default", selector_query: "app=demo-web" },
+    ]);
+    mockListPods.mockResolvedValue([podEntry]);
+    mockWatchPods.mockResolvedValue(undefined);
+    mockStopWatch.mockResolvedValue(undefined);
+    mockStreamPodLogs.mockResolvedValue(undefined);
+    mockListen.mockResolvedValue(jest.fn());
+  });
+
+  it("resubscribes when a stream drops while the pod is still on the roster", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({
+        payload: {
+          type: "Line",
+          data: {
+            message: "hello",
+            timestamp: new Date(Date.now() - 5000).toISOString(),
+            container: "main",
+            pod: podEntry.name,
+            namespace: "default",
+          },
+        },
+      });
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+
+    // The resubscribe runs off an async chain, so poll instead of assuming ticks
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
+    const [, resumeOptions] = mockStreamPodLogs.mock.calls[1];
+    expect(resumeOptions).toMatchObject({
+      namespace: "default",
+      pod_name: podEntry.name,
+      follow: true,
+    });
+    // Resumes from the last line seen instead of refetching the tail
+    expect(resumeOptions.since_seconds).toBeGreaterThan(0);
+    expect(resumeOptions.tail_lines).toBeUndefined();
+  });
+
+  it("drops the dead stream's listener when resubscribing", async () => {
+    const { logListeners, logUnlistens } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+
+    await waitFor(() => expect(logUnlistens[0]).toHaveBeenCalledTimes(1));
+    expect(logUnlistens[1]).not.toHaveBeenCalled();
+  });
+
+  // Regression: the backend always emits Ended and then Stopped for the same
+  // stream. Stopped emptied the roster and cleared isStreaming, while the
+  // replacement stream had no Started handler to set it again — so the view
+  // reported "not streaming" while resubscribed lines kept arriving.
+  it("keeps reporting isStreaming after a drop is recovered", async () => {
+    const { result, logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Started" } });
+    });
+    expect(result.current.isStreaming).toBe(true);
+
+    // Real backend order for a dropped stream
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+      logListeners[0]({ payload: { type: "Stopped", data: {} } });
+    });
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
+
+    // The replacement stream reports Started just like any other
+    await act(async () => {
+      logListeners[1]({ payload: { type: "Started" } });
+    });
+
+    expect(result.current.isStreaming).toBe(true);
+  });
+
+  // Regression: stream IDs were Date.now()-only, so a resubscribe landing in
+  // the same millisecond reused the dead stream's ID — two live streams then
+  // shared one event channel and one stop handle.
+  it("gives the resubscribed stream an ID of its own", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
+
+    const [firstId] = mockStreamPodLogs.mock.calls[0];
+    const [secondId] = mockStreamPodLogs.mock.calls[1];
+    expect(secondId).not.toBe(firstId);
+  });
+
+  it("stays silent when the pod rotated out of the roster", async () => {
+    const { logListeners, watchListener } = await startStreamingOnePod();
+
+    // Rolling update: the pod leaves the roster, then its stream ends
+    await act(async () => {
+      watchListener({ payload: { type: "Deleted", data: podEntry } });
+    });
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(1);
+  });
+
+  it("gives up after one retry instead of looping", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
+
+    // The resubscribed stream drops too
+    await act(async () => {
+      logListeners[1]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+    // Give a would-be third subscribe every chance to appear before asserting
+    await act(async () => { await Promise.resolve(); });
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(2);
+  });
+
+  // Regression: the retry guard was permanent, so a pod that dropped once was
+  // locked out for the rest of the session — a later, unrelated drop after
+  // hours of healthy streaming got no reconnect at all.
+  it("retries again after a drop that follows a healthy stretch", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+    });
+    await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(2));
+
+    // The replacement streams happily well past the loop-guard cooldown
+    const realNow = Date.now;
+    Date.now = () => realNow() + 60_000;
+    try {
+      await act(async () => {
+        logListeners[1]({ payload: { type: "Ended", data: { reason: "connection reset" } } });
+      });
+      await waitFor(() => expect(mockStreamPodLogs).toHaveBeenCalledTimes(3));
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  // A container that simply exited ends cleanly; retrying would fight the pod's
+  // own lifecycle instead of a network problem.
+  it("does not resubscribe on a clean end of stream", async () => {
+    const { logListeners } = await startStreamingOnePod();
+
+    await act(async () => {
+      logListeners[0]({ payload: { type: "Ended", data: { reason: null } } });
+    });
+    await act(async () => { await Promise.resolve(); });
+
+    expect(mockStreamPodLogs).toHaveBeenCalledTimes(1);
   });
 });
 
