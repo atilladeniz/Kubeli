@@ -40,8 +40,20 @@ enum ShellInput {
 pub enum ShellEvent {
     Output(String),
     Error(String),
-    Started { session_id: String },
-    Closed { session_id: String },
+    Started {
+        session_id: String,
+    },
+    /// The session ended after it had been running.
+    ///
+    /// Distinct from `Error`, which stays reserved for a connection that never
+    /// established (RBAC, pod not found). A session can end for entirely normal
+    /// reasons — the user typed `exit`, the shell process finished — so this is
+    /// a recoverable state offering reconnection, not a failure.
+    Closed {
+        session_id: String,
+        /// Present when the session was cut rather than exiting cleanly
+        reason: Option<String>,
+    },
 }
 
 /// Options for starting a shell session
@@ -207,18 +219,19 @@ pub async fn shell_start(
 
     // Spawn the shell session task
     tokio::spawn(async move {
-        match pods.exec(&options.pod_name, cmd, &attach_params).await {
+        let reason = match pods.exec(&options.pod_name, cmd, &attach_params).await {
             Ok(attached) => {
                 run_shell_session(attached, app.clone(), &event_name, stop_flag, &mut input_rx)
-                    .await;
+                    .await
             }
             Err(e) => {
                 let _ = app.emit(
                     &event_name,
                     ShellEvent::Error(format!("Failed to start shell: {}", e)),
                 );
+                None
             }
-        }
+        };
 
         // Clean up
         shell_manager_clone.remove_session(&session_id_clone).await;
@@ -226,6 +239,7 @@ pub async fn shell_start(
             &event_name,
             ShellEvent::Closed {
                 session_id: session_id_clone,
+                reason,
             },
         );
     });
@@ -281,21 +295,25 @@ fn take_valid_utf8(pending: &mut Vec<u8>, take_all: bool) -> String {
     }
 }
 
-/// Run the shell session handling stdin/stdout
+/// Run the shell session handling stdin/stdout.
+///
+/// Returns `Some(reason)` when the session was cut (I/O error on the exec
+/// stream) and `None` when it ended cleanly (shell exited, user disconnected).
 async fn run_shell_session(
     mut attached: AttachedProcess,
     app: AppHandle,
     event_name: &str,
     stop_flag: Arc<AtomicBool>,
     input_rx: &mut mpsc::Receiver<ShellInput>,
-) {
+) -> Option<String> {
     let (Some(mut stdin), Some(mut stdout)) = (attached.stdin(), attached.stdout()) else {
         tracing::error!("Shell attach did not provide stdin/stdout streams");
         let _ = app.emit(
             event_name,
             ShellEvent::Error("Failed to open shell I/O streams".to_string()),
         );
-        return;
+        // The connection never came up: `Error` above already covers it.
+        return None;
     };
     // terminal_size() takes the sender out of AttachedProcess (kube 4.0), so it
     // must be called exactly once and reused — calling it per resize returns
@@ -311,7 +329,7 @@ async fn run_shell_session(
     loop {
         if stop_flag.load(Ordering::SeqCst) {
             tracing::info!("Shell session stopped by user");
-            break;
+            return None;
         }
 
         tokio::select! {
@@ -321,7 +339,7 @@ async fn run_shell_session(
                     Some(ShellInput::Data(data)) => {
                         if let Err(e) = stdin.write_all(&data).await {
                             tracing::error!("Failed to write to stdin: {}", e);
-                            break;
+                            return Some(e.to_string());
                         }
                         if let Err(e) = stdin.flush().await {
                             tracing::error!("Failed to flush stdin: {}", e);
@@ -333,8 +351,8 @@ async fn run_shell_session(
                         }
                     }
                     None => {
-                        // Channel closed
-                        break;
+                        // Channel closed - the session was torn down locally
+                        return None;
                     }
                 }
             }
@@ -342,9 +360,9 @@ async fn run_shell_session(
             result = stdout.read(&mut stdout_buf) => {
                 match result {
                     Ok(0) => {
-                        // EOF
+                        // EOF - the shell process exited
                         flush_shell_output(&app, event_name, &mut pending, true);
-                        break;
+                        return None;
                     }
                     Ok(n) => {
                         pending.extend_from_slice(&stdout_buf[..n]);
@@ -352,6 +370,7 @@ async fn run_shell_session(
                         // (e.g. `cat` of a large file) emit one IPC event per
                         // ~batch instead of one per 4 KB read.
                         let mut eof = false;
+                        let mut read_error = None;
                         while pending.len() < MAX_SHELL_BATCH {
                             match tokio::time::timeout(
                                 SHELL_BATCH_WINDOW,
@@ -364,17 +383,24 @@ async fn run_shell_session(
                                     break;
                                 }
                                 Ok(Ok(n)) => pending.extend_from_slice(&stdout_buf[..n]),
-                                Ok(Err(_)) | Err(_) => break,
+                                Ok(Err(e)) => {
+                                    read_error = Some(e.to_string());
+                                    break;
+                                }
+                                // Batch window elapsed: flush what we have
+                                Err(_) => break,
                             }
                         }
-                        flush_shell_output(&app, event_name, &mut pending, eof);
+                        flush_shell_output(&app, event_name, &mut pending, eof || read_error.is_some());
+                        if let Some(reason) = read_error {
+                            return Some(reason);
+                        }
                         if eof {
-                            break;
+                            return None;
                         }
                     }
                     Err(e) => {
-                        let _ = app.emit(event_name, ShellEvent::Error(format!("Read error: {}", e)));
-                        break;
+                        return Some(e.to_string());
                     }
                 }
             }
@@ -681,7 +707,7 @@ pub async fn node_shell_start(
 
     // Spawn the shell session task
     tokio::spawn(async move {
-        match pods
+        let reason = match pods
             .exec(&debug_pod_name_clone, exec_cmd, &attach_params)
             .await
         {
@@ -700,15 +726,16 @@ pub async fn node_shell_start(
                     stop_flag,
                     &mut input_rx,
                 )
-                .await;
+                .await
             }
             Err(e) => {
                 let _ = app.emit(
                     &event_name_clone,
                     ShellEvent::Error(format!("Failed to attach to debug pod: {}", e)),
                 );
+                None
             }
-        }
+        };
 
         // Clean up: delete the debug pod
         let cleanup_pods: Api<Pod> = Api::namespaced(cleanup_client, NODE_SHELL_NAMESPACE);
@@ -729,6 +756,7 @@ pub async fn node_shell_start(
             &event_name_clone,
             ShellEvent::Closed {
                 session_id: session_id_clone,
+                reason,
             },
         );
     });
@@ -777,7 +805,36 @@ pub async fn node_shell_cleanup(
 
 #[cfg(test)]
 mod tests {
-    use super::take_valid_utf8;
+    use super::{take_valid_utf8, ShellEvent};
+
+    // A session cut mid-run is recoverable; only a connection that never
+    // established is an Error. The terminal branches on this reason to decide
+    // between "Session closed" and a reconnect prompt.
+    #[test]
+    fn dropped_session_closes_with_a_reason() {
+        let closed = serde_json::to_value(ShellEvent::Closed {
+            session_id: "shell-1".to_string(),
+            reason: Some("connection reset".to_string()),
+        })
+        .unwrap();
+
+        assert_eq!(closed["type"], "Closed");
+        assert_eq!(closed["data"]["session_id"], "shell-1");
+        assert_eq!(closed["data"]["reason"], "connection reset");
+    }
+
+    #[test]
+    fn clean_exit_carries_no_reason() {
+        let closed = serde_json::to_value(ShellEvent::Closed {
+            session_id: "shell-1".to_string(),
+            reason: None,
+        })
+        .unwrap();
+
+        // null rather than a placeholder string: the terminal distinguishes a
+        // shell that exited from a connection that was cut
+        assert!(closed["data"]["reason"].is_null());
+    }
 
     #[test]
     fn keeps_incomplete_utf8_tail_for_next_chunk() {

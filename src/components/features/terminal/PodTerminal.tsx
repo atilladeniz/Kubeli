@@ -3,6 +3,7 @@
 import { useRef, useCallback, useEffect, useState } from "react";
 import type { Terminal as XTermType } from "@xterm/xterm";
 import { Terminal } from "./Terminal";
+import { SessionDroppedNotice } from "./SessionDroppedNotice";
 import { useShell } from "@/lib/hooks/useShell";
 
 export interface PodTerminalProps {
@@ -24,6 +25,8 @@ export function PodTerminal({
 }: PodTerminalProps) {
   const terminalRef = useRef<XTermType | null>(null);
   const [autoConnect, setAutoConnect] = useState(true);
+  /** Set when the session was cut rather than exiting cleanly */
+  const [droppedReason, setDroppedReason] = useState<string | null>(null);
 
   const {
     isConnected,
@@ -44,10 +47,16 @@ export function PodTerminal({
       terminalRef.current?.write(`\r\n\x1b[31mError: ${err}\x1b[0m\r\n`);
     },
     onStarted: () => {
+      setDroppedReason(null);
       terminalRef.current?.write(`\x1b[32mConnected to ${podName}\x1b[0m\r\n`);
     },
-    onClosed: () => {
-      terminalRef.current?.write(`\r\n\x1b[33mSession closed\x1b[0m\r\n`);
+    onClosed: (reason) => {
+      setDroppedReason(reason);
+      terminalRef.current?.write(
+        reason
+          ? `\r\n\x1b[33mConnection lost: ${reason}\x1b[0m\r\n`
+          : `\r\n\x1b[33mSession closed\x1b[0m\r\n`
+      );
     },
   }, tabSessionId);
 
@@ -97,7 +106,10 @@ export function PodTerminal({
   }, [podName]);
 
   const handleReconnect = useCallback(() => {
-    terminalRef.current?.clear();
+    // No clear(): reconnecting stays in the same tab and the scrollback from
+    // before the drop is the whole reason to reconnect here rather than in a
+    // fresh tab.
+    setDroppedReason(null);
     terminalRef.current?.write(`Reconnecting to ${podName}...\r\n`);
     connect();
   }, [connect, podName]);
@@ -195,6 +207,11 @@ export function PodTerminal({
         <div className="px-3 py-2 bg-[#45475a] text-[#f38ba8] text-sm border-b border-[#313244]">
           {error}
         </div>
+      )}
+
+      {/* Dropped-session notice */}
+      {droppedReason && !isConnected && !isConnecting && (
+        <SessionDroppedNotice reason={droppedReason} onReconnect={handleReconnect} />
       )}
 
       {/* Terminal */}
