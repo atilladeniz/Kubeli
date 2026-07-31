@@ -101,6 +101,10 @@ const downloadGroups = [
     viewBox: "0 0 16 16",
     items: [
       { label: "AppImage", ext: ".AppImage", href: `${releaseBase}/Kubeli_${version}_amd64.AppImage` },
+      // Ships a newer bundled WebKitGTK. Needed on Fedora 43+, Arch and other
+      // distros on Mesa 25+, where the standard AppImage aborts with
+      // EGL_BAD_PARAMETER. Requires glibc 2.39+, so it is not the default.
+      { label: "AppImage (new distros)", ext: ".AppImage", href: `${releaseBase}/Kubeli_${version}_amd64-modern.AppImage` },
       { label: "Debian", ext: ".deb", href: `${releaseBase}/Kubeli_${version}_amd64.deb` },
       { label: "Red Hat", ext: ".rpm", href: `${releaseBase}/Kubeli-${version}-1.x86_64.rpm` },
     ],
