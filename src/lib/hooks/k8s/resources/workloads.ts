@@ -9,6 +9,7 @@ import {
   listJobs,
   listCronjobs,
   watchPods,
+  watchDeployments,
 } from "../../../tauri/commands";
 import type {
   PodInfo,
@@ -34,11 +35,17 @@ export const usePods = createNamespacedHook<PodInfo>({
 });
 
 /**
- * Hook for fetching Deployments.
+ * Hook for fetching Deployments with optional watch support.
+ * Deployments support real-time updates via WebSocket watching.
  */
 export const useDeployments = createListOptionsHook<DeploymentInfo>(
   "Deployments",
-  listDeployments
+  listDeployments,
+  {
+    supportsWatch: true,
+    watchFn: watchDeployments,
+    watchEventPrefix: "deployments",
+  }
 );
 
 /**

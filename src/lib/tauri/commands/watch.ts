@@ -13,6 +13,18 @@ export async function watchPods(
   });
 }
 
+export async function watchDeployments(
+  watchId: string,
+  namespace?: string,
+  labelSelector?: string
+): Promise<void> {
+  return invoke("watch_deployments", {
+    watchId,
+    namespace,
+    ...(labelSelector ? { labelSelector } : {}),
+  });
+}
+
 export async function watchNamespaces(watchId: string): Promise<void> {
   return invoke("watch_namespaces", { watchId });
 }

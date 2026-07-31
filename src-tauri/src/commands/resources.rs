@@ -491,6 +491,29 @@ pub async fn list_pods(
     Ok(pod_infos)
 }
 
+/// Map a Deployment into the frontend info struct. Shared by the list
+/// command and the watch stream so both produce identical rows.
+pub fn deployment_to_info(deployment: Deployment) -> DeploymentInfo {
+    let metadata = deployment.metadata;
+    let spec = deployment.spec.unwrap_or_default();
+    let status = deployment.status.unwrap_or_default();
+
+    let selector_query = label_selector_to_query(&spec.selector);
+    DeploymentInfo {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        replicas: spec.replicas.unwrap_or(0),
+        ready_replicas: status.ready_replicas.unwrap_or(0),
+        available_replicas: status.available_replicas.unwrap_or(0),
+        updated_replicas: status.updated_replicas.unwrap_or(0),
+        created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
+        labels: btree_to_hashmap(metadata.labels),
+        selector: btree_to_hashmap(spec.selector.match_labels),
+        selector_query,
+    }
+}
+
 /// List all deployments
 #[command]
 pub async fn list_deployments(
@@ -518,26 +541,7 @@ pub async fn list_deployments(
     let deployment_infos: Vec<DeploymentInfo> = deployment_list
         .items
         .into_iter()
-        .map(|deployment| {
-            let metadata = deployment.metadata;
-            let spec = deployment.spec.unwrap_or_default();
-            let status = deployment.status.unwrap_or_default();
-
-            let selector_query = label_selector_to_query(&spec.selector);
-            DeploymentInfo {
-                name: metadata.name.unwrap_or_default(),
-                namespace: metadata.namespace.unwrap_or_default(),
-                uid: metadata.uid.unwrap_or_default(),
-                replicas: spec.replicas.unwrap_or(0),
-                ready_replicas: status.ready_replicas.unwrap_or(0),
-                available_replicas: status.available_replicas.unwrap_or(0),
-                updated_replicas: status.updated_replicas.unwrap_or(0),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
-                labels: btree_to_hashmap(metadata.labels),
-                selector: btree_to_hashmap(spec.selector.match_labels),
-                selector_query,
-            }
-        })
+        .map(deployment_to_info)
         .collect();
 
     tracing::info!("Listed {} deployments", deployment_infos.len());

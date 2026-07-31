@@ -103,6 +103,7 @@ const cases: TestCase[] = [
   { name: "shellResize", run: () => shell.shellResize("shell-1", 120, 40), expectedCommand: "shell_resize", expectedPayload: { sessionId: "shell-1", cols: 120, rows: 40 } },
   { name: "shellClose", run: () => shell.shellClose("shell-1"), expectedCommand: "shell_close", expectedPayload: { sessionId: "shell-1" } },
   { name: "watchPods", run: () => watch.watchPods("watch-1", "default"), expectedCommand: "watch_pods", expectedPayload: { watchId: "watch-1", namespace: "default" } },
+  { name: "watchDeployments", run: () => watch.watchDeployments("watch-1", "default"), expectedCommand: "watch_deployments", expectedPayload: { watchId: "watch-1", namespace: "default" } },
   { name: "watchNamespaces", run: () => watch.watchNamespaces("watch-1"), expectedCommand: "watch_namespaces", expectedPayload: { watchId: "watch-1" } },
   { name: "stopWatch", run: () => watch.stopWatch("watch-1"), expectedCommand: "stop_watch", expectedPayload: { watchId: "watch-1" } },
   { name: "aiCheckCliAvailable", run: () => ai.aiCheckCliAvailable(), expectedCommand: "ai_check_cli_available" },
