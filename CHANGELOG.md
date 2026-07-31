@@ -2,6 +2,14 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.85] - 2026-07-31
+
+- Added real-time watch for deployments, services, and remaining workloads, so resource lists update live
+- Added aggregated logs across all Jobs of a CronJob
+- Added a reconnect option when a shell exec session drops
+- Fixed aggregated log streams not resubscribing after a real stream drop
+- Fixed the Linux AppImage so it runs on distros with Mesa 25+
+
 ## [0.3.84] - 2026-07-27
 
 - Added Set Image action for Deployments, StatefulSets and DaemonSets

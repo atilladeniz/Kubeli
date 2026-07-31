@@ -4,6 +4,14 @@ title: Changelog
 # `make release` prepends new entries here automatically.
 ---
 
+## v0.3.85 <span class="text-sm font-normal text-neutral-400 ml-2">2026-07-31</span>
+
+- Added real-time watch for deployments, services, and remaining workloads, so resource lists update live
+- Added aggregated logs across all Jobs of a CronJob
+- Added a reconnect option when a shell exec session drops
+- Fixed aggregated log streams not resubscribing after a real stream drop
+- Fixed the Linux AppImage so it runs on distros with Mesa 25+
+
 ## v0.3.84 <span class="text-sm font-normal text-neutral-400 ml-2">2026-07-27</span>
 
 - Added Set Image action for Deployments, StatefulSets and DaemonSets
