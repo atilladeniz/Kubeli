@@ -118,19 +118,26 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # Every entry sets appimage_suffix, including the ones that do not
+        # build an AppImage. The steps below branch on it, and GitHub only
+        # compares operands directly when their types match — an undefined
+        # property would be Null and get coerced to a number instead.
         include:
           - platform: macos-15
             label: macOS-aarch64
             args: '--target aarch64-apple-darwin'
             rust_target: aarch64-apple-darwin
+            appimage_suffix: ''
           - platform: macos-15
             label: macOS-x86_64
             args: '--target x86_64-apple-darwin'
             rust_target: x86_64-apple-darwin
+            appimage_suffix: ''
           - platform: windows-latest
             label: Windows-x64
             args: ''
             rust_target: ''
+            appimage_suffix: ''
           # Two Linux builds on purpose. The AppImage bundles the build host's
           # WebKitGTK, so one build cannot serve every target:
           #   22.04 -> WebKit 2.50, glibc 2.35 — works back to Ubuntu 22.04 /
@@ -144,6 +151,7 @@ jobs:
             label: Linux-x64
             args: ''
             rust_target: ''
+            appimage_suffix: ''
           - platform: ubuntu-24.04
             label: Linux-x64-modern
             # Only the AppImage: deb/rpm link against the system WebKit, so the
@@ -194,7 +202,13 @@ jobs:
           echo "$APPLE_API_KEY_CONTENT" > ~/private_keys/AuthKey_"$APPLE_API_KEY".p8
           echo "path=$HOME/private_keys/AuthKey_${APPLE_API_KEY}.p8" >> $GITHUB_OUTPUT
 
+      # Two build steps, split by an `if:` rather than by a conditional input.
+      # The modern build must NOT receive releaseId: tauri-action would upload
+      # its AppImage under the same name as the 22.04 one and overwrite it on
+      # the release. A `x && '' || y` expression cannot express that — '' is
+      # falsy, so it falls through to y and sets releaseId anyway.
       - name: Build Tauri app
+        if: matrix.appimage_suffix != '-modern'
         uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -209,17 +223,26 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          # The modern Linux build uploads itself in the next step instead: its
-          # AppImage has to be renamed first, or it would overwrite the 22.04
-          # one on the release (Tauri has no filename option for AppImage).
-          releaseId: ${{ matrix.appimage_suffix == '-modern' && '' || needs.create-release.outputs.release_id }}
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           tagName: ${{ needs.create-release.outputs.tag }}
           releaseDraft: true
           retryAttempts: 3
           args: ${{ matrix.args }}
 
+      - name: Build modern Linux AppImage
+        if: matrix.appimage_suffix == '-modern'
+        uses: tauri-apps/tauri-action@1deb371b0cd8bd54025b384f1cd735e725c4060f # v1.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          # No releaseId and no tagName: both make tauri-action upload. This
+          # build is renamed and uploaded by the next step instead.
+          args: ${{ matrix.args }}
+
       # Renames to Kubeli_<version>_amd64-modern.AppImage and uploads it (plus
-      # its updater signature) by hand, since tauri-action was told not to.
+      # its updater signature), which the build step above deliberately skipped.
       - name: Upload modern Linux AppImage
         if: matrix.appimage_suffix == '-modern'
         env:
@@ -237,16 +260,18 @@ jobs:
           fi
           for image in "${images[@]}"; do
             renamed="${image%.AppImage}${SUFFIX}.AppImage"
-            mv "$image" "$renamed"
-            gh release upload "$RELEASE_TAG" "$renamed" --clobber
-            echo "Uploaded $(basename "$renamed")"
-            # The .sig belongs to the file the updater would fetch. Ship it so
-            # the artifact stays verifiable even though latest.json points at
-            # the 22.04 build.
-            if [ -f "$image.sig" ]; then
-              mv "$image.sig" "$renamed.sig"
-              gh release upload "$RELEASE_TAG" "$renamed.sig" --clobber
+            # createUpdaterArtifacts is on and signing covers AppImage, so a
+            # missing .sig means signing broke, not that it was skipped.
+            # Publishing the binary without it would ship an unverifiable
+            # artifact, so stop instead.
+            if [ ! -f "$image.sig" ]; then
+              echo "No updater signature next to $(basename "$image")" >&2
+              exit 1
             fi
+            mv "$image" "$renamed"
+            mv "$image.sig" "$renamed.sig"
+            gh release upload "$RELEASE_TAG" "$renamed" "$renamed.sig" --clobber
+            echo "Uploaded $(basename "$renamed") and its signature"
           done
 
   sign-windows:
