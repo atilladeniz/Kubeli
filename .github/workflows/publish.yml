@@ -253,6 +253,10 @@ jobs:
           set -euo pipefail
           bundle_dir=src-tauri/target/release/bundle/appimage
           shopt -s nullglob
+          # *.AppImage only. Bundling also writes the updater package
+          # <name>.AppImage.tar.gz, which this glob does not match and which
+          # is deliberately not published: latest.json points at the 22.04
+          # build, so an updater package for this one would never be fetched.
           images=("$bundle_dir"/*.AppImage)
           if [ ${#images[@]} -eq 0 ]; then
             echo "No AppImage produced in $bundle_dir" >&2
