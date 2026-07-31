@@ -548,6 +548,52 @@ pub async fn list_deployments(
     Ok(deployment_infos)
 }
 
+/// Map a Service into the frontend info struct. Shared by the list command
+/// and the watch stream so both produce identical rows.
+pub fn service_to_info(service: Service) -> ServiceInfo {
+    let metadata = service.metadata;
+    let spec = service.spec.unwrap_or_default();
+
+    let ports: Vec<ServicePortInfo> = spec
+        .ports
+        .unwrap_or_default()
+        .into_iter()
+        .map(|p| ServicePortInfo {
+            name: p.name,
+            port: p.port,
+            target_port: p
+                .target_port
+                .map(|tp| match tp {
+                    k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => {
+                        i.to_string()
+                    }
+                    k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(s) => s,
+                })
+                .unwrap_or_default(),
+            protocol: p.protocol.unwrap_or_else(|| "TCP".to_string()),
+            node_port: p.node_port,
+        })
+        .collect();
+
+    let external_ip = spec
+        .external_ips
+        .as_ref()
+        .and_then(|ips: &Vec<String>| ips.first().cloned());
+
+    ServiceInfo {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        service_type: spec.type_.unwrap_or_else(|| "ClusterIP".to_string()),
+        cluster_ip: spec.cluster_ip,
+        external_ip,
+        ports,
+        created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
+        labels: btree_to_hashmap(metadata.labels),
+        selector: btree_to_hashmap(spec.selector),
+    }
+}
+
 /// List all services
 #[command]
 pub async fn list_services(
@@ -575,51 +621,7 @@ pub async fn list_services(
     let service_infos: Vec<ServiceInfo> = service_list
         .items
         .into_iter()
-        .map(|service| {
-            let metadata = service.metadata;
-            let spec = service.spec.unwrap_or_default();
-
-            let ports: Vec<ServicePortInfo> = spec
-                .ports
-                .unwrap_or_default()
-                .into_iter()
-                .map(|p| ServicePortInfo {
-                    name: p.name,
-                    port: p.port,
-                    target_port: p
-                        .target_port
-                        .map(|tp| match tp {
-                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::Int(i) => {
-                                i.to_string()
-                            }
-                            k8s_openapi::apimachinery::pkg::util::intstr::IntOrString::String(
-                                s,
-                            ) => s,
-                        })
-                        .unwrap_or_default(),
-                    protocol: p.protocol.unwrap_or_else(|| "TCP".to_string()),
-                    node_port: p.node_port,
-                })
-                .collect();
-
-            let external_ip = spec
-                .external_ips
-                .as_ref()
-                .and_then(|ips: &Vec<String>| ips.first().cloned());
-
-            ServiceInfo {
-                name: metadata.name.unwrap_or_default(),
-                namespace: metadata.namespace.unwrap_or_default(),
-                uid: metadata.uid.unwrap_or_default(),
-                service_type: spec.type_.unwrap_or_else(|| "ClusterIP".to_string()),
-                cluster_ip: spec.cluster_ip,
-                external_ip,
-                ports,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
-                labels: btree_to_hashmap(metadata.labels),
-                selector: btree_to_hashmap(spec.selector),
-            }
-        })
+        .map(service_to_info)
         .collect();
 
     tracing::info!("Listed {} services", service_infos.len());
@@ -2148,6 +2150,37 @@ pub struct ReplicaSetInfo {
     pub selector_query: String,
 }
 
+/// Map a ReplicaSet into the frontend info struct. Shared by the list command
+/// and the watch stream so both produce identical rows.
+pub fn replicaset_to_info(rs: ReplicaSet) -> ReplicaSetInfo {
+    let metadata = rs.metadata;
+    let spec = rs.spec.unwrap_or_default();
+    let status = rs.status.unwrap_or_default();
+
+    let (owner_name, owner_kind) = metadata
+        .owner_references
+        .as_ref()
+        .and_then(|refs| refs.first())
+        .map(|r| (Some(r.name.clone()), Some(r.kind.clone())))
+        .unwrap_or((None, None));
+
+    let selector_query = label_selector_to_query(&spec.selector);
+    ReplicaSetInfo {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        replicas: status.replicas,
+        ready_replicas: status.ready_replicas.unwrap_or(0),
+        available_replicas: status.available_replicas.unwrap_or(0),
+        owner_name,
+        owner_kind,
+        created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
+        labels: btree_to_hashmap(metadata.labels),
+        selector: btree_to_hashmap(spec.selector.match_labels),
+        selector_query,
+    }
+}
+
 /// List all replica sets
 #[command]
 pub async fn list_replicasets(
@@ -2172,38 +2205,7 @@ pub async fn list_replicasets(
 
     let list = api.list(&list_params).await?;
 
-    let infos: Vec<ReplicaSetInfo> = list
-        .items
-        .into_iter()
-        .map(|rs| {
-            let metadata = rs.metadata;
-            let spec = rs.spec.unwrap_or_default();
-            let status = rs.status.unwrap_or_default();
-
-            let (owner_name, owner_kind) = metadata
-                .owner_references
-                .as_ref()
-                .and_then(|refs| refs.first())
-                .map(|r| (Some(r.name.clone()), Some(r.kind.clone())))
-                .unwrap_or((None, None));
-
-            let selector_query = label_selector_to_query(&spec.selector);
-            ReplicaSetInfo {
-                name: metadata.name.unwrap_or_default(),
-                namespace: metadata.namespace.unwrap_or_default(),
-                uid: metadata.uid.unwrap_or_default(),
-                replicas: status.replicas,
-                ready_replicas: status.ready_replicas.unwrap_or(0),
-                available_replicas: status.available_replicas.unwrap_or(0),
-                owner_name,
-                owner_kind,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
-                labels: btree_to_hashmap(metadata.labels),
-                selector: btree_to_hashmap(spec.selector.match_labels),
-                selector_query,
-            }
-        })
-        .collect();
+    let infos: Vec<ReplicaSetInfo> = list.items.into_iter().map(replicaset_to_info).collect();
 
     tracing::info!("Listed {} replicasets", infos.len());
     Ok(infos)
@@ -2230,6 +2232,40 @@ pub struct DaemonSetInfo {
     pub selector_query: String,
 }
 
+/// Map a DaemonSet into the frontend info struct. Shared by the list command
+/// and the watch stream so both produce identical rows.
+pub fn daemonset_to_info(ds: DaemonSet) -> DaemonSetInfo {
+    let metadata = ds.metadata;
+    let spec = ds.spec.unwrap_or_default();
+    let status = ds.status.unwrap_or_default();
+
+    let selector_query = label_selector_to_query(&spec.selector);
+    let selector = btree_to_hashmap(spec.selector.match_labels);
+    let node_selector = spec
+        .template
+        .spec
+        .and_then(|s| s.node_selector)
+        .map(|ns| ns.into_iter().collect())
+        .unwrap_or_default();
+
+    DaemonSetInfo {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        desired_number_scheduled: status.desired_number_scheduled,
+        current_number_scheduled: status.current_number_scheduled,
+        number_ready: status.number_ready,
+        number_available: status.number_available.unwrap_or(0),
+        number_misscheduled: status.number_misscheduled,
+        updated_number_scheduled: status.updated_number_scheduled.unwrap_or(0),
+        created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
+        labels: btree_to_hashmap(metadata.labels),
+        node_selector,
+        selector,
+        selector_query,
+    }
+}
+
 /// List all daemon sets
 #[command]
 pub async fn list_daemonsets(
@@ -2254,41 +2290,7 @@ pub async fn list_daemonsets(
 
     let list = api.list(&list_params).await?;
 
-    let infos: Vec<DaemonSetInfo> = list
-        .items
-        .into_iter()
-        .map(|ds| {
-            let metadata = ds.metadata;
-            let spec = ds.spec.unwrap_or_default();
-            let status = ds.status.unwrap_or_default();
-
-            let selector_query = label_selector_to_query(&spec.selector);
-            let selector = btree_to_hashmap(spec.selector.match_labels);
-            let node_selector = spec
-                .template
-                .spec
-                .and_then(|s| s.node_selector)
-                .map(|ns| ns.into_iter().collect())
-                .unwrap_or_default();
-
-            DaemonSetInfo {
-                name: metadata.name.unwrap_or_default(),
-                namespace: metadata.namespace.unwrap_or_default(),
-                uid: metadata.uid.unwrap_or_default(),
-                desired_number_scheduled: status.desired_number_scheduled,
-                current_number_scheduled: status.current_number_scheduled,
-                number_ready: status.number_ready,
-                number_available: status.number_available.unwrap_or(0),
-                number_misscheduled: status.number_misscheduled,
-                updated_number_scheduled: status.updated_number_scheduled.unwrap_or(0),
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
-                labels: btree_to_hashmap(metadata.labels),
-                node_selector,
-                selector,
-                selector_query,
-            }
-        })
-        .collect();
+    let infos: Vec<DaemonSetInfo> = list.items.into_iter().map(daemonset_to_info).collect();
 
     tracing::info!("Listed {} daemonsets", infos.len());
     Ok(infos)
@@ -2311,6 +2313,32 @@ pub struct StatefulSetInfo {
     pub selector: HashMap<String, String>,
     /// Full pod selector, including matchExpressions, in Kubernetes query syntax.
     pub selector_query: String,
+}
+
+/// Map a StatefulSet into the frontend info struct. Shared by the list command
+/// and the watch stream so both produce identical rows.
+pub fn statefulset_to_info(sts: StatefulSet) -> StatefulSetInfo {
+    let metadata = sts.metadata;
+    let spec = sts.spec.unwrap_or_default();
+    let status = sts.status.unwrap_or_default();
+
+    let selector_query = label_selector_to_query(&spec.selector);
+    let selector = btree_to_hashmap(spec.selector.match_labels);
+
+    StatefulSetInfo {
+        name: metadata.name.unwrap_or_default(),
+        namespace: metadata.namespace.unwrap_or_default(),
+        uid: metadata.uid.unwrap_or_default(),
+        replicas: status.replicas,
+        ready_replicas: status.ready_replicas.unwrap_or(0),
+        current_replicas: status.current_replicas.unwrap_or(0),
+        updated_replicas: status.updated_replicas.unwrap_or(0),
+        service_name: spec.service_name,
+        created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
+        labels: btree_to_hashmap(metadata.labels),
+        selector,
+        selector_query,
+    }
 }
 
 /// List all stateful sets
@@ -2337,33 +2365,7 @@ pub async fn list_statefulsets(
 
     let list = api.list(&list_params).await?;
 
-    let infos: Vec<StatefulSetInfo> = list
-        .items
-        .into_iter()
-        .map(|sts| {
-            let metadata = sts.metadata;
-            let spec = sts.spec.unwrap_or_default();
-            let status = sts.status.unwrap_or_default();
-
-            let selector_query = label_selector_to_query(&spec.selector);
-            let selector = btree_to_hashmap(spec.selector.match_labels);
-
-            StatefulSetInfo {
-                name: metadata.name.unwrap_or_default(),
-                namespace: metadata.namespace.unwrap_or_default(),
-                uid: metadata.uid.unwrap_or_default(),
-                replicas: status.replicas,
-                ready_replicas: status.ready_replicas.unwrap_or(0),
-                current_replicas: status.current_replicas.unwrap_or(0),
-                updated_replicas: status.updated_replicas.unwrap_or(0),
-                service_name: spec.service_name,
-                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
-                labels: btree_to_hashmap(metadata.labels),
-                selector,
-                selector_query,
-            }
-        })
-        .collect();
+    let infos: Vec<StatefulSetInfo> = list.items.into_iter().map(statefulset_to_info).collect();
 
     tracing::info!("Listed {} statefulsets", infos.len());
     Ok(infos)

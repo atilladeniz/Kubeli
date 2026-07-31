@@ -10,6 +10,9 @@ import {
   listCronjobs,
   watchPods,
   watchDeployments,
+  watchReplicasets,
+  watchDaemonsets,
+  watchStatefulsets,
 } from "../../../tauri/commands";
 import type {
   PodInfo,
@@ -49,27 +52,42 @@ export const useDeployments = createListOptionsHook<DeploymentInfo>(
 );
 
 /**
- * Hook for fetching ReplicaSets.
+ * Hook for fetching ReplicaSets with optional watch support.
  */
 export const useReplicaSets = createListOptionsHook<ReplicaSetInfo>(
   "ReplicaSets",
-  listReplicasets
+  listReplicasets,
+  {
+    supportsWatch: true,
+    watchFn: watchReplicasets,
+    watchEventPrefix: "replicasets",
+  }
 );
 
 /**
- * Hook for fetching DaemonSets.
+ * Hook for fetching DaemonSets with optional watch support.
  */
 export const useDaemonSets = createListOptionsHook<DaemonSetInfo>(
   "DaemonSets",
-  listDaemonsets
+  listDaemonsets,
+  {
+    supportsWatch: true,
+    watchFn: watchDaemonsets,
+    watchEventPrefix: "daemonsets",
+  }
 );
 
 /**
- * Hook for fetching StatefulSets.
+ * Hook for fetching StatefulSets with optional watch support.
  */
 export const useStatefulSets = createListOptionsHook<StatefulSetInfo>(
   "StatefulSets",
-  listStatefulsets
+  listStatefulsets,
+  {
+    supportsWatch: true,
+    watchFn: watchStatefulsets,
+    watchEventPrefix: "statefulsets",
+  }
 );
 
 /**
