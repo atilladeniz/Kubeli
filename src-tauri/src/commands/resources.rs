@@ -2386,6 +2386,9 @@ pub struct JobInfo {
     pub created_at: Option<String>,
     pub labels: HashMap<String, String>,
     pub status: String,
+    /// Controller that created this Job, e.g. the CronJob it belongs to.
+    pub owner_name: Option<String>,
+    pub owner_kind: Option<String>,
     /// Pod selector from spec.selector — resolves the Job's pods. Normally
     /// the controller-generated `batch.kubernetes.io/controller-uid` label.
     pub selector: HashMap<String, String>,
@@ -2449,6 +2452,13 @@ pub async fn list_jobs(
                 .map(label_selector_to_query)
                 .unwrap_or_default();
 
+            let (owner_name, owner_kind) = metadata
+                .owner_references
+                .as_ref()
+                .and_then(|refs| refs.first())
+                .map(|r| (Some(r.name.clone()), Some(r.kind.clone())))
+                .unwrap_or((None, None));
+
             JobInfo {
                 name: metadata.name.unwrap_or_default(),
                 namespace: metadata.namespace.unwrap_or_default(),
@@ -2464,6 +2474,8 @@ pub async fn list_jobs(
                 created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
                 labels: btree_to_hashmap(metadata.labels),
                 status: job_status.to_string(),
+                owner_name,
+                owner_kind,
                 selector: spec
                     .selector
                     .and_then(|s| s.match_labels)

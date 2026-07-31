@@ -51,8 +51,8 @@ export interface PodColorEntry {
 /**
  * Workload types whose pods can be aggregated into a single log view.
  *
- * CronJobs are absent on purpose: they own no pods directly, only Jobs, so
- * they would need a second resolution hop through their children.
+ * CronJobs own no pods directly, only Jobs, so they take a second resolution
+ * hop through their children (see WORKLOAD_LISTERS).
  */
 export const AGGREGATED_LOG_WORKLOADS = [
   "deployment",
@@ -60,6 +60,7 @@ export const AGGREGATED_LOG_WORKLOADS = [
   "daemonset",
   "replicaset",
   "job",
+  "cronjob",
 ] as const;
 
 export type WorkloadLogKind = (typeof AGGREGATED_LOG_WORKLOADS)[number];
@@ -75,11 +76,65 @@ export const WORKLOAD_KIND_LABELS: Record<WorkloadLogKind, string> = {
   daemonset: "DaemonSet",
   replicaset: "ReplicaSet",
   job: "Job",
+  cronjob: "CronJob",
 };
+
+/**
+ * Label carrying a Job's controller UID, newest spelling first. Kubernetes
+ * moved it to the `batch.kubernetes.io` prefix in 1.27; older clusters only
+ * set the bare key.
+ */
+const CONTROLLER_UID_KEYS = ["batch.kubernetes.io/controller-uid", "controller-uid"] as const;
+
+/**
+ * Resolves a CronJob to the pod selector covering all of its Jobs.
+ *
+ * Each Job carries its own `controller-uid` selector, so the union is a
+ * set-based query over that one label. That keeps a CronJob a single-selector
+ * workload like every other kind, so pod listing and the watch stay untouched.
+ * The Job history is already bounded server-side by the CronJob's
+ * successful/failedJobsHistoryLimit, so every owned Job can be included.
+ *
+ * ponytail: a Job created by a later cron run is not followed live. Re-resolving
+ * (refreshPods, or restarting the stream) picks the new Job up for the pod list
+ * and the streams, but the pod watch keeps the selector it was started with —
+ * the hook hands it over once and never restarts it. Reopening the view is what
+ * actually resyncs everything. Following new Jobs live needs the watch to be
+ * restarted under the new selector; deferred until it is actually asked for.
+ */
+async function cronjobSelectors(
+  namespace: string,
+): Promise<Array<{ name: string; selector_query: string }>> {
+  const jobs = await listJobs({ namespace });
+  const byCronjob = new Map<string, { key: string; uids: string[] }>();
+
+  for (const job of jobs) {
+    if (job.owner_kind !== "CronJob" || !job.owner_name) continue;
+    // Only the controller-uid form collapses into one set-based query; a Job
+    // with a hand-written selector is skipped rather than silently widening
+    // the query to unrelated pods. Kubernetes moved this label to the
+    // batch.kubernetes.io prefix in 1.27, so the query has to use whichever
+    // key the cluster actually set — querying the other one matches nothing.
+    const key = CONTROLLER_UID_KEYS.find((k) => job.selector[k]);
+    if (!key) continue;
+    const group = byCronjob.get(job.owner_name);
+    if (group) {
+      group.uids.push(job.selector[key]);
+    } else {
+      byCronjob.set(job.owner_name, { key, uids: [job.selector[key]] });
+    }
+  }
+
+  return [...byCronjob].map(([name, { key, uids }]) => ({
+    name,
+    selector_query: `${key} in (${uids.join(",")})`,
+  }));
+}
 
 /**
  * Every supported workload exposes its complete Kubernetes label selector as
  * `selector_query`, so resolving its pods only differs by which lister to call.
+ * CronJobs are the exception: they resolve through their Jobs first.
  */
 const WORKLOAD_LISTERS: Record<
   WorkloadLogKind,
@@ -90,6 +145,7 @@ const WORKLOAD_LISTERS: Record<
   daemonset: (namespace) => listDaemonsets({ namespace }),
   replicaset: (namespace) => listReplicasets({ namespace }),
   job: (namespace) => listJobs({ namespace }),
+  cronjob: cronjobSelectors,
 };
 
 export interface UseWorkloadLogsReturn {
@@ -233,10 +289,18 @@ export function useWorkloadLogs(
       const workloads = await WORKLOAD_LISTERS[kind](namespace);
       const workload = workloads.find((w) => w.name === workloadName);
       if (!workload) {
+        // A CronJob resolves through its Jobs, so "no match" here just means it
+        // has no Jobs left (between runs, or history already collected) — an
+        // empty log view, not a missing workload.
         if (mountedRef.current) {
-          setError(
-            toKubeliError(`${WORKLOAD_KIND_LABELS[kind]} ${workloadName} not found`)
-          );
+          if (kind === "cronjob") {
+            selectorQueryRef.current = "";
+            setPods([]);
+          } else {
+            setError(
+              toKubeliError(`${WORKLOAD_KIND_LABELS[kind]} ${workloadName} not found`)
+            );
+          }
         }
         return [];
       }

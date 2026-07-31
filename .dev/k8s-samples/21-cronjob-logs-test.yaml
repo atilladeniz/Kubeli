@@ -1,0 +1,49 @@
+# Short-cycle CronJob for testing aggregated CronJob logs (issue #421).
+#
+# The regular demo CronJob (demo-cleanup, 10-workloads.yaml) runs every 30
+# minutes, which is far too slow to watch a new Job appear in a running
+# aggregate. This one fires every minute and keeps a few finished Jobs around,
+# so the two-hop resolution (CronJob -> Jobs -> Pods) has something to resolve.
+#
+# Apply:  kubectl apply -f .dev/k8s-samples/21-cronjob-logs-test.yaml
+# Remove: kubectl delete -f .dev/k8s-samples/21-cronjob-logs-test.yaml
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: demo-log-ticker
+  namespace: kubeli-demo
+  labels:
+    app: demo-app
+    component: log-ticker
+spec:
+  schedule: "* * * * *"
+  # Keep several finished Jobs so the aggregate spans more than one Job
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 1
+  # Let a run overlap the next tick, so two Jobs can stream at once
+  concurrencyPolicy: Allow
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          labels:
+            app: demo-app
+            component: log-ticker-job
+        spec:
+          restartPolicy: OnFailure
+          containers:
+            - name: ticker
+              image: busybox:latest
+              # Emits a line per second for 70s, so the run outlives one tick
+              # and the log view has continuous output to show per pod
+              command:
+                - sh
+                - -c
+                - "i=1; while [ $i -le 70 ]; do echo \"tick $i from $HOSTNAME at $(date -Iseconds)\"; i=$((i+1)); sleep 1; done"
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  cpu: 100m
+                  memory: 128Mi
