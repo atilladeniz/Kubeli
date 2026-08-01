@@ -441,10 +441,8 @@ jobs:
           # Build FTP latest.json
           PLATFORMS=""
 
-          # macOS — each slot gets the bundle built for its own architecture.
-          # Sharing one bundle across both shipped arm64 binaries to Intel
-          # machines, and they installed because the signature came from the
-          # same file (#433). A slot with no matching pair is left out.
+          # One bundle per slot. Sharing one across both shipped arm64
+          # binaries to Intel machines (#433).
           for SLOT in darwin-aarch64 darwin-x86_64; do
             MAC_TAR=$(SLOT="$SLOT" node -e '
               const { selectMacUpdateForSlot } = require("./scripts/select-linux-artifacts");

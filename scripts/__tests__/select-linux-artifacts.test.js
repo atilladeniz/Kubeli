@@ -69,9 +69,6 @@ describe("updater artifact selection", () => {
 });
 
 describe("macOS updater slots", () => {
-  // The bug this guards: aarch64 sorts before x64, so the first-match glob
-  // that fed both slots handed Intel machines an arm64 binary — and it
-  // installed cleanly, because the signature served with it matched.
   it("gives each architecture its own bundle, not the one that sorts first", () => {
     const macBundlesInGlobOrder = RELEASE.filter((name) =>
       name.endsWith(".app.tar.gz"),
@@ -91,8 +88,6 @@ describe("macOS updater slots", () => {
     );
   });
 
-  // Falling back to the other architecture is what caused #433, so a missing
-  // build must resolve to null and drop the slot instead.
   it("reports nothing rather than substituting the other architecture", () => {
     const armOnly = [MAC_ARM, `${MAC_ARM}.sig`];
     expect(selectMacUpdateForSlot(armOnly, "darwin-x86_64")).toBeNull();
@@ -105,8 +100,6 @@ describe("macOS updater slots", () => {
     expect(selectMacUpdateForSlot([MAC_INTEL, MAC_ARM], "darwin-x86_64")).toBeNull();
   });
 
-  // "aarch64" ends in "64" and contains "arch"; a looser match than the
-  // full _<arch>. segment risks the two bundles matching each other.
   it("does not let the arm bundle satisfy the intel slot", () => {
     expect(selectMacUpdateForSlot([MAC_ARM, `${MAC_ARM}.sig`], "darwin-x86_64")).toBeNull();
   });

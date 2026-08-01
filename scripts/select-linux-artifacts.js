@@ -1,28 +1,17 @@
 #!/usr/bin/env node
 /**
- * Picks which release artifacts the updater and the landing page point at.
+ * Picks which release artifacts the updater points at.
  *
- * Both selections here exist because a release directory holds several
- * artifacts that match the same glob, and `ls ... | head -1` picks the wrong
- * one in each case:
+ * A release holds several artifacts matching the same glob, and the one that
+ * sorts first is the wrong one in both cases: "-modern" before the
+ * compatibility AppImage (#429), aarch64 before x64 (#433).
  *
- * - Linux ships two AppImages (see .github/workflows/publish.yml): the
- *   default built on Ubuntu 22.04, and a "-modern" one built on 24.04 for
- *   distros whose Mesa is too new for the older bundled WebKitGTK (#429).
- *   The updater has a single linux-x86_64 slot, so exactly one may go in it.
- *   It has to be the 22.04 build: it has the lower glibc floor, and the
- *   updater pushes it to every install regardless of distro. A plain glob
- *   takes "-modern" instead, because it sorts first.
- *
- * - macOS ships one .app.tar.gz per architecture, and the updater has a
- *   separate slot for each. A plain glob takes aarch64 for both, because it
- *   sorts before x64, and Intel machines then update to an arm64 binary
- *   whose signature validates (#433).
+ * The Linux slot must get the 22.04 AppImage — it has the lower glibc floor
+ * and the updater pushes it to every install regardless of distro.
  */
 
 const MODERN_SUFFIX = "-modern.AppImage";
 
-/** The macOS updater slots, and the architecture marker each one requires. */
 const MAC_ARCHITECTURES = {
   "darwin-aarch64": "aarch64",
   "darwin-x86_64": "x64",
@@ -55,10 +44,8 @@ function isCompatibilityAppImage(fileName) {
 }
 
 /**
- * The macOS bundle and signature for one updater slot, or null if either is
- * missing. Never falls back to the other architecture: serving an arm64
- * binary to Intel is worse than serving no update, and the signature would
- * still validate because it matches the file being served.
+ * Never falls back to the other architecture: an arm64 binary on Intel is
+ * worse than no update, and its signature validates either way.
  */
 function selectMacUpdateForSlot(fileNames, slot) {
   const arch = MAC_ARCHITECTURES[slot];
@@ -75,8 +62,7 @@ function selectMacUpdateForSlot(fileNames, slot) {
   return { bundle, signature };
 }
 
-// Matches on the "_<arch>." segment rather than a bare substring, so that
-// "x64" cannot also match the "aarch64" bundle.
+// Anchored on the full segment so "x64" cannot match the aarch64 bundle.
 function isMacBundleForArch(fileName, arch) {
   return fileName.endsWith(`_${arch}.app.tar.gz`);
 }
