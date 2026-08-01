@@ -337,6 +337,11 @@ jobs:
     needs: [create-release, build, sign-windows]
     runs-on: ubuntu-latest
     environment: production
+    # Job level, not step level: a step's own `if:` is evaluated before its
+    # `env:` block is applied, so a secret declared there is an empty string
+    # at that point and the guard would skip the step it guards.
+    env:
+      GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -610,7 +615,6 @@ jobs:
       - name: Build signed APT and RPM repositories
         if: ${{ env.GPG_SIGNING_KEY != '' }}
         env:
-          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO_SLUG: ${{ github.repository }}
         run: |
@@ -631,30 +635,37 @@ jobs:
       - name: Deploy repositories to FTP
         if: ${{ env.GPG_SIGNING_KEY != '' }}
         env:
-          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
           FTP_HOST: ${{ secrets.FTP_HOST }}
           FTP_USER: ${{ secrets.FTP_USER }}
           FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
           DEPLOY_LANDING_FTP_PATH: ${{ secrets.DEPLOY_LANDING_FTP_PATH }}
         run: |
-          # Package indexes must never be readable while the packages they
-          # reference are still uploading, so pool/ and the packages go first
-          # and the signed metadata lands last.
           upload() {
             curl -sf -T "$1" --user "$FTP_USER:$FTP_PASSWORD" \
-              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$2" --ftp-create-dirs
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$1" --ftp-create-dirs
           }
 
           cd linux-repos
-          metadata=$(mktemp)
-          find . -type f | sed 's|^\./||' | sort > "$metadata"
+          all=$(mktemp)
+          # .packages/ is the download cache the build works from, not part of
+          # either repository.
+          find . -type f -not -path './.packages/*' | sed 's|^\./||' | sort > "$all"
 
-          grep -vE '^(apt/dists|rpm/repodata)/' "$metadata" | while read -r f; do
-            upload "$f" "$f"
-          done
-          grep -E '^(apt/dists|rpm/repodata)/' "$metadata" | while read -r f; do
-            upload "$f" "$f"
-          done
+          # Three passes, because a client refreshing mid-deploy must never
+          # reach a signed index that references a file not uploaded yet.
+          # Ordering within a pass is irrelevant; ordering between them is not,
+          # so the signature files are matched by name rather than left to sort
+          # order -- InRelease sorts before Packages, which is the wrong way
+          # round and would hand clients a hash mismatch.
+          is_signed_index='^(apt/dists/stable/(InRelease|Release|Release\.gpg)|rpm/repodata/repomd\.xml(\.asc)?)$'
+
+          # 1. Packages and keys.
+          grep -vE '^(apt/dists|rpm/repodata)/' "$all" | while read -r f; do upload "$f"; done
+          # 2. Index payloads the signatures will vouch for.
+          grep -E '^(apt/dists|rpm/repodata)/' "$all" | grep -vE "$is_signed_index" \
+            | while read -r f; do upload "$f"; done
+          # 3. The signed indexes themselves, last.
+          grep -E "$is_signed_index" "$all" | while read -r f; do upload "$f"; done
 
           echo "Repository deployment complete"
 

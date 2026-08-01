@@ -11,11 +11,15 @@
 # Usage: build-linux-repos.sh <output-dir> [max-releases]
 set -euo pipefail
 
-OUT_DIR="${1:?output directory required}"
 MAX_RELEASES="${2:-20}"
 
 : "${GPG_KEY_ID:?GPG_KEY_ID must be set}"
 : "${REPO_SLUG:=atilladeniz/Kubeli}"
+
+# Absolute, because the APT stage has to cd into its own tree and every path
+# derived here would otherwise resolve against the new working directory.
+mkdir -p "${1:?output directory required}"
+OUT_DIR="$(cd "$1" && pwd)"
 
 APT_DIR="$OUT_DIR/apt"
 RPM_DIR="$OUT_DIR/rpm"
@@ -24,9 +28,12 @@ PKG_DIR="$OUT_DIR/.packages"
 rm -rf "$OUT_DIR"
 mkdir -p "$APT_DIR/pool/main" "$APT_DIR/dists/stable/main/binary-amd64" "$RPM_DIR" "$PKG_DIR"
 
+# Drafts are included on purpose: the release being published is still a draft
+# while this runs, and excluding drafts would leave the newest version out of
+# the very repository built to ship it.
 echo "Collecting packages from the last $MAX_RELEASES releases..."
 tags=$(gh release list --repo "$REPO_SLUG" --limit "$MAX_RELEASES" \
-  --exclude-drafts --json tagName --jq '.[].tagName')
+  --json tagName --jq '.[].tagName')
 
 for tag in $tags; do
   gh release download "$tag" --repo "$REPO_SLUG" \
@@ -52,6 +59,9 @@ cd "$APT_DIR"
 apt-ftparchive packages pool/main > dists/stable/main/binary-amd64/Packages
 gzip -kf dists/stable/main/binary-amd64/Packages
 
+# ValidTime is 90 days: long enough to survive a gap between releases, which
+# would otherwise expire the repository for every user at once, and short
+# enough to bound how long a stale signed index stays replayable.
 cat > /tmp/apt-release.conf <<'CONF'
 APT::FTPArchive::Release::Origin "Kubeli";
 APT::FTPArchive::Release::Label "Kubeli";
@@ -60,6 +70,7 @@ APT::FTPArchive::Release::Codename "stable";
 APT::FTPArchive::Release::Architectures "amd64";
 APT::FTPArchive::Release::Components "main";
 APT::FTPArchive::Release::Description "Kubeli - Kubernetes Management Desktop App";
+APT::FTPArchive::Release::ValidTime "7776000";
 CONF
 apt-ftparchive -c /tmp/apt-release.conf release dists/stable > dists/stable/Release
 

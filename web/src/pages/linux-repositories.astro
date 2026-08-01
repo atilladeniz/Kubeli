@@ -26,15 +26,16 @@ const repo = "https://github.com/atilladeniz/Kubeli";
         Both commands are required: the first stores the signing key, the second
         points apt at the repository and binds it to that key.
       </p>
-      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>sudo curl -fsSL {repoHost}/apt/kubeli-archive-keyring.gpg \
-  -o /usr/share/keyrings/kubeli-archive-keyring.gpg
+      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>sudo mkdir -p /etc/apt/keyrings
+sudo curl -fsSL {repoHost}/apt/kubeli-archive-keyring.gpg \
+  -o /etc/apt/keyrings/kubeli-archive-keyring.gpg
 
 echo "Types: deb
 URIs: {repoHost}/apt
 Suites: stable
 Components: main
 Architectures: amd64
-Signed-By: /usr/share/keyrings/kubeli-archive-keyring.gpg" \
+Signed-By: /etc/apt/keyrings/kubeli-archive-keyring.gpg" \
   | sudo tee /etc/apt/sources.list.d/kubeli.sources</code></pre>
 
       <p class="text-sm text-muted-foreground">Then install:</p>
@@ -51,6 +52,8 @@ sudo apt install kubeli</code></pre>
       <p class="text-sm text-muted-foreground">
         Import the key before adding the repository — dnf verifies the repository
         metadata signature on the first refresh and fails if the key is unknown.
+        On that first refresh dnf also asks you to confirm the key; the
+        fingerprint it shows is listed below.
       </p>
       <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>sudo rpm --import {repoHost}/rpm/RPM-GPG-KEY-kubeli
 
@@ -80,7 +83,7 @@ gpgkey={repoHost}/rpm/RPM-GPG-KEY-kubeli" \
       <p class="text-sm text-muted-foreground">
         To confirm what you downloaded matches:
       </p>
-      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>gpg --show-keys /usr/share/keyrings/kubeli-archive-keyring.gpg</code></pre>
+      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>gpg --show-keys /etc/apt/keyrings/kubeli-archive-keyring.gpg</code></pre>
     </section>
 
     <section class="space-y-4">
