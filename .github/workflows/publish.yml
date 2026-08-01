@@ -605,6 +605,59 @@ jobs:
 
           echo "Landing page deployment complete"
 
+      # deb/rpm cannot use the Tauri updater, so an apt/dnf repository is the
+      # only way those installs receive updates at all (#348).
+      - name: Build signed APT and RPM repositories
+        if: ${{ env.GPG_SIGNING_KEY != '' }}
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_SLUG: ${{ github.repository }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils createrepo-c rpm gnupg
+
+          printf '%s' "$GPG_SIGNING_KEY" | gpg --batch --quiet --import
+          GPG_KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')
+          if [ -z "$GPG_KEY_ID" ]; then
+            echo "Signing key did not import" >&2
+            exit 1
+          fi
+          echo "::add-mask::$GPG_KEY_ID"
+          export GPG_KEY_ID
+
+          ./scripts/build-linux-repos.sh linux-repos
+
+      - name: Deploy repositories to FTP
+        if: ${{ env.GPG_SIGNING_KEY != '' }}
+        env:
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          DEPLOY_LANDING_FTP_PATH: ${{ secrets.DEPLOY_LANDING_FTP_PATH }}
+        run: |
+          # Package indexes must never be readable while the packages they
+          # reference are still uploading, so pool/ and the packages go first
+          # and the signed metadata lands last.
+          upload() {
+            curl -sf -T "$1" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$2" --ftp-create-dirs
+          }
+
+          cd linux-repos
+          metadata=$(mktemp)
+          find . -type f | sed 's|^\./||' | sort > "$metadata"
+
+          grep -vE '^(apt/dists|rpm/repodata)/' "$metadata" | while read -r f; do
+            upload "$f" "$f"
+          done
+          grep -E '^(apt/dists|rpm/repodata)/' "$metadata" | while read -r f; do
+            upload "$f" "$f"
+          done
+
+          echo "Repository deployment complete"
+
       - name: Build Astro landing page
         run: |
           npm install -g bun
