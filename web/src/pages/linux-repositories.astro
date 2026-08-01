@@ -1,0 +1,99 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+
+const repoHost = "https://kubeli.dev";
+const repo = "https://github.com/atilladeniz/Kubeli";
+---
+
+<BaseLayout
+  title="Linux Repositories"
+  description="Install Kubeli from the official APT and DNF repositories and get updates through apt upgrade or dnf upgrade."
+  canonicalPath="/linux-repositories"
+>
+  <div class="mx-auto max-w-3xl px-4 sm:px-8 py-8 sm:py-12">
+    <h1 class="text-3xl font-semibold mb-3">Linux Repositories</h1>
+    <p class="text-muted-foreground mb-10">
+      Installing from a repository means <code class="rounded bg-muted px-1 py-0.5 text-[0.9em]">apt</code> or
+      <code class="rounded bg-muted px-1 py-0.5 text-[0.9em]">dnf</code> handles updates along with the rest of
+      your system. The <code class="rounded bg-muted px-1 py-0.5 text-[0.9em]">.deb</code> and
+      <code class="rounded bg-muted px-1 py-0.5 text-[0.9em]">.rpm</code> downloads cannot update themselves, so
+      this is the recommended way to install Kubeli on Linux.
+    </p>
+
+    <section class="space-y-4 mb-12">
+      <h2 class="text-xl font-semibold">Debian, Ubuntu, and derivatives</h2>
+      <p class="text-sm text-muted-foreground">
+        Both commands are required: the first stores the signing key, the second
+        points apt at the repository and binds it to that key.
+      </p>
+      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>sudo mkdir -p /etc/apt/keyrings
+sudo curl -fsSL {repoHost}/apt/kubeli-archive-keyring.gpg \
+  -o /etc/apt/keyrings/kubeli-archive-keyring.gpg
+
+echo "Types: deb
+URIs: {repoHost}/apt
+Suites: stable
+Components: main
+Architectures: amd64
+Signed-By: /etc/apt/keyrings/kubeli-archive-keyring.gpg" \
+  | sudo tee /etc/apt/sources.list.d/kubeli.sources</code></pre>
+
+      <p class="text-sm text-muted-foreground">Then install:</p>
+      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>sudo apt update
+sudo apt install kubeli</code></pre>
+
+      <p class="text-sm text-muted-foreground">
+        Updates arrive with <code class="rounded bg-muted px-1 py-0.5 text-[0.9em]">sudo apt upgrade</code>.
+      </p>
+    </section>
+
+    <section class="space-y-4 mb-12">
+      <h2 class="text-xl font-semibold">Fedora, RHEL, Rocky, AlmaLinux</h2>
+      <p class="text-sm text-muted-foreground">
+        Import the key before adding the repository — dnf verifies the repository
+        metadata signature on the first refresh and fails if the key is unknown.
+        On that first refresh dnf also asks you to confirm the key; the
+        fingerprint it shows is listed below.
+      </p>
+      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>sudo rpm --import {repoHost}/rpm/RPM-GPG-KEY-kubeli
+
+echo "[kubeli]
+name=Kubeli
+baseurl={repoHost}/rpm
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey={repoHost}/rpm/RPM-GPG-KEY-kubeli" \
+  | sudo tee /etc/yum.repos.d/kubeli.repo</code></pre>
+
+      <p class="text-sm text-muted-foreground">Then install:</p>
+      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>sudo dnf install kubeli</code></pre>
+
+      <p class="text-sm text-muted-foreground">
+        Updates arrive with <code class="rounded bg-muted px-1 py-0.5 text-[0.9em]">sudo dnf upgrade</code>.
+      </p>
+    </section>
+
+    <section class="space-y-4 mb-12">
+      <h2 class="text-xl font-semibold">Verifying the key</h2>
+      <p class="text-sm text-muted-foreground">
+        Every package and every repository index is signed with this key:
+      </p>
+      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>584A D889 E8F1 3AB8 618B  6419 AD8D 146E 6F18 94D2</code></pre>
+      <p class="text-sm text-muted-foreground">
+        To confirm what you downloaded matches:
+      </p>
+      <pre class="overflow-x-auto rounded-lg border border-border bg-muted/50 p-4 text-sm"><code>gpg --show-keys /etc/apt/keyrings/kubeli-archive-keyring.gpg</code></pre>
+    </section>
+
+    <section class="space-y-4">
+      <h2 class="text-xl font-semibold">Other options</h2>
+      <p class="text-sm text-muted-foreground">
+        The AppImage and the standalone <code class="rounded bg-muted px-1 py-0.5 text-[0.9em]">.deb</code> /
+        <code class="rounded bg-muted px-1 py-0.5 text-[0.9em]">.rpm</code> files stay available on the
+        <a href={`${repo}/releases/latest`} class="underline underline-offset-4" target="_blank" rel="noopener">releases page</a>.
+        The AppImage updates itself from inside the app; the standalone packages do not update at all.
+      </p>
+    </section>
+  </div>
+</BaseLayout>

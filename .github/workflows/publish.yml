@@ -337,6 +337,11 @@ jobs:
     needs: [create-release, build, sign-windows]
     runs-on: ubuntu-latest
     environment: production
+    # Job level, not step level: a step's own `if:` is evaluated before its
+    # `env:` block is applied, so a secret declared there is an empty string
+    # at that point and the guard would skip the step it guards.
+    env:
+      GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -604,6 +609,65 @@ jobs:
           done
 
           echo "Landing page deployment complete"
+
+      # deb/rpm cannot use the Tauri updater, so an apt/dnf repository is the
+      # only way those installs receive updates at all (#348).
+      - name: Build signed APT and RPM repositories
+        if: ${{ env.GPG_SIGNING_KEY != '' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO_SLUG: ${{ github.repository }}
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq apt-utils createrepo-c rpm gnupg
+
+          printf '%s' "$GPG_SIGNING_KEY" | gpg --batch --quiet --import
+          GPG_KEY_ID=$(gpg --list-secret-keys --with-colons | awk -F: '/^sec/{print $5; exit}')
+          if [ -z "$GPG_KEY_ID" ]; then
+            echo "Signing key did not import" >&2
+            exit 1
+          fi
+          echo "::add-mask::$GPG_KEY_ID"
+          export GPG_KEY_ID
+
+          ./scripts/build-linux-repos.sh linux-repos
+
+      - name: Deploy repositories to FTP
+        if: ${{ env.GPG_SIGNING_KEY != '' }}
+        env:
+          FTP_HOST: ${{ secrets.FTP_HOST }}
+          FTP_USER: ${{ secrets.FTP_USER }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
+          DEPLOY_LANDING_FTP_PATH: ${{ secrets.DEPLOY_LANDING_FTP_PATH }}
+        run: |
+          upload() {
+            curl -sf -T "$1" --user "$FTP_USER:$FTP_PASSWORD" \
+              "ftp://$FTP_HOST$DEPLOY_LANDING_FTP_PATH/$1" --ftp-create-dirs
+          }
+
+          cd linux-repos
+          all=$(mktemp)
+          # .packages/ is the download cache the build works from, not part of
+          # either repository.
+          find . -type f -not -path './.packages/*' | sed 's|^\./||' | sort > "$all"
+
+          # Three passes, because a client refreshing mid-deploy must never
+          # reach a signed index that references a file not uploaded yet.
+          # Ordering within a pass is irrelevant; ordering between them is not,
+          # so the signature files are matched by name rather than left to sort
+          # order -- InRelease sorts before Packages, which is the wrong way
+          # round and would hand clients a hash mismatch.
+          is_signed_index='^(apt/dists/stable/(InRelease|Release|Release\.gpg)|rpm/repodata/repomd\.xml(\.asc)?)$'
+
+          # 1. Packages and keys.
+          grep -vE '^(apt/dists|rpm/repodata)/' "$all" | while read -r f; do upload "$f"; done
+          # 2. Index payloads the signatures will vouch for.
+          grep -E '^(apt/dists|rpm/repodata)/' "$all" | grep -vE "$is_signed_index" \
+            | while read -r f; do upload "$f"; done
+          # 3. The signed indexes themselves, last.
+          grep -E "$is_signed_index" "$all" | while read -r f; do upload "$f"; done
+
+          echo "Repository deployment complete"
 
       - name: Build Astro landing page
         run: |
