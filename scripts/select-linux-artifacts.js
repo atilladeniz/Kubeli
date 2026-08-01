@@ -1,18 +1,21 @@
 #!/usr/bin/env node
 /**
- * Picks which AppImage the updater and the landing page should point at.
+ * Picks which release artifacts the updater points at.
  *
- * Releases ship two Linux AppImages (see .github/workflows/publish.yml):
- * the default one built on Ubuntu 22.04, and a "-modern" one built on 24.04
- * for distros whose Mesa is too new for the older bundled WebKitGTK (#429).
+ * A release holds several artifacts matching the same glob, and the one that
+ * sorts first is the wrong one in both cases: "-modern" before the
+ * compatibility AppImage (#429), aarch64 before x64 (#433).
  *
- * The updater has a single linux-x86_64 slot, so exactly one of them may go
- * in it. It has to be the 22.04 build: it has the lower glibc floor, and the
- * updater pushes it to every existing install regardless of distro. Picking
- * by plain glob would take "-modern" instead, because it sorts first.
+ * The Linux slot must get the 22.04 AppImage — it has the lower glibc floor
+ * and the updater pushes it to every install regardless of distro.
  */
 
 const MODERN_SUFFIX = "-modern.AppImage";
+
+const MAC_ARCHITECTURES = {
+  "darwin-aarch64": "aarch64",
+  "darwin-x86_64": "x64",
+};
 
 /** The AppImage safe to hand to every install, or null if it is missing. */
 function selectUpdaterAppImage(fileNames) {
@@ -40,9 +43,35 @@ function isCompatibilityAppImage(fileName) {
   );
 }
 
+/**
+ * Never falls back to the other architecture: an arm64 binary on Intel is
+ * worse than no update, and its signature validates either way.
+ */
+function selectMacUpdateForSlot(fileNames, slot) {
+  const arch = MAC_ARCHITECTURES[slot];
+  if (!arch) return null;
+
+  const bundle = fileNames
+    .filter((name) => isMacBundleForArch(name, arch))
+    .sort()[0];
+  if (!bundle) return null;
+
+  const signature = `${bundle}.sig`;
+  if (!fileNames.includes(signature)) return null;
+
+  return { bundle, signature };
+}
+
+// Anchored on the full segment so "x64" cannot match the aarch64 bundle.
+function isMacBundleForArch(fileName, arch) {
+  return fileName.endsWith(`_${arch}.app.tar.gz`);
+}
+
 module.exports = {
+  MAC_ARCHITECTURES,
   MODERN_SUFFIX,
   landingAliasFor,
+  selectMacUpdateForSlot,
   selectUpdaterAppImage,
   selectUpdaterSignature,
 };

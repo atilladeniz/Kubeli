@@ -402,18 +402,8 @@ jobs:
           DATE=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 
           # Read signatures
-          MAC_SIG=""
           WIN_SIG=""
           LINUX_SIG=""
-
-          # macOS — try aarch64 first, fall back to any .app.tar.gz.sig
-          for f in artifacts/*aarch64*.app.tar.gz.sig artifacts/*.app.tar.gz.sig; do
-            if [ -f "$f" ]; then
-              MAC_SIG=$(cat "$f")
-              echo "Found macOS signature: $f"
-              break
-            fi
-          done
 
           # Windows
           for f in artifacts/*x64-setup.exe.sig artifacts/*x64_setup.exe.sig; do
@@ -440,7 +430,6 @@ jobs:
           fi
 
           # Find artifact filenames for FTP URLs
-          MAC_TAR=$(ls artifacts/*.app.tar.gz 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
           WIN_EXE=$(ls artifacts/*x64-setup.exe 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")
           WIN_EXE=${WIN_EXE:-$(ls artifacts/*x64_setup.exe 2>/dev/null | head -1 | xargs basename 2>/dev/null || echo "")}
           LINUX_APPIMAGE=$(node -e '
@@ -452,10 +441,25 @@ jobs:
           # Build FTP latest.json
           PLATFORMS=""
 
-          if [ -n "$MAC_SIG" ] && [ -n "$MAC_TAR" ]; then
-            PLATFORMS="\"darwin-aarch64\": { \"signature\": \"$MAC_SIG\", \"url\": \"https://$DEPLOY_API_URL/$MAC_TAR\" }"
-            PLATFORMS="$PLATFORMS, \"darwin-x86_64\": { \"signature\": \"$MAC_SIG\", \"url\": \"https://$DEPLOY_API_URL/$MAC_TAR\" }"
-          fi
+          # One bundle per slot. Sharing one across both shipped arm64
+          # binaries to Intel machines (#433).
+          for SLOT in darwin-aarch64 darwin-x86_64; do
+            MAC_TAR=$(SLOT="$SLOT" node -e '
+              const { selectMacUpdateForSlot } = require("./scripts/select-linux-artifacts");
+              const fs = require("fs");
+              const found = selectMacUpdateForSlot(fs.readdirSync("artifacts"), process.env.SLOT);
+              process.stdout.write(found?.bundle ?? "");
+            ')
+            if [ -z "$MAC_TAR" ]; then
+              echo "No complete macOS bundle for $SLOT, skipping that slot"
+              continue
+            fi
+
+            MAC_SIG=$(cat "artifacts/$MAC_TAR.sig")
+            echo "Found macOS bundle for $SLOT: $MAC_TAR"
+            if [ -n "$PLATFORMS" ]; then PLATFORMS="$PLATFORMS, "; fi
+            PLATFORMS="$PLATFORMS\"$SLOT\": { \"signature\": \"$MAC_SIG\", \"url\": \"https://$DEPLOY_API_URL/$MAC_TAR\" }"
+          done
 
           if [ -n "$WIN_SIG" ] && [ -n "$WIN_EXE" ]; then
             if [ -n "$PLATFORMS" ]; then PLATFORMS="$PLATFORMS, "; fi

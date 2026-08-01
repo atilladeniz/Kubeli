@@ -25,6 +25,9 @@ jobs:
             app:
               - 'src/**'
               - 'src-tauri/**'
+              # Release-time artifact selection, covered by jest under
+              # scripts/__tests__ — without this the tests never run in CI.
+              - 'scripts/**'
               - 'package.json'
               - 'package-lock.json'
               - 'tsconfig*.json'
