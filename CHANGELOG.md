@@ -2,6 +2,12 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.86] - 2026-08-02
+
+- Added signed APT and DNF repositories for Linux installs and updates
+- Fixed macOS updates so each architecture receives its own bundle
+- Fixed the changelog page to offer the modern AppImage build
+
 ## [0.3.85] - 2026-07-31
 
 - Added real-time watch for deployments, services, and remaining workloads, so resource lists update live
