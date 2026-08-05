@@ -252,6 +252,8 @@ export function mockInvoke(command: string, payload?: Record<string, unknown>) {
       return Promise.resolve(buildMockGraph());
     case "restart_app":
       return Promise.resolve();
+    case "restart_deployment":
+      return Promise.resolve();
     case "take_startup_deep_links":
       return Promise.resolve([]);
     case "check_metrics_server":

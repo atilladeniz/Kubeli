@@ -34,6 +34,7 @@ export function DeploymentsView() {
     handleDeleteFromContext,
     handleScaleFromContext,
     handleSetImageFromContext,
+    handleRestartFromContext,
   } = useResourceDetail();
   const openWorkloadLogsTab = useOpenWorkloadLogsTab();
   const [sortKey, setSortKey] = useState<string | null>("created_at");
@@ -95,9 +96,9 @@ export function DeploymentsView() {
       },
     },
     {
-      label: "Restart",
+      label: t("workloads.restart"),
       icon: <RefreshCw className="size-4" />,
-      onClick: () => toast.info("Coming soon", { description: `Restart ${dep.name}` }),
+      onClick: () => handleRestartFromContext(dep.name, dep.namespace, refresh),
     },
     { separator: true, label: "", onClick: () => {} },
     {

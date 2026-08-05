@@ -318,6 +318,17 @@ export async function setContainerImage(
   });
 }
 
+/**
+ * Triggers a rolling restart of a deployment, mirroring `kubectl rollout restart`:
+ * the controller replaces its pods honoring the update strategy (no downtime).
+ */
+export async function restartDeployment(
+  name: string,
+  namespace: string
+): Promise<void> {
+  return invoke("restart_deployment", { name, namespace });
+}
+
 export async function triggerCronjob(name: string, namespace: string): Promise<void> {
   return invoke("trigger_cronjob", { name, namespace });
 }
