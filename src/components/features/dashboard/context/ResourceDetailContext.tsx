@@ -27,6 +27,7 @@ export interface ResourceDetailContextType {
     namespace: string,
     onSuccess?: () => void
   ) => void;
+  handleRestartFromContext: (name: string, namespace: string, onSuccess?: () => void) => void;
   closeResourceDetail: () => void;
 }
 

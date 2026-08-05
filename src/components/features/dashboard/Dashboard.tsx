@@ -55,10 +55,12 @@ import {
   UninstallHelmDialog,
   ScaleDeploymentDialog,
   SetImageDialog,
+  RestartDeploymentDialog,
   type DeleteDialogState,
   type UninstallDialogState,
   type ScaleDialogState,
   type SetImageDialogState,
+  type RestartDialogState,
 } from "./dialogs";
 import { useDashboardShortcuts } from "./hooks/useDashboardShortcuts";
 
@@ -128,6 +130,7 @@ function DashboardContent() {
   const [uninstallDialog, setUninstallDialog] = useState<UninstallDialogState | null>(null);
   const [scaleDialog, setScaleDialog] = useState<ScaleDialogState | null>(null);
   const [setImageDialog, setSetImageDialog] = useState<SetImageDialogState | null>(null);
+  const [restartDialog, setRestartDialog] = useState<RestartDialogState | null>(null);
   const [showShortcutsHelp, setShowShortcutsHelp] = useState(false);
   const getFavorites = useFavoritesStore((s) => s.getFavorites);
   const removeFavorite = useFavoritesStore((s) => s.removeFavorite);
@@ -444,6 +447,10 @@ function DashboardContent() {
     setScaleDialog({ open: true, name, namespace, currentReplicas, onSuccess });
   };
 
+  const handleRestartFromContext = (name: string, namespace: string, onSuccess?: () => void) => {
+    setRestartDialog({ open: true, resourceType: "deployment", name, namespace, onSuccess });
+  };
+
   const handleSetImageFromContext = async (
     resourceType: ImagePatchTarget,
     name: string,
@@ -530,6 +537,7 @@ function DashboardContent() {
         handleUninstallFromContext,
         handleScaleFromContext,
         handleSetImageFromContext,
+        handleRestartFromContext,
         closeResourceDetail,
       }}
     >
@@ -622,6 +630,7 @@ function DashboardContent() {
         <UninstallHelmDialog state={uninstallDialog} onClose={() => setUninstallDialog(null)} />
         <ScaleDeploymentDialog state={scaleDialog} onClose={() => setScaleDialog(null)} />
         <SetImageDialog state={setImageDialog} onClose={() => setSetImageDialog(null)} />
+        <RestartDeploymentDialog state={restartDialog} onClose={() => setRestartDialog(null)} />
         <ShortcutsHelpDialog open={showShortcutsHelp} onOpenChange={setShowShortcutsHelp} />
       </div>
     </ResourceDetailContext.Provider>

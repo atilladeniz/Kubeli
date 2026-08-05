@@ -1,6 +1,7 @@
 use crate::error::KubeliError;
 use crate::k8s::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
+use chrono::Utc;
 use flate2::read::GzDecoder;
 use k8s_openapi::api::admissionregistration::v1::{
     MutatingWebhookConfiguration, ValidatingWebhookConfiguration,
@@ -1747,6 +1748,43 @@ pub async fn set_container_image(
         name,
         image
     );
+    Ok(())
+}
+
+/// Builds the strategic-merge patch `kubectl rollout restart` applies: it stamps
+/// the pod template with a restart annotation. Changing the template makes the
+/// controller roll out fresh pods, honoring the deployment's update strategy
+/// (no downtime, unlike delete-pod or scale-to-zero).
+fn restart_patch(timestamp: &str) -> serde_json::Value {
+    serde_json::json!({
+        "spec": {
+            "template": {
+                "metadata": {
+                    "annotations": {
+                        "kubectl.kubernetes.io/restartedAt": timestamp
+                    }
+                }
+            }
+        }
+    })
+}
+
+/// Trigger a rolling restart of a deployment, mirroring `kubectl rollout restart`.
+#[command]
+pub async fn restart_deployment(
+    state: State<'_, AppState>,
+    name: String,
+    namespace: String,
+) -> Result<(), KubeliError> {
+    let client = state.k8s.get_client().await?;
+
+    let api: Api<Deployment> = Api::namespaced(client, &namespace);
+    let patch = restart_patch(&Utc::now().to_rfc3339());
+
+    api.patch(&name, &PatchParams::default(), &Patch::Strategic(&patch))
+        .await?;
+
+    tracing::info!("Restarted deployment {}/{}", namespace, name);
     Ok(())
 }
 
@@ -5196,5 +5234,19 @@ mod tests {
         assert_eq!(get_plural("Pod"), "pods");
         assert_eq!(get_plural("Gateway"), "gateways");
         assert_eq!(get_plural("MyCrd"), "mycrds");
+    }
+
+    #[test]
+    fn restart_patch_stamps_pod_template_annotation() {
+        // Regression: the restart annotation must land on the POD TEMPLATE
+        // (spec.template.metadata.annotations), not the workload's own metadata.
+        // Only a template change bumps the pod-template hash and triggers a new
+        // rollout; annotating the workload itself is a silent no-op.
+        let patch = restart_patch("2026-08-05T12:00:00+00:00");
+        assert_eq!(
+            patch["spec"]["template"]["metadata"]["annotations"]
+                ["kubectl.kubernetes.io/restartedAt"],
+            "2026-08-05T12:00:00+00:00"
+        );
     }
 }
