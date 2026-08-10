@@ -7,9 +7,9 @@ use k8s_openapi::api::core::v1::{Event, Namespace, Pod, Service};
 use kube::api::{Api, ListParams, LogParams};
 use kube::ResourceExt;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, ContentBlock, Implementation, InitializeRequestParams,
-    InitializeResult, ListToolsResult, PaginatedRequestParams, ServerCapabilities, ServerInfo,
-    Tool, ToolAnnotations,
+    CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, Implementation,
+    InitializeRequestParams, InitializeResult, ListToolsResult, PaginatedRequestParams,
+    ServerCapabilities, ServerInfo, Tool, ToolAnnotations,
 };
 use rmcp::service::RequestContext;
 use rmcp::{ErrorData as McpError, RoleServer, ServerHandler};
@@ -996,7 +996,7 @@ impl ServerHandler for KubeliMcpServer {
         &self,
         request: CallToolRequestParams,
         _context: RequestContext<RoleServer>,
-    ) -> Result<CallToolResult, McpError> {
+    ) -> Result<CallToolResponse, McpError> {
         let name: &str = &request.name;
         let args = &request.arguments;
 
@@ -1104,11 +1104,10 @@ impl ServerHandler for KubeliMcpServer {
         };
 
         match result {
-            Ok(text) => Ok(CallToolResult::success(vec![ContentBlock::text(text)])),
-            Err(e) => Ok(CallToolResult::error(vec![ContentBlock::text(format!(
-                "Error: {}",
-                e
-            ))])),
+            Ok(text) => Ok(CallToolResult::success(vec![ContentBlock::text(text)]).into()),
+            Err(e) => {
+                Ok(CallToolResult::error(vec![ContentBlock::text(format!("Error: {}", e))]).into())
+            }
         }
     }
 }
