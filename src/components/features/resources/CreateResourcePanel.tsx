@@ -351,7 +351,7 @@ export function CreateResourcePanel({ onClose, onApplied }: CreateResourcePanelP
             },
             colorDecorators: false,
             links: false,
-            hover: { enabled: true },
+            hover: { enabled: "on" },
             parameterHints: { enabled: false },
             suggestOnTriggerCharacters: false,
             acceptSuggestionOnEnter: "off",

@@ -441,7 +441,7 @@ export const YamlTab = forwardRef<YamlTabHandle, YamlTabProps>(function YamlTab(
                 },
                 colorDecorators: false,
                 links: false,
-                hover: { enabled: false },
+                hover: { enabled: "off" },
                 parameterHints: { enabled: false },
                 suggestOnTriggerCharacters: false,
                 acceptSuggestionOnEnter: "off",
