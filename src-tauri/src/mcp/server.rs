@@ -136,13 +136,17 @@ async fn client_from_configured_sources() -> Option<kube::Client> {
     }
 }
 
-/// Run the MCP server in stdio mode
-pub async fn run_mcp_server() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize tracing for logging (to stderr to not interfere with stdio)
+fn init_logging() {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
+        .log_internal_errors(false)
         .with_env_filter("info")
         .init();
+}
+
+/// Run the MCP server in stdio mode
+pub async fn run_mcp_server() -> Result<(), Box<dyn std::error::Error>> {
+    init_logging();
 
     tracing::info!("Starting Kubeli MCP Server...");
 
@@ -169,6 +173,51 @@ pub async fn run_mcp_server() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::parse_sources_store;
+
+    #[cfg(unix)]
+    #[test]
+    fn logging_survives_closed_stderr() {
+        use std::io::Write;
+        use std::os::fd::OwnedFd;
+        use std::os::unix::net::UnixStream;
+        use std::process::Command;
+
+        const CHILD_ENV: &str = "KUBELI_TEST_CLOSED_STDERR";
+        if std::env::var_os(CHILD_ENV).is_some() {
+            assert_eq!(
+                std::io::stderr().write_all(b"probe").unwrap_err().kind(),
+                std::io::ErrorKind::BrokenPipe
+            );
+            super::init_logging();
+            std::thread::spawn(|| {
+                tracing::info!("MCP client disconnected");
+                tracing::error!("MCP transport closed");
+            })
+            .join()
+            .unwrap();
+            return;
+        }
+
+        let (reader, writer) = UnixStream::pair().unwrap();
+        drop(reader);
+        let output = Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "mcp::server::tests::logging_survives_closed_stderr",
+                "--nocapture",
+            ])
+            .env(CHILD_ENV, "1")
+            .stderr(OwnedFd::from(writer))
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "child exited with {}: {}",
+            output.status,
+            String::from_utf8_lossy(&output.stdout)
+        );
+        assert!(String::from_utf8_lossy(&output.stdout).contains("1 passed"));
+    }
 
     #[test]
     fn parses_sources_config_from_store_file() {
