@@ -822,39 +822,59 @@ pub async fn node_shell_cleanup(
 mod tests {
     use super::{resolve_shell_command, take_valid_utf8, ShellEvent, SHELL_PROBE};
 
+    /// Runs SHELL_PROBE with a PATH that contains only a real `sh` plus the
+    /// given fake shells (name, exit code), each printing `fake-<name>`.
+    #[cfg(unix)]
+    fn run_probe_with(fakes: &[(&str, i32)]) -> std::process::Output {
+        use std::os::unix::fs::PermissionsExt;
+        use std::process::{Command, Stdio};
+
+        let dir = tempfile::tempdir().unwrap();
+        std::os::unix::fs::symlink("/bin/sh", dir.path().join("sh")).unwrap();
+        for (name, code) in fakes {
+            let fake = dir.path().join(name);
+            std::fs::write(&fake, format!("#!/bin/sh\necho fake-{name}\nexit {code}\n")).unwrap();
+            std::fs::set_permissions(&fake, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+        Command::new("sh")
+            .args(["-c", SHELL_PROBE])
+            .env("PATH", dir.path())
+            .stdin(Stdio::null())
+            .output()
+            .unwrap()
+    }
+
     // Regression for the probe semantics: bash is preferred, and a bash that
     // exits non-zero must end the session instead of falling through to sh.
     #[cfg(unix)]
     #[test]
     fn shell_probe_prefers_bash_and_does_not_fall_through() {
-        use std::os::unix::fs::PermissionsExt;
-        use std::process::{Command, Stdio};
-
-        let dir = std::env::temp_dir().join(format!("kubeli-probe-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let fake_bash = dir.join("bash");
-        std::fs::write(&fake_bash, "#!/bin/sh\necho fake-bash\nexit 3\n").unwrap();
-        std::fs::set_permissions(&fake_bash, std::fs::Permissions::from_mode(0o755)).unwrap();
-        let path = format!(
-            "{}:{}",
-            dir.display(),
-            std::env::var("PATH").unwrap_or_default()
-        );
-
-        let out = Command::new("sh")
-            .args(["-c", SHELL_PROBE])
-            .env("PATH", path)
-            .stdin(Stdio::null())
-            .output()
-            .unwrap();
-        let _ = std::fs::remove_dir_all(&dir);
-
+        let out = run_probe_with(&[("bash", 3), ("ash", 4)]);
         assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "fake-bash");
-        // A fall-through to `sh` would read EOF from stdin and exit 0.
+        // A fall-through to `ash` or `sh` would exit 4 or 0.
         assert_eq!(out.status.code(), Some(3));
         assert!(
             out.stderr.is_empty(),
             "probe must be silent: {}",
+            String::from_utf8_lossy(&out.stderr)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn shell_probe_falls_back_to_ash_then_sh() {
+        let out = run_probe_with(&[("ash", 4)]);
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "fake-ash");
+        assert_eq!(out.status.code(), Some(4));
+        assert!(out.stderr.is_empty());
+
+        // Neither bash nor ash: the real sh reads EOF and exits 0, silently.
+        let out = run_probe_with(&[]);
+        assert_eq!(out.status.code(), Some(0));
+        assert!(out.stdout.is_empty());
+        assert!(
+            out.stderr.is_empty(),
+            "no 'not found' noise expected: {}",
             String::from_utf8_lossy(&out.stderr)
         );
     }

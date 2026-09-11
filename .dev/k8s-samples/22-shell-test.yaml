@@ -5,7 +5,10 @@
 # Expected:
 #   shell-bash (ubuntu)  -> GNU bash
 #   shell-ash  (alpine)  -> ash (bash is missing)
-#   shell-sh   (busybox) -> BusyBox sh (bash is missing; ash is the same applet)
+#   shell-sh   (busybox) -> BusyBox ash again: `command -v ash` finds the applet,
+#                           so this pod does not exercise the final `sh` step.
+#                           The sh-only fallback is covered by the unit test
+#                           shell_probe_falls_back_to_ash_then_sh in shell.rs.
 apiVersion: v1
 kind: Namespace
 metadata:
