@@ -1,5 +1,6 @@
 use clap::Parser;
 use std::env;
+use std::io::Write;
 
 #[derive(Parser, Debug)]
 #[command(name = "kubeli")]
@@ -48,15 +49,22 @@ pub fn initialize() -> Args {
 fn configure_linux_webview() {
     #[cfg(target_os = "linux")]
     {
-        // eprintln! instead of tracing: this runs before any tracing
-        // subscriber is installed, so tracing events would be dropped.
+        // Direct stderr write: no tracing subscriber is installed yet. The
+        // result is ignored because stderr may already be a closed pipe in
+        // --mcp mode, and eprintln! would panic on that.
         if env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
             env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
-            eprintln!("Set WEBKIT_DISABLE_COMPOSITING_MODE=1 to prevent EGL display errors");
+            let _ = writeln!(
+                std::io::stderr(),
+                "Set WEBKIT_DISABLE_COMPOSITING_MODE=1 to prevent EGL display errors"
+            );
         }
         if env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() {
             env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1");
-            eprintln!("Set WEBKIT_DISABLE_DMABUF_RENDERER=1 to prevent GBM EGL display errors");
+            let _ = writeln!(
+                std::io::stderr(),
+                "Set WEBKIT_DISABLE_DMABUF_RENDERER=1 to prevent GBM EGL display errors"
+            );
         }
     }
 }
@@ -71,7 +79,7 @@ pub fn run_mcp_server() {
     let rt = tokio::runtime::Runtime::new().expect("Failed to create tokio runtime");
     rt.block_on(async {
         if let Err(error) = crate::mcp::run_mcp_server().await {
-            eprintln!("MCP server error: {}", error);
+            let _ = writeln!(std::io::stderr(), "MCP server error: {}", error);
             std::process::exit(1);
         }
     });
@@ -102,9 +110,11 @@ fn extend_path_with_common_cli_dirs() {
     if updated {
         if let Ok(joined) = env::join_paths(paths.clone()) {
             env::set_var("PATH", &joined);
-            // eprintln! instead of tracing: runs before any tracing
-            // subscriber is installed, so tracing events would be dropped.
-            eprintln!("Extended PATH with common CLI directories to support exec auth");
+            // Direct stderr write, result ignored: see configure_linux_webview.
+            let _ = writeln!(
+                std::io::stderr(),
+                "Extended PATH with common CLI directories to support exec auth"
+            );
         }
     }
 }
