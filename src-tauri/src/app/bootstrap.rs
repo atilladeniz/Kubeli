@@ -49,6 +49,9 @@ pub fn initialize() -> Args {
 fn configure_linux_webview() {
     #[cfg(target_os = "linux")]
     {
+        // Direct stderr write: no tracing subscriber is installed yet. The
+        // result is ignored because stderr may already be a closed pipe in
+        // --mcp mode, and eprintln! would panic on that.
         if env::var_os("WEBKIT_DISABLE_COMPOSITING_MODE").is_none() {
             env::set_var("WEBKIT_DISABLE_COMPOSITING_MODE", "1");
             let _ = writeln!(
@@ -107,6 +110,7 @@ fn extend_path_with_common_cli_dirs() {
     if updated {
         if let Ok(joined) = env::join_paths(paths.clone()) {
             env::set_var("PATH", &joined);
+            // Direct stderr write, result ignored: see configure_linux_webview.
             let _ = writeln!(
                 std::io::stderr(),
                 "Extended PATH with common CLI directories to support exec auth"

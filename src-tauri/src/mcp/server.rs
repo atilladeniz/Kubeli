@@ -139,6 +139,8 @@ async fn client_from_configured_sources() -> Option<kube::Client> {
 fn init_logging() {
     tracing_subscriber::fmt()
         .with_writer(std::io::stderr)
+        // tracing-subscriber falls back to eprintln! when the writer fails,
+        // which panics once the MCP client has closed our stderr pipe.
         .log_internal_errors(false)
         .with_env_filter("info")
         .init();
