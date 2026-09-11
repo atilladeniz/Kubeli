@@ -830,14 +830,13 @@ mod tests {
         use std::os::unix::fs::PermissionsExt;
         use std::process::{Command, Stdio};
 
-        let dir = std::env::temp_dir().join(format!("kubeli-probe-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
-        let fake_bash = dir.join("bash");
+        let dir = tempfile::tempdir().unwrap();
+        let fake_bash = dir.path().join("bash");
         std::fs::write(&fake_bash, "#!/bin/sh\necho fake-bash\nexit 3\n").unwrap();
         std::fs::set_permissions(&fake_bash, std::fs::Permissions::from_mode(0o755)).unwrap();
         let path = format!(
             "{}:{}",
-            dir.display(),
+            dir.path().display(),
             std::env::var("PATH").unwrap_or_default()
         );
 
@@ -847,7 +846,6 @@ mod tests {
             .stdin(Stdio::null())
             .output()
             .unwrap();
-        let _ = std::fs::remove_dir_all(&dir);
 
         assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "fake-bash");
         // A fall-through to `sh` would read EOF from stdin and exit 0.
