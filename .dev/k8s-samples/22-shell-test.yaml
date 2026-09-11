@@ -1,0 +1,99 @@
+# Pods for testing Shell (issue #457): bash, then ash, then sh.
+# Applied by make minikube-setup-samples / minikube-start.
+# In Kubeli: switch to namespace kubeli-shell and open Shell on each pod.
+#
+# Expected:
+#   shell-bash (ubuntu)  -> GNU bash
+#   shell-ash  (alpine)  -> ash (bash is missing)
+#   shell-sh   (busybox) -> BusyBox sh (bash is missing; ash is the same applet)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kubeli-shell
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shell-bash
+  namespace: kubeli-shell
+  labels:
+    app: shell-bash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shell-bash
+  template:
+    metadata:
+      labels:
+        app: shell-bash
+    spec:
+      containers:
+        - name: shell
+          image: ubuntu:22.04
+          command: ["sleep", "infinity"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shell-ash
+  namespace: kubeli-shell
+  labels:
+    app: shell-ash
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shell-ash
+  template:
+    metadata:
+      labels:
+        app: shell-ash
+    spec:
+      containers:
+        - name: shell
+          image: alpine:3.21
+          command: ["sleep", "infinity"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: shell-sh
+  namespace: kubeli-shell
+  labels:
+    app: shell-sh
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: shell-sh
+  template:
+    metadata:
+      labels:
+        app: shell-sh
+    spec:
+      containers:
+        - name: shell
+          image: busybox:1.36
+          command: ["sleep", "infinity"]
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 64Mi

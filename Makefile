@@ -467,6 +467,7 @@ minikube-setup-samples: ## Apply sample Kubernetes resources for testing
 		echo "  - RBAC: Roles, RoleBindings, ServiceAccount"; \
 		echo "  - Quotas: ResourceQuota, LimitRange"; \
 		echo "  - Flux HelmReleases: podinfo, redis, prometheus-stack, cert-manager"; \
+		echo "  - Shell test (kubeli-shell): shell-bash, shell-ash, shell-sh"; \
 	else \
 		echo "$(YELLOW)Warning: .dev/k8s-samples/ directory not found$(RESET)"; \
 	fi
@@ -556,6 +557,7 @@ minikube-clean-samples: ## Remove sample Kubernetes resources
 		helm uninstall demo-mysql -n kubeli-demo 2>/dev/null || true; \
 	fi
 	@kubectl delete namespace kubeli-demo --ignore-not-found=true
+	@kubectl delete namespace kubeli-shell --ignore-not-found=true
 	@kubectl delete pv demo-pv-100mi demo-pv-500mi demo-pv-1gi demo-pv-2gi demo-pv-5gi demo-pv-10gi demo-pv-20gi demo-pv-50gi demo-pv-100gi demo-pv-256gi --ignore-not-found=true
 	@kubectl delete ingressclass demo-ingress-class --ignore-not-found=true
 	@echo "$(GREEN)✓ Sample resources removed$(RESET)"
