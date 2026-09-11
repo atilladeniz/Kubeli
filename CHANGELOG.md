@@ -2,6 +2,15 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.88] - 2026-09-11
+
+- Fixed pod shell sessions by probing bash, then ash, then sh
+- Fixed MCP crashes when stderr closes
+- Resolved a code scanning alert and open Dependabot security advisories
+- Updated Rust dependencies including rmcp, hyper, uuid, jsonpath-rust, flate2, and futures
+- Updated the motion animation library to 13.0.0
+- Updated CI actions for paths-filter, rust-cache, signing requests, and CodeQL SARIF upload
+
 ## [0.3.87] - 2026-08-10
 
 - Added a restart action for deployments in the workloads context menu
