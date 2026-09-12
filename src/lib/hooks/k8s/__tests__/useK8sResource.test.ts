@@ -2,6 +2,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useK8sResource } from "../useK8sResource";
 import { useClusterStore } from "../../../stores/cluster-store";
 import type { ResourceHookConfig } from "../types";
+import { IDLE_GRACE_MS } from "../../useAppActive";
 
 // Mock Tauri commands
 const mockStopWatch = jest.fn().mockResolvedValue(undefined);
@@ -255,6 +256,86 @@ describe("useK8sResource", () => {
 
       expect(mockListFn).toHaveBeenCalledWith({});
     });
+  });
+
+  describe("idle pause", () => {
+  const fire = (target: EventTarget, type: string) =>
+    act(() => {
+      target.dispatchEvent(new Event(type));
+    });
+
+  afterEach(() => {
+    fire(window, "focus");
+  });
+
+  it("stops the watch after the grace period and refetches plus rewatches on focus", async () => {
+    const { result } = await renderAndStartWatch();
+    expect(result.current.isWatching).toBe(true);
+    expect(mockListFn).toHaveBeenCalledTimes(1);
+
+    fire(window, "blur");
+    await act(async () => {
+      jest.advanceTimersByTime(IDLE_GRACE_MS);
+      await flushPromises();
+    });
+
+    expect(mockStopWatch).toHaveBeenCalledTimes(1);
+    expect(result.current.isWatching).toBe(false);
+
+    // Nothing restarts while idle
+    await act(async () => {
+      jest.advanceTimersByTime(60_000);
+      await flushPromises();
+    });
+    expect(mockWatchFn).toHaveBeenCalledTimes(1);
+    expect(mockListFn).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await flushPromises();
+    });
+    expect(mockListFn).toHaveBeenCalledTimes(2);
+
+    // Auto-watch restarts after its 500ms delay once the resume fetch landed
+    await act(async () => {
+      jest.advanceTimersByTime(600);
+      await flushPromises();
+    });
+    expect(mockWatchFn).toHaveBeenCalledTimes(2);
+    expect(result.current.isWatching).toBe(true);
+  });
+
+  it("pauses the polling fallback while idle", async () => {
+    // Stable config object: a new one per render would recreate refresh and
+    // re-run the fetch effect forever.
+    const pollConfig: ResourceHookConfig<TestResource> = { ...watchConfig, supportsWatch: false };
+    renderHook(() =>
+      useK8sResource(pollConfig, { autoRefresh: true, refreshInterval: 1000 })
+    );
+    await act(async () => {
+      await flushPromises();
+    });
+    expect(mockListFn).toHaveBeenCalledTimes(1);
+
+    fire(window, "blur");
+    await act(async () => {
+      jest.advanceTimersByTime(IDLE_GRACE_MS);
+      await flushPromises();
+    });
+    const callsAtIdle = mockListFn.mock.calls.length;
+
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+      await flushPromises();
+    });
+    expect(mockListFn).toHaveBeenCalledTimes(callsAtIdle);
+
+    await act(async () => {
+      window.dispatchEvent(new Event("focus"));
+      await flushPromises();
+    });
+    expect(mockListFn).toHaveBeenCalledTimes(callsAtIdle + 1);
+  });
   });
 });
 

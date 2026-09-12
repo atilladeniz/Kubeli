@@ -5,6 +5,7 @@ import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { useClusterStore } from "../../stores/cluster-store";
 import { useResourceCacheStore } from "../../stores/resource-cache-store";
 import { stopWatch } from "../../tauri/commands";
+import { useAppActive } from "../useAppActive";
 import { pSettledWithLimit, MAX_CONCURRENT_NS_REQUESTS, NAMESPACE_CHANGE_DEBOUNCE_MS } from "./utils";
 import { toKubeliError, getErrorMessage } from "../../types/errors";
 import type { KubeliError } from "../../types/errors";
@@ -21,6 +22,8 @@ export function useK8sResource<T>(
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
   const isConnected = useClusterStore((s) => s.isConnected);
+  // False while the window is hidden or unfocused: pollers and watches pause
+  const active = useAppActive();
   const selectedNamespaces = useClusterStore((s) => s.selectedNamespaces);
   const namespaceSource = useClusterStore((s) => s.namespaceSource);
   const configuredNamespaces = useClusterStore((s) => s.namespaces);
@@ -320,16 +323,22 @@ export function useK8sResource<T>(
     autoRefreshPausedRef.current = false;
   }, [cacheKey, getCache]);
 
-  // Initial fetch
+  // Initial fetch, repeated once when the app comes back from idle
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && active) {
       refresh();
     }
-  }, [isConnected, refresh]);
+  }, [isConnected, active, refresh]);
 
-  // Auto-refresh (disabled while watching or paused due to non-retryable error)
+  // Idle: drop the watch streams. The auto-watch effect below brings them
+  // back once the app is active again and the resume fetch has landed.
   useEffect(() => {
-    if (!options.autoRefresh || !isConnected || isWatching || autoRefreshPausedRef.current) return;
+    if (!active) stopWatchFn();
+  }, [active, stopWatchFn]);
+
+  // Auto-refresh (disabled while watching, idle, or paused due to non-retryable error)
+  useEffect(() => {
+    if (!options.autoRefresh || !isConnected || !active || isWatching || autoRefreshPausedRef.current) return;
     const interval = setInterval(
       refresh,
       options.refreshInterval || config.defaultRefreshInterval || 30000
@@ -339,6 +348,7 @@ export function useK8sResource<T>(
     options.autoRefresh,
     options.refreshInterval,
     isConnected,
+    active,
     refresh,
     isWatching,
     config.defaultRefreshInterval,
@@ -378,7 +388,7 @@ export function useK8sResource<T>(
 
   // Auto-start watch if enabled (skip if paused due to non-retryable error)
   useEffect(() => {
-    if (!options.autoWatch || !isConnected || isWatching || watchIds.length > 0 || isLoading) return;
+    if (!options.autoWatch || !isConnected || !active || isWatching || watchIds.length > 0 || isLoading) return;
     if (!config.supportsWatch || autoRefreshPausedRef.current) return;
 
     const retryUntil = watchRetryUntilRef.current;
@@ -389,7 +399,7 @@ export function useK8sResource<T>(
     }, delay);
 
     return () => clearTimeout(timer);
-  }, [options.autoWatch, isConnected, isWatching, isLoading, watchIds, config.supportsWatch, startWatch]);
+  }, [options.autoWatch, isConnected, active, isWatching, isLoading, watchIds, config.supportsWatch, startWatch]);
 
   // Cleanup watches on unmount
   useEffect(() => {
