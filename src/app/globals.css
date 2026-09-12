@@ -785,41 +785,50 @@ body {
   height: 0 !important;
 }
 
-/* Custom scrollbar styles */
-::-webkit-scrollbar {
+/* Custom scrollbar styles.
+   Only on Windows and Linux: styling ::-webkit-scrollbar at all opts WebKit out
+   of the macOS overlay scrollbars and ignores the user's "Show scroll bars"
+   preference, so macOS (and the web build without a platform class) keeps the
+   native ones. */
+:root:is(.platform-windows, .platform-linux)::-webkit-scrollbar,
+:root:is(.platform-windows, .platform-linux) ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
 }
 
-::-webkit-scrollbar-track {
+:root:is(.platform-windows, .platform-linux)::-webkit-scrollbar-track,
+:root:is(.platform-windows, .platform-linux) ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
+:root:is(.platform-windows, .platform-linux)::-webkit-scrollbar-thumb,
+:root:is(.platform-windows, .platform-linux) ::-webkit-scrollbar-thumb {
   background: oklch(0 0 0 / 20%);
   border-radius: 5px;
   border: 2px solid transparent;
   background-clip: content-box;
 }
 
-::-webkit-scrollbar-thumb:hover {
+:root:is(.platform-windows, .platform-linux)::-webkit-scrollbar-thumb:hover,
+:root:is(.platform-windows, .platform-linux) ::-webkit-scrollbar-thumb:hover {
   background: oklch(0 0 0 / 35%);
   background-clip: content-box;
 }
 
-::-webkit-scrollbar-corner {
+:root:is(.platform-windows, .platform-linux)::-webkit-scrollbar-corner,
+:root:is(.platform-windows, .platform-linux) ::-webkit-scrollbar-corner {
   background: transparent;
 }
 
 /* Dark mode scrollbar styles */
-.dark ::-webkit-scrollbar-thumb,
-.classic-dark ::-webkit-scrollbar-thumb {
+:root:is(.platform-windows, .platform-linux):is(.dark, .classic-dark)::-webkit-scrollbar-thumb,
+:root:is(.platform-windows, .platform-linux):is(.dark, .classic-dark) ::-webkit-scrollbar-thumb {
   background: oklch(1 0 0 / 20%);
   background-clip: content-box;
 }
 
-.dark ::-webkit-scrollbar-thumb:hover,
-.classic-dark ::-webkit-scrollbar-thumb:hover {
+:root:is(.platform-windows, .platform-linux):is(.dark, .classic-dark)::-webkit-scrollbar-thumb:hover,
+:root:is(.platform-windows, .platform-linux):is(.dark, .classic-dark) ::-webkit-scrollbar-thumb:hover {
   background: oklch(1 0 0 / 35%);
   background-clip: content-box;
 }
