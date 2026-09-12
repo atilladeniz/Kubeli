@@ -107,6 +107,42 @@ export function parseSecretFromYaml(yaml: string): { type: string; data: Record<
   }
 }
 
+/** ConfigMap data as text plus its binaryData as base64 */
+export interface ConfigMapData {
+  data: Record<string, string>;
+  binaryData: Record<string, string>;
+}
+
+/**
+ * Reads data and binaryData out of a ConfigMap's YAML.
+ *
+ * Goes through the real YAML parser because ConfigMap values are usually
+ * block scalars (whole config files), which a line-based scan cannot follow.
+ */
+export function parseConfigMapFromYaml(yaml: string): ConfigMapData | null {
+  try {
+    const doc = parseYaml(yaml) as
+      | { data?: Record<string, unknown>; binaryData?: Record<string, unknown> }
+      | null;
+    if (!doc || typeof doc !== "object") return null;
+
+    const toStrings = (map: unknown): Record<string, string> => {
+      if (!map || typeof map !== "object") return {};
+      const out: Record<string, string> = {};
+      for (const [key, value] of Object.entries(map as Record<string, unknown>)) {
+        // Unquoted scalars come back typed (numbers, booleans, null); the
+        // view only ever shows text, so everything becomes a string here.
+        out[key] = value === null || value === undefined ? "" : String(value);
+      }
+      return out;
+    };
+
+    return { data: toStrings(doc.data), binaryData: toStrings(doc.binaryData) };
+  } catch {
+    return null;
+  }
+}
+
 /** Decode a base64 string, returning original if invalid */
 export function decodeBase64(value: string): string {
   try {
