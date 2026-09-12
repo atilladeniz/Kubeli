@@ -24,3 +24,4 @@ export { hpaColumns, limitRangeColumns, resourceQuotaColumns, pdbColumns } from 
 
 // Extensions
 export { helmReleaseColumns, getHelmReleaseColumns, fluxKustomizationColumns, argoCDApplicationColumns } from "./extensions";
+export { validatingAdmissionPolicyColumns, validatingAdmissionPolicyBindingColumns, MatchSummaryCell, ValidationActionBadges } from "./admission";

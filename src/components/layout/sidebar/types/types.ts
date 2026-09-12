@@ -60,6 +60,8 @@ export type KnownResourceType =
   | "runtime-classes"
   | "mutating-webhooks"
   | "validating-webhooks"
+  | "admission-policies"
+  | "admission-policy-bindings"
   // Special views
   | "pod-logs"
   | "deployment-logs";

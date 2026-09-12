@@ -3,6 +3,11 @@ import type { Column, TranslateFunc } from "../types";
 // Column label to translation key mapping
 const columnLabelToKey: Record<string, string> = {
   "NAME": "columns.name",
+  "MATCHES": "columns.matches",
+  "VALIDATIONS": "columns.validations",
+  "BINDINGS": "columns.bindings",
+  "POLICY": "columns.policy",
+  "PARAMS": "columns.params",
   "NAMESPACE": "columns.namespace",
   "READY": "columns.ready",
   "STATUS": "columns.status",

@@ -66,6 +66,8 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Syn
         crate::commands::resources::list_runtime_classes,
         crate::commands::resources::list_mutating_webhooks,
         crate::commands::resources::list_validating_webhooks,
+        crate::commands::resources::list_validating_admission_policies,
+        crate::commands::resources::list_validating_admission_policy_bindings,
         crate::commands::resources::get_pod,
         crate::commands::resources::reveal_env_var,
         crate::commands::certificates::parse_certificate,

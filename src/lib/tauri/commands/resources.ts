@@ -36,6 +36,8 @@ import type {
   StatefulSetInfo,
   StorageClassInfo,
   ValidatingWebhookInfo,
+  ValidatingAdmissionPolicyInfo,
+  ValidatingAdmissionPolicyBindingInfo,
   VolumeAttachmentInfo,
   ClusterRoleInfo,
   ClusterRoleBindingInfo,
@@ -238,6 +240,20 @@ export async function listMutatingWebhooks(): Promise<MutatingWebhookInfo[]> {
 
 export async function listValidatingWebhooks(): Promise<ValidatingWebhookInfo[]> {
   return invoke<ValidatingWebhookInfo[]>("list_validating_webhooks");
+}
+
+export async function listValidatingAdmissionPolicies(): Promise<
+  ValidatingAdmissionPolicyInfo[]
+> {
+  return invoke<ValidatingAdmissionPolicyInfo[]>("list_validating_admission_policies");
+}
+
+export async function listValidatingAdmissionPolicyBindings(): Promise<
+  ValidatingAdmissionPolicyBindingInfo[]
+> {
+  return invoke<ValidatingAdmissionPolicyBindingInfo[]>(
+    "list_validating_admission_policy_bindings"
+  );
 }
 
 export async function getPod(name: string, namespace: string): Promise<PodInfo> {

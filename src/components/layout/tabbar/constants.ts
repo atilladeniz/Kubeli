@@ -45,4 +45,6 @@ export const RESOURCE_I18N_KEYS: Record<string, [string, string]> = {
   "runtime-classes": ["administration", "runtimeClasses"],
   "mutating-webhooks": ["administration", "mutatingWebhooks"],
   "validating-webhooks": ["administration", "validatingWebhooks"],
+  "admission-policies": ["administration", "admissionPolicies"],
+  "admission-policy-bindings": ["administration", "admissionPolicyBindings"],
 };
