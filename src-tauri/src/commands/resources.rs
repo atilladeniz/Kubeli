@@ -1,3 +1,4 @@
+use crate::commands::metrics::{parse_cpu_to_nanocores, parse_memory_to_bytes};
 use crate::error::KubeliError;
 use crate::k8s::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -391,6 +392,90 @@ pub struct NodeInfo {
     pub labels: HashMap<String, String>,
     pub internal_ip: Option<String>,
     pub external_ip: Option<String>,
+    /// Pods scheduled on this node, excluding terminated ones
+    pub pods_scheduled: i32,
+    /// Pods the kubelet accepts, from status.allocatable
+    pub pods_allocatable: Option<i32>,
+    /// Sum of the container requests of the counted pods, in millicores
+    pub cpu_requests_milli: u64,
+    /// status.allocatable cpu in millicores
+    pub cpu_allocatable_milli: u64,
+    /// Sum of the container requests of the counted pods, in bytes
+    pub memory_requests_bytes: u64,
+    /// status.allocatable memory in bytes
+    pub memory_allocatable_bytes: u64,
+}
+
+/// What a node currently has scheduled on it.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct NodeAllocation {
+    pub pods: i32,
+    pub cpu_requests_milli: u64,
+    pub memory_requests_bytes: u64,
+}
+
+/// A pod counts against its node until it reaches a terminal phase. Succeeded
+/// and Failed pods (evictions land in Failed) still exist in the API but hold
+/// no resources on the kubelet, so counting them would overstate every node.
+fn pod_holds_node_resources(pod: &Pod) -> bool {
+    !matches!(
+        pod.status.as_ref().and_then(|s| s.phase.as_deref()),
+        Some("Succeeded") | Some("Failed")
+    )
+}
+
+/// Sums pods and their container requests per node name, from one pod list.
+///
+/// Init containers run before the app containers, so the effective request of
+/// a pod is the larger of "the biggest init container" and "all app containers
+/// together" - the same rule the scheduler applies.
+pub fn allocations_by_node(pods: &[Pod]) -> HashMap<String, NodeAllocation> {
+    let mut by_node: HashMap<String, NodeAllocation> = HashMap::new();
+
+    for pod in pods.iter().filter(|p| pod_holds_node_resources(p)) {
+        let spec = match pod.spec.as_ref() {
+            Some(spec) => spec,
+            None => continue,
+        };
+        let node = match spec.node_name.as_deref() {
+            Some(node) if !node.is_empty() => node,
+            _ => continue,
+        };
+
+        let sum_containers = |containers: &[k8s_openapi::api::core::v1::Container]| {
+            containers.iter().fold((0u64, 0u64), |(cpu, mem), c| {
+                let requests = c.resources.as_ref().and_then(|r| r.requests.as_ref());
+                let cpu_req = requests
+                    .and_then(|r| r.get("cpu"))
+                    .map(|q| parse_cpu_to_nanocores(&q.0) / 1_000_000)
+                    .unwrap_or(0);
+                let mem_req = requests
+                    .and_then(|r| r.get("memory"))
+                    .map(|q| parse_memory_to_bytes(&q.0))
+                    .unwrap_or(0);
+                (cpu + cpu_req, mem + mem_req)
+            })
+        };
+
+        let (app_cpu, app_mem) = sum_containers(&spec.containers);
+        let (init_cpu, init_mem) = spec
+            .init_containers
+            .as_deref()
+            .map(|inits| {
+                inits.iter().fold((0u64, 0u64), |(cpu, mem), c| {
+                    let (c_cpu, c_mem) = sum_containers(std::slice::from_ref(c));
+                    (cpu.max(c_cpu), mem.max(c_mem))
+                })
+            })
+            .unwrap_or((0, 0));
+
+        let entry = by_node.entry(node.to_string()).or_default();
+        entry.pods += 1;
+        entry.cpu_requests_milli += app_cpu.max(init_cpu);
+        entry.memory_requests_bytes += app_mem.max(init_mem);
+    }
+
+    by_node
 }
 
 /// List parameters for filtering resources
@@ -733,10 +818,22 @@ pub async fn list_secrets(
 pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, KubeliError> {
     let client = state.k8s.get_client().await?;
 
-    let nodes: Api<Node> = Api::all(client);
+    let nodes: Api<Node> = Api::all(client.clone());
     let list_params = ListParams::default();
 
     let node_list = nodes.list(&list_params).await?;
+
+    // One pod list for every node: the alternative is a request per node.
+    // A pod list the user may not read (RBAC) must not fail the node list,
+    // so the columns stay empty instead.
+    let pod_api: Api<Pod> = Api::all(client);
+    let allocations = match pod_api.list(&ListParams::default()).await {
+        Ok(pods) => allocations_by_node(&pods.items),
+        Err(e) => {
+            tracing::warn!("Node allocation unavailable, listing pods failed: {e}");
+            HashMap::new()
+        }
+    };
 
     let node_infos: Vec<NodeInfo> = node_list
         .items
@@ -792,9 +889,15 @@ pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, Kub
 
             // Get capacity
             let capacity = status.capacity.unwrap_or_default();
+            // Allocatable is what the scheduler actually has to hand out;
+            // capacity includes what the kubelet reserves for itself.
+            let allocatable = status.allocatable.unwrap_or_default();
+
+            let name = metadata.name.unwrap_or_default();
+            let allocation = allocations.get(&name).copied().unwrap_or_default();
 
             NodeInfo {
-                name: metadata.name.unwrap_or_default(),
+                name,
                 uid: metadata.uid.unwrap_or_default(),
                 status: node_status,
                 unschedulable,
@@ -816,6 +919,20 @@ pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, Kub
                 labels,
                 internal_ip,
                 external_ip,
+                pods_scheduled: allocation.pods,
+                pods_allocatable: allocatable
+                    .get("pods")
+                    .and_then(|q| q.0.parse::<i32>().ok()),
+                cpu_requests_milli: allocation.cpu_requests_milli,
+                cpu_allocatable_milli: allocatable
+                    .get("cpu")
+                    .map(|q| parse_cpu_to_nanocores(&q.0) / 1_000_000)
+                    .unwrap_or(0),
+                memory_requests_bytes: allocation.memory_requests_bytes,
+                memory_allocatable_bytes: allocatable
+                    .get("memory")
+                    .map(|q| parse_memory_to_bytes(&q.0))
+                    .unwrap_or(0),
             }
         })
         .collect();
@@ -4979,6 +5096,138 @@ mod tests {
             labels,
             annotations,
         }
+    }
+
+    fn alloc_pod(
+        node: Option<&str>,
+        phase: &str,
+        containers: Vec<(&str, &str)>,
+        init: Vec<(&str, &str)>,
+    ) -> Pod {
+        use k8s_openapi::api::core::v1::{Container, PodSpec, PodStatus, ResourceRequirements};
+        use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
+        use std::collections::BTreeMap;
+
+        let build = |list: Vec<(&str, &str)>, prefix: &str| -> Vec<Container> {
+            list.into_iter()
+                .enumerate()
+                .map(|(i, (cpu, mem))| {
+                    let mut requests = BTreeMap::new();
+                    requests.insert("cpu".to_string(), Quantity(cpu.to_string()));
+                    requests.insert("memory".to_string(), Quantity(mem.to_string()));
+                    Container {
+                        name: format!("{prefix}-{i}"),
+                        resources: Some(ResourceRequirements {
+                            requests: Some(requests),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }
+                })
+                .collect()
+        };
+
+        Pod {
+            spec: Some(PodSpec {
+                node_name: node.map(|n| n.to_string()),
+                containers: build(containers, "app"),
+                init_containers: if init.is_empty() {
+                    None
+                } else {
+                    Some(build(init, "init"))
+                },
+                ..Default::default()
+            }),
+            status: Some(PodStatus {
+                phase: Some(phase.to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_allocations_by_node_sums_running_pods() {
+        let pods = vec![
+            alloc_pod(
+                Some("node-a"),
+                "Running",
+                vec![("100m", "128Mi"), ("250m", "256Mi")],
+                vec![],
+            ),
+            alloc_pod(Some("node-a"), "Pending", vec![("1", "1Gi")], vec![]),
+            alloc_pod(Some("node-b"), "Running", vec![("500m", "512Mi")], vec![]),
+        ];
+
+        let by_node = allocations_by_node(&pods);
+
+        let a = by_node.get("node-a").unwrap();
+        assert_eq!(a.pods, 2);
+        assert_eq!(a.cpu_requests_milli, 100 + 250 + 1000);
+        assert_eq!(
+            a.memory_requests_bytes,
+            (128 + 256) * 1024 * 1024 + 1024 * 1024 * 1024
+        );
+
+        let b = by_node.get("node-b").unwrap();
+        assert_eq!(b.pods, 1);
+        assert_eq!(b.cpu_requests_milli, 500);
+    }
+
+    #[test]
+    fn test_allocations_by_node_excludes_terminated_and_unscheduled() {
+        let pods = vec![
+            alloc_pod(Some("node-a"), "Running", vec![("100m", "128Mi")], vec![]),
+            // Succeeded and Failed (an eviction lands in Failed) hold nothing
+            alloc_pod(Some("node-a"), "Succeeded", vec![("500m", "512Mi")], vec![]),
+            alloc_pod(Some("node-a"), "Failed", vec![("500m", "512Mi")], vec![]),
+            // Not scheduled yet
+            alloc_pod(None, "Pending", vec![("500m", "512Mi")], vec![]),
+        ];
+
+        let by_node = allocations_by_node(&pods);
+
+        let a = by_node.get("node-a").unwrap();
+        assert_eq!(a.pods, 1);
+        assert_eq!(a.cpu_requests_milli, 100);
+        assert_eq!(by_node.len(), 1);
+    }
+
+    #[test]
+    fn test_allocations_by_node_init_containers_take_the_maximum() {
+        // The scheduler charges the larger of "biggest init container" and
+        // "all app containers together", never the sum of both.
+        let big_init = vec![alloc_pod(
+            Some("node-a"),
+            "Running",
+            vec![("100m", "128Mi")],
+            vec![("2", "1Gi"), ("500m", "256Mi")],
+        )];
+        let a = allocations_by_node(&big_init);
+        let a = a.get("node-a").unwrap();
+        assert_eq!(a.cpu_requests_milli, 2000);
+        assert_eq!(a.memory_requests_bytes, 1024 * 1024 * 1024);
+
+        let small_init = vec![alloc_pod(
+            Some("node-a"),
+            "Running",
+            vec![("1", "512Mi"), ("1", "512Mi")],
+            vec![("100m", "64Mi")],
+        )];
+        let b = allocations_by_node(&small_init);
+        let b = b.get("node-a").unwrap();
+        assert_eq!(b.cpu_requests_milli, 2000);
+        assert_eq!(b.memory_requests_bytes, 1024 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_allocations_by_node_pod_without_requests_counts_as_zero() {
+        let pods = vec![alloc_pod(Some("node-a"), "Running", vec![], vec![])];
+        let by_node = allocations_by_node(&pods);
+        let a = by_node.get("node-a").unwrap();
+        assert_eq!(a.pods, 1);
+        assert_eq!(a.cpu_requests_milli, 0);
+        assert_eq!(a.memory_requests_bytes, 0);
     }
 
     #[test]

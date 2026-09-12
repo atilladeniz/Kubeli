@@ -1191,6 +1191,8 @@
     "maxUnavailable": "MAX NICHT VERFÜGBAR",
     "allowed": "ERLAUBT",
     "pods": "PODS",
+    "cpuRequests": "CPU-ANFORDERUNGEN",
+    "memoryRequests": "SPEICHER-ANFORDERUNGEN",
     "capacity": "KAPAZITÄT",
     "accessModes": "ZUGRIFFSMODI",
     "reclaimPolicy": "RÜCKGEW.-RICHTL.",
