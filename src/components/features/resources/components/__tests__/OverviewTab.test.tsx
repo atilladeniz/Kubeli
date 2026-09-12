@@ -4,6 +4,7 @@ import { OverviewTab } from "../OverviewTab";
 import { getPod } from "@/lib/tauri/commands";
 import type { ResourceData } from "../../types";
 import type { PodInfo } from "@/lib/types";
+import { useUIStore } from "@/lib/stores/ui-store";
 
 jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -171,5 +172,27 @@ describe("OverviewTab set image action", () => {
     // The containers section itself still renders
     expect(screen.getByText("web")).toBeInTheDocument();
     expect(screen.queryByText("workloads.setImage")).toBeNull();
+  });
+});
+
+describe("OverviewTab metadata section", () => {
+  beforeEach(() => {
+    useUIStore.getState().updateSettings({ overviewMetadataCollapsed: false });
+  });
+
+  it("collapses on click and remembers it across remounts", async () => {
+    (getPod as jest.Mock).mockResolvedValue(makePodInfo());
+
+    const { unmount } = render(<OverviewTab resource={resource} resourceType="pod" />);
+    expect(screen.getByText("pod-uid")).toBeTruthy();
+
+    await userEvent.click(screen.getByRole("button", { name: /resourceDetail.metadata/ }));
+
+    expect(screen.queryByText("pod-uid")).toBeNull();
+    expect(useUIStore.getState().settings.overviewMetadataCollapsed).toBe(true);
+
+    unmount();
+    render(<OverviewTab resource={resource} resourceType="pod" />);
+    expect(screen.queryByText("pod-uid")).toBeNull();
   });
 });

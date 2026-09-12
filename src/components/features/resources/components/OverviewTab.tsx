@@ -2,8 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 
-import { Info, Tag, Activity } from "lucide-react";
+import { Info, Tag, Activity, ChevronDown, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useUIStore } from "@/lib/stores/ui-store";
 import { useTranslations } from "next-intl";
 import { useLocale } from "@/components/providers/I18nProvider";
 import { MetadataItem } from "./MetadataItem";
@@ -53,6 +55,8 @@ interface OverviewTabProps {
 export function OverviewTab({ resource, resourceType, onNavigateToOwner, onSetImage }: OverviewTabProps) {
   const t = useTranslations();
   const locale = useLocale();
+  const metadataCollapsed = useUIStore((s) => s.settings.overviewMetadataCollapsed);
+  const updateSettings = useUIStore((s) => s.updateSettings);
   const resourceKey = `${resourceType}-${resource.name}-${resource.namespace}`;
 
   const [containerData, setContainerData] = useState<{
@@ -125,12 +129,27 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner, onSetIm
     <div className="h-full overflow-y-auto">
       <div className="p-4 space-y-6">
         {/* Metadata Section */}
-        <section>
-          <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-            <Info className="size-4" />
-            {t("resourceDetail.metadata")}
-          </h3>
-          <div className="grid grid-cols-2 gap-4 text-sm">
+        <Collapsible
+          asChild
+          open={!metadataCollapsed}
+          onOpenChange={(open) => updateSettings({ overviewMetadataCollapsed: !open })}
+        >
+          <section>
+            <CollapsibleTrigger asChild>
+              <button
+                type="button"
+                className="text-sm font-semibold mb-3 flex items-center gap-2 w-full text-left group"
+              >
+                <Info className="size-4" />
+                {t("resourceDetail.metadata")}
+                {metadataCollapsed ? (
+                  <ChevronRight className="size-4 text-muted-foreground group-hover:text-foreground" />
+                ) : (
+                  <ChevronDown className="size-4 text-muted-foreground group-hover:text-foreground" />
+                )}
+              </button>
+            </CollapsibleTrigger>
+            <CollapsibleContent className="grid grid-cols-2 gap-4 text-sm">
             <MetadataItem label={t("common.name")} value={resource.name} />
             {resource.namespace && (
               <MetadataItem
@@ -154,8 +173,9 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner, onSetIm
             {resource.kind && (
               <MetadataItem label={t("common.type")} value={resource.kind} />
             )}
-          </div>
-        </section>
+            </CollapsibleContent>
+          </section>
+        </Collapsible>
 
         {/* Owner References Section */}
         {resource.ownerReferences && resource.ownerReferences.length > 0 && onNavigateToOwner && (

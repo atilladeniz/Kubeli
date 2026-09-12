@@ -60,6 +60,9 @@ export interface AppSettings {
 
   // Home screen
   clusterViewLayout: "grid" | "list";
+
+  // Resource detail: metadata section folded away in the overview
+  overviewMetadataCollapsed: boolean;
 }
 
 export const defaultSettings: AppSettings = {
@@ -86,6 +89,7 @@ export const defaultSettings: AppSettings = {
   proxyPassword: "",
   aiCliProvider: "claude",
   clusterViewLayout: "grid",
+  overviewMetadataCollapsed: false,
 };
 
 interface UIState {
