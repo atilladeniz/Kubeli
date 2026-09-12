@@ -337,7 +337,7 @@ export interface ContainerInfo {
   last_finished_at: string | null;
   env_vars: ContainerEnvVar[];
   ports: ContainerPortInfo[];
-  probes: ContainerProbe[];
+  probes?: ContainerProbe[];
 }
 
 export type ProbeKind = "liveness" | "readiness" | "startup";
@@ -585,7 +585,7 @@ export interface EventInvolvedObject {
   namespace: string | null;
   uid: string | null;
   /** e.g. "spec.containers{app}" for kubelet probe events */
-  field_path: string | null;
+  field_path?: string | null;
 }
 
 export interface EventInfo {
