@@ -48,14 +48,26 @@ function getExitCodeKey(code: number): { key: string; params?: Record<string, nu
   }
 }
 
-function StateIcon({ state }: { state: string }) {
+/**
+ * A container that exited normally (reason "Completed", exit code 0) is not a failure.
+ * Init containers and Job pods end up here by design, so they must not be painted red.
+ */
+export function isBenignTermination(reason?: string | null, exitCode?: number | null): boolean {
+  return reason === "Completed" || exitCode === 0;
+}
+
+function StateIcon({ state, reason }: { state: string; reason?: string | null }) {
   switch (state) {
     case "Running":
       return <CheckCircle2 className="size-4 text-green-500" />;
     case "Waiting":
       return <Clock className="size-4 text-yellow-500" />;
     case "Terminated":
-      return <XCircle className="size-4 text-red-500" />;
+      return isBenignTermination(reason) ? (
+        <CheckCircle2 className="size-4 text-muted-foreground" />
+      ) : (
+        <XCircle className="size-4 text-red-500" />
+      );
     default:
       return <Box className="size-4 text-muted-foreground" />;
   }
@@ -63,6 +75,8 @@ function StateIcon({ state }: { state: string }) {
 
 function StateBadge({ state, reason }: { state: string; reason?: string | null }) {
   const displayText = reason ? `${state}: ${reason}` : state;
+  const terminated = state === "Terminated";
+  const benign = terminated && isBenignTermination(reason);
 
   return (
     <Badge
@@ -71,7 +85,8 @@ function StateBadge({ state, reason }: { state: string; reason?: string | null }
         "font-mono text-xs border-0",
         state === "Running" && "bg-green-500/10 text-green-500",
         state === "Waiting" && "bg-yellow-500/10 text-yellow-500",
-        state === "Terminated" && "bg-destructive/10 text-destructive"
+        terminated && !benign && "bg-destructive/10 text-destructive",
+        benign && "bg-muted text-muted-foreground"
       )}
     >
       {displayText}
@@ -258,7 +273,7 @@ function ContainerCard({
     <div className="rounded-lg border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <StateIcon state={container.state} />
+          <StateIcon state={container.state} reason={container.state_reason} />
           <span className="font-medium">{container.name}</span>
           {!container.ready && container.state === "Running" && (
             <Badge variant="outline" className="text-yellow-500 border-yellow-500/50">
@@ -307,7 +322,14 @@ function ContainerCard({
             {container.last_state_reason && (
               <div>
                 <span className="text-muted-foreground">{t("common.reason")}: </span>
-                <span className="font-medium text-red-400">
+                <span
+                  className={cn(
+                    "font-medium",
+                    isBenignTermination(container.last_state_reason, container.last_exit_code)
+                      ? "text-muted-foreground"
+                      : "text-red-400"
+                  )}
+                >
                   {container.last_state_reason}
                 </span>
               </div>
