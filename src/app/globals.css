@@ -180,6 +180,8 @@
 }
 
 :root {
+  /* Native form controls and overlay scrollbars follow the active theme. */
+  color-scheme: light;
   --font-geist-sans: "Inter Variable", "Inter", "Segoe UI", "Helvetica Neue", Arial, sans-serif;
   --font-geist-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
   --radius: 0.625rem;
@@ -217,6 +219,7 @@
 }
 
 .dark {
+  color-scheme: dark;
   --background: #1f1f1f;
   --foreground: oklch(0.985 0 0);
   --card: #2a2a2a;
@@ -251,6 +254,7 @@
 }
 
 .classic-dark {
+  color-scheme: dark;
   --background: #191a22;
   --foreground: oklch(0.92 0 0);
   --card: #1e1f28;
