@@ -38,6 +38,8 @@ export interface K8sEvent {
   count: number;
   lastTimestamp?: string;
   firstTimestamp?: string;
+  /** Sub-object the event refers to, e.g. "spec.containers{app}" */
+  fieldPath?: string;
 }
 
 export interface NavigationPathEntry {

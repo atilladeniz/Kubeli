@@ -188,6 +188,7 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner, onSetIm
             initContainers={initContainers}
             containers={containers}
             namespace={resource.namespace ?? ""}
+            events={resource.events}
           />
         )}
 

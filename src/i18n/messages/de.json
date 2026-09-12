@@ -1062,7 +1062,13 @@
     "scheduling": "Scheduling",
     "serviceAccount": "Service Account",
     "nodeSelector": "Node Selector",
-    "tolerations": "Tolerations"
+    "tolerations": "Tolerations",
+    "probes": "Probes",
+    "probeLiveness": "Liveness",
+    "probeReadiness": "Readiness",
+    "probeStartup": "Startup",
+    "probeFailures": "{count, plural, one {# Fehlschlag} other {# Fehlschläge}}",
+    "probeTiming": "Verzögerung {delay}s · alle {period}s · Timeout {timeout}s · Fehler nach {failure} · OK nach {success}"
   },
   "createResource": {
     "title": "Ressource erstellen",
