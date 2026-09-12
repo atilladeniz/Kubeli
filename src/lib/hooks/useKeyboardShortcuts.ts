@@ -111,33 +111,3 @@ export function useKeyboardShortcuts(
 
   return { pendingKey };
 }
-
-/**
- * Standard navigation shortcuts
- */
-export const NAVIGATION_SHORTCUTS = {
-  GOTO_PODS: "g p",
-  GOTO_DEPLOYMENTS: "g d",
-  GOTO_SERVICES: "g s",
-  GOTO_NODES: "g n",
-  GOTO_OVERVIEW: "g o",
-  GOTO_DIAGRAM: "g r",
-  GOTO_CONFIGMAPS: "g c",
-  GOTO_SECRETS: "g e",
-  GOTO_NAMESPACES: "g a",
-  FOCUS_SEARCH: "/",
-  REFRESH: "r",
-  HELP: "?",
-  TOGGLE_AI: "g i",
-  CREATE_RESOURCE: "n",
-  // Favorite shortcuts (Cmd+1 through Cmd+9)
-  FAVORITE_1: "1",
-  FAVORITE_2: "2",
-  FAVORITE_3: "3",
-  FAVORITE_4: "4",
-  FAVORITE_5: "5",
-  FAVORITE_6: "6",
-  FAVORITE_7: "7",
-  FAVORITE_8: "8",
-  FAVORITE_9: "9",
-} as const;
