@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { persist, createJSONStorage } from "zustand/middleware";
 import type { Cluster, ConnectionStatus, HealthCheckResult, NamespaceSource } from "../types";
 import { type KubeliError, toKubeliError, getErrorMessage } from "../types/errors";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
@@ -74,6 +75,10 @@ interface ClusterState {
   autoReconnectEnabled: boolean;
   lastConnectedContext: string | null;
   maxReconnectAttempts: number;
+  /** Namespace selection of the last connection, restored by reconnectOnStartup */
+  lastSelectedNamespaces: string[];
+  /** Context a startup reconnect is currently connecting to (drives the home banner) */
+  startupReconnectContext: string | null;
 
   // Actions
   fetchClusters: () => Promise<void>;
@@ -113,6 +118,9 @@ interface ClusterState {
   attemptReconnect: (isRetry?: boolean) => Promise<boolean>;
   setAutoReconnect: (enabled: boolean) => void;
   resetReconnectAttempts: () => void;
+  /** Reconnect to the persisted last cluster if the startup setting asks for it */
+  reconnectOnStartup: () => Promise<void>;
+  cancelStartupReconnect: () => void;
 }
 
 // Calculate exponential backoff delay
@@ -127,7 +135,9 @@ const getBackoffDelay = (attempt: number, baseDelay = 1000, maxDelay = 30000): n
 export const selectCurrentNamespace = (s: Pick<ClusterState, "selectedNamespaces">): string =>
   s.selectedNamespaces.length === 1 ? s.selectedNamespaces[0] : "";
 
-export const useClusterStore = create<ClusterState>((set, get) => ({
+export const useClusterStore = create<ClusterState>()(
+  persist(
+    (set, get) => ({
   clusters: [],
   currentCluster: null,
   selectedNamespaces: [],
@@ -163,6 +173,8 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
   autoReconnectEnabled: true,
   lastConnectedContext: null,
   maxReconnectAttempts: 5,
+  lastSelectedNamespaces: [],
+  startupReconnectContext: null,
 
   fetchClusters: async () => {
     set({ isLoading: true, error: null });
@@ -811,4 +823,47 @@ export const useClusterStore = create<ClusterState>((set, get) => ({
 
   setAutoReconnect: (enabled) => set({ autoReconnectEnabled: enabled }),
   resetReconnectAttempts: () => set({ reconnectAttempts: 0, isReconnecting: false }),
-}));
+
+  reconnectOnStartup: async () => {
+    const { lastConnectedContext, lastSelectedNamespaces } = get();
+    if (!lastConnectedContext || get().isConnected || get().oidcPendingContext) return;
+    if (useUIStore.getState().settings.startupBehavior !== "reconnect") return;
+
+    set({ startupReconnectContext: lastConnectedContext });
+    try {
+      if (get().clusters.length === 0) await get().fetchClusters();
+      if (!get().clusters.some((c) => c.context === lastConnectedContext)) {
+        // Context is gone from the kubeconfig: show the selector, nothing to report
+        set({ lastConnectedContext: null });
+        return;
+      }
+      const status = await get().connect(lastConnectedContext);
+      if (status.connected && get().currentCluster?.context === lastConnectedContext) {
+        const known = get().namespaces;
+        const restored = known.length
+          ? lastSelectedNamespaces.filter((ns) => known.includes(ns))
+          : lastSelectedNamespaces;
+        if (restored.length > 0) set({ selectedNamespaces: restored });
+      }
+    } finally {
+      set({ startupReconnectContext: null });
+    }
+  },
+
+  cancelStartupReconnect: () => {
+    set({ startupReconnectContext: null });
+    get().cancelConnect();
+  },
+    }),
+    {
+      name: "kubeli-cluster",
+      storage: createJSONStorage(() => localStorage),
+      // Only what the next launch needs. While connected, snapshot the live
+      // namespace selection so it comes back with the cluster.
+      partialize: (s) => ({
+        lastConnectedContext: s.lastConnectedContext,
+        lastSelectedNamespaces: s.isConnected ? s.selectedNamespaces : s.lastSelectedNamespaces,
+      }),
+    }
+  )
+);
