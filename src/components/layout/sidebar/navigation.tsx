@@ -49,6 +49,7 @@ import {
 
 import type { NavSection } from "./types/types";
 import type { CRDInfo } from "@/lib/types";
+import { ArgoCDLogo } from "./logos";
 
 const iconClass = "size-4 shrink-0";
 
@@ -92,7 +93,7 @@ export function useNavigationSections(crds: CRDInfo[] = []): NavSection[] {
             ? [{ id: "flux-kustomizations" as const, label: "Flux", icon: <GitBranch className={iconClass} /> }]
             : []),
           ...(showArgoCD
-            ? [{ id: "argocd-applications" as const, label: "ArgoCD", icon: <GitBranch className={iconClass} /> }]
+            ? [{ id: "argocd-applications" as const, label: "ArgoCD", icon: <ArgoCDLogo className={iconClass} /> }]
             : []),
         ],
       },
