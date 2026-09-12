@@ -59,4 +59,63 @@ describe("useKeyboardShortcuts", () => {
     // and call setState on an unmounted component.
     expect(jest.getTimerCount()).toBe(0);
   });
+  describe("mod shortcuts", () => {
+    const press = (key: string, init: KeyboardEventInit) => {
+      act(() => {
+        window.dispatchEvent(new KeyboardEvent("keydown", { key, ...init }));
+      });
+    };
+
+    it("fires with Ctrl on Windows/Linux and with Cmd on macOS", () => {
+      const handler = jest.fn();
+      renderHook(() =>
+        useKeyboardShortcuts([{ key: "t", mod: true, handler, description: "new tab" }])
+      );
+
+      // Regression: meta-only configs never matched a Ctrl press, so every
+      // Cmd shortcut was dead on Windows and Linux.
+      press("t", { ctrlKey: true });
+      expect(handler).toHaveBeenCalledTimes(1);
+
+      press("t", { metaKey: true });
+      expect(handler).toHaveBeenCalledTimes(2);
+    });
+
+    it("does not fire without a modifier", () => {
+      const handler = jest.fn();
+      renderHook(() =>
+        useKeyboardShortcuts([{ key: "t", mod: true, handler, description: "new tab" }])
+      );
+
+      press("t", {});
+      expect(handler).not.toHaveBeenCalled();
+    });
+
+    it("respects shift for mod shortcuts", () => {
+      const next = jest.fn();
+      const prev = jest.fn();
+      renderHook(() =>
+        useKeyboardShortcuts([
+          { key: "Tab", mod: true, handler: next, description: "next tab" },
+          { key: "Tab", mod: true, shift: true, handler: prev, description: "previous tab" },
+        ])
+      );
+
+      press("Tab", { ctrlKey: true });
+      press("Tab", { ctrlKey: true, shiftKey: true });
+      expect(next).toHaveBeenCalledTimes(1);
+      expect(prev).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps plain shortcuts from firing while a modifier is held", () => {
+      const handler = jest.fn();
+      renderHook(() =>
+        useKeyboardShortcuts([{ key: "r", handler, description: "refresh" }])
+      );
+
+      press("r", { ctrlKey: true });
+      press("r", { metaKey: true });
+      expect(handler).not.toHaveBeenCalled();
+    });
+  });
 });
