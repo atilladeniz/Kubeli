@@ -104,8 +104,8 @@ export function Sidebar({
     isNavFavorite,
     toggleNavFavorite,
   } = useSidebarUiState();
-  const navigationSections = useNavigationSections();
   const { data: crds } = useCRDs();
+  const navigationSections = useNavigationSections(crds);
   const customResourceGroups = useMemo(() => groupCustomResources(crds), [crds]);
   const { modKeySymbol } = usePlatform();
   const sidebarRef = useRef<HTMLElement>(null);
