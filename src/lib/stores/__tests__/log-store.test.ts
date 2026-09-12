@@ -31,6 +31,7 @@ function makeTabState(): LogTabState {
     scrollTop: 0,
     autoScroll: true,
     ended: null,
+    waiting: null,
   };
 }
 
@@ -160,6 +161,46 @@ describe("log-store stream resume", () => {
       "gap line",
       "live line",
     ]);
+  });
+});
+
+describe("log-store waiting container", () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockStreamPodLogs.mockResolvedValue(undefined);
+    useLogStore.setState({ logTabs: { tab1: makeTabState() } });
+  });
+
+  // Regression: a container still in ContainerCreating made the stream fail
+  // with an error banner. The backend now waits and reports why.
+  it("shows the waiting reason until the container runs", async () => {
+    await useLogStore.getState().startStream("tab1", "default", "my-pod");
+    const listener = (listen as jest.Mock).mock.calls.at(-1)?.[1] as (event: {
+      payload: unknown;
+    }) => void;
+
+    listener({
+      payload: { type: "Waiting", data: { stream_id: "s", reason: "ContainerCreating" } },
+    });
+    expect(useLogStore.getState().logTabs.tab1.waiting).toBe("ContainerCreating");
+    expect(useLogStore.getState().logTabs.tab1.error).toBeNull();
+
+    listener({ payload: { type: "Waiting", data: { stream_id: "s", reason: null } } });
+    expect(useLogStore.getState().logTabs.tab1.waiting).toBeNull();
+  });
+
+  it("clears the waiting state when the stream stops", async () => {
+    await useLogStore.getState().startStream("tab1", "default", "my-pod");
+    const listener = (listen as jest.Mock).mock.calls.at(-1)?.[1] as (event: {
+      payload: unknown;
+    }) => void;
+
+    listener({
+      payload: { type: "Waiting", data: { stream_id: "s", reason: "ImagePullBackOff" } },
+    });
+    listener({ payload: { type: "Stopped", data: { stream_id: "s" } } });
+
+    expect(useLogStore.getState().logTabs.tab1.waiting).toBeNull();
   });
 });
 

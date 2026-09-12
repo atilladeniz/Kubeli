@@ -18,6 +18,8 @@ export interface UseLogsReturn {
   startStream: (options?: Omit<LogOptions, "namespace" | "pod_name">) => Promise<void>;
   /** Set when a running stream ended; the viewer offers a reconnect */
   ended: { reason: string | null } | null;
+  /** Set while the stream waits for a container that is not running yet */
+  waiting: string | null;
   /** Resumes the stream from where it left off, without re-fetching history */
   reconnect: () => Promise<void>;
   stopStream: () => Promise<void>;
@@ -54,6 +56,7 @@ export function useLogs(
 
   const error = tab?.error ?? null;
   const ended = tab?.ended ?? null;
+  const waiting = tab?.waiting ?? null;
 
   const reconnect = useCallback(async () => {
     const s = store();
@@ -152,6 +155,7 @@ export function useLogs(
     isStreaming: tab?.isStreaming ?? false,
     error,
     ended,
+    waiting,
     reconnect,
     containers: tab?.containers ?? [],
     selectedContainer,

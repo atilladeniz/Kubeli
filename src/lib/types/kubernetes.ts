@@ -141,7 +141,7 @@ export interface LogOptions {
   previous?: boolean;
 }
 
-export type LogEventType = "Line" | "Lines" | "Error" | "Ended" | "Started" | "Stopped";
+export type LogEventType = "Line" | "Lines" | "Error" | "Ended" | "Started" | "Stopped" | "Waiting";
 
 export type LogEvent =
   | { type: "Line"; data: LogEntry }
@@ -149,7 +149,9 @@ export type LogEvent =
   | { type: "Error"; data: KubeliError }
   | { type: "Ended"; data: { stream_id: string; reason: string | null } }
   | { type: "Started"; data: { stream_id: string } }
-  | { type: "Stopped"; data: { stream_id: string } };
+  | { type: "Stopped"; data: { stream_id: string } }
+  /** Container not running yet; `reason: null` means the wait is over */
+  | { type: "Waiting"; data: { stream_id: string; reason: string | null } };
 
 export interface ShellSession {
   id: string;

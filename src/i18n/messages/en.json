@@ -468,6 +468,7 @@
     "streamDropped": "Connection dropped.",
     "streamPodDeleted": "Pod has been deleted.",
     "reconnect": "Reconnect",
+    "waitingForContainer": "Waiting for the container to start ({reason})",
     "streamingActive": "Streaming active",
     "fetchLogs": "Fetch logs",
     "analyzeWithAI": "Analyze with AI",

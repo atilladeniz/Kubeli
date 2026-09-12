@@ -28,6 +28,8 @@ export interface LogTabState {
    * offers a reconnect instead of showing a failure.
    */
   ended: { reason: string | null } | null;
+  /** Why the container cannot serve logs yet (ContainerCreating, ...) */
+  waiting: string | null;
 }
 
 function defaultLogTabState(): LogTabState {
@@ -42,6 +44,7 @@ function defaultLogTabState(): LogTabState {
     scrollTop: 0,
     autoScroll: true,
     ended: null,
+    waiting: null,
   };
 }
 
@@ -300,7 +303,7 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
     set((s) => ({
       logTabs: {
         ...s.logTabs,
-        [tabId]: { ...s.logTabs[tabId], streamId, error: null, ended: null },
+        [tabId]: { ...s.logTabs[tabId], streamId, error: null, ended: null, waiting: null },
       },
     }));
 
@@ -385,7 +388,19 @@ export const useLogStore = create<LogStoreState>((set, get) => ({
               return {
                 logTabs: {
                   ...s.logTabs,
-                  [tabId]: { ...t, isStreaming: false, streamId: null },
+                  [tabId]: { ...t, isStreaming: false, streamId: null, waiting: null },
+                },
+              };
+            });
+            break;
+          case "Waiting":
+            set((s) => {
+              const t = s.logTabs[tabId];
+              if (!t) return {};
+              return {
+                logTabs: {
+                  ...s.logTabs,
+                  [tabId]: { ...t, waiting: logEvent.data.reason },
                 },
               };
             });
