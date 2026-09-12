@@ -11,6 +11,11 @@ jest.mock("@/lib/hooks/useK8sResources", () => ({
   useDeployments: () => ({ data: [] }),
   useServices: () => ({ data: [] }),
   useNodes: () => ({ data: [] }),
+  useEvents: () => ({ data: [] }),
+}));
+
+jest.mock("../../context/ResourceDetailContext", () => ({
+  useResourceDetail: () => ({ openResourceDetail: jest.fn() }),
 }));
 
 jest.mock("@/lib/hooks/useMetrics", () => ({
