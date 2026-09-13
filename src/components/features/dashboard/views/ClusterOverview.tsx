@@ -9,6 +9,7 @@ import {
   useDeployments,
   useServices,
   useNodes,
+  useEvents,
 } from "@/lib/hooks/useK8sResources";
 import { getEffectivePodStatus } from "../../resources/columns";
 import { useClusterMetrics } from "@/lib/hooks/useMetrics";
@@ -16,6 +17,7 @@ import { MetricsRefreshButton } from "../components/MetricsRefreshButton";
 import { SummaryCard } from "../components/SummaryCard";
 import { StatusRow } from "../components/StatusRow";
 import { MetricsProgressBar } from "../components/MetricsProgressBar";
+import { RecentWarningsPanel } from "../components/RecentActivityPanels";
 
 export function ClusterOverview() {
   const t = useTranslations();
@@ -24,6 +26,7 @@ export function ClusterOverview() {
   const { data: deployments } = useDeployments();
   const { data: services } = useServices();
   const { data: nodes } = useNodes();
+  const { data: events } = useEvents({ autoRefresh: true });
   const {
     summary: metrics,
     metricsAvailable,
@@ -162,6 +165,12 @@ export function ClusterOverview() {
             <StatusRow label={t("metrics.notReady")} value={nodes.length - readyNodes} color="red" />
           </CardContent>
         </Card>
+      </div>
+
+      {/* Recent activity: cluster-scoped objects only, the workloads overview
+          covers the namespaced ones */}
+      <div className="mb-6 @2xl:mb-8">
+        <RecentWarningsPanel events={events} scope="cluster" />
       </div>
 
       {/* Top Resource Consumers */}

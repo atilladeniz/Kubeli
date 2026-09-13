@@ -1,4 +1,4 @@
-import { render } from "@testing-library/react";
+import { fireEvent, render } from "@testing-library/react";
 import { ResourceTable } from "../ResourceTable";
 import type { Column, ContextMenuItemDef } from "../../types";
 
@@ -123,5 +123,164 @@ describe("ResourceTable virtualization", () => {
     expect(numeric).toEqual(
       Array.from({ length: numeric.length }, (_, i) => numeric[0] + i)
     );
+  });
+});
+
+describe("ResourceTable keyboard navigation", () => {
+  const grid = (container: HTMLElement) =>
+    container.querySelector("[role='grid']") as HTMLElement;
+
+  const focusedRow = (container: HTMLElement) =>
+    container.querySelector("tbody tr[data-focused]") as HTMLElement | null;
+
+  const press = (container: HTMLElement, key: string) =>
+    fireEvent.keyDown(grid(container), { key });
+
+  it("exposes the grid as a single tab stop", () => {
+    const { container } = render(<ResourceTable {...baseProps} data={makeItems(5)} />);
+
+    expect(grid(container)).toHaveAttribute("tabindex", "0");
+    // Per-row tab stops would put thousands of entries in the tab order
+    const rowTabStops = container.querySelectorAll("tbody tr[tabindex]");
+    expect(rowTabStops).toHaveLength(0);
+  });
+
+  it("enters at the first row and steps with the arrow keys", () => {
+    const { container } = render(<ResourceTable {...baseProps} data={makeItems(5)} />);
+
+    expect(focusedRow(container)).toBeNull();
+
+    press(container, "ArrowDown");
+    expect(focusedRow(container)?.textContent).toContain("pod-0");
+
+    press(container, "ArrowDown");
+    expect(focusedRow(container)?.textContent).toContain("pod-1");
+
+    press(container, "ArrowUp");
+    expect(focusedRow(container)?.textContent).toContain("pod-0");
+  });
+
+  it("does not move past the first row", () => {
+    const { container } = render(<ResourceTable {...baseProps} data={makeItems(5)} />);
+
+    press(container, "ArrowDown");
+    press(container, "ArrowUp");
+    press(container, "ArrowUp");
+    expect(focusedRow(container)?.textContent).toContain("pod-0");
+  });
+
+  it("jumps to the first row with Home", () => {
+    const { container } = render(<ResourceTable {...baseProps} data={makeItems(20)} />);
+
+    press(container, "ArrowDown");
+    press(container, "ArrowDown");
+    press(container, "ArrowDown");
+    press(container, "Home");
+    expect(focusedRow(container)?.textContent).toContain("pod-0");
+  });
+
+  it("points aria-activedescendant at the focused row", () => {
+    const { container } = render(<ResourceTable {...baseProps} data={makeItems(5)} />);
+
+    press(container, "ArrowDown");
+    const active = grid(container).getAttribute("aria-activedescendant");
+    expect(active).toBe("row-pod-0");
+    expect(focusedRow(container)).toHaveAttribute("id", active!);
+  });
+
+  it("opens the focused row with Enter", () => {
+    const onRowClick = jest.fn();
+    const { container } = render(
+      <ResourceTable {...baseProps} data={makeItems(5)} onRowClick={onRowClick} />
+    );
+
+    press(container, "Enter");
+    expect(onRowClick).not.toHaveBeenCalled();
+
+    press(container, "ArrowDown");
+    press(container, "ArrowDown");
+    press(container, "Enter");
+    expect(onRowClick).toHaveBeenCalledWith({ name: "pod-1", status: "Running" });
+  });
+
+  it("ignores the keys while the user is typing", () => {
+    const onRowClick = jest.fn();
+    const { container } = render(
+      <ResourceTable {...baseProps} data={makeItems(5)} onRowClick={onRowClick} />
+    );
+
+    const input = document.createElement("input");
+    grid(container).appendChild(input);
+
+    fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(focusedRow(container)).toBeNull();
+
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(onRowClick).not.toHaveBeenCalled();
+  });
+
+  it("focuses the row that was clicked", () => {
+    const onRowClick = jest.fn();
+    const { container } = render(
+      <ResourceTable {...baseProps} data={makeItems(5)} onRowClick={onRowClick} />
+    );
+
+    const rows = dataRows(container);
+    fireEvent.click(rows[2]);
+
+    expect(focusedRow(container)?.textContent).toContain("pod-2");
+
+    // Arrow keys continue from the clicked row
+    press(container, "ArrowDown");
+    expect(focusedRow(container)?.textContent).toContain("pod-3");
+  });
+
+  it("keeps the focus on the same resource when rows reorder", () => {
+    const items = makeItems(5);
+    const { container, rerender } = render(
+      <ResourceTable {...baseProps} data={items} />
+    );
+
+    press(container, "ArrowDown");
+    press(container, "ArrowDown");
+    expect(focusedRow(container)?.textContent).toContain("pod-1");
+
+    // A watch update moves pod-1 to the front
+    const reordered = [items[1], items[0], ...items.slice(2)];
+    rerender(<ResourceTable {...baseProps} data={reordered} />);
+
+    expect(focusedRow(container)?.textContent).toContain("pod-1");
+    expect(focusedRow(container)?.getAttribute("data-index")).toBe("0");
+  });
+
+  it("keeps a position when the focused row is deleted", () => {
+    const items = makeItems(5);
+    const { container, rerender } = render(
+      <ResourceTable {...baseProps} data={items} />
+    );
+
+    press(container, "ArrowDown");
+    press(container, "ArrowDown");
+    expect(focusedRow(container)?.textContent).toContain("pod-1");
+
+    rerender(
+      <ResourceTable {...baseProps} data={items.filter((i) => i.name !== "pod-1")} />
+    );
+
+    // Focus does not jump back to the top of the list
+    expect(focusedRow(container)?.textContent).toContain("pod-2");
+  });
+
+  it("clears the focus when the table empties", () => {
+    const { container, rerender } = render(
+      <ResourceTable {...baseProps} data={makeItems(5)} />
+    );
+
+    press(container, "ArrowDown");
+    expect(focusedRow(container)).not.toBeNull();
+
+    rerender(<ResourceTable {...baseProps} data={[]} />);
+    expect(focusedRow(container)).toBeNull();
+    expect(grid(container).getAttribute("aria-activedescendant")).toBeNull();
   });
 });

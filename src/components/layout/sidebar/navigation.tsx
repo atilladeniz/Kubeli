@@ -48,12 +48,25 @@ import {
 } from "lucide-react";
 
 import type { NavSection } from "./types/types";
+import type { CRDInfo } from "@/lib/types";
+import { ArgoCDLogo } from "./logos";
 
 const iconClass = "size-4 shrink-0";
 
-// Hook to get translated navigation sections
-export function useNavigationSections(): NavSection[] {
+/** Flux installs its CRDs under *.toolkit.fluxcd.io */
+export const hasFluxCRDs = (crds: CRDInfo[]) =>
+  crds.some((crd) => crd.group.endsWith("toolkit.fluxcd.io"));
+
+/** ArgoCD's Application CRD lives in argoproj.io */
+export const hasArgoCDCRDs = (crds: CRDInfo[]) =>
+  crds.some((crd) => crd.group === "argoproj.io" && crd.kind === "Application");
+
+// Hook to get translated navigation sections. Flux and ArgoCD entries only
+// show up when the cluster has their CRDs; Helm needs none and is always there.
+export function useNavigationSections(crds: CRDInfo[] = []): NavSection[] {
   const t = useTranslations("navigation");
+  const showFlux = hasFluxCRDs(crds);
+  const showArgoCD = hasArgoCDCRDs(crds);
 
   return useMemo(
     () => [
@@ -71,22 +84,18 @@ export function useNavigationSections(): NavSection[] {
         ],
       },
       {
-        id: "helm",
-        title: t("helm"),
-        icon: <Package className="size-4" />,
-        items: [{ id: "helm-releases", label: t("releases"), icon: <Package className={iconClass} /> }],
-      },
-      {
-        id: "flux",
-        title: "Flux",
+        id: "gitops",
+        title: t("gitops"),
         icon: <GitBranch className="size-4" />,
-        items: [{ id: "flux-kustomizations", label: "Kustomizations", icon: <GitBranch className={iconClass} /> }],
-      },
-      {
-        id: "argocd",
-        title: "ArgoCD",
-        icon: <GitBranch className="size-4" />,
-        items: [{ id: "argocd-applications", label: t("applications"), icon: <GitBranch className={iconClass} /> }],
+        items: [
+          { id: "helm-releases", label: t("helm"), icon: <Package className={iconClass} /> },
+          ...(showFlux
+            ? [{ id: "flux-kustomizations" as const, label: "Flux", icon: <GitBranch className={iconClass} /> }]
+            : []),
+          ...(showArgoCD
+            ? [{ id: "argocd-applications" as const, label: "ArgoCD", icon: <ArgoCDLogo className={iconClass} /> }]
+            : []),
+        ],
       },
       {
         id: "workloads",
@@ -171,6 +180,6 @@ export function useNavigationSections(): NavSection[] {
         ],
       },
     ],
-    [t],
+    [t, showFlux, showArgoCD],
   );
 }

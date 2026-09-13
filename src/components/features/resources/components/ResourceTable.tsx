@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import {
@@ -27,6 +27,12 @@ import { Checkbox } from "@/components/ui/checkbox";
 import type { Column, ContextMenuItemDef, SortDirection } from "../types";
 import { ResourceActionsMenu } from "./ResourceActionsMenu";
 import { renderMenuItems, type MenuSlots } from "./menu-items";
+import {
+  isNavigationKey,
+  isTypingTarget,
+  nextFocusIndex,
+  reconcileFocusIndex,
+} from "./table-navigation";
 
 const contextMenuSlots: MenuSlots = {
   Item: ContextMenuItem,
@@ -66,11 +72,13 @@ interface ResourceTableRowProps<T> {
   measureRef: (el: HTMLElement | null) => void;
   columns: Column<T>[];
   isSelected: boolean;
+  isFocused: boolean;
   namespace?: string;
   rowClassName?: string;
   hasBulkActions: boolean;
   isFixed: boolean;
   onRowClick?: (item: T) => void;
+  onFocusRow?: (index: number) => void;
   contextMenuItems?: (item: T) => ContextMenuItemDef[];
   onToggleSelect: (key: string) => void;
 }
@@ -82,11 +90,13 @@ function ResourceTableRowInner<T>({
   measureRef,
   columns,
   isSelected,
+  isFocused,
   namespace,
   rowClassName,
   hasBulkActions,
   isFixed,
   onRowClick,
+  onFocusRow,
   contextMenuItems,
   onToggleSelect,
 }: ResourceTableRowProps<T>) {
@@ -97,12 +107,21 @@ function ResourceTableRowInner<T>({
     <TableRow
       ref={measureRef}
       data-index={dataIndex}
-      onClick={() => onRowClick?.(item)}
+      id={`row-${itemKey}`}
+      data-focused={isFocused || undefined}
+      aria-selected={isFocused}
+      onClick={() => {
+        onFocusRow?.(dataIndex);
+        onRowClick?.(item);
+      }}
       className={cn(
         onRowClick && "cursor-pointer",
         namespaceColor && "border-l-4",
         namespaceColor?.borderLeft,
         isSelected && "bg-muted/50",
+        // The ring sits inside the row: an outline would be clipped by the
+        // scroll container on the first and last visible rows.
+        isFocused && "bg-accent/40 ring-1 ring-inset ring-primary/60",
         rowClassName
       )}
     >
@@ -189,7 +208,11 @@ export function ResourceTable<T>({
 
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // eslint-disable-next-line react-hooks/incompatible-library -- informational: compiler skips this component ("use no memo")
+  // The focused row is an index, not DOM focus: the virtualizer unmounts rows
+  // that scroll out of the window, and an unmounted element cannot hold focus.
+  const [focusedIndex, setFocusedIndex] = useState<number | null>(null);
+  const focusedKeyRef = useRef<string | null>(null);
+
   const virtualizer = useVirtualizer({
     count: data.length,
     getScrollElement: () => scrollRef.current,
@@ -204,6 +227,56 @@ export function ResourceTable<T>({
     // estimate until a real height is available.
     measureElement: (el) => el.getBoundingClientRect().height || ROW_HEIGHT,
   });
+
+  // Follow the focused resource through watch updates that reorder or remove
+  // rows, so the focus stays on what the user was looking at.
+  const rowKeys = data.map(getRowKey);
+  const rowKeysSignature = rowKeys.join("\u0000");
+  useEffect(() => {
+    setFocusedIndex((previous) => {
+      const next = reconcileFocusIndex(focusedKeyRef.current, rowKeys, previous);
+      focusedKeyRef.current = next === null ? null : rowKeys[next];
+      return next;
+    });
+    // rowKeys is recreated every render; its content is what matters
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowKeysSignature]);
+
+  const moveFocus = useCallback(
+    (index: number | null) => {
+      setFocusedIndex(index);
+      focusedKeyRef.current = index === null ? null : rowKeys[index] ?? null;
+      if (index !== null) {
+        // The row may be outside the virtual window, so scroll before the
+        // effect below tries to put DOM focus on it.
+        virtualizer.scrollToIndex(index, { align: "auto" });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rowKeysSignature, virtualizer]
+  );
+
+  const handleKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLDivElement>) => {
+      if (isTypingTarget(event.target)) return;
+
+      if (isNavigationKey(event.key)) {
+        const next = nextFocusIndex(event.key, focusedIndex, data.length);
+        if (next === null) return;
+        event.preventDefault();
+        moveFocus(next);
+        return;
+      }
+
+      if (event.key === "Enter" && focusedIndex !== null && onRowClick) {
+        const item = data[focusedIndex];
+        if (!item) return;
+        event.preventDefault();
+        onRowClick(item);
+      }
+    },
+    [data, focusedIndex, moveFocus, onRowClick]
+  );
 
   const virtualRows = virtualizer.getVirtualItems();
   const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
@@ -224,7 +297,18 @@ export function ResourceTable<T>({
     // can't renegotiate widths as rows scroll through the virtual window.
     <div
       ref={scrollRef}
-      className="h-full overflow-auto overscroll-none"
+      className="h-full overflow-auto overscroll-none focus:outline-none"
+      // The container holds the tab stop, not the rows: with virtualization a
+      // per-row tabIndex would put thousands of stops in the tab order.
+      tabIndex={0}
+      role="grid"
+      aria-rowcount={data.length}
+      aria-activedescendant={
+        focusedIndex !== null && rowKeys[focusedIndex]
+          ? `row-${rowKeys[focusedIndex]}`
+          : undefined
+      }
+      onKeyDown={handleKeyDown}
     >
       {/* table-fixed only when columns declare widths: widths then come from the
           headers, not per-row content, so variable action buttons can't jitter
@@ -301,11 +385,13 @@ export function ResourceTable<T>({
                 itemKey={itemKey}
                 columns={columns}
                 isSelected={selectedKeys.has(itemKey)}
+                isFocused={virtualRow.index === focusedIndex}
                 namespace={getRowNamespace?.(item)}
                 rowClassName={getRowClassName?.(item)}
                 hasBulkActions={hasBulkActions}
                 isFixed={hasFixedWidths}
                 onRowClick={onRowClick}
+                onFocusRow={moveFocus}
                 contextMenuItems={contextMenuItems}
                 onToggleSelect={onToggleSelect}
               />

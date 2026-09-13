@@ -19,6 +19,12 @@ function createNode(overrides: Partial<NodeInfo> = {}): NodeInfo {
     labels: {},
     internal_ip: "10.0.0.10",
     external_ip: null,
+    pods_scheduled: 0,
+    pods_allocatable: 110,
+    cpu_requests_milli: 0,
+    cpu_allocatable_milli: 4000,
+    memory_requests_bytes: 0,
+    memory_allocatable_bytes: 8 * 1024 ** 3,
     ...overrides,
   };
 }

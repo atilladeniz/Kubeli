@@ -1,3 +1,4 @@
+use crate::commands::metrics::{parse_cpu_to_nanocores, parse_memory_to_bytes};
 use crate::error::KubeliError;
 use crate::k8s::AppState;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine};
@@ -159,7 +160,7 @@ pub fn extract_container_info(
         })
         .unwrap_or_default();
 
-    let ports = container
+    let ports: Vec<ContainerPortInfo> = container
         .ports
         .as_ref()
         .map(|ps| {
@@ -184,8 +185,88 @@ pub fn extract_container_info(
         last_state_reason,
         last_exit_code,
         last_finished_at,
+        probes: extract_probes(container, &ports),
         env_vars,
         ports,
+    }
+}
+
+/// Collects the container's probes in the order they matter for startup.
+fn extract_probes(
+    container: &k8s_openapi::api::core::v1::Container,
+    ports: &[ContainerPortInfo],
+) -> Vec<ContainerProbe> {
+    [
+        ("startup", &container.startup_probe),
+        ("readiness", &container.readiness_probe),
+        ("liveness", &container.liveness_probe),
+    ]
+    .into_iter()
+    .filter_map(|(kind, probe)| probe.as_ref().map(|p| probe_info(kind, p, ports)))
+    .collect()
+}
+
+fn probe_info(
+    kind: &str,
+    probe: &k8s_openapi::api::core::v1::Probe,
+    ports: &[ContainerPortInfo],
+) -> ContainerProbe {
+    use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+
+    let resolve = |port: &IntOrString| -> (Option<u16>, Option<String>) {
+        match port {
+            IntOrString::Int(n) => (u16::try_from(*n).ok(), None),
+            IntOrString::String(name) => (
+                ports
+                    .iter()
+                    .find(|p| p.name.as_deref() == Some(name.as_str()))
+                    .map(|p| p.container_port),
+                Some(name.clone()),
+            ),
+        }
+    };
+
+    let (handler, target, (port, port_name)) = if let Some(http) = &probe.http_get {
+        let handler = if http.scheme.as_deref() == Some("HTTPS") {
+            "https"
+        } else {
+            "http"
+        };
+        (
+            handler,
+            Some(http.path.clone().unwrap_or_else(|| "/".to_string())),
+            resolve(&http.port),
+        )
+    } else if let Some(tcp) = &probe.tcp_socket {
+        ("tcp", None, resolve(&tcp.port))
+    } else if let Some(grpc) = &probe.grpc {
+        (
+            "grpc",
+            grpc.service.clone(),
+            (u16::try_from(grpc.port).ok(), None),
+        )
+    } else if let Some(exec) = &probe.exec {
+        (
+            "exec",
+            exec.command.as_ref().map(|c| c.join(" ")),
+            (None, None),
+        )
+    } else {
+        ("unknown", None, (None, None))
+    };
+
+    // Defaults as documented for corev1.Probe
+    ContainerProbe {
+        kind: kind.to_string(),
+        handler: handler.to_string(),
+        target,
+        port,
+        port_name,
+        initial_delay_seconds: probe.initial_delay_seconds.unwrap_or(0),
+        period_seconds: probe.period_seconds.unwrap_or(10),
+        timeout_seconds: probe.timeout_seconds.unwrap_or(1),
+        success_threshold: probe.success_threshold.unwrap_or(1),
+        failure_threshold: probe.failure_threshold.unwrap_or(3),
     }
 }
 
@@ -306,6 +387,28 @@ pub struct ContainerInfo {
     pub last_finished_at: Option<String>,
     pub env_vars: Vec<ContainerEnvVar>,
     pub ports: Vec<ContainerPortInfo>,
+    pub probes: Vec<ContainerProbe>,
+}
+
+/// A liveness, readiness or startup probe of a container, with the port
+/// already resolved so the UI never has to look up named ports itself.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContainerProbe {
+    /// "liveness", "readiness" or "startup"
+    pub kind: String,
+    /// "http", "https", "tcp", "grpc" or "exec"
+    pub handler: String,
+    /// HTTP path, gRPC service or the exec command line
+    pub target: Option<String>,
+    /// Port number; a named port is resolved through the container's ports
+    pub port: Option<u16>,
+    /// The name when the probe referenced a named port
+    pub port_name: Option<String>,
+    pub initial_delay_seconds: i32,
+    pub period_seconds: i32,
+    pub timeout_seconds: i32,
+    pub success_threshold: i32,
+    pub failure_threshold: i32,
 }
 
 /// Deployment-specific information
@@ -391,6 +494,90 @@ pub struct NodeInfo {
     pub labels: HashMap<String, String>,
     pub internal_ip: Option<String>,
     pub external_ip: Option<String>,
+    /// Pods scheduled on this node, excluding terminated ones
+    pub pods_scheduled: i32,
+    /// Pods the kubelet accepts, from status.allocatable
+    pub pods_allocatable: Option<i32>,
+    /// Sum of the container requests of the counted pods, in millicores
+    pub cpu_requests_milli: u64,
+    /// status.allocatable cpu in millicores
+    pub cpu_allocatable_milli: u64,
+    /// Sum of the container requests of the counted pods, in bytes
+    pub memory_requests_bytes: u64,
+    /// status.allocatable memory in bytes
+    pub memory_allocatable_bytes: u64,
+}
+
+/// What a node currently has scheduled on it.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct NodeAllocation {
+    pub pods: i32,
+    pub cpu_requests_milli: u64,
+    pub memory_requests_bytes: u64,
+}
+
+/// A pod counts against its node until it reaches a terminal phase. Succeeded
+/// and Failed pods (evictions land in Failed) still exist in the API but hold
+/// no resources on the kubelet, so counting them would overstate every node.
+fn pod_holds_node_resources(pod: &Pod) -> bool {
+    !matches!(
+        pod.status.as_ref().and_then(|s| s.phase.as_deref()),
+        Some("Succeeded") | Some("Failed")
+    )
+}
+
+/// Sums pods and their container requests per node name, from one pod list.
+///
+/// Init containers run before the app containers, so the effective request of
+/// a pod is the larger of "the biggest init container" and "all app containers
+/// together" - the same rule the scheduler applies.
+pub fn allocations_by_node(pods: &[Pod]) -> HashMap<String, NodeAllocation> {
+    let mut by_node: HashMap<String, NodeAllocation> = HashMap::new();
+
+    for pod in pods.iter().filter(|p| pod_holds_node_resources(p)) {
+        let spec = match pod.spec.as_ref() {
+            Some(spec) => spec,
+            None => continue,
+        };
+        let node = match spec.node_name.as_deref() {
+            Some(node) if !node.is_empty() => node,
+            _ => continue,
+        };
+
+        let sum_containers = |containers: &[k8s_openapi::api::core::v1::Container]| {
+            containers.iter().fold((0u64, 0u64), |(cpu, mem), c| {
+                let requests = c.resources.as_ref().and_then(|r| r.requests.as_ref());
+                let cpu_req = requests
+                    .and_then(|r| r.get("cpu"))
+                    .map(|q| parse_cpu_to_nanocores(&q.0) / 1_000_000)
+                    .unwrap_or(0);
+                let mem_req = requests
+                    .and_then(|r| r.get("memory"))
+                    .map(|q| parse_memory_to_bytes(&q.0))
+                    .unwrap_or(0);
+                (cpu + cpu_req, mem + mem_req)
+            })
+        };
+
+        let (app_cpu, app_mem) = sum_containers(&spec.containers);
+        let (init_cpu, init_mem) = spec
+            .init_containers
+            .as_deref()
+            .map(|inits| {
+                inits.iter().fold((0u64, 0u64), |(cpu, mem), c| {
+                    let (c_cpu, c_mem) = sum_containers(std::slice::from_ref(c));
+                    (cpu.max(c_cpu), mem.max(c_mem))
+                })
+            })
+            .unwrap_or((0, 0));
+
+        let entry = by_node.entry(node.to_string()).or_default();
+        entry.pods += 1;
+        entry.cpu_requests_milli += app_cpu.max(init_cpu);
+        entry.memory_requests_bytes += app_mem.max(init_mem);
+    }
+
+    by_node
 }
 
 /// List parameters for filtering resources
@@ -733,10 +920,22 @@ pub async fn list_secrets(
 pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, KubeliError> {
     let client = state.k8s.get_client().await?;
 
-    let nodes: Api<Node> = Api::all(client);
+    let nodes: Api<Node> = Api::all(client.clone());
     let list_params = ListParams::default();
 
     let node_list = nodes.list(&list_params).await?;
+
+    // One pod list for every node: the alternative is a request per node.
+    // A pod list the user may not read (RBAC) must not fail the node list,
+    // so the columns stay empty instead.
+    let pod_api: Api<Pod> = Api::all(client);
+    let allocations = match pod_api.list(&ListParams::default()).await {
+        Ok(pods) => allocations_by_node(&pods.items),
+        Err(e) => {
+            tracing::warn!("Node allocation unavailable, listing pods failed: {e}");
+            HashMap::new()
+        }
+    };
 
     let node_infos: Vec<NodeInfo> = node_list
         .items
@@ -792,9 +991,15 @@ pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, Kub
 
             // Get capacity
             let capacity = status.capacity.unwrap_or_default();
+            // Allocatable is what the scheduler actually has to hand out;
+            // capacity includes what the kubelet reserves for itself.
+            let allocatable = status.allocatable.unwrap_or_default();
+
+            let name = metadata.name.unwrap_or_default();
+            let allocation = allocations.get(&name).copied().unwrap_or_default();
 
             NodeInfo {
-                name: metadata.name.unwrap_or_default(),
+                name,
                 uid: metadata.uid.unwrap_or_default(),
                 status: node_status,
                 unschedulable,
@@ -816,6 +1021,20 @@ pub async fn list_nodes(state: State<'_, AppState>) -> Result<Vec<NodeInfo>, Kub
                 labels,
                 internal_ip,
                 external_ip,
+                pods_scheduled: allocation.pods,
+                pods_allocatable: allocatable
+                    .get("pods")
+                    .and_then(|q| q.0.parse::<i32>().ok()),
+                cpu_requests_milli: allocation.cpu_requests_milli,
+                cpu_allocatable_milli: allocatable
+                    .get("cpu")
+                    .map(|q| parse_cpu_to_nanocores(&q.0) / 1_000_000)
+                    .unwrap_or(0),
+                memory_requests_bytes: allocation.memory_requests_bytes,
+                memory_allocatable_bytes: allocatable
+                    .get("memory")
+                    .map(|q| parse_memory_to_bytes(&q.0))
+                    .unwrap_or(0),
             }
         })
         .collect();
@@ -2024,6 +2243,8 @@ pub struct EventInvolvedObject {
     pub name: String,
     pub namespace: Option<String>,
     pub uid: Option<String>,
+    /// e.g. "spec.containers{app}" for kubelet probe events
+    pub field_path: Option<String>,
 }
 
 /// Event information
@@ -2090,6 +2311,7 @@ pub async fn list_events(
                     name: involved.name.unwrap_or_default(),
                     namespace: involved.namespace,
                     uid: involved.uid,
+                    field_path: involved.field_path,
                 },
                 count: event.count.unwrap_or(1),
                 first_timestamp: event.first_timestamp.map(|t| t.0.to_string()),
@@ -4981,6 +5203,260 @@ mod tests {
         }
     }
 
+    fn alloc_pod(
+        node: Option<&str>,
+        phase: &str,
+        containers: Vec<(&str, &str)>,
+        init: Vec<(&str, &str)>,
+    ) -> Pod {
+        use k8s_openapi::api::core::v1::{Container, PodSpec, PodStatus, ResourceRequirements};
+        use k8s_openapi::apimachinery::pkg::api::resource::Quantity;
+        use std::collections::BTreeMap;
+
+        let build = |list: Vec<(&str, &str)>, prefix: &str| -> Vec<Container> {
+            list.into_iter()
+                .enumerate()
+                .map(|(i, (cpu, mem))| {
+                    let mut requests = BTreeMap::new();
+                    requests.insert("cpu".to_string(), Quantity(cpu.to_string()));
+                    requests.insert("memory".to_string(), Quantity(mem.to_string()));
+                    Container {
+                        name: format!("{prefix}-{i}"),
+                        resources: Some(ResourceRequirements {
+                            requests: Some(requests),
+                            ..Default::default()
+                        }),
+                        ..Default::default()
+                    }
+                })
+                .collect()
+        };
+
+        Pod {
+            spec: Some(PodSpec {
+                node_name: node.map(|n| n.to_string()),
+                containers: build(containers, "app"),
+                init_containers: if init.is_empty() {
+                    None
+                } else {
+                    Some(build(init, "init"))
+                },
+                ..Default::default()
+            }),
+            status: Some(PodStatus {
+                phase: Some(phase.to_string()),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    fn probe_container(
+        ports: Vec<k8s_openapi::api::core::v1::ContainerPort>,
+    ) -> k8s_openapi::api::core::v1::Container {
+        use k8s_openapi::api::core::v1::{
+            Container, ExecAction, HTTPGetAction, Probe, TCPSocketAction,
+        };
+        use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+        Container {
+            name: "app".into(),
+            ports: Some(ports),
+            liveness_probe: Some(Probe {
+                http_get: Some(HTTPGetAction {
+                    path: Some("/healthz".into()),
+                    port: IntOrString::String("http".into()),
+                    scheme: Some("HTTPS".into()),
+                    ..Default::default()
+                }),
+                initial_delay_seconds: Some(15),
+                failure_threshold: Some(5),
+                ..Default::default()
+            }),
+            readiness_probe: Some(Probe {
+                tcp_socket: Some(TCPSocketAction {
+                    port: IntOrString::Int(5432),
+                    ..Default::default()
+                }),
+                period_seconds: Some(5),
+                ..Default::default()
+            }),
+            startup_probe: Some(Probe {
+                exec: Some(ExecAction {
+                    command: Some(vec!["cat".into(), "/tmp/ready".into()]),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_allocations_by_node_sums_running_pods() {
+        let pods = vec![
+            alloc_pod(
+                Some("node-a"),
+                "Running",
+                vec![("100m", "128Mi"), ("250m", "256Mi")],
+                vec![],
+            ),
+            alloc_pod(Some("node-a"), "Pending", vec![("1", "1Gi")], vec![]),
+            alloc_pod(Some("node-b"), "Running", vec![("500m", "512Mi")], vec![]),
+        ];
+
+        let by_node = allocations_by_node(&pods);
+
+        let a = by_node.get("node-a").unwrap();
+        assert_eq!(a.pods, 2);
+        assert_eq!(a.cpu_requests_milli, 100 + 250 + 1000);
+        assert_eq!(
+            a.memory_requests_bytes,
+            (128 + 256) * 1024 * 1024 + 1024 * 1024 * 1024
+        );
+
+        let b = by_node.get("node-b").unwrap();
+        assert_eq!(b.pods, 1);
+        assert_eq!(b.cpu_requests_milli, 500);
+    }
+
+    #[test]
+    fn test_allocations_by_node_excludes_terminated_and_unscheduled() {
+        let pods = vec![
+            alloc_pod(Some("node-a"), "Running", vec![("100m", "128Mi")], vec![]),
+            // Succeeded and Failed (an eviction lands in Failed) hold nothing
+            alloc_pod(Some("node-a"), "Succeeded", vec![("500m", "512Mi")], vec![]),
+            alloc_pod(Some("node-a"), "Failed", vec![("500m", "512Mi")], vec![]),
+            // Not scheduled yet
+            alloc_pod(None, "Pending", vec![("500m", "512Mi")], vec![]),
+        ];
+
+        let by_node = allocations_by_node(&pods);
+
+        let a = by_node.get("node-a").unwrap();
+        assert_eq!(a.pods, 1);
+        assert_eq!(a.cpu_requests_milli, 100);
+        assert_eq!(by_node.len(), 1);
+    }
+
+    #[test]
+    fn test_allocations_by_node_init_containers_take_the_maximum() {
+        // The scheduler charges the larger of "biggest init container" and
+        // "all app containers together", never the sum of both.
+        let big_init = vec![alloc_pod(
+            Some("node-a"),
+            "Running",
+            vec![("100m", "128Mi")],
+            vec![("2", "1Gi"), ("500m", "256Mi")],
+        )];
+        let a = allocations_by_node(&big_init);
+        let a = a.get("node-a").unwrap();
+        assert_eq!(a.cpu_requests_milli, 2000);
+        assert_eq!(a.memory_requests_bytes, 1024 * 1024 * 1024);
+
+        let small_init = vec![alloc_pod(
+            Some("node-a"),
+            "Running",
+            vec![("1", "512Mi"), ("1", "512Mi")],
+            vec![("100m", "64Mi")],
+        )];
+        let b = allocations_by_node(&small_init);
+        let b = b.get("node-a").unwrap();
+        assert_eq!(b.cpu_requests_milli, 2000);
+        assert_eq!(b.memory_requests_bytes, 1024 * 1024 * 1024);
+    }
+
+    #[test]
+    fn test_allocations_by_node_pod_without_requests_counts_as_zero() {
+        let pods = vec![alloc_pod(Some("node-a"), "Running", vec![], vec![])];
+        let by_node = allocations_by_node(&pods);
+        let a = by_node.get("node-a").unwrap();
+        assert_eq!(a.pods, 1);
+        assert_eq!(a.cpu_requests_milli, 0);
+        assert_eq!(a.memory_requests_bytes, 0);
+    }
+
+    #[test]
+    fn test_extract_probes_resolves_named_port_and_defaults() {
+        use k8s_openapi::api::core::v1::ContainerPort;
+        let container = probe_container(vec![ContainerPort {
+            name: Some("http".into()),
+            container_port: 8080,
+            ..Default::default()
+        }]);
+
+        let probes = extract_probes(
+            &container,
+            &[ContainerPortInfo {
+                name: Some("http".into()),
+                container_port: 8080,
+                protocol: "TCP".into(),
+            }],
+        );
+
+        assert_eq!(
+            probes.iter().map(|p| p.kind.as_str()).collect::<Vec<_>>(),
+            vec!["startup", "readiness", "liveness"]
+        );
+
+        let liveness = &probes[2];
+        assert_eq!(liveness.handler, "https");
+        assert_eq!(liveness.target.as_deref(), Some("/healthz"));
+        assert_eq!(liveness.port, Some(8080));
+        assert_eq!(liveness.port_name.as_deref(), Some("http"));
+        assert_eq!(liveness.initial_delay_seconds, 15);
+        assert_eq!(liveness.failure_threshold, 5);
+        // Defaults for the fields the probe did not set
+        assert_eq!(liveness.period_seconds, 10);
+        assert_eq!(liveness.timeout_seconds, 1);
+        assert_eq!(liveness.success_threshold, 1);
+
+        let readiness = &probes[1];
+        assert_eq!(readiness.handler, "tcp");
+        assert_eq!(readiness.port, Some(5432));
+        assert_eq!(readiness.port_name, None);
+        assert_eq!(readiness.period_seconds, 5);
+
+        let startup = &probes[0];
+        assert_eq!(startup.handler, "exec");
+        assert_eq!(startup.target.as_deref(), Some("cat /tmp/ready"));
+        assert_eq!(startup.port, None);
+    }
+
+    #[test]
+    fn test_extract_probes_unknown_named_port_keeps_the_name() {
+        let container = probe_container(vec![]);
+        let probes = extract_probes(&container, &[]);
+        let liveness = probes.iter().find(|p| p.kind == "liveness").unwrap();
+        assert_eq!(liveness.port, None);
+        assert_eq!(liveness.port_name.as_deref(), Some("http"));
+    }
+
+    #[test]
+    fn test_extract_probes_grpc_and_none() {
+        use k8s_openapi::api::core::v1::{Container, GRPCAction, Probe};
+        let container = Container {
+            name: "grpc".into(),
+            liveness_probe: Some(Probe {
+                grpc: Some(GRPCAction {
+                    port: 9090,
+                    service: Some("health".into()),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let probes = extract_probes(&container, &[]);
+        assert_eq!(probes.len(), 1);
+        assert_eq!(probes[0].handler, "grpc");
+        assert_eq!(probes[0].port, Some(9090));
+        assert_eq!(probes[0].target.as_deref(), Some("health"));
+
+        let none = Container {
+            name: "plain".into(),
+            ..Default::default()
+        };
+        assert!(extract_probes(&none, &[]).is_empty());
+    }
+
     #[test]
     fn test_extract_tolerations_maps_all_fields() {
         let tolerations = vec![
@@ -5195,6 +5671,7 @@ mod tests {
             last_state_reason: None,
             last_exit_code: None,
             last_finished_at: None,
+            probes: vec![],
             env_vars: vec![ContainerEnvVar {
                 name: "DB_PASSWORD".into(),
                 value: None,

@@ -9,6 +9,8 @@ export type Theme = "light" | "dark" | "classic-dark" | "system";
 export type VibrancyLevel = "off" | "standard" | "more" | "extra";
 
 export type PortForwardBrowserBehavior = "ask" | "always" | "never";
+/** "reconnect": connect to the last cluster; "selector": show the cluster list */
+export type StartupBehavior = "reconnect" | "selector";
 
 export type ProxyType = "none" | "system" | "http" | "socks5";
 
@@ -60,6 +62,11 @@ export interface AppSettings {
 
   // Home screen
   clusterViewLayout: "grid" | "list";
+  /** What the home screen does on launch */
+  startupBehavior: StartupBehavior;
+
+  // Resource detail: metadata section folded away in the overview
+  overviewMetadataCollapsed: boolean;
 }
 
 export const defaultSettings: AppSettings = {
@@ -86,6 +93,8 @@ export const defaultSettings: AppSettings = {
   proxyPassword: "",
   aiCliProvider: "claude",
   clusterViewLayout: "grid",
+  startupBehavior: "reconnect",
+  overviewMetadataCollapsed: false,
 };
 
 interface UIState {

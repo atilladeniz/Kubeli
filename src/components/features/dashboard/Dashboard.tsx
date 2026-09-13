@@ -273,6 +273,7 @@ function DashboardContent() {
               count: e.count,
               lastTimestamp: e.last_timestamp ?? undefined,
               firstTimestamp: e.first_timestamp ?? undefined,
+              fieldPath: e.involved_object.field_path ?? undefined,
             })),
           },
         });

@@ -86,6 +86,7 @@
     "administration": "Administration",
     "settings": "Settings",
     "helm": "Helm",
+    "gitops": "GitOps",
     "diagram": "Diagram",
     "favorites": "Favorites",
     "pinnedResources": "Pinned Resources",
@@ -143,6 +144,8 @@
     "soon": "Soon"
   },
   "cluster": {
+    "startupReconnecting": "Reconnecting to {name}…",
+    "startupReconnectCancel": "Cancel",
     "title": "Clusters",
     "add": "Add Cluster",
     "connect": "Connect",
@@ -189,6 +192,14 @@
     "preferKubeconfigAuthError": "Could not change the authentication setting.",
     "useKubeconfigAuthAndReconnect": "Use kubeconfig authentication & reconnect",
     "cancelConnect": "Cancel connecting"
+  },
+  "recent": {
+    "restarts": "Recent restarts ({hours}h)",
+    "noRestarts": "No restarts",
+    "warnings": "Recent warnings ({hours}h)",
+    "noWarnings": "No warnings",
+    "showAll": "Show all {count}",
+    "showLess": "Show less"
   },
   "workloads": {
     "overview": "Workloads Overview",
@@ -315,6 +326,7 @@
     "pdb": "Pod Disruption Budgets",
     "data": "Data",
     "keys": "Keys",
+    "binary": "Binary",
     "type": "Type",
     "minReplicas": "Min Replicas",
     "maxReplicas": "Max Replicas",
@@ -468,6 +480,7 @@
     "streamDropped": "Connection dropped.",
     "streamPodDeleted": "Pod has been deleted.",
     "reconnect": "Reconnect",
+    "waitingForContainer": "Waiting for the container to start ({reason})",
     "streamingActive": "Streaming active",
     "fetchLogs": "Fetch logs",
     "analyzeWithAI": "Analyze with AI",
@@ -677,6 +690,12 @@
       "ask": "Ask",
       "always": "Always",
       "never": "Never"
+    },
+    "startup": {
+      "title": "On startup",
+      "description": "What Kubeli does when it opens",
+      "reconnect": "Reconnect to the last cluster",
+      "selector": "Show the cluster selector"
     },
     "autoInstallUpdates": {
       "title": "Auto Install Updates",
@@ -1062,7 +1081,13 @@
     "scheduling": "Scheduling",
     "serviceAccount": "Service Account",
     "nodeSelector": "Node Selector",
-    "tolerations": "Tolerations"
+    "tolerations": "Tolerations",
+    "probes": "Probes",
+    "probeLiveness": "Liveness",
+    "probeReadiness": "Readiness",
+    "probeStartup": "Startup",
+    "probeFailures": "{count, plural, one {# failure} other {# failures}}",
+    "probeTiming": "delay {delay}s · every {period}s · timeout {timeout}s · fail after {failure} · ok after {success}"
   },
   "createResource": {
     "title": "Create Resource",
@@ -1192,6 +1217,8 @@
     "maxUnavailable": "MAX UNAVAILABLE",
     "allowed": "ALLOWED",
     "pods": "PODS",
+    "cpuRequests": "CPU REQUESTS",
+    "memoryRequests": "MEMORY REQUESTS",
     "capacity": "CAPACITY",
     "accessModes": "ACCESS MODES",
     "reclaimPolicy": "RECLAIM POLICY",

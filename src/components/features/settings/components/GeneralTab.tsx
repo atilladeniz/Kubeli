@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
-import { useUIStore, type PortForwardBrowserBehavior } from "@/lib/stores/ui-store";
+import { useUIStore, type PortForwardBrowserBehavior, type StartupBehavior } from "@/lib/stores/ui-store";
 import { SettingSection } from "./SettingSection";
 
 export function GeneralTab() {
@@ -107,6 +107,30 @@ export function GeneralTab() {
             <SelectItem value="ask">{t("portForwardBrowser.ask")}</SelectItem>
             <SelectItem value="always">{t("portForwardBrowser.always")}</SelectItem>
             <SelectItem value="never">{t("portForwardBrowser.never")}</SelectItem>
+          </SelectContent>
+        </Select>
+      </SettingSection>
+
+      <Separator />
+
+      <SettingSection
+        title={t("startup.title")}
+        description={t("startup.description")}
+      >
+        <Select
+          value={settings.startupBehavior}
+          onValueChange={(value) =>
+            updateSettings({
+              startupBehavior: value as StartupBehavior,
+            })
+          }
+        >
+          <SelectTrigger className="w-auto min-w-48">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="reconnect">{t("startup.reconnect")}</SelectItem>
+            <SelectItem value="selector">{t("startup.selector")}</SelectItem>
           </SelectContent>
         </Select>
       </SettingSection>

@@ -24,6 +24,24 @@ interface EventsTabProps {
   events: K8sEvent[];
 }
 
+/**
+ * Count badge for the Events tab trigger: number of Warning events, hidden
+ * when there are none, so problems show without opening the tab.
+ */
+export function EventsWarningBadge({ events }: { events: K8sEvent[] }) {
+  const count = events.filter((e) => e.type === "Warning").length;
+  if (count === 0) return null;
+  return (
+    <Badge
+      variant="outline"
+      aria-label={`${count} warning events`}
+      className="h-5 min-w-5 border-yellow-500/30 bg-yellow-500/10 px-1.5 text-yellow-500"
+    >
+      {count}
+    </Badge>
+  );
+}
+
 export function EventsTab({ events }: EventsTabProps) {
   const t = useTranslations();
   const locale = useLocale();

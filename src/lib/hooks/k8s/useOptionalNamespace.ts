@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useClusterStore } from "../../stores/cluster-store";
+import { useAppActive } from "../useAppActive";
 import { useResourceCacheStore } from "../../stores/resource-cache-store";
 import { type KubeliError, toKubeliError, getErrorMessage } from "../../types/errors";
 import { pSettledWithLimit, MAX_CONCURRENT_NS_REQUESTS } from "./utils";
@@ -17,6 +18,7 @@ export function useOptionalNamespaceResource<T>(
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
   const isConnected = useClusterStore((s) => s.isConnected);
+  const active = useAppActive();
   const selectedNamespaces = useClusterStore((s) => s.selectedNamespaces);
   const namespaceSource = useClusterStore((s) => s.namespaceSource);
   const configuredNamespaces = useClusterStore((s) => s.namespaces);
@@ -100,17 +102,18 @@ export function useOptionalNamespaceResource<T>(
     setData(getCache<T>(cacheKey));
   }, [cacheKey, getCache]);
 
+  // Initial fetch, repeated once when the app comes back from idle
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && active) {
       refresh();
     }
-  }, [isConnected, refresh]);
+  }, [isConnected, active, refresh]);
 
   useEffect(() => {
-    if (!options.autoRefresh || !isConnected) return;
+    if (!options.autoRefresh || !isConnected || !active) return;
     const interval = setInterval(refresh, options.refreshInterval || 30000);
     return () => clearInterval(interval);
-  }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
+  }, [options.autoRefresh, options.refreshInterval, isConnected, active, refresh]);
 
   const retry = useCallback(async () => {
     setError(null);

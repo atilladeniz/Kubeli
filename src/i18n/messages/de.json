@@ -86,6 +86,7 @@
     "administration": "Administration",
     "settings": "Einstellungen",
     "helm": "Helm",
+    "gitops": "GitOps",
     "diagram": "Diagramm",
     "favorites": "Favoriten",
     "pinnedResources": "Angepinnte Ressourcen",
@@ -143,6 +144,8 @@
     "soon": "Bald"
   },
   "cluster": {
+    "startupReconnecting": "Verbinde erneut mit {name}…",
+    "startupReconnectCancel": "Abbrechen",
     "title": "Cluster",
     "add": "Cluster hinzufügen",
     "connect": "Verbinden",
@@ -189,6 +192,14 @@
     "preferKubeconfigAuthError": "Authentifizierungs-Einstellung konnte nicht geändert werden.",
     "useKubeconfigAuthAndReconnect": "Kubeconfig-Authentifizierung verwenden & neu verbinden",
     "cancelConnect": "Verbinden abbrechen"
+  },
+  "recent": {
+    "restarts": "Letzte Neustarts ({hours}h)",
+    "noRestarts": "Keine Neustarts",
+    "warnings": "Letzte Warnungen ({hours}h)",
+    "noWarnings": "Keine Warnungen",
+    "showAll": "Alle {count} anzeigen",
+    "showLess": "Weniger anzeigen"
   },
   "workloads": {
     "overview": "Workloads-Übersicht",
@@ -315,6 +326,7 @@
     "pdb": "Pod Disruption Budgets",
     "data": "Daten",
     "keys": "Schlüssel",
+    "binary": "Binär",
     "type": "Typ",
     "minReplicas": "Min. Replikate",
     "maxReplicas": "Max. Replikate",
@@ -468,6 +480,7 @@
     "streamDropped": "Verbindung abgebrochen.",
     "streamPodDeleted": "Pod wurde gelöscht.",
     "reconnect": "Erneut verbinden",
+    "waitingForContainer": "Warte auf den Start des Containers ({reason})",
     "streamingActive": "Streaming aktiv",
     "fetchLogs": "Logs abrufen",
     "analyzeWithAI": "Mit KI analysieren",
@@ -677,6 +690,12 @@
       "ask": "Fragen",
       "always": "Immer",
       "never": "Nie"
+    },
+    "startup": {
+      "title": "Beim Start",
+      "description": "Was Kubeli beim Öffnen tut",
+      "reconnect": "Mit dem letzten Cluster verbinden",
+      "selector": "Cluster-Auswahl anzeigen"
     },
     "autoInstallUpdates": {
       "title": "Updates automatisch installieren",
@@ -1062,7 +1081,13 @@
     "scheduling": "Scheduling",
     "serviceAccount": "Service Account",
     "nodeSelector": "Node Selector",
-    "tolerations": "Tolerations"
+    "tolerations": "Tolerations",
+    "probes": "Probes",
+    "probeLiveness": "Liveness",
+    "probeReadiness": "Readiness",
+    "probeStartup": "Startup",
+    "probeFailures": "{count, plural, one {# Fehlschlag} other {# Fehlschläge}}",
+    "probeTiming": "Verzögerung {delay}s · alle {period}s · Timeout {timeout}s · Fehler nach {failure} · OK nach {success}"
   },
   "createResource": {
     "title": "Ressource erstellen",
@@ -1192,6 +1217,8 @@
     "maxUnavailable": "MAX NICHT VERFÜGBAR",
     "allowed": "ERLAUBT",
     "pods": "PODS",
+    "cpuRequests": "CPU-ANFORDERUNGEN",
+    "memoryRequests": "SPEICHER-ANFORDERUNGEN",
     "capacity": "KAPAZITÄT",
     "accessModes": "ZUGRIFFSMODI",
     "reclaimPolicy": "RÜCKGEW.-RICHTL.",
