@@ -3,6 +3,7 @@ import type {
   ConnectionStatus,
   HealthCheckResult,
   PodInfo,
+  NodeInfo,
   PodMetrics,
   NodeMetrics,
   ClusterMetricsSummary,
@@ -48,6 +49,57 @@ const mockHealth: HealthCheckResult = {
 };
 
 const mockNamespaces = ["default", "kubeli-demo"];
+
+const mockNodes: NodeInfo[] = [
+  {
+    name: "minikube",
+    uid: "node-1",
+    status: "Ready",
+    unschedulable: false,
+    roles: ["control-plane"],
+    version: "v1.31.0",
+    os_image: "Ubuntu 22.04.4 LTS",
+    kernel_version: "6.6.31",
+    container_runtime: "docker://27.2.0",
+    cpu_capacity: "8",
+    memory_capacity: "16Gi",
+    pod_capacity: "110",
+    created_at: new Date(Date.now() - 11 * 86_400_000).toISOString(),
+    labels: { "kubernetes.io/os": "linux" },
+    internal_ip: "192.168.49.2",
+    external_ip: null,
+    pods_scheduled: 18,
+    pods_allocatable: 110,
+    cpu_requests_milli: 3150,
+    cpu_allocatable_milli: 8000,
+    memory_requests_bytes: 5 * 1024 ** 3 + 256 * 1024 ** 2,
+    memory_allocatable_bytes: 16 * 1024 ** 3,
+  },
+  {
+    name: "minikube-m02",
+    uid: "node-2",
+    status: "Ready",
+    unschedulable: false,
+    roles: ["<none>"],
+    version: "v1.31.0",
+    os_image: "Ubuntu 22.04.4 LTS",
+    kernel_version: "6.6.31",
+    container_runtime: "docker://27.2.0",
+    cpu_capacity: "4",
+    memory_capacity: "8Gi",
+    pod_capacity: "110",
+    created_at: new Date(Date.now() - 9 * 86_400_000).toISOString(),
+    labels: { "kubernetes.io/os": "linux" },
+    internal_ip: "192.168.49.3",
+    external_ip: null,
+    pods_scheduled: 104,
+    pods_allocatable: 110,
+    cpu_requests_milli: 3760,
+    cpu_allocatable_milli: 4000,
+    memory_requests_bytes: 7 * 1024 ** 3 + 512 * 1024 ** 2,
+    memory_allocatable_bytes: 8 * 1024 ** 3,
+  },
+];
 
 const mockKubeconfigSourcesConfig = {
   sources: [{ path: "~/.kube/config", source_type: "file" as const }],
@@ -249,6 +301,8 @@ export function mockInvoke(command: string, payload?: Record<string, unknown>) {
       return Promise.resolve(mockKubeconfigSourcesConfig);
     case "list_pods":
       return Promise.resolve(mockPods);
+    case "list_nodes":
+      return Promise.resolve(mockNodes);
     case "generate_resource_graph":
       return Promise.resolve(buildMockGraph());
     case "restart_app":

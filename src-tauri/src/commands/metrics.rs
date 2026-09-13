@@ -136,7 +136,7 @@ async fn check_metrics_available(client: &Client) -> bool {
 
 /// Parse CPU quantity string to nanocores. Parses the numeric part as f64:
 /// quantities like "1.5" cores or "2.5m" are valid and must not become 0.
-fn parse_cpu_to_nanocores(cpu: &str) -> u64 {
+pub fn parse_cpu_to_nanocores(cpu: &str) -> u64 {
     let cpu = cpu.trim();
     let (num, mult) = if let Some(v) = cpu.strip_suffix('n') {
         (v, 1.0)
@@ -153,7 +153,7 @@ fn parse_cpu_to_nanocores(cpu: &str) -> u64 {
 
 /// Parse memory quantity string to bytes. Parses the numeric part as f64:
 /// "1.5Gi" is a valid quantity and must not become 0.
-fn parse_memory_to_bytes(mem: &str) -> u64 {
+pub fn parse_memory_to_bytes(mem: &str) -> u64 {
     let mem = mem.trim();
     // Binary suffixes must be checked before their decimal prefixes
     const UNITS: &[(&str, f64)] = &[

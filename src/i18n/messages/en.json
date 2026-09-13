@@ -1216,6 +1216,8 @@
     "maxUnavailable": "MAX UNAVAILABLE",
     "allowed": "ALLOWED",
     "pods": "PODS",
+    "cpuRequests": "CPU REQUESTS",
+    "memoryRequests": "MEMORY REQUESTS",
     "capacity": "CAPACITY",
     "accessModes": "ACCESS MODES",
     "reclaimPolicy": "RECLAIM POLICY",
