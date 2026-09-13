@@ -63,7 +63,7 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
   const setError = useUpdaterStore((s) => s.setError);
   const setReadyToRestart = useUpdaterStore((s) => s.setReadyToRestart);
   const setDownloadComplete = useUpdaterStore((s) => s.setDownloadComplete);
-  const setCheckerDismissed = useUpdaterStore((s) => s.setCheckerDismissed);
+  const snoozeUpdate = useUpdaterStore((s) => s.snoozeUpdate);
   const setHasAutoChecked = useUpdaterStore((s) => s.setHasAutoChecked);
   const simulateUpdate = useUpdaterStore((s) => s.simulateUpdate);
   const clearSimulation = useUpdaterStore((s) => s.clearSimulation);
@@ -256,8 +256,8 @@ export function useUpdater(options: UseUpdaterOptions = {}) {
 
   // Dismiss UpdateChecker dialog (but keep update available for header button)
   const dismissUpdate = useCallback(() => {
-    setCheckerDismissed(true);
-  }, [setCheckerDismissed]);
+    snoozeUpdate();
+  }, [snoozeUpdate]);
 
   // Get autoInstallUpdates setting from UI store
   const autoInstallUpdates = useUIStore((state) => state.settings.autoInstallUpdates);
