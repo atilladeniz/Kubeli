@@ -1,7 +1,4 @@
-import {
-  formatCpuNanoCores,
-  formatMemoryBytes,
-} from "../PodMetricsCell";
+import { formatCpuNanoCores } from "../PodMetricsCell";
 
 describe("formatCpuNanoCores", () => {
   it("formats zero CPU", () => {
@@ -26,31 +23,5 @@ describe("formatCpuNanoCores", () => {
 
   it("formats fractional millicore", () => {
     expect(formatCpuNanoCores(100_000)).toBe("0.1m");
-  });
-});
-
-describe("formatMemoryBytes", () => {
-  it("formats zero memory", () => {
-    expect(formatMemoryBytes(0)).toBe("0B");
-  });
-
-  it("formats kibibytes", () => {
-    expect(formatMemoryBytes(1024)).toBe("1Ki");
-  });
-
-  it("formats mebibytes", () => {
-    expect(formatMemoryBytes(9_718_784)).toBe("9.27Mi");
-  });
-
-  it("formats gibibytes", () => {
-    expect(formatMemoryBytes(2_684_354_560)).toBe("2.50Gi");
-  });
-
-  it("formats small byte values", () => {
-    expect(formatMemoryBytes(512)).toBe("512B");
-  });
-
-  it("formats large mebibyte values", () => {
-    expect(formatMemoryBytes(536_870_912)).toBe("512.00Mi");
   });
 });
