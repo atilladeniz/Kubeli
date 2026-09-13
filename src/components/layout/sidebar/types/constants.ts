@@ -47,6 +47,8 @@ export const implementedViews: KnownResourceType[] = [
   "runtime-classes",
   "mutating-webhooks",
   "validating-webhooks",
+  "admission-policies",
+  "admission-policy-bindings",
   "helm-releases",
   "flux-kustomizations",
   "argocd-applications",

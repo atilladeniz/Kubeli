@@ -139,6 +139,8 @@
     "runtimeClasses": "Laufzeitklassen",
     "mutatingWebhooks": "Mutating Webhooks",
     "validatingWebhooks": "Validating Webhooks",
+    "admissionPolicies": "Admission Policies",
+    "admissionPolicyBindings": "Policy Bindings",
     "applications": "Anwendungen",
     "argocd": "ArgoCD",
     "soon": "Bald"
@@ -1166,6 +1168,12 @@
     "onlyAvailable": "Debug-Log ist nur verfügbar, wenn eine Verbindung fehlschlägt."
   },
   "columns": {
+    "matches": "TRIFFT ZU AUF",
+    "validations": "VALIDIERUNGEN",
+    "bindings": "BINDINGS",
+    "policy": "POLICY",
+    "actions": "AKTIONEN",
+    "params": "PARAMETER",
     "name": "NAME",
     "namespace": "NAMESPACE",
     "ready": "BEREIT",
@@ -1312,6 +1320,8 @@
     "runtimeclasses": "Keine Laufzeitklassen gefunden",
     "mutatingwebhooks": "Keine Mutating Webhooks gefunden",
     "validatingwebhooks": "Keine Validating Webhooks gefunden",
+    "admissionpolicies": "Keine Validating Admission Policies gefunden",
+    "admissionpolicybindings": "Keine Policy Bindings gefunden",
     "helmreleases": "Keine Helm Releases gefunden",
     "fluxkustomizations": "Keine Flux-Kustomizations gefunden",
     "customResources": "Keine {kind}-Ressourcen gefunden",

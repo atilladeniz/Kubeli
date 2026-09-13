@@ -84,6 +84,8 @@ import {
   RuntimeClassesView,
   MutatingWebhooksView,
   ValidatingWebhooksView,
+  ValidatingAdmissionPoliciesView,
+  ValidatingAdmissionPolicyBindingsView,
 } from "./admin";
 
 // GitOps views
@@ -217,6 +219,10 @@ export function ResourceView({ activeResource }: ResourceViewProps) {
       return <MutatingWebhooksView />;
     case "validating-webhooks":
       return <ValidatingWebhooksView />;
+    case "admission-policies":
+      return <ValidatingAdmissionPoliciesView />;
+    case "admission-policy-bindings":
+      return <ValidatingAdmissionPolicyBindingsView />;
 
     // GitOps
     case "helm-releases":

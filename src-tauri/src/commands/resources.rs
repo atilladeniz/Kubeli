@@ -4891,6 +4891,300 @@ pub struct ValidatingWebhookDetail {
     pub admission_review_versions: Vec<String>,
 }
 
+/// One CEL validation of a ValidatingAdmissionPolicy
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PolicyValidationInfo {
+    pub expression: String,
+    pub message: Option<String>,
+    pub message_expression: Option<String>,
+    /// "Audit", "Deny" or "Warn"; the API defaults it to Deny
+    pub reason: Option<String>,
+}
+
+/// A named CEL variable a policy's validations can refer to
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PolicyVariableInfo {
+    pub name: String,
+    pub expression: String,
+}
+
+/// A resource rule out of a policy's matchConstraints
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct PolicyRuleInfo {
+    pub api_groups: Vec<String>,
+    pub api_versions: Vec<String>,
+    pub operations: Vec<String>,
+    pub resources: Vec<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ValidatingAdmissionPolicyInfo {
+    pub name: String,
+    pub uid: String,
+    /// "Fail" or "Ignore"; the API defaults it to Fail
+    pub failure_policy: String,
+    /// apiVersion/kind of the params resource, when the policy takes one
+    pub param_kind: Option<String>,
+    pub match_rules: Vec<PolicyRuleInfo>,
+    /// One line per rule, e.g. "CREATE, UPDATE apps/v1 deployments"
+    pub match_summary: Vec<String>,
+    pub validations: Vec<PolicyValidationInfo>,
+    pub validations_count: usize,
+    pub variables: Vec<PolicyVariableInfo>,
+    /// CEL preconditions that gate whether the policy runs at all
+    pub match_conditions: Vec<PolicyVariableInfo>,
+    /// Bindings pointing at this policy, filled in by list_validating_admission_policies
+    pub bindings_count: usize,
+    pub created_at: Option<String>,
+    pub labels: HashMap<String, String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ValidatingAdmissionPolicyBindingInfo {
+    pub name: String,
+    pub uid: String,
+    pub policy_name: Option<String>,
+    /// "Deny", "Warn" and/or "Audit"; empty means the API default applies
+    pub validation_actions: Vec<String>,
+    /// The params object the policy is evaluated against, "namespace/name" or a selector
+    pub param_ref: Option<String>,
+    /// Human-readable namespaceSelector, None when the binding matches every namespace
+    pub namespace_selector: Option<String>,
+    pub object_selector: Option<String>,
+    pub match_rules: Vec<PolicyRuleInfo>,
+    pub match_summary: Vec<String>,
+    pub created_at: Option<String>,
+    pub labels: HashMap<String, String>,
+}
+
+/// Renders a LabelSelector the way kubectl does: "a=b,c in (d,e)".
+/// None means "no selector", which matches everything.
+fn format_label_selector(selector: &LabelSelector) -> Option<String> {
+    let query = label_selector_to_query(selector);
+    if query.is_empty() {
+        None
+    } else {
+        Some(query)
+    }
+}
+
+/// Flattens matchConstraints into rules plus one readable line per rule.
+fn policy_match_rules(
+    match_resources: Option<&k8s_openapi::api::admissionregistration::v1::MatchResources>,
+) -> (Vec<PolicyRuleInfo>, Vec<String>) {
+    let rules: Vec<PolicyRuleInfo> = match_resources
+        .and_then(|m| m.resource_rules.as_ref())
+        .map(|rules| {
+            rules
+                .iter()
+                .map(|r| PolicyRuleInfo {
+                    api_groups: r.api_groups.clone().unwrap_or_default(),
+                    api_versions: r.api_versions.clone().unwrap_or_default(),
+                    operations: r.operations.clone().unwrap_or_default(),
+                    resources: r.resources.clone().unwrap_or_default(),
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    let summary = rules
+        .iter()
+        .map(|r| {
+            // The core group is the empty string in the API; "core" reads better
+            let groups: Vec<&str> = r
+                .api_groups
+                .iter()
+                .map(|g| if g.is_empty() { "core" } else { g.as_str() })
+                .collect();
+            let group_version = match (groups.is_empty(), r.api_versions.is_empty()) {
+                (true, true) => String::new(),
+                (false, true) => groups.join(","),
+                (true, false) => r.api_versions.join(","),
+                (false, false) => format!("{}/{}", groups.join(","), r.api_versions.join(",")),
+            };
+            let operations = if r.operations.is_empty() {
+                "*".to_string()
+            } else {
+                r.operations.join(", ")
+            };
+            [operations, group_version, r.resources.join(",")]
+                .into_iter()
+                .filter(|part| !part.is_empty())
+                .collect::<Vec<_>>()
+                .join(" ")
+        })
+        .collect();
+
+    (rules, summary)
+}
+
+#[command]
+pub async fn list_validating_admission_policies(
+    state: State<'_, AppState>,
+) -> Result<Vec<ValidatingAdmissionPolicyInfo>, KubeliError> {
+    use k8s_openapi::api::admissionregistration::v1::{
+        ValidatingAdmissionPolicy, ValidatingAdmissionPolicyBinding,
+    };
+
+    tracing::info!("Listing validating admission policies");
+    let client = state.k8s.get_client().await?;
+
+    let api: Api<ValidatingAdmissionPolicy> = Api::all(client.clone());
+    let list = api.list(&ListParams::default()).await?;
+
+    // One binding list for all policies: the count per policy is what makes an
+    // unbound policy (which does nothing) visible at a glance. A binding list
+    // the user may not read leaves the counts at zero rather than failing.
+    let bindings_api: Api<ValidatingAdmissionPolicyBinding> = Api::all(client);
+    let mut bindings_per_policy: HashMap<String, usize> = HashMap::new();
+    match bindings_api.list(&ListParams::default()).await {
+        Ok(bindings) => {
+            for binding in bindings.items {
+                if let Some(policy) = binding.spec.and_then(|s| s.policy_name) {
+                    *bindings_per_policy.entry(policy).or_insert(0) += 1;
+                }
+            }
+        }
+        Err(e) => tracing::warn!("Binding counts unavailable, listing bindings failed: {e}"),
+    }
+
+    let infos: Vec<ValidatingAdmissionPolicyInfo> = list
+        .items
+        .into_iter()
+        .map(|policy| {
+            let metadata = policy.metadata;
+            let spec = policy.spec.unwrap_or_default();
+
+            let validations: Vec<PolicyValidationInfo> = spec
+                .validations
+                .unwrap_or_default()
+                .into_iter()
+                .map(|v| PolicyValidationInfo {
+                    expression: v.expression,
+                    message: v.message,
+                    message_expression: v.message_expression,
+                    reason: v.reason,
+                })
+                .collect();
+
+            let variables: Vec<PolicyVariableInfo> = spec
+                .variables
+                .unwrap_or_default()
+                .into_iter()
+                .map(|v| PolicyVariableInfo {
+                    name: v.name,
+                    expression: v.expression,
+                })
+                .collect();
+
+            let match_conditions: Vec<PolicyVariableInfo> = spec
+                .match_conditions
+                .unwrap_or_default()
+                .into_iter()
+                .map(|c| PolicyVariableInfo {
+                    name: c.name,
+                    expression: c.expression,
+                })
+                .collect();
+
+            let (match_rules, match_summary) = policy_match_rules(spec.match_constraints.as_ref());
+            let name = metadata.name.unwrap_or_default();
+            let bindings_count = bindings_per_policy.get(&name).copied().unwrap_or(0);
+
+            ValidatingAdmissionPolicyInfo {
+                name,
+                uid: metadata.uid.unwrap_or_default(),
+                failure_policy: spec.failure_policy.unwrap_or_else(|| "Fail".to_string()),
+                param_kind: spec.param_kind.map(|p| match (p.api_version, p.kind) {
+                    (Some(v), Some(k)) => format!("{v}/{k}"),
+                    (None, Some(k)) => k,
+                    (Some(v), None) => v,
+                    (None, None) => String::new(),
+                }),
+                match_rules,
+                match_summary,
+                validations_count: validations.len(),
+                validations,
+                variables,
+                match_conditions,
+                bindings_count,
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
+                labels: btree_to_hashmap(metadata.labels),
+            }
+        })
+        .collect();
+
+    tracing::info!("Listed {} validating admission policies", infos.len());
+    Ok(infos)
+}
+
+#[command]
+pub async fn list_validating_admission_policy_bindings(
+    state: State<'_, AppState>,
+) -> Result<Vec<ValidatingAdmissionPolicyBindingInfo>, KubeliError> {
+    use k8s_openapi::api::admissionregistration::v1::ValidatingAdmissionPolicyBinding;
+
+    tracing::info!("Listing validating admission policy bindings");
+    let client = state.k8s.get_client().await?;
+
+    let api: Api<ValidatingAdmissionPolicyBinding> = Api::all(client);
+    let list = api.list(&ListParams::default()).await?;
+
+    let infos: Vec<ValidatingAdmissionPolicyBindingInfo> = list
+        .items
+        .into_iter()
+        .map(|binding| {
+            let metadata = binding.metadata;
+            let spec = binding.spec.unwrap_or_default();
+
+            let (match_rules, match_summary) = policy_match_rules(spec.match_resources.as_ref());
+
+            let param_ref = spec.param_ref.and_then(|p| {
+                // Either a concrete object or a selector, never both
+                match (p.name, p.namespace, p.selector) {
+                    (Some(name), Some(ns), _) => Some(format!("{ns}/{name}")),
+                    (Some(name), None, _) => Some(name),
+                    (None, ns, Some(selector)) => {
+                        format_label_selector(&selector).map(|q| match ns {
+                            Some(ns) => format!("{ns}/[{q}]"),
+                            None => format!("[{q}]"),
+                        })
+                    }
+                    (None, _, None) => None,
+                }
+            });
+
+            ValidatingAdmissionPolicyBindingInfo {
+                name: metadata.name.unwrap_or_default(),
+                uid: metadata.uid.unwrap_or_default(),
+                policy_name: spec.policy_name,
+                validation_actions: spec.validation_actions.unwrap_or_default(),
+                param_ref,
+                namespace_selector: spec
+                    .match_resources
+                    .as_ref()
+                    .and_then(|m| m.namespace_selector.as_ref())
+                    .and_then(format_label_selector),
+                object_selector: spec
+                    .match_resources
+                    .as_ref()
+                    .and_then(|m| m.object_selector.as_ref())
+                    .and_then(format_label_selector),
+                match_rules,
+                match_summary,
+                created_at: metadata.creation_timestamp.map(|t| t.0.to_string()),
+                labels: btree_to_hashmap(metadata.labels),
+            }
+        })
+        .collect();
+
+    tracing::info!(
+        "Listed {} validating admission policy bindings",
+        infos.len()
+    );
+    Ok(infos)
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ValidatingWebhookInfo {
     pub name: String,
@@ -5203,6 +5497,34 @@ mod tests {
         }
     }
 
+    /// (apiGroups, apiVersions, operations, resources) of one match rule
+    type RuleSpec<'a> = (Vec<&'a str>, Vec<&'a str>, Vec<&'a str>, Vec<&'a str>);
+
+    fn match_resources(
+        rules: Vec<RuleSpec<'_>>,
+    ) -> k8s_openapi::api::admissionregistration::v1::MatchResources {
+        use k8s_openapi::api::admissionregistration::v1::{
+            MatchResources, NamedRuleWithOperations,
+        };
+        MatchResources {
+            resource_rules: Some(
+                rules
+                    .into_iter()
+                    .map(
+                        |(groups, versions, ops, resources)| NamedRuleWithOperations {
+                            api_groups: Some(groups.iter().map(|s| s.to_string()).collect()),
+                            api_versions: Some(versions.iter().map(|s| s.to_string()).collect()),
+                            operations: Some(ops.iter().map(|s| s.to_string()).collect()),
+                            resources: Some(resources.iter().map(|s| s.to_string()).collect()),
+                            ..Default::default()
+                        },
+                    )
+                    .collect(),
+            ),
+            ..Default::default()
+        }
+    }
+
     fn alloc_pod(
         node: Option<&str>,
         phase: &str,
@@ -5288,6 +5610,78 @@ mod tests {
             }),
             ..Default::default()
         }
+    }
+
+    #[test]
+    fn test_policy_match_rules_renders_one_line_per_rule() {
+        let resources = match_resources(vec![
+            (
+                vec!["apps"],
+                vec!["v1"],
+                vec!["CREATE", "UPDATE"],
+                vec!["deployments"],
+            ),
+            (vec![""], vec!["v1"], vec!["CREATE"], vec!["pods"]),
+        ]);
+
+        let (rules, summary) = policy_match_rules(Some(&resources));
+
+        assert_eq!(rules.len(), 2);
+        assert_eq!(rules[0].resources, vec!["deployments"]);
+        assert_eq!(
+            summary,
+            vec![
+                "CREATE, UPDATE apps/v1 deployments".to_string(),
+                // The core group is "" in the API and must not render as "/v1"
+                "CREATE core/v1 pods".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_policy_match_rules_without_constraints_is_empty() {
+        let (rules, summary) = policy_match_rules(None);
+        assert!(rules.is_empty());
+        assert!(summary.is_empty());
+    }
+
+    #[test]
+    fn test_policy_match_rules_missing_operations_render_as_star() {
+        use k8s_openapi::api::admissionregistration::v1::{
+            MatchResources, NamedRuleWithOperations,
+        };
+        let resources = MatchResources {
+            resource_rules: Some(vec![NamedRuleWithOperations {
+                api_groups: Some(vec!["apps".into()]),
+                api_versions: Some(vec!["v1".into()]),
+                resources: Some(vec!["deployments".into()]),
+                ..Default::default()
+            }]),
+            ..Default::default()
+        };
+
+        let (_, summary) = policy_match_rules(Some(&resources));
+        assert_eq!(summary, vec!["* apps/v1 deployments".to_string()]);
+    }
+
+    #[test]
+    fn test_format_label_selector_none_for_an_empty_selector() {
+        use k8s_openapi::apimachinery::pkg::apis::meta::v1::LabelSelector;
+        use std::collections::BTreeMap;
+
+        // An empty selector matches everything, which is not the same as "a=b"
+        assert_eq!(format_label_selector(&LabelSelector::default()), None);
+
+        let mut labels = BTreeMap::new();
+        labels.insert("env".to_string(), "prod".to_string());
+        let selector = LabelSelector {
+            match_labels: Some(labels),
+            ..Default::default()
+        };
+        assert_eq!(
+            format_label_selector(&selector),
+            Some("env=prod".to_string())
+        );
     }
 
     #[test]

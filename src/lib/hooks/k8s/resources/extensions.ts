@@ -8,6 +8,8 @@ import {
   listRuntimeClasses,
   listMutatingWebhooks,
   listValidatingWebhooks,
+  listValidatingAdmissionPolicies,
+  listValidatingAdmissionPolicyBindings,
   listHelmReleases,
   listFluxKustomizations,
   listArgoCDApplications,
@@ -19,6 +21,8 @@ import type {
   RuntimeClassInfo,
   MutatingWebhookInfo,
   ValidatingWebhookInfo,
+  ValidatingAdmissionPolicyInfo,
+  ValidatingAdmissionPolicyBindingInfo,
   HelmReleaseInfo,
   FluxKustomizationInfo,
   ArgoCDApplicationInfo,
@@ -227,6 +231,24 @@ export const useValidatingWebhooks = createClusterScopedHook<ValidatingWebhookIn
   "Validating Webhooks",
   listValidatingWebhooks
 );
+
+/**
+ * Hook for fetching ValidatingAdmissionPolicies (cluster-scoped).
+ */
+export const useValidatingAdmissionPolicies =
+  createClusterScopedHook<ValidatingAdmissionPolicyInfo>(
+    "Validating Admission Policies",
+    listValidatingAdmissionPolicies
+  );
+
+/**
+ * Hook for fetching ValidatingAdmissionPolicyBindings (cluster-scoped).
+ */
+export const useValidatingAdmissionPolicyBindings =
+  createClusterScopedHook<ValidatingAdmissionPolicyBindingInfo>(
+    "Validating Admission Policy Bindings",
+    listValidatingAdmissionPolicyBindings
+  );
 
 /**
  * Hook for fetching Helm Releases.

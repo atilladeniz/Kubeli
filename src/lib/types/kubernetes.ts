@@ -1195,6 +1195,66 @@ export interface MutatingWebhook {
 }
 
 // Validating Webhook Configurations
+/** One CEL validation of a ValidatingAdmissionPolicy */
+export interface PolicyValidationInfo {
+  expression: string;
+  message: string | null;
+  message_expression: string | null;
+  /** "Audit", "Deny" or "Warn"; the API defaults it to Deny */
+  reason: string | null;
+}
+
+/** A named CEL variable, or a match condition, of a policy */
+export interface PolicyVariableInfo {
+  name: string;
+  expression: string;
+}
+
+/** A resource rule out of a policy's matchConstraints */
+export interface PolicyRuleInfo {
+  api_groups: string[];
+  api_versions: string[];
+  operations: string[];
+  resources: string[];
+}
+
+export interface ValidatingAdmissionPolicyInfo {
+  name: string;
+  uid: string;
+  /** "Fail" or "Ignore"; the API defaults it to Fail */
+  failure_policy: string;
+  /** apiVersion/kind of the params resource, when the policy takes one */
+  param_kind: string | null;
+  match_rules: PolicyRuleInfo[];
+  /** One line per rule, e.g. "CREATE, UPDATE apps/v1 deployments" */
+  match_summary: string[];
+  validations: PolicyValidationInfo[];
+  validations_count: number;
+  variables: PolicyVariableInfo[];
+  /** CEL preconditions that gate whether the policy runs at all */
+  match_conditions: PolicyVariableInfo[];
+  bindings_count: number;
+  created_at: string | null;
+  labels: Record<string, string>;
+}
+
+export interface ValidatingAdmissionPolicyBindingInfo {
+  name: string;
+  uid: string;
+  policy_name: string | null;
+  /** "Deny", "Warn" and/or "Audit"; empty means the API default applies */
+  validation_actions: string[];
+  /** The params object, "namespace/name" or a selector */
+  param_ref: string | null;
+  /** null means the binding matches every namespace */
+  namespace_selector: string | null;
+  object_selector: string | null;
+  match_rules: PolicyRuleInfo[];
+  match_summary: string[];
+  created_at: string | null;
+  labels: Record<string, string>;
+}
+
 export interface ValidatingWebhookInfo {
   name: string;
   uid: string;
