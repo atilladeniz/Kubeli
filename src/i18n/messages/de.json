@@ -144,6 +144,8 @@
     "soon": "Bald"
   },
   "cluster": {
+    "startupReconnecting": "Verbinde erneut mit {name}…",
+    "startupReconnectCancel": "Abbrechen",
     "title": "Cluster",
     "add": "Cluster hinzufügen",
     "connect": "Verbinden",
@@ -680,6 +682,12 @@
       "ask": "Fragen",
       "always": "Immer",
       "never": "Nie"
+    },
+    "startup": {
+      "title": "Beim Start",
+      "description": "Was Kubeli beim Öffnen tut",
+      "reconnect": "Mit dem letzten Cluster verbinden",
+      "selector": "Cluster-Auswahl anzeigen"
     },
     "autoInstallUpdates": {
       "title": "Updates automatisch installieren",

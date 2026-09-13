@@ -144,6 +144,8 @@
     "soon": "Soon"
   },
   "cluster": {
+    "startupReconnecting": "Reconnecting to {name}…",
+    "startupReconnectCancel": "Cancel",
     "title": "Clusters",
     "add": "Add Cluster",
     "connect": "Connect",
@@ -680,6 +682,12 @@
       "ask": "Ask",
       "always": "Always",
       "never": "Never"
+    },
+    "startup": {
+      "title": "On startup",
+      "description": "What Kubeli does when it opens",
+      "reconnect": "Reconnect to the last cluster",
+      "selector": "Show the cluster selector"
     },
     "autoInstallUpdates": {
       "title": "Auto Install Updates",

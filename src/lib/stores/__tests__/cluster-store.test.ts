@@ -87,6 +87,8 @@ const defaultState = {
   autoReconnectEnabled: true,
   lastConnectedContext: null,
   maxReconnectAttempts: 5,
+  lastSelectedNamespaces: [] as string[],
+  startupReconnectContext: null,
 };
 
 describe("ClusterStore", () => {
@@ -1419,5 +1421,107 @@ describe("ClusterStore", () => {
       expect(unlisten).toHaveBeenCalledTimes(1);
       expect(useClusterStore.getState().oidcPendingContext).toBeNull();
     });
+  });
+});
+
+describe("startup reconnect", () => {
+  const connected = () => {
+    mockConnectCluster.mockResolvedValue({ connected: true, context: "prod-context", latency_ms: 5 });
+    mockGetNamespaces.mockResolvedValue({ namespaces: ["default", "team-a", "team-b"], source: "auto" });
+    mockCheckConnectionHealth.mockResolvedValue({ healthy: true, latency_ms: 5 });
+    mockWatchNamespaces.mockResolvedValue(undefined);
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    localStorage.clear();
+    useUIStore.getState().updateSettings({ startupBehavior: "reconnect" });
+    useClusterStore.setState({
+      ...defaultState,
+      clusters: mockClusters,
+      lastConnectedContext: "prod-context",
+      lastSelectedNamespaces: ["team-a", "gone"],
+    });
+  });
+
+  afterEach(() => {
+    useClusterStore.getState().stopHealthMonitoring();
+  });
+
+  it("persists the last context and the namespace selection", () => {
+    useClusterStore.setState({
+      isConnected: true,
+      lastConnectedContext: "prod-context",
+      selectedNamespaces: ["team-a"],
+    });
+
+    const stored = JSON.parse(localStorage.getItem("kubeli-cluster") ?? "{}");
+    expect(stored.state).toEqual({
+      lastConnectedContext: "prod-context",
+      lastSelectedNamespaces: ["team-a"],
+    });
+  });
+
+  it("reconnects to the last cluster and restores existing namespaces", async () => {
+    connected();
+
+    await act(async () => {
+      await useClusterStore.getState().reconnectOnStartup();
+    });
+
+    const state = useClusterStore.getState();
+    expect(mockConnectCluster).toHaveBeenCalledWith("prod-context");
+    expect(state.isConnected).toBe(true);
+    expect(state.selectedNamespaces).toEqual(["team-a"]);
+    expect(state.startupReconnectContext).toBeNull();
+  });
+
+  it("shows the selector instead when the setting says so", async () => {
+    useUIStore.getState().updateSettings({ startupBehavior: "selector" });
+
+    await useClusterStore.getState().reconnectOnStartup();
+
+    expect(mockConnectCluster).not.toHaveBeenCalled();
+    expect(useClusterStore.getState().isConnected).toBe(false);
+  });
+
+  it("forgets a context that is no longer in the kubeconfig", async () => {
+    useClusterStore.setState({ lastConnectedContext: "deleted-context" });
+
+    await useClusterStore.getState().reconnectOnStartup();
+
+    expect(mockConnectCluster).not.toHaveBeenCalled();
+    expect(useClusterStore.getState().lastConnectedContext).toBeNull();
+  });
+
+  it("falls back to the selector with the error when the reconnect fails", async () => {
+    mockConnectCluster.mockResolvedValue({ connected: false, context: "prod-context", error: "refused" });
+
+    await act(async () => {
+      await useClusterStore.getState().reconnectOnStartup();
+    });
+
+    const state = useClusterStore.getState();
+    expect(state.isConnected).toBe(false);
+    expect(state.error?.message).toContain("refused");
+    expect(state.startupReconnectContext).toBeNull();
+  });
+
+  it("exposes the target while connecting and can be cancelled", async () => {
+    let resolveConnect: (v: unknown) => void = () => {};
+    mockConnectCluster.mockReturnValue(new Promise((r) => (resolveConnect = r)));
+
+    const pending = useClusterStore.getState().reconnectOnStartup();
+    await Promise.resolve();
+    expect(useClusterStore.getState().startupReconnectContext).toBe("prod-context");
+
+    useClusterStore.getState().cancelStartupReconnect();
+    expect(useClusterStore.getState().startupReconnectContext).toBeNull();
+
+    resolveConnect({ connected: true, context: "prod-context", latency_ms: 5 });
+    await act(async () => {
+      await pending;
+    });
+    expect(useClusterStore.getState().isConnected).toBe(false);
   });
 });

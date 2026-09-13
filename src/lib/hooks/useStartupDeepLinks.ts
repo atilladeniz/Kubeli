@@ -41,6 +41,10 @@ export function useStartupDeepLinks(enabled: boolean) {
         }
         // oidc_callback: a cold start has no in-flight auth to complete — ignore.
       }
+      // A deep link that connects somewhere wins over the remembered cluster
+      if (!cancelled && !actions.some((a) => a.kind === "connect")) {
+        await useClusterStore.getState().reconnectOnStartup();
+      }
     })();
 
     return () => {
