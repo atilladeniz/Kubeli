@@ -316,6 +316,7 @@
     "pdb": "Pod Disruption Budgets",
     "data": "Daten",
     "keys": "Schlüssel",
+    "binary": "Binär",
     "type": "Typ",
     "minReplicas": "Min. Replikate",
     "maxReplicas": "Max. Replikate",

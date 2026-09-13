@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { OverviewTab } from "../OverviewTab";
 import { getPod } from "@/lib/tauri/commands";
@@ -16,6 +16,10 @@ jest.mock("@/components/providers/I18nProvider", () => ({
 
 jest.mock("@/lib/tauri/commands", () => ({
   getPod: jest.fn(),
+}));
+
+jest.mock("sonner", () => ({
+  toast: { success: jest.fn() },
 }));
 
 jest.mock("../PodMetricsSection", () => ({
@@ -127,6 +131,38 @@ describe("OverviewTab scheduling section", () => {
 
     expect(getPod).not.toHaveBeenCalled();
     expect(screen.queryByText("podDetail.scheduling")).toBeNull();
+  });
+});
+
+describe("OverviewTab data section", () => {
+  const configMapYaml = "kind: ConfigMap\ndata:\n  LOG_LEVEL: debug\n";
+  const secretYaml = `kind: Secret\ntype: Opaque\ndata:\n  password: ${btoa("hunter2")}\n`;
+
+  it("resets search and revealed state when another resource is shown", () => {
+    const { rerender } = render(
+      <OverviewTab
+        resource={{ ...resource, name: "app-config", yaml: configMapYaml }}
+        resourceType="configmap"
+      />
+    );
+    expect(screen.getByText("debug")).toBeTruthy();
+
+    fireEvent.change(screen.getByLabelText("common.search"), {
+      target: { value: "nothing" },
+    });
+    expect(screen.getByText("common.noResults")).toBeTruthy();
+
+    rerender(
+      <OverviewTab
+        resource={{ ...resource, name: "db-credentials", yaml: secretYaml }}
+        resourceType="secret"
+      />
+    );
+
+    expect((screen.getByLabelText("common.search") as HTMLInputElement).value).toBe("");
+    expect(screen.queryByText("common.noResults")).toBeNull();
+    expect(screen.getByLabelText("reveal password")).toBeTruthy();
+    expect(screen.queryByText("hunter2")).toBeNull();
   });
 });
 

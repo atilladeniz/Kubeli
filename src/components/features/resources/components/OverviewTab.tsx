@@ -9,7 +9,7 @@ import { useUIStore } from "@/lib/stores/ui-store";
 import { useTranslations } from "next-intl";
 import { useLocale } from "@/components/providers/I18nProvider";
 import { MetadataItem } from "./MetadataItem";
-import { SecretDataSection } from "./SecretDataSection";
+import { DataSection } from "./DataSection";
 import { ContainerStatusSection } from "./ContainerStatusSection";
 import { TemplateContainersSection } from "./TemplateContainersSection";
 import { PodMetricsSection } from "./PodMetricsSection";
@@ -274,10 +274,18 @@ export function OverviewTab({ resource, resourceType, onNavigateToOwner, onSetIm
           </section>
         )}
 
-        {/* Secret Data Section */}
-        {resourceType === "secret" && resource.yaml && (
-          <SecretDataSection yaml={resource.yaml} />
-        )}
+        {/* Secret / ConfigMap data */}
+        {(resourceType === "secret" || resourceType === "configmap") &&
+          resource.yaml && (
+            // Keyed per resource: the panel stays mounted when the user jumps
+            // from one Secret/ConfigMap to the next, and search text or
+            // revealed keys must not carry over.
+            <DataSection
+              key={resourceKey}
+              yaml={resource.yaml}
+              kind={resourceType}
+            />
+          )}
       </div>
     </div>
   );
