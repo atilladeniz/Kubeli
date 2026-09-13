@@ -193,6 +193,14 @@
     "useKubeconfigAuthAndReconnect": "Kubeconfig-Authentifizierung verwenden & neu verbinden",
     "cancelConnect": "Verbinden abbrechen"
   },
+  "recent": {
+    "restarts": "Letzte Neustarts ({hours}h)",
+    "noRestarts": "Keine Neustarts",
+    "warnings": "Letzte Warnungen ({hours}h)",
+    "noWarnings": "Keine Warnungen",
+    "showAll": "Alle {count} anzeigen",
+    "showLess": "Weniger anzeigen"
+  },
   "workloads": {
     "overview": "Workloads-Übersicht",
     "allNamespaces": "Alle Namespaces",

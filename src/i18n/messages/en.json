@@ -193,6 +193,14 @@
     "useKubeconfigAuthAndReconnect": "Use kubeconfig authentication & reconnect",
     "cancelConnect": "Cancel connecting"
   },
+  "recent": {
+    "restarts": "Recent restarts ({hours}h)",
+    "noRestarts": "No restarts",
+    "warnings": "Recent warnings ({hours}h)",
+    "noWarnings": "No warnings",
+    "showAll": "Show all {count}",
+    "showLess": "Show less"
+  },
   "workloads": {
     "overview": "Workloads Overview",
     "allNamespaces": "All namespaces",
