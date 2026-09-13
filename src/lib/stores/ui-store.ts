@@ -64,6 +64,9 @@ export interface AppSettings {
   clusterViewLayout: "grid" | "list";
   /** What the home screen does on launch */
   startupBehavior: StartupBehavior;
+
+  // Resource detail: metadata section folded away in the overview
+  overviewMetadataCollapsed: boolean;
 }
 
 export const defaultSettings: AppSettings = {
@@ -91,6 +94,7 @@ export const defaultSettings: AppSettings = {
   aiCliProvider: "claude",
   clusterViewLayout: "grid",
   startupBehavior: "reconnect",
+  overviewMetadataCollapsed: false,
 };
 
 interface UIState {

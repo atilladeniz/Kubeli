@@ -47,6 +47,13 @@ pub enum LogEvent {
     Stopped {
         stream_id: String,
     },
+    /// The container is not running yet (ContainerCreating, ImagePullBackOff,
+    /// an init container still running, ...). Emitted while the stream waits
+    /// for it; a final `reason: None` means the wait is over.
+    Waiting {
+        stream_id: String,
+        reason: Option<String>,
+    },
 }
 
 /// Options for streaming logs
@@ -185,6 +192,63 @@ fn stream_log_params(options: &LogOptions) -> LogParams {
     }
 }
 
+/// Why the requested container cannot serve logs yet, if it is still waiting.
+///
+/// Without a container name the kubelet streams the first container, so the
+/// first status is checked. Init containers count too: the kubelet refuses
+/// logs for the main container until they finish.
+fn waiting_reason(pod: &Pod, container: Option<&str>) -> Option<String> {
+    let status = pod.status.as_ref()?;
+    let all = status
+        .init_container_statuses
+        .iter()
+        .flatten()
+        .chain(status.container_statuses.iter().flatten());
+    let target = match container {
+        Some(name) => all.into_iter().find(|c| c.name == name),
+        None => status.container_statuses.as_deref().and_then(|c| c.first()),
+    };
+    match target {
+        Some(c) => c
+            .state
+            .as_ref()?
+            .waiting
+            .as_ref()
+            .map(|w| w.reason.clone().unwrap_or_else(|| "Waiting".to_string())),
+        // No status yet for it: the pod is still pending
+        None if status.phase.as_deref() == Some("Pending") => Some("Pending".to_string()),
+        None => None,
+    }
+}
+
+const WAITING_POLL: std::time::Duration = std::time::Duration::from_secs(2);
+
+/// Block until the container is no longer waiting or the stream is stopped.
+///
+/// Returns true if at least one `Waiting` event was sent. Any error while
+/// reading the pod ends the wait; `log_stream` then surfaces the real error.
+async fn wait_for_container(
+    pods: &Api<Pod>,
+    pod_name: &str,
+    container: Option<&str>,
+    stop_flag: &AtomicBool,
+    mut on_waiting: impl FnMut(String),
+) -> bool {
+    let mut waited = false;
+    while !stop_flag.load(Ordering::SeqCst) {
+        let Ok(pod) = pods.get(pod_name).await else {
+            break;
+        };
+        let Some(reason) = waiting_reason(&pod, container) else {
+            break;
+        };
+        waited = true;
+        on_waiting(reason);
+        tokio::time::sleep(WAITING_POLL).await;
+    }
+    waited
+}
+
 /// Stream logs from a pod in real-time
 #[command]
 pub async fn stream_pod_logs(
@@ -242,10 +306,52 @@ pub async fn stream_pod_logs(
     let stream_id_clone = stream_id.clone();
     let log_manager_clone = Arc::clone(&log_manager);
 
+    let container = options.container.clone();
+    let previous = options.previous.unwrap_or(false);
+
     tokio::spawn(async move {
         tracing::info!("Log stream task started for {}/{}", namespace, pod_name);
-        match pods.log_stream(&pod_name, &log_params).await {
-            Ok(stream) => {
+
+        // Logs of a container that is still ContainerCreating / ImagePullBackOff
+        // / behind an init container fail immediately. Wait for it instead;
+        // `previous` reads the last terminated instance and needs no wait.
+        if !previous {
+            let waited = wait_for_container(
+                &pods,
+                &pod_name,
+                container.as_deref(),
+                &stop_flag,
+                |reason| {
+                    tracing::info!("Log stream {} waiting: {}", stream_id_clone, reason);
+                    let _ = app.emit(
+                        &event_name,
+                        LogEvent::Waiting {
+                            stream_id: stream_id_clone.clone(),
+                            reason: Some(reason),
+                        },
+                    );
+                },
+            )
+            .await;
+            if waited && !stop_flag.load(Ordering::SeqCst) {
+                let _ = app.emit(
+                    &event_name,
+                    LogEvent::Waiting {
+                        stream_id: stream_id_clone.clone(),
+                        reason: None,
+                    },
+                );
+            }
+        }
+
+        let stream = if stop_flag.load(Ordering::SeqCst) {
+            None
+        } else {
+            Some(pods.log_stream(&pod_name, &log_params).await)
+        };
+        match stream {
+            None => tracing::info!("Log stream {} stopped while waiting", stream_id_clone),
+            Some(Ok(stream)) => {
                 tracing::info!("Log stream connected for {}/{}", namespace, pod_name);
                 // Use futures::io::AsyncBufReadExt::lines() which returns a Stream
                 use futures::StreamExt;
@@ -314,7 +420,7 @@ pub async fn stream_pod_logs(
                     }
                 }
             }
-            Err(e) => {
+            Some(Err(e)) => {
                 tracing::error!(
                     "Failed to start log stream for {}/{} (container: {:?}): {}",
                     namespace,
@@ -727,5 +833,117 @@ mod tests {
         assert!(flag_b.load(Ordering::SeqCst));
         assert!(!manager.is_active("a").await);
         assert!(!manager.is_active("b").await);
+    }
+
+    use k8s_openapi::api::core::v1::{
+        ContainerState, ContainerStateRunning, ContainerStateWaiting, ContainerStatus, PodStatus,
+    };
+
+    fn container_status(name: &str, waiting: Option<&str>) -> ContainerStatus {
+        let state = match waiting {
+            Some(reason) => ContainerState {
+                waiting: Some(ContainerStateWaiting {
+                    reason: Some(reason.to_string()),
+                    ..Default::default()
+                }),
+                ..Default::default()
+            },
+            None => ContainerState {
+                running: Some(ContainerStateRunning::default()),
+                ..Default::default()
+            },
+        };
+        ContainerStatus {
+            name: name.to_string(),
+            state: Some(state),
+            ..Default::default()
+        }
+    }
+
+    fn pod_with(phase: &str, init: Vec<ContainerStatus>, containers: Vec<ContainerStatus>) -> Pod {
+        Pod {
+            status: Some(PodStatus {
+                phase: Some(phase.to_string()),
+                init_container_statuses: Some(init),
+                container_statuses: Some(containers),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
+    // Regression: streaming a container that was still ContainerCreating
+    // failed immediately with a 400 instead of waiting for it.
+    #[test]
+    fn waiting_reason_reports_a_creating_container() {
+        let pod = pod_with(
+            "Pending",
+            vec![],
+            vec![container_status("app", Some("ContainerCreating"))],
+        );
+
+        assert_eq!(
+            waiting_reason(&pod, Some("app")).as_deref(),
+            Some("ContainerCreating")
+        );
+        // No container selected: the kubelet would stream the first one
+        assert_eq!(
+            waiting_reason(&pod, None).as_deref(),
+            Some("ContainerCreating")
+        );
+    }
+
+    #[test]
+    fn waiting_reason_is_none_for_a_running_container() {
+        let pod = pod_with(
+            "Running",
+            vec![],
+            vec![
+                container_status("app", None),
+                container_status("sidecar", Some("ImagePullBackOff")),
+            ],
+        );
+
+        assert_eq!(waiting_reason(&pod, Some("app")), None);
+        assert_eq!(
+            waiting_reason(&pod, Some("sidecar")).as_deref(),
+            Some("ImagePullBackOff")
+        );
+    }
+
+    #[test]
+    fn waiting_reason_sees_init_containers() {
+        let pod = pod_with(
+            "Pending",
+            vec![container_status("init-db", Some("PodInitializing"))],
+            vec![container_status("app", Some("PodInitializing"))],
+        );
+
+        assert_eq!(
+            waiting_reason(&pod, Some("init-db")).as_deref(),
+            Some("PodInitializing")
+        );
+    }
+
+    #[test]
+    fn waiting_reason_treats_an_unscheduled_pod_as_pending() {
+        let pod = pod_with("Pending", vec![], vec![]);
+
+        assert_eq!(waiting_reason(&pod, None).as_deref(), Some("Pending"));
+        // A running pod with no status for that name is not "waiting"
+        let pod = pod_with("Running", vec![], vec![container_status("app", None)]);
+        assert_eq!(waiting_reason(&pod, Some("missing")), None);
+    }
+
+    #[test]
+    fn waiting_event_serializes_reason() {
+        let event = LogEvent::Waiting {
+            stream_id: "s1".to_string(),
+            reason: Some("ContainerCreating".to_string()),
+        };
+        let json = serde_json::to_value(event).unwrap();
+
+        assert_eq!(json["type"], "Waiting");
+        assert_eq!(json["data"]["reason"], "ContainerCreating");
     }
 }
