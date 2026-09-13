@@ -4,6 +4,25 @@ title: Changelog
 # `make release` prepends new entries here automatically.
 ---
 
+## v0.3.89 <span class="text-sm font-normal text-neutral-400 ml-2">2026-09-13</span>
+
+- Added ValidatingAdmissionPolicy and binding views
+- Added a keyboard focus model for resource tables and a shortcut help overlay opened with Cmd/Ctrl+/ rendered from one registry
+- Added recent restarts and warnings panels to the cluster overview
+- Added scheduled pods with CPU and memory requests per node
+- Added container probes with the resolved port to the pod view
+- Added automatic reconnect to the last cluster on startup
+- Added a GitOps sidebar section grouping Helm, Flux and ArgoCD, shown only when the matching CRDs exist
+- Added a collapsible metadata section to the resource overview and a warning count on the Events tab
+- Improved performance by pausing watches and polling while the app is idle
+- Improved Secrets and ConfigMaps with a shared data section
+- Fixed long cluster contexts overflowing the home card
+- Fixed log streaming to wait for a waiting container before it starts
+- Fixed modifier shortcuts to work with Ctrl on Windows and Linux
+- Fixed memory formatting to include Ti and Pi units via a shared formatBytes helper
+- Fixed the updater Later snooze so it persists across re-checks
+- Fixed Completed pod terminations to show in a neutral colour instead of red
+
 ## v0.3.88 <span class="text-sm font-normal text-neutral-400 ml-2">2026-09-11</span>
 
 - Fixed pod shell sessions by probing bash, then ash, then sh
