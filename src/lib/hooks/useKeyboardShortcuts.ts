@@ -8,6 +8,8 @@ interface ShortcutConfig {
   key: string;
   ctrl?: boolean;
   meta?: boolean;
+  /** Platform modifier: Cmd on macOS, Ctrl on Windows/Linux. */
+  mod?: boolean;
   shift?: boolean;
   handler: ShortcutHandler;
   description: string;
@@ -67,15 +69,18 @@ export function useKeyboardShortcuts(
         if (keys.length === 1) {
           const matchesKey = event.key.toLowerCase() === shortcut.key.toLowerCase() ||
             event.key === shortcut.key;
-          const matchesCtrl = shortcut.ctrl ? event.ctrlKey : !event.ctrlKey;
-          const matchesMeta = shortcut.meta ? event.metaKey : !event.metaKey;
+          // `mod` accepts either Cmd or Ctrl so the same config works on every
+          // platform; explicit ctrl/meta keep their exact-match semantics.
+          const matchesCtrl = shortcut.ctrl ? event.ctrlKey : shortcut.mod ? true : !event.ctrlKey;
+          const matchesMeta = shortcut.meta ? event.metaKey : shortcut.mod ? true : !event.metaKey;
+          const matchesMod = shortcut.mod ? event.metaKey || event.ctrlKey : true;
           // For non-alphanumeric keys (e.g., "?", "/"), don't enforce shift state
           // since different keyboard layouts may or may not require shift
           const isSymbolKey = /[^a-zA-Z0-9]/.test(shortcut.key);
           const matchesShift = shortcut.shift ? event.shiftKey :
             isSymbolKey ? true : !event.shiftKey;
 
-          if (matchesKey && matchesCtrl && matchesMeta && matchesShift) {
+          if (matchesKey && matchesCtrl && matchesMeta && matchesMod && matchesShift) {
             event.preventDefault();
             shortcut.handler();
             setPendingKey(null);

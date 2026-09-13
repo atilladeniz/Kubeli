@@ -4,6 +4,7 @@ import { useMemo, useRef, useEffect, useState } from "react";
 import type { MetricsSnapshot } from "@/lib/hooks/useMetricsHistory";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
+import { formatBytes } from "@/lib/utils/format-bytes";
 
 interface MetricsChartProps {
   history: MetricsSnapshot[];
@@ -17,13 +18,6 @@ function formatCpuValue(nanoCores: number): string {
   if (milli >= 1) return `${Math.round(milli)}m`;
   if (nanoCores > 0) return `${milli.toFixed(1)}m`;
   return "0m";
-}
-
-function formatMemoryValue(bytes: number): string {
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(1)}Gi`;
-  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(0)}Mi`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)}Ki`;
-  return `${bytes}B`;
 }
 
 function formatTime(ts: number): string {
@@ -50,7 +44,7 @@ export function MetricsChart({ history, type, height = 120 }: MetricsChartProps)
   }, [history, type]);
 
   const opts = useMemo((): uPlot.Options => {
-    const valueFormatter = type === "cpu" ? formatCpuValue : formatMemoryValue;
+    const valueFormatter = type === "cpu" ? formatCpuValue : (bytes: number) => formatBytes(bytes, 1);
     return {
       width: 1, // will be auto-sized
       height,

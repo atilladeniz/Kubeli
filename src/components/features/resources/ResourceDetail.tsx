@@ -28,7 +28,7 @@ import { useTabsStore } from "@/lib/stores/tabs-store";
 import { OverviewTab } from "./components/OverviewTab";
 import { YamlTab, type YamlTabHandle } from "./components/YamlTab";
 import { ConditionsTab } from "./components/ConditionsTab";
-import { EventsTab } from "./components/EventsTab";
+import { EventsTab, EventsWarningBadge } from "./components/EventsTab";
 import { DangerZoneTab } from "./components/DangerZoneTab";
 import { PortForwardTab } from "./components/PortForwardTab";
 import { DeleteResourceDialog } from "./dialogs/DeleteResourceDialog";
@@ -331,6 +331,7 @@ export function ResourceDetail({
               <TabsTrigger value="events" className="gap-2">
                 <AlertCircle className="size-4" />
                 {t("resourceDetail.events")}
+                <EventsWarningBadge events={resource.events} />
               </TabsTrigger>
             )}
             {resourceType === "application" && resource.namespace && (

@@ -8,7 +8,8 @@ import { getPodMetrics } from "@/lib/tauri/commands";
 import { useMetricsHistory } from "@/lib/hooks/useMetricsHistory";
 import { useMetricsAvailability } from "@/lib/hooks/useMetrics";
 import { MetricsChart } from "./MetricsChart";
-import { formatCpuNanoCores, formatMemoryBytes } from "./PodMetricsCell";
+import { formatCpuNanoCores } from "./PodMetricsCell";
+import { formatBytes } from "@/lib/utils/format-bytes";
 import type { ContainerMetricsInfo } from "@/lib/types";
 import { useTranslations } from "next-intl";
 
@@ -76,7 +77,7 @@ export function PodMetricsSection({ podName, namespace }: PodMetricsSectionProps
           <MetricCard
             icon={<HardDrive className="size-3.5" />}
             label="Memory"
-            value={formatMemoryBytes(latest.memoryBytes)}
+            value={formatBytes(latest.memoryBytes)}
             color="purple"
           />
         </div>

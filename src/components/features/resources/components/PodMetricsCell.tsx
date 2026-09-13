@@ -5,6 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import type { PodMetrics, ContainerMetricsInfo } from "@/lib/types";
 import { getHistorySnapshot, type MetricsSnapshot } from "@/lib/hooks/useMetricsHistory";
 import { Sparkline } from "./Sparkline";
+import { formatBytes } from "@/lib/utils/format-bytes";
 
 interface PodMetricsCellProps {
   podName: string;
@@ -27,14 +28,6 @@ export function formatCpuNanoCores(nanoCores: number): string {
     return milli >= 0.1 ? `${milli.toFixed(1)}m` : `${milli.toFixed(2)}m`;
   }
   return "0m";
-}
-
-/** Format bytes to human-readable memory string */
-export function formatMemoryBytes(bytes: number): string {
-  if (bytes >= 1024 ** 3) return `${(bytes / 1024 ** 3).toFixed(2)}Gi`;
-  if (bytes >= 1024 ** 2) return `${(bytes / 1024 ** 2).toFixed(2)}Mi`;
-  if (bytes >= 1024) return `${(bytes / 1024).toFixed(0)}Ki`;
-  return `${bytes}B`;
 }
 
 interface MetricConfig {
@@ -61,7 +54,7 @@ const memoryConfig: MetricConfig = {
   getRequest: (containers) => containers.reduce((sum, c) =>
     c.memory.request ? sum + parseMemoryToBytes(c.memory.request) : sum, 0),
   getSparkValue: (s) => s.memoryBytes,
-  format: formatMemoryBytes,
+  format: formatBytes,
   sparkColor: "#a855f7",
   barColor: "bg-purple-500",
 };

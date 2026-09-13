@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useClusterStore } from "../stores/cluster-store";
 import { getPodMetrics } from "../tauri/commands";
 import { useMetricsInterval } from "./useMetrics";
+import { useAppActive } from "./useAppActive";
 import type { PodMetrics } from "../types";
 
 /** A single metrics snapshot for a pod */
@@ -109,6 +110,7 @@ export function useMetricsHistory(
   const isConnected = useClusterStore((s) => s.isConnected);
   const context = useClusterStore((s) => s.currentCluster?.context ?? null);
   const intervalMs = useMetricsInterval();
+  const active = useAppActive();
   const key = `${namespace}/${podName}`;
   const [history, setHistory] = useState<MetricsSnapshot[]>(() => [...getHistory(key)]);
   const [polled, setPolled] = useState(() => getHistory(key).length > 0);
@@ -145,12 +147,14 @@ export function useMetricsHistory(
 
   // Mount poll, kept separate from the recurring timer: it runs even when
   // polling is disabled (one current reading beats an empty panel) and must
-  // not re-fire when only the interval setting changes.
+  // not re-fire when only the interval setting changes. It also runs once
+  // when the app comes back from idle, so the sparkline continues right away.
   useEffect(() => {
+    if (!active) return;
     // Use setTimeout(0) for initial poll to avoid synchronous setState in effect
     const initial = setTimeout(poll, 0);
     return () => clearTimeout(initial);
-  }, [poll]);
+  }, [poll, active]);
 
   useEffect(() => {
     if (intervalMs === null) return;

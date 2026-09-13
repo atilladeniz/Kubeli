@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { AlertCircle, Info } from "lucide-react";
+import { AlertCircle, Info, Loader2 } from "lucide-react";
 import { useLogs } from "@/lib/hooks/useLogs";
 import { useLogStore } from "@/lib/stores/log-store";
 import { useTabsStore } from "@/lib/stores/tabs-store";
@@ -52,6 +52,7 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
     stopStream,
     clearLogs,
     ended,
+    waiting,
     reconnect,
   } = useLogs(namespace, podName, logTabId);
 
@@ -307,6 +308,13 @@ export function LogViewer({ namespace, podName, initialContainer, logTabId, onOp
         onSendToAI={isAICliAvailable ? sendSelectionToAI : undefined}
         sendToAILabel={t("logs.sendToAI")}
       />
+
+      {waiting && (
+        <div className="flex items-center gap-2 border-t border-border bg-muted/40 px-4 py-2 text-sm text-muted-foreground">
+          <Loader2 className="size-4 shrink-0 animate-spin" />
+          <span>{t("logs.waitingForContainer", { reason: waiting })}</span>
+        </div>
+      )}
 
       {ended && (
         <StreamEndedNotice

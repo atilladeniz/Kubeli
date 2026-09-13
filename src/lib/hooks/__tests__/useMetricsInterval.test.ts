@@ -2,6 +2,7 @@ import { renderHook, act } from "@testing-library/react";
 import { useClusterMetrics, useNodeMetrics } from "../useMetrics";
 import { useUIStore, defaultSettings } from "../../stores/ui-store";
 import { getClusterMetricsSummary, getNodeMetrics } from "../../tauri/commands";
+import { IDLE_GRACE_MS } from "../useAppActive";
 
 jest.mock("../../tauri/commands", () => ({
   getClusterMetricsSummary: jest.fn(),
@@ -137,5 +138,51 @@ describe("metrics polling interval", () => {
 
     await advance(5000);
     expect(mockClusterSummary).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("metrics polling while idle", () => {
+  const fire = (target: EventTarget, type: string) =>
+    act(() => {
+      target.dispatchEvent(new Event(type));
+    });
+
+  beforeEach(() => {
+    jest.useFakeTimers();
+    jest.clearAllMocks();
+    mockClusterSummary.mockResolvedValue({ metrics_available: true });
+    setMetricsInterval(5);
+  });
+
+  afterEach(() => {
+    fire(window, "focus");
+    jest.useRealTimers();
+    useUIStore.setState({ settings: defaultSettings });
+  });
+
+  it("stops polling after the grace period and polls once on focus", async () => {
+    renderHook(() => useClusterMetrics({ autoRefresh: true }));
+    await act(async () => {});
+    expect(mockClusterSummary).toHaveBeenCalledTimes(1);
+
+    fire(window, "blur");
+    await act(async () => {
+      jest.advanceTimersByTime(IDLE_GRACE_MS);
+    });
+    const callsAtIdle = mockClusterSummary.mock.calls.length;
+
+    await act(async () => {
+      jest.advanceTimersByTime(30_000);
+    });
+    expect(mockClusterSummary).toHaveBeenCalledTimes(callsAtIdle);
+
+    fire(window, "focus");
+    await act(async () => {});
+    expect(mockClusterSummary).toHaveBeenCalledTimes(callsAtIdle + 1);
+
+    await act(async () => {
+      jest.advanceTimersByTime(5000);
+    });
+    expect(mockClusterSummary).toHaveBeenCalledTimes(callsAtIdle + 2);
   });
 });

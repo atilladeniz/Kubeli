@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback } from "react";
-import { AlertTriangle, Box, CheckCircle2, Check, ChevronDown, ChevronRight, Clock, Copy, Eye, EyeOff, Key, XCircle } from "lucide-react";
+import { Activity, AlertTriangle, Box, CheckCircle2, Check, ChevronDown, ChevronRight, Clock, Copy, Eye, EyeOff, Key, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -9,12 +9,138 @@ import { useTranslations } from "next-intl";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { revealEnvVar } from "@/lib/tauri/commands";
-import type { ContainerInfo } from "@/lib/types";
+import type { ContainerInfo, ContainerProbe } from "@/lib/types";
+import type { K8sEvent } from "../types";
 
 interface ContainerStatusSectionProps {
   initContainers?: ContainerInfo[];
   containers: ContainerInfo[];
   namespace: string;
+  /** Pod events; kubelet "Unhealthy" events are linked to the probe they belong to */
+  events?: K8sEvent[];
+}
+
+/** Kubelet reports probe failures as "Unhealthy" with "<Kind> probe failed: ..." */
+const PROBE_FAILURE_REASON = "Unhealthy";
+
+const PROBE_KIND_LABEL: Record<ContainerProbe["kind"], string> = {
+  liveness: "podDetail.probeLiveness",
+  readiness: "podDetail.probeReadiness",
+  startup: "podDetail.probeStartup",
+};
+
+/**
+ * Events for this probe: reason Unhealthy, message naming the probe kind,
+ * and (when the event carries a field path) the same container.
+ */
+export function probeFailureEvents(
+  events: K8sEvent[] | undefined,
+  containerName: string,
+  kind: ContainerProbe["kind"]
+): K8sEvent[] {
+  if (!events) return [];
+  const prefix = `${kind.charAt(0).toUpperCase()}${kind.slice(1)} probe failed`;
+  return events.filter(
+    (e) =>
+      e.reason === PROBE_FAILURE_REASON &&
+      e.message.startsWith(prefix) &&
+      (!e.fieldPath || e.fieldPath === `spec.containers{${containerName}}`)
+  );
+}
+
+/** "GET /healthz :8080 (http)" style summary of what the probe does */
+export function probeTargetText(probe: ContainerProbe): string {
+  const port =
+    probe.port !== null
+      ? `:${probe.port}${probe.port_name ? ` (${probe.port_name})` : ""}`
+      : probe.port_name
+        ? `:${probe.port_name}`
+        : "";
+  switch (probe.handler) {
+    case "http":
+    case "https":
+      return `${probe.handler.toUpperCase()} ${probe.target ?? "/"}${port}`;
+    case "tcp":
+      return `TCP${port}`;
+    case "grpc":
+      return `gRPC${port}${probe.target ? ` ${probe.target}` : ""}`;
+    case "exec":
+      return `exec ${probe.target ?? ""}`.trim();
+    default:
+      return probe.handler;
+  }
+}
+
+function ProbeRow({
+  probe,
+  failures,
+  t,
+}: {
+  probe: ContainerProbe;
+  failures: K8sEvent[];
+  t: ReturnType<typeof useTranslations>;
+}) {
+  const failureCount = failures.reduce((sum, e) => sum + (e.count || 1), 0);
+  const latest = failures[failures.length - 1];
+
+  return (
+    <div className="space-y-1" data-testid={`probe-${probe.kind}`}>
+      <div className="flex items-center gap-2 flex-wrap">
+        <Badge variant="outline" className="text-xs px-1.5 py-0.5 shrink-0">
+          {t(PROBE_KIND_LABEL[probe.kind])}
+        </Badge>
+        <span className="text-xs font-mono truncate">{probeTargetText(probe)}</span>
+        {failureCount > 0 && (
+          <Badge
+            variant="outline"
+            className="text-xs px-1.5 py-0.5 border-0 bg-destructive/10 text-destructive shrink-0"
+            title={latest?.message}
+          >
+            <AlertTriangle className="size-3 mr-1" />
+            {t("podDetail.probeFailures", { count: failureCount })}
+          </Badge>
+        )}
+      </div>
+      <div className="text-xs text-muted-foreground">
+        {t("podDetail.probeTiming", {
+          delay: probe.initial_delay_seconds,
+          period: probe.period_seconds,
+          timeout: probe.timeout_seconds,
+          failure: probe.failure_threshold,
+          success: probe.success_threshold,
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ProbesSection({
+  container,
+  events,
+  t,
+}: {
+  container: ContainerInfo;
+  events?: K8sEvent[];
+  t: ReturnType<typeof useTranslations>;
+}) {
+  if (!container.probes || container.probes.length === 0) return null;
+
+  return (
+    <div className="mt-2 p-3 rounded-md bg-muted/50 border border-muted space-y-3">
+      <div className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+        <Activity className="size-3.5" />
+        {t("podDetail.probes")}
+      </div>
+      {container.probes.map((probe) => (
+        <ProbeRow
+          key={probe.kind}
+          probe={probe}
+          failures={probeFailureEvents(events, container.name, probe.kind)}
+          t={t}
+        />
+      ))}
+    </div>
+  );
 }
 
 function formatTimestamp(timestamp: string | null): string {
@@ -48,14 +174,26 @@ function getExitCodeKey(code: number): { key: string; params?: Record<string, nu
   }
 }
 
-function StateIcon({ state }: { state: string }) {
+/**
+ * A container that exited normally (reason "Completed", exit code 0) is not a failure.
+ * Init containers and Job pods end up here by design, so they must not be painted red.
+ */
+export function isBenignTermination(reason?: string | null, exitCode?: number | null): boolean {
+  return reason === "Completed" || exitCode === 0;
+}
+
+function StateIcon({ state, reason }: { state: string; reason?: string | null }) {
   switch (state) {
     case "Running":
       return <CheckCircle2 className="size-4 text-green-500" />;
     case "Waiting":
       return <Clock className="size-4 text-yellow-500" />;
     case "Terminated":
-      return <XCircle className="size-4 text-red-500" />;
+      return isBenignTermination(reason) ? (
+        <CheckCircle2 className="size-4 text-muted-foreground" />
+      ) : (
+        <XCircle className="size-4 text-red-500" />
+      );
     default:
       return <Box className="size-4 text-muted-foreground" />;
   }
@@ -63,6 +201,8 @@ function StateIcon({ state }: { state: string }) {
 
 function StateBadge({ state, reason }: { state: string; reason?: string | null }) {
   const displayText = reason ? `${state}: ${reason}` : state;
+  const terminated = state === "Terminated";
+  const benign = terminated && isBenignTermination(reason);
 
   return (
     <Badge
@@ -71,7 +211,8 @@ function StateBadge({ state, reason }: { state: string; reason?: string | null }
         "font-mono text-xs border-0",
         state === "Running" && "bg-green-500/10 text-green-500",
         state === "Waiting" && "bg-yellow-500/10 text-yellow-500",
-        state === "Terminated" && "bg-destructive/10 text-destructive"
+        terminated && !benign && "bg-destructive/10 text-destructive",
+        benign && "bg-muted text-muted-foreground"
       )}
     >
       {displayText}
@@ -248,17 +389,19 @@ function EnvVarsSection({
 function ContainerCard({
   container,
   namespace,
+  events,
   t,
 }: {
   container: ContainerInfo;
   namespace: string;
+  events?: K8sEvent[];
   t: ReturnType<typeof useTranslations>;
 }) {
   return (
     <div className="rounded-lg border bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <StateIcon state={container.state} />
+          <StateIcon state={container.state} reason={container.state_reason} />
           <span className="font-medium">{container.name}</span>
           {!container.ready && container.state === "Running" && (
             <Badge variant="outline" className="text-yellow-500 border-yellow-500/50">
@@ -307,7 +450,14 @@ function ContainerCard({
             {container.last_state_reason && (
               <div>
                 <span className="text-muted-foreground">{t("common.reason")}: </span>
-                <span className="font-medium text-red-400">
+                <span
+                  className={cn(
+                    "font-medium",
+                    isBenignTermination(container.last_state_reason, container.last_exit_code)
+                      ? "text-muted-foreground"
+                      : "text-red-400"
+                  )}
+                >
                   {container.last_state_reason}
                 </span>
               </div>
@@ -333,12 +483,14 @@ function ContainerCard({
         </div>
       )}
 
+      <ProbesSection container={container} events={events} t={t} />
+
       <EnvVarsSection envVars={container.env_vars} namespace={namespace} t={t} />
     </div>
   );
 }
 
-export function ContainerStatusSection({ initContainers, containers, namespace }: ContainerStatusSectionProps) {
+export function ContainerStatusSection({ initContainers, containers, namespace, events }: ContainerStatusSectionProps) {
   const t = useTranslations();
 
   const hasInitContainers = initContainers && initContainers.length > 0;
@@ -358,7 +510,7 @@ export function ContainerStatusSection({ initContainers, containers, namespace }
           </h3>
           <div className="space-y-3">
             {initContainers.map((container) => (
-              <ContainerCard key={container.name} container={container} namespace={namespace} t={t} />
+              <ContainerCard key={container.name} container={container} namespace={namespace} events={events} t={t} />
             ))}
           </div>
         </div>
@@ -372,7 +524,7 @@ export function ContainerStatusSection({ initContainers, containers, namespace }
           </h3>
           <div className="space-y-3">
             {containers.map((container) => (
-              <ContainerCard key={container.name} container={container} namespace={namespace} t={t} />
+              <ContainerCard key={container.name} container={container} namespace={namespace} events={events} t={t} />
             ))}
           </div>
         </div>

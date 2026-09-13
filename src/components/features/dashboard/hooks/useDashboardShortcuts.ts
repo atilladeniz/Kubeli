@@ -119,17 +119,17 @@ export function useDashboardShortcuts({
         },
         description: "Toggle AI Assistant",
       },
-      // Favorite shortcuts (Cmd+1 through Cmd+9)
+      // Favorite shortcuts (Cmd/Ctrl+1 through Cmd/Ctrl+9)
       ...Array.from({ length: 9 }, (_, i) => ({
         key: NAVIGATION_SHORTCUTS[`FAVORITE_${i + 1}` as keyof typeof NAVIGATION_SHORTCUTS],
-        meta: true,
+        mod: true,
         handler: () => navigateToFavorite(i),
         description: `Go to Favorite ${i + 1}`,
       })),
       // Create resource
       {
         key: NAVIGATION_SHORTCUTS.CREATE_RESOURCE,
-        meta: true,
+        mod: true,
         handler: () => openCreateResource(),
         description: "Create Resource",
         global: true,
@@ -137,7 +137,7 @@ export function useDashboardShortcuts({
       // Tab shortcuts
       {
         key: "t",
-        meta: true,
+        mod: true,
         handler: () => {
           if (resourceTabs.length < 10) {
             openTab("cluster-overview", getTabTitle("cluster-overview"), {
@@ -152,7 +152,7 @@ export function useDashboardShortcuts({
       },
       {
         key: "w",
-        meta: true,
+        mod: true,
         handler: () => {
           if (resourceTabs.length > 1) closeTab(activeTabId);
         },
@@ -161,7 +161,7 @@ export function useDashboardShortcuts({
       },
       {
         key: "Tab",
-        meta: true,
+        mod: true,
         handler: () => {
           const idx = resourceTabs.findIndex((t) => t.id === activeTabId);
           const nextIdx = (idx + 1) % resourceTabs.length;
@@ -172,7 +172,7 @@ export function useDashboardShortcuts({
       },
       {
         key: "Tab",
-        meta: true,
+        mod: true,
         shift: true,
         handler: () => {
           const idx = resourceTabs.findIndex((t) => t.id === activeTabId);
