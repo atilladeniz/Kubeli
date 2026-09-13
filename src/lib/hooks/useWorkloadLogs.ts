@@ -393,6 +393,10 @@ export function useWorkloadLogs(
           case "Started":
             onStarted?.();
             break;
+          case "Waiting":
+            // Multi-pod view: the stream connects by itself once the
+            // container runs, nothing to show per pod.
+            break;
           case "Stopped": {
             const idx = activeStreamIds.current.indexOf(streamId);
             if (idx !== -1) {

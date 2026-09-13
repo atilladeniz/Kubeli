@@ -1,6 +1,6 @@
 export { NamespaceColorDot } from "./NamespaceColorDot";
 export { MetadataItem } from "./MetadataItem";
-export { SecretDataSection } from "./SecretDataSection";
+export { DataSection } from "./DataSection";
 export { OverviewTab } from "./OverviewTab";
 export { YamlTab } from "./YamlTab";
 export { ConditionsTab } from "./ConditionsTab";

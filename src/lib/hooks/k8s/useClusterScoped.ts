@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useClusterStore } from "../../stores/cluster-store";
+import { useAppActive } from "../useAppActive";
 import { useResourceCacheStore } from "../../stores/resource-cache-store";
 import { type KubeliError, toKubeliError } from "../../types/errors";
 import type { UseK8sResourcesOptions, UseK8sResourcesReturn } from "./types";
@@ -16,6 +17,7 @@ export function useClusterScopedResource<T>(
   options: UseK8sResourcesOptions = {}
 ): UseK8sResourcesReturn<T> {
   const isConnected = useClusterStore((s) => s.isConnected);
+  const active = useAppActive();
   const getCache = useResourceCacheStore((s) => s.getCache);
   const setCache = useResourceCacheStore((s) => s.setCache);
   const cacheKey = `${displayName}:`;
@@ -48,17 +50,18 @@ export function useClusterScopedResource<T>(
     }
   }, [isConnected, listFn, cacheKey, setCache]);
 
+  // Initial fetch, repeated once when the app comes back from idle
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && active) {
       refresh();
     }
-  }, [isConnected, refresh]);
+  }, [isConnected, active, refresh]);
 
   useEffect(() => {
-    if (!options.autoRefresh || !isConnected) return;
+    if (!options.autoRefresh || !isConnected || !active) return;
     const interval = setInterval(refresh, options.refreshInterval || 30000);
     return () => clearInterval(interval);
-  }, [options.autoRefresh, options.refreshInterval, isConnected, refresh]);
+  }, [options.autoRefresh, options.refreshInterval, isConnected, active, refresh]);
 
   const retry = useCallback(async () => {
     setError(null);

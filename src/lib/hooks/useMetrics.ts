@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useClusterStore, selectCurrentNamespace } from "../stores/cluster-store";
 import { useUIStore } from "../stores/ui-store";
+import { useAppActive } from "./useAppActive";
 import {
   getNodeMetrics,
   getPodMetrics,
@@ -31,11 +32,14 @@ interface UseMetricsOptions {
 /**
  * Resolves the effective polling interval in ms, or null when polling is off.
  *
- * An explicit option wins; otherwise the Settings value applies, where 0 means
- * the user turned automatic polling off and only manual refresh remains.
+ * Polling is off while the app is idle (window hidden or unfocused). Otherwise
+ * an explicit option wins, then the Settings value applies, where 0 means the
+ * user turned automatic polling off and only manual refresh remains.
  */
 export function useMetricsInterval(override?: number): number | null {
   const configuredSeconds = useUIStore((s) => s.settings.metricsRefreshInterval);
+  const active = useAppActive();
+  if (!active) return null;
   if (override !== undefined) return override;
   return configuredSeconds > 0 ? configuredSeconds * 1000 : null;
 }
@@ -69,6 +73,7 @@ export function useClusterMetrics(options: UseMetricsOptions = {}): UseClusterMe
   const [metricsAvailable, setMetricsAvailable] = useState(false);
   const isConnected = useClusterStore((s) => s.isConnected);
   const intervalMs = useMetricsInterval(options.refreshInterval);
+  const active = useAppActive();
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -91,10 +96,10 @@ export function useClusterMetrics(options: UseMetricsOptions = {}): UseClusterMe
   }, [isConnected]);
 
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && active) {
       refresh();
     }
-  }, [isConnected, refresh]);
+  }, [isConnected, active, refresh]);
 
   useEffect(() => {
     if (!options.autoRefresh || !isConnected || intervalMs === null) return;
@@ -117,6 +122,7 @@ export function useNodeMetrics(options: UseMetricsOptions = {}): UseNodeMetricsR
   const [error, setError] = useState<string | null>(null);
   const isConnected = useClusterStore((s) => s.isConnected);
   const intervalMs = useMetricsInterval(options.refreshInterval);
+  const active = useAppActive();
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -133,10 +139,10 @@ export function useNodeMetrics(options: UseMetricsOptions = {}): UseNodeMetricsR
   }, [isConnected]);
 
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && active) {
       refresh();
     }
-  }, [isConnected, refresh]);
+  }, [isConnected, active, refresh]);
 
   useEffect(() => {
     if (!options.autoRefresh || !isConnected || intervalMs === null) return;
@@ -166,6 +172,7 @@ export function usePodMetrics(
   /** Track whether kubelet direct endpoint is available */
   const useDirectRef = useRef(true);
   const intervalMs = useMetricsInterval(options.refreshInterval);
+  const active = useAppActive();
 
   const refresh = useCallback(async () => {
     if (!isConnected) return;
@@ -193,12 +200,12 @@ export function usePodMetrics(
   }, [isConnected, ns]);
 
   useEffect(() => {
-    if (isConnected) {
+    if (isConnected && active) {
       pollCount.current = 0;
       useDirectRef.current = true; // retry direct on reconnect
       refresh();
     }
-  }, [isConnected, refresh]);
+  }, [isConnected, active, refresh]);
 
   // Burst-then-normal polling: fast initial polls to build sparkline data
   // quickly with real values, then settle to normal interval.

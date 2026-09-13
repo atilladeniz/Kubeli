@@ -141,7 +141,7 @@ export interface LogOptions {
   previous?: boolean;
 }
 
-export type LogEventType = "Line" | "Lines" | "Error" | "Ended" | "Started" | "Stopped";
+export type LogEventType = "Line" | "Lines" | "Error" | "Ended" | "Started" | "Stopped" | "Waiting";
 
 export type LogEvent =
   | { type: "Line"; data: LogEntry }
@@ -149,7 +149,9 @@ export type LogEvent =
   | { type: "Error"; data: KubeliError }
   | { type: "Ended"; data: { stream_id: string; reason: string | null } }
   | { type: "Started"; data: { stream_id: string } }
-  | { type: "Stopped"; data: { stream_id: string } };
+  | { type: "Stopped"; data: { stream_id: string } }
+  /** Container not running yet; `reason: null` means the wait is over */
+  | { type: "Waiting"; data: { stream_id: string; reason: string | null } };
 
 export interface ShellSession {
   id: string;
@@ -337,6 +339,26 @@ export interface ContainerInfo {
   last_finished_at: string | null;
   env_vars: ContainerEnvVar[];
   ports: ContainerPortInfo[];
+  probes?: ContainerProbe[];
+}
+
+export type ProbeKind = "liveness" | "readiness" | "startup";
+
+/** A container probe with the port already resolved by the backend */
+export interface ContainerProbe {
+  kind: ProbeKind;
+  /** "http", "https", "tcp", "grpc" or "exec" */
+  handler: string;
+  /** HTTP path, gRPC service or the exec command line */
+  target: string | null;
+  port: number | null;
+  /** Set when the probe referenced a named port */
+  port_name: string | null;
+  initial_delay_seconds: number;
+  period_seconds: number;
+  timeout_seconds: number;
+  success_threshold: number;
+  failure_threshold: number;
 }
 
 export interface DeploymentInfo {
@@ -564,6 +586,8 @@ export interface EventInvolvedObject {
   name: string;
   namespace: string | null;
   uid: string | null;
+  /** e.g. "spec.containers{app}" for kubelet probe events */
+  field_path?: string | null;
 }
 
 export interface EventInfo {

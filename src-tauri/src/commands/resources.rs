@@ -159,7 +159,7 @@ pub fn extract_container_info(
         })
         .unwrap_or_default();
 
-    let ports = container
+    let ports: Vec<ContainerPortInfo> = container
         .ports
         .as_ref()
         .map(|ps| {
@@ -184,8 +184,88 @@ pub fn extract_container_info(
         last_state_reason,
         last_exit_code,
         last_finished_at,
+        probes: extract_probes(container, &ports),
         env_vars,
         ports,
+    }
+}
+
+/// Collects the container's probes in the order they matter for startup.
+fn extract_probes(
+    container: &k8s_openapi::api::core::v1::Container,
+    ports: &[ContainerPortInfo],
+) -> Vec<ContainerProbe> {
+    [
+        ("startup", &container.startup_probe),
+        ("readiness", &container.readiness_probe),
+        ("liveness", &container.liveness_probe),
+    ]
+    .into_iter()
+    .filter_map(|(kind, probe)| probe.as_ref().map(|p| probe_info(kind, p, ports)))
+    .collect()
+}
+
+fn probe_info(
+    kind: &str,
+    probe: &k8s_openapi::api::core::v1::Probe,
+    ports: &[ContainerPortInfo],
+) -> ContainerProbe {
+    use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+
+    let resolve = |port: &IntOrString| -> (Option<u16>, Option<String>) {
+        match port {
+            IntOrString::Int(n) => (u16::try_from(*n).ok(), None),
+            IntOrString::String(name) => (
+                ports
+                    .iter()
+                    .find(|p| p.name.as_deref() == Some(name.as_str()))
+                    .map(|p| p.container_port),
+                Some(name.clone()),
+            ),
+        }
+    };
+
+    let (handler, target, (port, port_name)) = if let Some(http) = &probe.http_get {
+        let handler = if http.scheme.as_deref() == Some("HTTPS") {
+            "https"
+        } else {
+            "http"
+        };
+        (
+            handler,
+            Some(http.path.clone().unwrap_or_else(|| "/".to_string())),
+            resolve(&http.port),
+        )
+    } else if let Some(tcp) = &probe.tcp_socket {
+        ("tcp", None, resolve(&tcp.port))
+    } else if let Some(grpc) = &probe.grpc {
+        (
+            "grpc",
+            grpc.service.clone(),
+            (u16::try_from(grpc.port).ok(), None),
+        )
+    } else if let Some(exec) = &probe.exec {
+        (
+            "exec",
+            exec.command.as_ref().map(|c| c.join(" ")),
+            (None, None),
+        )
+    } else {
+        ("unknown", None, (None, None))
+    };
+
+    // Defaults as documented for corev1.Probe
+    ContainerProbe {
+        kind: kind.to_string(),
+        handler: handler.to_string(),
+        target,
+        port,
+        port_name,
+        initial_delay_seconds: probe.initial_delay_seconds.unwrap_or(0),
+        period_seconds: probe.period_seconds.unwrap_or(10),
+        timeout_seconds: probe.timeout_seconds.unwrap_or(1),
+        success_threshold: probe.success_threshold.unwrap_or(1),
+        failure_threshold: probe.failure_threshold.unwrap_or(3),
     }
 }
 
@@ -306,6 +386,28 @@ pub struct ContainerInfo {
     pub last_finished_at: Option<String>,
     pub env_vars: Vec<ContainerEnvVar>,
     pub ports: Vec<ContainerPortInfo>,
+    pub probes: Vec<ContainerProbe>,
+}
+
+/// A liveness, readiness or startup probe of a container, with the port
+/// already resolved so the UI never has to look up named ports itself.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct ContainerProbe {
+    /// "liveness", "readiness" or "startup"
+    pub kind: String,
+    /// "http", "https", "tcp", "grpc" or "exec"
+    pub handler: String,
+    /// HTTP path, gRPC service or the exec command line
+    pub target: Option<String>,
+    /// Port number; a named port is resolved through the container's ports
+    pub port: Option<u16>,
+    /// The name when the probe referenced a named port
+    pub port_name: Option<String>,
+    pub initial_delay_seconds: i32,
+    pub period_seconds: i32,
+    pub timeout_seconds: i32,
+    pub success_threshold: i32,
+    pub failure_threshold: i32,
 }
 
 /// Deployment-specific information
@@ -2024,6 +2126,8 @@ pub struct EventInvolvedObject {
     pub name: String,
     pub namespace: Option<String>,
     pub uid: Option<String>,
+    /// e.g. "spec.containers{app}" for kubelet probe events
+    pub field_path: Option<String>,
 }
 
 /// Event information
@@ -2090,6 +2194,7 @@ pub async fn list_events(
                     name: involved.name.unwrap_or_default(),
                     namespace: involved.namespace,
                     uid: involved.uid,
+                    field_path: involved.field_path,
                 },
                 count: event.count.unwrap_or(1),
                 first_timestamp: event.first_timestamp.map(|t| t.0.to_string()),
@@ -5303,6 +5408,45 @@ mod tests {
         }
     }
 
+    fn probe_container(
+        ports: Vec<k8s_openapi::api::core::v1::ContainerPort>,
+    ) -> k8s_openapi::api::core::v1::Container {
+        use k8s_openapi::api::core::v1::{
+            Container, ExecAction, HTTPGetAction, Probe, TCPSocketAction,
+        };
+        use k8s_openapi::apimachinery::pkg::util::intstr::IntOrString;
+        Container {
+            name: "app".into(),
+            ports: Some(ports),
+            liveness_probe: Some(Probe {
+                http_get: Some(HTTPGetAction {
+                    path: Some("/healthz".into()),
+                    port: IntOrString::String("http".into()),
+                    scheme: Some("HTTPS".into()),
+                    ..Default::default()
+                }),
+                initial_delay_seconds: Some(15),
+                failure_threshold: Some(5),
+                ..Default::default()
+            }),
+            readiness_probe: Some(Probe {
+                tcp_socket: Some(TCPSocketAction {
+                    port: IntOrString::Int(5432),
+                    ..Default::default()
+                }),
+                period_seconds: Some(5),
+                ..Default::default()
+            }),
+            startup_probe: Some(Probe {
+                exec: Some(ExecAction {
+                    command: Some(vec!["cat".into(), "/tmp/ready".into()]),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        }
+    }
+
     #[test]
     fn test_policy_match_rules_renders_one_line_per_rule() {
         let resources = match_resources(vec![
@@ -5373,6 +5517,89 @@ mod tests {
             format_label_selector(&selector),
             Some("env=prod".to_string())
         );
+    }
+
+    #[test]
+    fn test_extract_probes_resolves_named_port_and_defaults() {
+        use k8s_openapi::api::core::v1::ContainerPort;
+        let container = probe_container(vec![ContainerPort {
+            name: Some("http".into()),
+            container_port: 8080,
+            ..Default::default()
+        }]);
+
+        let probes = extract_probes(
+            &container,
+            &[ContainerPortInfo {
+                name: Some("http".into()),
+                container_port: 8080,
+                protocol: "TCP".into(),
+            }],
+        );
+
+        assert_eq!(
+            probes.iter().map(|p| p.kind.as_str()).collect::<Vec<_>>(),
+            vec!["startup", "readiness", "liveness"]
+        );
+
+        let liveness = &probes[2];
+        assert_eq!(liveness.handler, "https");
+        assert_eq!(liveness.target.as_deref(), Some("/healthz"));
+        assert_eq!(liveness.port, Some(8080));
+        assert_eq!(liveness.port_name.as_deref(), Some("http"));
+        assert_eq!(liveness.initial_delay_seconds, 15);
+        assert_eq!(liveness.failure_threshold, 5);
+        // Defaults for the fields the probe did not set
+        assert_eq!(liveness.period_seconds, 10);
+        assert_eq!(liveness.timeout_seconds, 1);
+        assert_eq!(liveness.success_threshold, 1);
+
+        let readiness = &probes[1];
+        assert_eq!(readiness.handler, "tcp");
+        assert_eq!(readiness.port, Some(5432));
+        assert_eq!(readiness.port_name, None);
+        assert_eq!(readiness.period_seconds, 5);
+
+        let startup = &probes[0];
+        assert_eq!(startup.handler, "exec");
+        assert_eq!(startup.target.as_deref(), Some("cat /tmp/ready"));
+        assert_eq!(startup.port, None);
+    }
+
+    #[test]
+    fn test_extract_probes_unknown_named_port_keeps_the_name() {
+        let container = probe_container(vec![]);
+        let probes = extract_probes(&container, &[]);
+        let liveness = probes.iter().find(|p| p.kind == "liveness").unwrap();
+        assert_eq!(liveness.port, None);
+        assert_eq!(liveness.port_name.as_deref(), Some("http"));
+    }
+
+    #[test]
+    fn test_extract_probes_grpc_and_none() {
+        use k8s_openapi::api::core::v1::{Container, GRPCAction, Probe};
+        let container = Container {
+            name: "grpc".into(),
+            liveness_probe: Some(Probe {
+                grpc: Some(GRPCAction {
+                    port: 9090,
+                    service: Some("health".into()),
+                }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        };
+        let probes = extract_probes(&container, &[]);
+        assert_eq!(probes.len(), 1);
+        assert_eq!(probes[0].handler, "grpc");
+        assert_eq!(probes[0].port, Some(9090));
+        assert_eq!(probes[0].target.as_deref(), Some("health"));
+
+        let none = Container {
+            name: "plain".into(),
+            ..Default::default()
+        };
+        assert!(extract_probes(&none, &[]).is_empty());
     }
 
     #[test]
@@ -5589,6 +5816,7 @@ mod tests {
             last_state_reason: None,
             last_exit_code: None,
             last_finished_at: None,
+            probes: vec![],
             env_vars: vec![ContainerEnvVar {
                 name: "DB_PASSWORD".into(),
                 value: None,

@@ -86,6 +86,7 @@
     "administration": "Administration",
     "settings": "Settings",
     "helm": "Helm",
+    "gitops": "GitOps",
     "diagram": "Diagram",
     "favorites": "Favorites",
     "pinnedResources": "Pinned Resources",
@@ -317,6 +318,7 @@
     "pdb": "Pod Disruption Budgets",
     "data": "Data",
     "keys": "Keys",
+    "binary": "Binary",
     "type": "Type",
     "minReplicas": "Min Replicas",
     "maxReplicas": "Max Replicas",
@@ -470,6 +472,7 @@
     "streamDropped": "Connection dropped.",
     "streamPodDeleted": "Pod has been deleted.",
     "reconnect": "Reconnect",
+    "waitingForContainer": "Waiting for the container to start ({reason})",
     "streamingActive": "Streaming active",
     "fetchLogs": "Fetch logs",
     "analyzeWithAI": "Analyze with AI",
@@ -1064,7 +1067,13 @@
     "scheduling": "Scheduling",
     "serviceAccount": "Service Account",
     "nodeSelector": "Node Selector",
-    "tolerations": "Tolerations"
+    "tolerations": "Tolerations",
+    "probes": "Probes",
+    "probeLiveness": "Liveness",
+    "probeReadiness": "Readiness",
+    "probeStartup": "Startup",
+    "probeFailures": "{count, plural, one {# failure} other {# failures}}",
+    "probeTiming": "delay {delay}s · every {period}s · timeout {timeout}s · fail after {failure} · ok after {success}"
   },
   "createResource": {
     "title": "Create Resource",
