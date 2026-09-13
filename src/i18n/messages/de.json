@@ -146,6 +146,8 @@
     "soon": "Bald"
   },
   "cluster": {
+    "startupReconnecting": "Verbinde erneut mit {name}…",
+    "startupReconnectCancel": "Abbrechen",
     "title": "Cluster",
     "add": "Cluster hinzufügen",
     "connect": "Verbinden",
@@ -192,6 +194,14 @@
     "preferKubeconfigAuthError": "Authentifizierungs-Einstellung konnte nicht geändert werden.",
     "useKubeconfigAuthAndReconnect": "Kubeconfig-Authentifizierung verwenden & neu verbinden",
     "cancelConnect": "Verbinden abbrechen"
+  },
+  "recent": {
+    "restarts": "Letzte Neustarts ({hours}h)",
+    "noRestarts": "Keine Neustarts",
+    "warnings": "Letzte Warnungen ({hours}h)",
+    "noWarnings": "Keine Warnungen",
+    "showAll": "Alle {count} anzeigen",
+    "showLess": "Weniger anzeigen"
   },
   "workloads": {
     "overview": "Workloads-Übersicht",
@@ -682,6 +692,12 @@
       "ask": "Fragen",
       "always": "Immer",
       "never": "Nie"
+    },
+    "startup": {
+      "title": "Beim Start",
+      "description": "Was Kubeli beim Öffnen tut",
+      "reconnect": "Mit dem letzten Cluster verbinden",
+      "selector": "Cluster-Auswahl anzeigen"
     },
     "autoInstallUpdates": {
       "title": "Updates automatisch installieren",
@@ -1208,6 +1224,8 @@
     "maxUnavailable": "MAX NICHT VERFÜGBAR",
     "allowed": "ERLAUBT",
     "pods": "PODS",
+    "cpuRequests": "CPU-ANFORDERUNGEN",
+    "memoryRequests": "SPEICHER-ANFORDERUNGEN",
     "capacity": "KAPAZITÄT",
     "accessModes": "ZUGRIFFSMODI",
     "reclaimPolicy": "RÜCKGEW.-RICHTL.",

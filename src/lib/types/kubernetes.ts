@@ -433,6 +433,18 @@ export interface NodeInfo {
   labels: Record<string, string>;
   internal_ip: string | null;
   external_ip: string | null;
+  /** Pods scheduled on this node, excluding terminated ones */
+  pods_scheduled: number;
+  /** Pods the kubelet accepts, from status.allocatable */
+  pods_allocatable: number | null;
+  /** Sum of the container requests of the counted pods, in millicores */
+  cpu_requests_milli: number;
+  /** status.allocatable cpu in millicores */
+  cpu_allocatable_milli: number;
+  /** Sum of the container requests of the counted pods, in bytes */
+  memory_requests_bytes: number;
+  /** status.allocatable memory in bytes */
+  memory_allocatable_bytes: number;
 }
 
 // Watch event types

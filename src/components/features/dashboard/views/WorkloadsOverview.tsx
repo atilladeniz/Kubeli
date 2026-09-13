@@ -11,10 +11,15 @@ import {
   useStatefulSets,
   useJobs,
   useCronJobs,
+  useEvents,
 } from "@/lib/hooks/useK8sResources";
 import { getEffectivePodStatus } from "../../resources/columns";
 import { SummaryCard } from "../components/SummaryCard";
 import { StatusRow } from "../components/StatusRow";
+import {
+  RecentRestartsPanel,
+  RecentWarningsPanel,
+} from "../components/RecentActivityPanels";
 
 export function WorkloadsOverview() {
   const t = useTranslations("workloads");
@@ -26,6 +31,7 @@ export function WorkloadsOverview() {
   const { data: statefulSets } = useStatefulSets();
   const { data: jobs } = useJobs();
   const { data: cronJobs } = useCronJobs();
+  const { data: events } = useEvents({ autoRefresh: true });
 
   // Pod statistics - use effective status for accurate health reporting
   const runningPods = pods.filter((p) => getEffectivePodStatus(p) === "Running").length;
@@ -130,6 +136,12 @@ export function WorkloadsOverview() {
             <StatusRow label={t("failed")} value={failedJobs} color="red" />
           </CardContent>
         </Card>
+      </div>
+
+      {/* Recent activity */}
+      <div className="grid grid-cols-1 @xl:grid-cols-2 gap-4 @2xl:gap-6 mb-6 @2xl:mb-8">
+        <RecentRestartsPanel pods={pods} />
+        <RecentWarningsPanel events={events} />
       </div>
 
       {/* Secondary Resources */}

@@ -29,18 +29,18 @@ export function ClusterGridCard({
 
   return (
     <Card
-      className={`flex h-full flex-col transition-all ${
+      className={`flex h-full min-w-0 flex-col transition-all ${
         isActive
           ? "border-green-500/50 bg-green-500/5"
           : "hover:border-border/80 hover:bg-muted/50"
       }`}
     >
-      <CardHeader className="pb-2">
-        <div className="flex items-start justify-between gap-2">
+      <CardHeader className="min-w-0 pb-2">
+        <div className="flex min-w-0 items-start justify-between gap-2">
           <div className="flex min-w-0 items-center gap-3">
             <ClusterIcon cluster={cluster} size={32} />
             <div className="min-w-0">
-              <CardTitle className="flex items-center gap-2 text-base">
+              <CardTitle className="flex min-w-0 items-center gap-2 text-base">
                 <span className="truncate">{cluster.name}</span>
                 {cluster.current && (
                   <Badge variant="secondary" className="shrink-0 text-xs">
@@ -48,7 +48,7 @@ export function ClusterGridCard({
                   </Badge>
                 )}
               </CardTitle>
-              <CardDescription className="truncate text-xs">
+              <CardDescription className="truncate text-xs" title={cluster.context}>
                 {cluster.context}
               </CardDescription>
             </div>
@@ -68,11 +68,11 @@ export function ClusterGridCard({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="flex flex-1 flex-col space-y-3">
-        <div className="text-sm text-muted-foreground">
-          <p className="truncate">{cluster.server}</p>
-          <p className="flex items-center gap-1.5 text-xs text-muted-foreground/70">
-            <span>{cluster.namespace || "default"} | {cluster.auth_type}</span>
+      <CardContent className="flex min-w-0 flex-1 flex-col space-y-3">
+        <div className="min-w-0 text-sm text-muted-foreground">
+          <p className="truncate" title={cluster.server}>{cluster.server}</p>
+          <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground/70">
+            <span className="truncate">{cluster.namespace || "default"} | {cluster.auth_type}</span>
             {hasConfiguredNamespaces && (
               <Badge variant="outline" className="px-1 py-0 text-xs font-normal">
                 NS

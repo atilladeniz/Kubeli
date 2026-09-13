@@ -146,6 +146,8 @@
     "soon": "Soon"
   },
   "cluster": {
+    "startupReconnecting": "Reconnecting to {name}…",
+    "startupReconnectCancel": "Cancel",
     "title": "Clusters",
     "add": "Add Cluster",
     "connect": "Connect",
@@ -192,6 +194,14 @@
     "preferKubeconfigAuthError": "Could not change the authentication setting.",
     "useKubeconfigAuthAndReconnect": "Use kubeconfig authentication & reconnect",
     "cancelConnect": "Cancel connecting"
+  },
+  "recent": {
+    "restarts": "Recent restarts ({hours}h)",
+    "noRestarts": "No restarts",
+    "warnings": "Recent warnings ({hours}h)",
+    "noWarnings": "No warnings",
+    "showAll": "Show all {count}",
+    "showLess": "Show less"
   },
   "workloads": {
     "overview": "Workloads Overview",
@@ -682,6 +692,12 @@
       "ask": "Ask",
       "always": "Always",
       "never": "Never"
+    },
+    "startup": {
+      "title": "On startup",
+      "description": "What Kubeli does when it opens",
+      "reconnect": "Reconnect to the last cluster",
+      "selector": "Show the cluster selector"
     },
     "autoInstallUpdates": {
       "title": "Auto Install Updates",
@@ -1208,6 +1224,8 @@
     "maxUnavailable": "MAX UNAVAILABLE",
     "allowed": "ALLOWED",
     "pods": "PODS",
+    "cpuRequests": "CPU REQUESTS",
+    "memoryRequests": "MEMORY REQUESTS",
     "capacity": "CAPACITY",
     "accessModes": "ACCESS MODES",
     "reclaimPolicy": "RECLAIM POLICY",

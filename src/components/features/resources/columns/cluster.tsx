@@ -15,6 +15,7 @@ import { DefaultBadge } from "../components/badges/DefaultBadge";
 import { BooleanStatusBadge } from "../components/badges/BooleanStatusBadge";
 import { FailurePolicyBadge } from "../components/badges/FailurePolicyBadge";
 import { CrdScopeBadge } from "../components/badges/CrdScopeBadge";
+import { NodeAllocationCell } from "../components/NodeAllocationCell";
 
 // Node columns
 export const nodeColumns: Column<NodeInfo>[] = [
@@ -37,6 +38,24 @@ export const nodeColumns: Column<NodeInfo>[] = [
     label: "ROLES",
     sortable: true,
     render: (node) => node.roles.join(", ") || "worker",
+  },
+  {
+    key: "pods_scheduled",
+    label: "PODS",
+    sortable: true,
+    render: (node) => <NodeAllocationCell node={node} kind="pods" />,
+  },
+  {
+    key: "cpu_requests_milli",
+    label: "CPU REQUESTS",
+    sortable: true,
+    render: (node) => <NodeAllocationCell node={node} kind="cpu" />,
+  },
+  {
+    key: "memory_requests_bytes",
+    label: "MEMORY REQUESTS",
+    sortable: true,
+    render: (node) => <NodeAllocationCell node={node} kind="memory" />,
   },
   { key: "version", label: "VERSION", sortable: true },
   { key: "internal_ip", label: "INTERNAL IP", sortable: true },
@@ -67,6 +86,24 @@ export function getNodeColumns(t: TranslateFunc): Column<NodeInfo>[] {
       label: t("columns.roles"),
       sortable: true,
       render: (node) => node.roles.join(", ") || "worker",
+    },
+    {
+      key: "pods_scheduled",
+      label: t("columns.pods"),
+      sortable: true,
+      render: (node) => <NodeAllocationCell node={node} kind="pods" />,
+    },
+    {
+      key: "cpu_requests_milli",
+      label: t("columns.cpuRequests"),
+      sortable: true,
+      render: (node) => <NodeAllocationCell node={node} kind="cpu" />,
+    },
+    {
+      key: "memory_requests_bytes",
+      label: t("columns.memoryRequests"),
+      sortable: true,
+      render: (node) => <NodeAllocationCell node={node} kind="memory" />,
     },
     { key: "version", label: t("columns.version"), sortable: true },
     { key: "internal_ip", label: t("columns.internalIp"), sortable: true },

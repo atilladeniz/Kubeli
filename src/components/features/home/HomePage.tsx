@@ -3,6 +3,7 @@ import { RestartDialog } from "@/components/features/updater/RestartDialog";
 import { HomeTitlebar } from "./components/HomeTitlebar";
 
 import { ClusterGrid } from "./components/ClusterGrid";
+import { StartupReconnectBanner } from "./components/StartupReconnectBanner";
 import { HomeFooter } from "./components/HomeFooter";
 
 interface HomePageProps {
@@ -20,6 +21,7 @@ export function HomePage({ isTauri, isReady }: HomePageProps) {
       <HomeTitlebar />
 
       <main className="flex min-h-0 flex-1 flex-col">
+        {isTauri && <StartupReconnectBanner />}
         {isTauri && <ClusterGrid />}
       </main>
 
