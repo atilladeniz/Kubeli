@@ -1118,6 +1118,7 @@
     "navigation": "Navigation",
     "actions": "Actions",
     "goTo": "Go to",
+    "favorite": "Go to favorite 1-9",
     "openSettings": "Open settings",
     "toggleAI": "Toggle AI panel",
     "refresh": "Refresh",
