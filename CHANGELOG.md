@@ -2,6 +2,13 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.90] - 2026-10-05
+
+- Updated Tauri to 2.12, including the store, log and updater plugins
+- Updated Rust dependencies: rmcp 3.5.0, cocoa 0.27.0, dirs 7.0.0, rustls 0.23.45, rand 0.10.3 and clap 4.6.7
+- Fixed open npm security alerts and updated Jest to 30.5 to remove the vulnerable braces package
+- Updated CI actions for SignPath code signing (3.0) and CodeQL SARIF upload (4.38.2)
+
 ## [0.3.89] - 2026-09-13
 
 - Added ValidatingAdmissionPolicy and binding views
