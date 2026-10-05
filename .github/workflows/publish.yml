@@ -25,7 +25,7 @@ concurrency:
 jobs:
   create-release:
     name: Create Release
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       release_id: ${{ steps.create-release.outputs.result }}
       version: ${{ steps.version.outputs.version }}
@@ -281,7 +281,7 @@ jobs:
   sign-windows:
     name: Sign Windows Installers
     needs: [create-release, build]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
       actions: read
@@ -335,7 +335,7 @@ jobs:
   finalize:
     name: Finalize Release
     needs: [create-release, build, sign-windows]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: production
     # Job level, not step level: a step's own `if:` is evaluated before its
     # `env:` block is applied, so a secret declared there is an empty string

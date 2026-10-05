@@ -12,7 +12,7 @@ env:
 jobs:
   detect-changes:
     name: Detect Changes
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       app: ${{ steps.filter.outputs.app }}
       web: ${{ steps.filter.outputs.web }}
@@ -41,7 +41,7 @@ jobs:
 
   build-web:
     name: Astro Build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [detect-changes]
     if: needs.detect-changes.outputs.web == 'true'
     steps:
@@ -75,7 +75,7 @@ jobs:
 
   deploy-web:
     name: Deploy Landing Page
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [build-web]
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     steps:
@@ -102,7 +102,7 @@ jobs:
 
   tauri-versions:
     name: Tauri Version Sync
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -118,7 +118,7 @@ jobs:
     name: Frontend Lint & Type Check
     needs: [detect-changes]
     if: needs.detect-changes.outputs.app == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -147,7 +147,7 @@ jobs:
     name: Frontend Unit Tests
     needs: [detect-changes]
     if: needs.detect-changes.outputs.app == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -181,7 +181,7 @@ jobs:
     name: Backend Lint & Clippy
     needs: [detect-changes]
     if: needs.detect-changes.outputs.app == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_DEV_DEBUG: '0'
@@ -227,7 +227,7 @@ jobs:
     name: Backend Unit Tests
     needs: [detect-changes]
     if: needs.detect-changes.outputs.app == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       CARGO_INCREMENTAL: '0'
       CARGO_PROFILE_TEST_DEBUG: '0'
@@ -276,7 +276,7 @@ jobs:
 
   test-e2e:
     name: E2E Smoke Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: [detect-changes, lint-frontend]
     if: needs.detect-changes.outputs.app == 'true'
     steps:

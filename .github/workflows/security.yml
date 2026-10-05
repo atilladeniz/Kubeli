@@ -23,7 +23,7 @@ env:
 jobs:
   trivy:
     name: Trivy Vulnerability Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -185,7 +185,7 @@ jobs:
 
   cargo-deny:
     name: Cargo Deny (Licenses, Bans, Sources)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -209,7 +209,7 @@ jobs:
 
   cargo-audit:
     name: Cargo Audit (RustSec)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -230,7 +230,7 @@ jobs:
 
   lockfile-lint:
     name: Lockfile Integrity Check
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
@@ -239,7 +239,7 @@ jobs:
 
   semgrep:
     name: Semgrep SAST Scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container:
       image: semgrep/semgrep
     if: github.actor != 'dependabot[bot]'
