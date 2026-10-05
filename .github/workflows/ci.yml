@@ -112,7 +112,7 @@ jobs:
           node-version: '20'
 
       - name: Check tauri crate vs @tauri-apps/api versions
-        run: node scripts/check-tauri-versions.mjs
+        run: node scripts/check-tauri-versions.js
 
   lint-frontend:
     name: Frontend Lint & Type Check
