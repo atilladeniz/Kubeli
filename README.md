@@ -51,7 +51,7 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 - **MCP Server** - Model Context Protocol server for IDE integration (VS Code, Cursor, Claude Code)
 - **Helm Releases** - View and manage Helm deployments
 - **Proxy Support** - HTTP/HTTPS/SOCKS5 proxy configuration for corporate environments
-- **Internationalization** - English and German language support
+- **Internationalization** - English, German and Chinese language support
 - **Dark/Light Mode** - Theme support with vibrancy effects
 
 ## Tech Stack
