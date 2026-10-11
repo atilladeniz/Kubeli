@@ -57,7 +57,7 @@ export function I18nProvider({ children }: I18nProviderProps) {
 
       if (locale === "system") {
         lang = await detectSystemLanguage();
-      } else if (locale === "en" || locale === "de") {
+      } else if (isValidLanguageCode(locale)) {
         lang = locale;
       } else {
         lang = "en";
