@@ -193,7 +193,18 @@
     "preferKubeconfigAuthDisabled": "Automatic authentication restored. Reconnect to apply.",
     "preferKubeconfigAuthError": "Could not change the authentication setting.",
     "useKubeconfigAuthAndReconnect": "Use kubeconfig authentication & reconnect",
-    "cancelConnect": "Cancel connecting"
+    "cancelConnect": "Cancel connecting",
+    "clusterTags": "Cluster tags",
+    "manageClusterTags": "Manage tags",
+    "manageClusterTagsDescription": "Create reusable tags and assign them to clusters.",
+    "customClusterTags": "Custom tags",
+    "clusterTagName": "Tag name",
+    "clusterTagNamePlaceholder": "e.g. qa",
+    "clusterTagNameExists": "A tag with this name already exists.",
+    "clusterTagColor": "Color",
+    "selectClusterTagColorOption": "Color {index}",
+    "createClusterTag": "Create tag",
+    "deleteClusterTag": "Delete tag"
   },
   "recent": {
     "restarts": "Recent restarts ({hours}h)",
@@ -1278,7 +1289,6 @@
     "version": "VERSION",
     "internalIp": "INTERNAL IP",
     "labels": "LABELS",
-    "actions": "ACTIONS",
     "cpu": "CPU",
     "memory": "MEMORY"
   },
