@@ -3,7 +3,9 @@ import { CheckCircle2, ArrowRightLeft, Settings2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
-import { ClusterIcon } from "@/components/ui/cluster-icon";
+import { ClusterIcon } from "@/components/ui/cluster-icon"; 
+import { TagList } from "./TagList";
+import { ClusterTagPicker } from "./ClusterTagPicker";
 import {
   Card,
   CardContent,
@@ -29,11 +31,10 @@ export function ClusterGridCard({
 
   return (
     <Card
-      className={`flex h-full min-w-0 flex-col transition-all ${
-        isActive
-          ? "border-green-500/50 bg-green-500/5"
-          : "hover:border-border/80 hover:bg-muted/50"
-      }`}
+      className={`flex h-full min-w-0 flex-col transition-all ${isActive
+        ? "border-green-500/50 bg-green-500/5"
+        : "hover:border-border/80 hover:bg-muted/50"
+        }`}
     >
       <CardHeader className="min-w-0 pb-2">
         <div className="flex min-w-0 items-start justify-between gap-2">
@@ -71,45 +72,54 @@ export function ClusterGridCard({
       <CardContent className="flex min-w-0 flex-1 flex-col space-y-3">
         <div className="min-w-0 text-sm text-muted-foreground">
           <p className="truncate" title={cluster.server}>{cluster.server}</p>
-          <p className="flex min-w-0 items-center gap-1.5 text-xs text-muted-foreground/70">
-            <span className="truncate">{cluster.namespace || "default"} | {cluster.auth_type}</span>
+          <div className="flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground/70">
+            <span className="min-w-0 truncate">{cluster.namespace || "default"} | {cluster.auth_type}</span>
             {hasConfiguredNamespaces && (
               <Badge variant="outline" className="px-1 py-0 text-xs font-normal">
                 NS
               </Badge>
             )}
-          </p>
+            <TagList clusterContext={cluster.context} inline />
+          </div>
         </div>
         <div className="flex gap-2 mt-auto">
-        <Button
-          variant="outline"
-          size="icon"
-          className="shrink-0"
-          onClick={() => onConfigureNamespaces(cluster.context)}
-          title={t("configureNamespaces")}
-        >
-          <Settings2 className="size-4" />
-        </Button>
-        {isConnecting ? (
-          <Button
-            onClick={onCancelConnect}
-            className="flex-1"
-            variant="destructive"
-            title={t("cancelConnect")}
-          >
-            <Spinner />
-            {tCommon("cancel")}
-          </Button>
-        ) : (
-          <Button
-            onClick={() => onConnect(cluster.context)}
-            disabled={disabled}
-            className="flex-1"
-            variant={isActive ? "secondary" : "default"}
-          >
-            {isActive ? t("connected") : t("connect")}
-          </Button>
-        )}
+          <div className="flex shrink-0 flex-row items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="shrink-0"
+              onClick={() => onConfigureNamespaces(cluster.context)}
+              title={t("configureNamespaces")}
+            >
+              <Settings2 className="size-4" />
+            </Button>
+            <ClusterTagPicker
+              variant="outline"
+              size="icon"
+              className="shrink-0"
+              clusterContext={cluster.context}
+            />
+          </div>
+          {isConnecting ? (
+            <Button
+              onClick={onCancelConnect}
+              className="flex-1"
+              variant="destructive"
+              title={t("cancelConnect")}
+            >
+              <Spinner />
+              {tCommon("cancel")}
+            </Button>
+          ) : (
+            <Button
+              onClick={() => onConnect(cluster.context)}
+              disabled={disabled}
+              className="flex-1"
+              variant={isActive ? "secondary" : "default"}
+            >
+              {isActive ? t("connected") : t("connect")}
+            </Button>
+          )}
         </div>
       </CardContent>
     </Card>

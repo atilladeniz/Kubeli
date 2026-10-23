@@ -193,7 +193,18 @@
     "preferKubeconfigAuthDisabled": "Automatische Authentifizierung wiederhergestellt. Zum Anwenden neu verbinden.",
     "preferKubeconfigAuthError": "Authentifizierungs-Einstellung konnte nicht geändert werden.",
     "useKubeconfigAuthAndReconnect": "Kubeconfig-Authentifizierung verwenden & neu verbinden",
-    "cancelConnect": "Verbinden abbrechen"
+    "cancelConnect": "Verbinden abbrechen",
+    "clusterTags": "Cluster-Tags",
+    "manageClusterTags": "Tags verwalten",
+    "manageClusterTagsDescription": "Erstellen Sie wiederverwendbare Tags und weisen Sie sie Clustern zu.",
+    "customClusterTags": "Eigene Tags",
+    "clusterTagName": "Tag-Name",
+    "clusterTagNamePlaceholder": "z. B. qa",
+    "clusterTagNameExists": "Ein Tag mit diesem Namen ist bereits vorhanden.",
+    "clusterTagColor": "Farbe",
+    "selectClusterTagColorOption": "Farbe {index}",
+    "createClusterTag": "Tag erstellen",
+    "deleteClusterTag": "Tag löschen"
   },
   "recent": {
     "restarts": "Letzte Neustarts ({hours}h)",
@@ -1278,7 +1289,6 @@
     "version": "VERSION",
     "internalIp": "INTERNE IP",
     "labels": "LABELS",
-    "actions": "AKTIONEN",
     "cpu": "CPU",
     "memory": "SPEICHER"
   },
