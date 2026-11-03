@@ -50,6 +50,7 @@ export const pvColumns: Column<PVInfo>[] = [
     key: "claim",
     label: "CLAIM",
     sortable: true,
+    sortValue: (pv) => (pv.claim_name ? `${pv.claim_namespace}/${pv.claim_name}` : ""),
     render: (pv) => pv.claim_name ? `${pv.claim_namespace}/${pv.claim_name}` : "-",
   },
   {
@@ -218,6 +219,7 @@ export const csiNodeColumns: Column<CSINodeInfo>[] = [
     key: "drivers",
     label: "DRIVERS",
     sortable: true,
+    sortValue: (node) => node.drivers.length,
     render: (node) => node.drivers.length,
   },
   {

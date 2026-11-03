@@ -2,6 +2,7 @@ import { render, screen } from "@testing-library/react";
 import {
   NodeAllocationCell,
   nodeAllocation,
+  nodeAllocationPercent,
   formatMilliCores,
   formatBytes,
 } from "../NodeAllocationCell";
@@ -75,6 +76,15 @@ describe("nodeAllocation", () => {
 
   it("shows a question mark when the node reported no pod allocatable", () => {
     expect(nodeAllocation(node({ pods_allocatable: null }), "pods").label).toBe("18 / ?");
+  });
+
+  it("computes utilization percentage for sorting across different node sizes", () => {
+    const fourCore50Pct = node({ cpu_requests_milli: 2000, cpu_allocatable_milli: 4000 });
+    const twoCore85Pct = node({ cpu_requests_milli: 1700, cpu_allocatable_milli: 2000 });
+
+    expect(nodeAllocationPercent(fourCore50Pct, "cpu")).toBe(50);
+    expect(nodeAllocationPercent(twoCore85Pct, "cpu")).toBe(85);
+    expect(nodeAllocationPercent(node({ cpu_allocatable_milli: 0 }), "cpu")).toBeNull();
   });
 });
 

@@ -45,6 +45,21 @@ const contextMenuSlots: MenuSlots = {
 const ROW_HEIGHT = 44;
 const OVERSCAN = 10;
 
+/**
+ * Default width for columns that don't specify an explicit `width` class,
+ * ensuring `table-fixed` never resizes columns dynamically as virtualized rows scroll.
+ */
+function resolveColumnWidth<T>(column: Column<T>, index: number): string {
+  if (column.width) return column.width;
+  const key = String(column.key);
+  if (key === "name" || index === 0) return "w-[22rem]";
+  if (key === "namespace") return "w-44";
+  if (key === "created_at" || key === "last_deployed" || key === "last_timestamp") return "w-24";
+  if (key === "status" || key === "phase" || key === "conditions_ready") return "w-32";
+  if (key === "actions") return "w-32";
+  return "w-40";
+}
+
 interface ResourceTableProps<T> {
   data: T[];
   columns: Column<T>[];
@@ -111,6 +126,12 @@ function ResourceTableRowInner<T>({
       data-focused={isFocused || undefined}
       aria-selected={isFocused}
       onClick={() => {
+        // If the user is selecting text inside the row (e.g. to copy a resource name),
+        // do not trigger row navigation/detail drawer open.
+        const selection = typeof window !== "undefined" ? window.getSelection() : null;
+        if (selection && selection.toString().trim().length > 0) {
+          return;
+        }
         onFocusRow?.(dataIndex);
         onRowClick?.(item);
       }}
@@ -135,12 +156,12 @@ function ResourceTableRowInner<T>({
           />
         </TableCell>
       )}
-      {columns.map((column) => (
+      {columns.map((column, colIdx) => (
         <TableCell
           key={String(column.key)}
           className={cn(
             "text-sm",
-            column.width,
+            resolveColumnWidth(column, colIdx),
             isFixed && !column.noTruncate && "truncate"
           )}
         >
@@ -286,15 +307,11 @@ export function ResourceTable<T>({
       : 0;
   const columnCount =
     columns.length + (hasBulkActions ? 1 : 0) + (contextMenuItems ? 1 : 0);
-  // Fixed layout (stable columns, no scroll jitter) only when widths are
-  // declared; otherwise fall back to content-sized auto layout.
-  const hasFixedWidths = columns.some((c) => c.width);
+  // Always use fixed table layout on virtualized tables so column widths never
+  // shift or jitter sideways as rows with varying text lengths enter/leave the viewport.
+  const hasFixedWidths = true;
 
   return (
-    // overscroll-none kills the elastic bounce that left ghost rows above/below
-    // the sticky header. The horizontal jitter is fixed at the source: columns
-    // carry fixed widths so their content (e.g. the variable action buttons)
-    // can't renegotiate widths as rows scroll through the virtual window.
     <div
       ref={scrollRef}
       className="h-full overflow-auto overscroll-none focus:outline-none"
@@ -310,11 +327,7 @@ export function ResourceTable<T>({
       }
       onKeyDown={handleKeyDown}
     >
-      {/* table-fixed only when columns declare widths: widths then come from the
-          headers, not per-row content, so variable action buttons can't jitter
-          the layout sideways while scrolling. Tables without declared widths
-          keep the content-sized auto layout. */}
-      <Table className={cn("w-full", hasFixedWidths && "min-w-max table-fixed")}>
+      <Table className="w-full min-w-max table-fixed">
         {/* translate-z-0: force the sticky header onto its own GPU layer so
             virtual rows scrolling under it don't leave repaint ghosts in
             WebKit. */}
@@ -335,12 +348,12 @@ export function ResourceTable<T>({
                 />
               </TableHead>
             )}
-            {columns.map((column) => (
+            {columns.map((column, colIdx) => (
               <TableHead
                 key={String(column.key)}
                 className={cn(
                   "text-xs font-medium tracking-wider bg-background",
-                  column.width
+                  resolveColumnWidth(column, colIdx)
                 )}
               >
                 {column.sortable ? (

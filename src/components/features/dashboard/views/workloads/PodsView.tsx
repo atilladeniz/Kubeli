@@ -37,6 +37,7 @@ import { seedHistoryFromBulkMetrics } from "@/lib/hooks/useMetricsHistory";
 import { useResourceDetail } from "../../context";
 import { useTabsStore } from "@/lib/stores/tabs-store";
 import { PortSelectPopover } from "../../../portforward";
+import { podMetricUtilizationPercent } from "../../../resources/components/PodMetricsCell";
 import type { PodInfo, PodMetrics, ServiceInfo, ServicePortInfo } from "@/lib/types";
 
 export function PodsView() {
@@ -468,18 +469,30 @@ export function PodsView() {
     ];
   };
 
-  // Custom sort comparator for metrics columns
+  // Custom sort comparator for metrics columns: sort by utilization percentage
+  // (usage / request * 100) when requests are defined, falling back to raw usage.
   const customSortComparator = useMemo(() => {
     if (sortKey === "cpu_usage" || sortKey === "memory_usage") {
+      const metricType = sortKey === "cpu_usage" ? "cpu" : "memory";
       return (a: PodInfo, b: PodInfo) => {
         const aMetrics = metricsMap.get(`${a.namespace}/${a.name}`);
         const bMetrics = metricsMap.get(`${b.namespace}/${b.name}`);
-        const aVal = sortKey === "cpu_usage"
-          ? (aMetrics?.total_cpu_nano_cores ?? -1)
-          : (aMetrics?.total_memory_bytes ?? -1);
-        const bVal = sortKey === "cpu_usage"
-          ? (bMetrics?.total_cpu_nano_cores ?? -1)
-          : (bMetrics?.total_memory_bytes ?? -1);
+        const aPct = podMetricUtilizationPercent(aMetrics, metricType);
+        const bPct = podMetricUtilizationPercent(bMetrics, metricType);
+
+        if (aPct !== null || bPct !== null) {
+          const diff = (aPct ?? -1) - (bPct ?? -1);
+          if (diff !== 0) return diff;
+        }
+
+        const aVal =
+          metricType === "cpu"
+            ? (aMetrics?.total_cpu_nano_cores ?? -1)
+            : (aMetrics?.total_memory_bytes ?? -1);
+        const bVal =
+          metricType === "cpu"
+            ? (bMetrics?.total_cpu_nano_cores ?? -1)
+            : (bMetrics?.total_memory_bytes ?? -1);
         return aVal - bVal;
       };
     }
