@@ -15,7 +15,7 @@ import { DefaultBadge } from "../components/badges/DefaultBadge";
 import { BooleanStatusBadge } from "../components/badges/BooleanStatusBadge";
 import { FailurePolicyBadge } from "../components/badges/FailurePolicyBadge";
 import { CrdScopeBadge } from "../components/badges/CrdScopeBadge";
-import { NodeAllocationCell } from "../components/NodeAllocationCell";
+import { NodeAllocationCell, nodeAllocationPercent } from "../components/NodeAllocationCell";
 
 // Node columns
 export const nodeColumns: Column<NodeInfo>[] = [
@@ -23,6 +23,7 @@ export const nodeColumns: Column<NodeInfo>[] = [
     key: "name",
     label: "NAME",
     sortable: true,
+    width: "w-64",
     render: (node) => (
       <span className="font-medium">{node.name}</span>
     ),
@@ -31,38 +32,52 @@ export const nodeColumns: Column<NodeInfo>[] = [
     key: "status",
     label: "STATUS",
     sortable: true,
+    width: "w-28",
+    noTruncate: true,
     render: (node) => <NodeStatusBadge status={node.status} />,
   },
   {
     key: "roles",
     label: "ROLES",
     sortable: true,
+    width: "w-36",
+    sortValue: (node) => node.roles.join(", ") || "worker",
     render: (node) => node.roles.join(", ") || "worker",
   },
   {
     key: "pods_scheduled",
     label: "PODS",
     sortable: true,
+    width: "w-36",
+    noTruncate: true,
+    sortValue: (node) => nodeAllocationPercent(node, "pods"),
     render: (node) => <NodeAllocationCell node={node} kind="pods" />,
   },
   {
     key: "cpu_requests_milli",
     label: "CPU REQUESTS",
     sortable: true,
+    width: "w-40",
+    noTruncate: true,
+    sortValue: (node) => nodeAllocationPercent(node, "cpu"),
     render: (node) => <NodeAllocationCell node={node} kind="cpu" />,
   },
   {
     key: "memory_requests_bytes",
     label: "MEMORY REQUESTS",
     sortable: true,
+    width: "w-44",
+    noTruncate: true,
+    sortValue: (node) => nodeAllocationPercent(node, "memory"),
     render: (node) => <NodeAllocationCell node={node} kind="memory" />,
   },
-  { key: "version", label: "VERSION", sortable: true },
-  { key: "internal_ip", label: "INTERNAL IP", sortable: true },
+  { key: "version", label: "VERSION", sortable: true, width: "w-28" },
+  { key: "internal_ip", label: "INTERNAL IP", sortable: true, width: "w-36" },
   {
     key: "created_at",
     label: "AGE",
     sortable: true,
+    width: "w-24",
     render: (node) => (node.created_at ? formatAge(node.created_at) : "-"),
   },
 ];
@@ -73,44 +88,59 @@ export function getNodeColumns(t: TranslateFunc): Column<NodeInfo>[] {
       key: "name",
       label: t("columns.name"),
       sortable: true,
+      width: "w-64",
       render: (node) => <span className="font-medium">{node.name}</span>,
     },
     {
       key: "status",
       label: t("columns.status"),
       sortable: true,
+      width: "w-28",
+      noTruncate: true,
       render: (node) => <NodeStatusBadge status={node.status} />,
     },
     {
       key: "roles",
       label: t("columns.roles"),
       sortable: true,
+      width: "w-36",
+      sortValue: (node) => node.roles.join(", ") || "worker",
       render: (node) => node.roles.join(", ") || "worker",
     },
     {
       key: "pods_scheduled",
       label: t("columns.pods"),
       sortable: true,
+      width: "w-36",
+      noTruncate: true,
+      sortValue: (node) => nodeAllocationPercent(node, "pods"),
       render: (node) => <NodeAllocationCell node={node} kind="pods" />,
     },
     {
       key: "cpu_requests_milli",
       label: t("columns.cpuRequests"),
       sortable: true,
+      width: "w-40",
+      noTruncate: true,
+      sortValue: (node) => nodeAllocationPercent(node, "cpu"),
       render: (node) => <NodeAllocationCell node={node} kind="cpu" />,
     },
     {
       key: "memory_requests_bytes",
       label: t("columns.memoryRequests"),
       sortable: true,
+      width: "w-44",
+      noTruncate: true,
+      sortValue: (node) => nodeAllocationPercent(node, "memory"),
       render: (node) => <NodeAllocationCell node={node} kind="memory" />,
     },
-    { key: "version", label: t("columns.version"), sortable: true },
-    { key: "internal_ip", label: t("columns.internalIp"), sortable: true },
+    { key: "version", label: t("columns.version"), sortable: true, width: "w-28" },
+    { key: "internal_ip", label: t("columns.internalIp"), sortable: true, width: "w-36" },
     {
       key: "created_at",
       label: t("columns.age"),
       sortable: true,
+      width: "w-24",
       render: (node) => (node.created_at ? formatAge(node.created_at) : "-"),
     },
   ];

@@ -59,6 +59,23 @@ const memoryConfig: MetricConfig = {
   barColor: "bg-purple-500",
 };
 
+/**
+ * Returns the pod's CPU or Memory utilization percentage (usage / request * 100)
+ * when a request is defined, or null if requests are unset or metrics are missing.
+ */
+export function podMetricUtilizationPercent(
+  metrics: PodMetrics | undefined,
+  type: "cpu" | "memory"
+): number | null {
+  if (!metrics) return null;
+  const config = type === "cpu" ? cpuConfig : memoryConfig;
+  const value = config.getValue(metrics);
+  const usage = type === "cpu" ? value / 1_000_000 : value;
+  const totalRequest = config.getRequest(metrics.containers);
+  if (totalRequest <= 0) return null;
+  return (usage / totalRequest) * 100;
+}
+
 export function PodMetricsCell({ podName, namespace, metricsMap, type, loading }: PodMetricsCellProps) {
   const key = `${namespace}/${podName}`;
   const metrics = metricsMap.get(key);

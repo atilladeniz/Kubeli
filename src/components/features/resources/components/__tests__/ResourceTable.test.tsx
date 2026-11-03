@@ -124,6 +124,32 @@ describe("ResourceTable virtualization", () => {
       Array.from({ length: numeric.length }, (_, i) => numeric[0] + i)
     );
   });
+
+  it("enforces table-fixed layout and skips onRowClick when text is selected", () => {
+    const onRowClick = jest.fn();
+    const { container } = render(
+      <ResourceTable
+        {...baseProps}
+        data={makeItems(3)}
+        onRowClick={onRowClick}
+      />
+    );
+
+    const table = container.querySelector("table");
+    expect(table?.className).toContain("table-fixed");
+
+    const getSelectionSpy = jest
+      .spyOn(window, "getSelection")
+      .mockReturnValue({ toString: () => "pod-0" } as unknown as Selection);
+
+    const rows = dataRows(container);
+    fireEvent.click(rows[0]);
+    expect(onRowClick).not.toHaveBeenCalled();
+
+    getSelectionSpy.mockReturnValue({ toString: () => "" } as unknown as Selection);
+    fireEvent.click(rows[0]);
+    expect(onRowClick).toHaveBeenCalledWith({ name: "pod-0", status: "Running" });
+  });
 });
 
 describe("ResourceTable keyboard navigation", () => {

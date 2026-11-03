@@ -649,12 +649,55 @@ html.tray-popup #root {
 *,
 *::before,
 *::after {
-  user-select: none !important;
-  -webkit-user-select: none !important;
   cursor: default !important;
 }
 
-/* Allow text selection and text cursor in inputs */
+/* Keep UI chrome and interactive controls non-selectable */
+button,
+button *,
+[role="button"],
+[role="button"] *,
+[role="tab"],
+[role="tab"] *,
+[role="menuitem"],
+[role="menuitem"] *,
+[role="menuitemcheckbox"],
+[role="menuitemradio"],
+[role="option"],
+[role="option"] *,
+[role="checkbox"],
+[role="radio"],
+[role="switch"],
+[data-sidebar],
+[data-sidebar] *,
+nav,
+nav *,
+th,
+th *,
+.select-none,
+.select-none * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Allow text selection in resource tables, detail drawers, badges, and text content */
+td,
+td *:not(button):not([role="button"]):not([role="checkbox"]),
+p,
+h1,
+h2,
+h3,
+h4,
+h5,
+h6,
+dd,
+dt,
+li {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+/* Allow text selection and text cursor in inputs and code blocks */
 input,
 textarea,
 [contenteditable="true"],
@@ -677,6 +720,11 @@ code,
 }
 
 /* Selection highlight for selectable content — visible blue like terminal emulators */
+::selection {
+  background-color: rgba(56, 139, 253, 0.35) !important;
+  color: inherit !important;
+}
+
 [data-allow-context-menu] ::selection,
 [data-allow-context-menu]::selection {
   background-color: rgba(56, 139, 253, 0.45) !important;
