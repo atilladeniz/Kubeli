@@ -34,18 +34,21 @@ export const serviceAccountColumns: Column<ServiceAccountInfo>[] = [
     key: "secrets",
     label: "SECRETS",
     sortable: true,
+    sortValue: (sa) => sa.secrets.length,
     render: (sa) => sa.secrets.length,
   },
   {
     key: "image_pull_secrets",
     label: "IMAGE PULL SECRETS",
     sortable: true,
+    sortValue: (sa) => sa.image_pull_secrets.length,
     render: (sa) => sa.image_pull_secrets.length,
   },
   {
     key: "automount",
     label: "AUTOMOUNT TOKEN",
     sortable: true,
+    sortValue: (sa) => (sa.automount_service_account_token !== false ? 1 : 0),
     render: (sa) => (
       <BooleanStatusBadge
         value={sa.automount_service_account_token !== false}
@@ -115,6 +118,7 @@ export const roleBindingColumns: Column<RoleBindingInfo>[] = [
     key: "role",
     label: "ROLE",
     sortable: true,
+    sortValue: (rb) => `${rb.role_kind}/${rb.role_name}`,
     render: (rb) => (
       <div className="flex items-center gap-1">
         <Badge variant="outline" className="text-xs px-1.5 py-0.5">

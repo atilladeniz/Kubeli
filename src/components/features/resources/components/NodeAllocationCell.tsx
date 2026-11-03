@@ -68,6 +68,16 @@ export function nodeAllocation(node: NodeInfo, kind: AllocationKind): Allocation
   }
 }
 
+/**
+ * Returns the allocation percentage (0..100+) for sorting nodes by relative utilization
+ * rather than raw absolute counts/cores/bytes, or null if allocatable is unknown.
+ */
+export function nodeAllocationPercent(node: NodeInfo, kind: AllocationKind): number | null {
+  const { used, total } = nodeAllocation(node, kind);
+  if (total <= 0) return null;
+  return (used / total) * 100;
+}
+
 export function NodeAllocationCell({ node, kind }: { node: NodeInfo; kind: AllocationKind }) {
   const { used, total, label, barColor } = nodeAllocation(node, kind);
 
