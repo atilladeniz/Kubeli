@@ -578,25 +578,22 @@ mod tests {
         );
     }
 
-    #[test]
-    fn oidc_client_uses_the_same_proxy_handling_as_the_default_client() {
+    #[tokio::test]
+    async fn oidc_client_uses_the_same_proxy_handling_as_the_default_client() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
         let mut config = Config::new("https://cluster.test".parse().unwrap());
         config.proxy_url = Some("http://proxy.test:8080".parse().unwrap());
 
-        let default_result = Client::try_from(config.clone());
-        let oidc_result = build_client(
+        Client::try_from(config.clone())
+            .expect("default client must support a configured HTTP proxy");
+        build_client(
             config,
             Some((
                 Arc::new(crate::oidc::commands::OidcState::default()),
                 OidcExecConfig::default(),
             )),
-        );
-
-        assert_eq!(
-            default_result.err().map(|error| error.to_string()),
-            oidc_result.err().map(|error| error.to_string()),
-            "OIDC must neither bypass a configured proxy nor change kube's proxy errors"
-        );
+        )
+        .expect("OIDC client must support a configured HTTP proxy");
     }
 
     #[tokio::test]
