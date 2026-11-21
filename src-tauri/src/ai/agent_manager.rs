@@ -477,7 +477,7 @@ impl AgentManager {
                     let _ = app.emit(&event_name, AIEvent::Thinking { active: true });
 
                     // Build command arguments based on provider
-                    let ProviderInvocation { args, stdin } = build_provider_args(
+                    let invocation = build_provider_args(
                         provider,
                         system_prompt.as_deref(),
                         system_prompt_file.as_ref().map(|f| f.path()),
@@ -487,7 +487,12 @@ impl AgentManager {
 
                     let provider_name = provider.display_name();
 
-                    tracing::debug!("Spawning {} with args: {:?}", provider_name, args);
+                    tracing::debug!(
+                        "Spawning {} with args: {:?} in {:?}",
+                        provider_name,
+                        invocation.args,
+                        invocation.cwd
+                    );
 
                     // Spawn CLI process with retry for transient errors
                     let max_attempts = 2u32;
@@ -496,8 +501,8 @@ impl AgentManager {
                     for attempt in 1..=max_attempts {
                         let stderr_capture = Arc::new(tokio::sync::Mutex::new(String::new()));
 
-                        match super::cli_detector::cli_command(&cli_path)
-                            .args(&args)
+                        match invocation
+                            .command(&cli_path)
                             .stdin(Stdio::piped())
                             .stdout(Stdio::piped())
                             .stderr(Stdio::piped())
@@ -513,7 +518,7 @@ impl AgentManager {
                                 // pipe. Dropping the handle closes stdin; the CLIs
                                 // read until EOF.
                                 if let Some(mut child_stdin) = child.stdin.take() {
-                                    let input = stdin.clone().into_bytes();
+                                    let input = invocation.stdin.clone().into_bytes();
                                     tokio::spawn(async move {
                                         if let Err(e) = child_stdin.write_all(&input).await {
                                             tracing::debug!(
@@ -1033,14 +1038,7 @@ impl AgentManager {
                     tracing::debug!("OpenCode step finished");
                 }
                 "error" | "session.error" => {
-                    let message = json
-                        .get("error")
-                        .and_then(|e| e.get("data"))
-                        .and_then(|d| d.get("message"))
-                        .and_then(|v| v.as_str())
-                        .or_else(|| json.get("message").and_then(|v| v.as_str()))
-                        .unwrap_or("Unknown OpenCode error")
-                        .to_string();
+                    let message = opencode_error_message(&json);
                     let _ = app.emit(event_name, AIEvent::Error { message });
                 }
                 _ => {
@@ -1373,11 +1371,28 @@ const READ_ONLY_KUBECTL: &[&str] = &[
     "kubectl auth can-i",
 ];
 
-/// How to run one message: CLI arguments plus the prompt written to stdin.
+/// How to run one message: CLI arguments, the prompt written to stdin, and
+/// the working directory the CLI must start in (if any).
 #[derive(Debug)]
 struct ProviderInvocation {
     args: Vec<String>,
     stdin: String,
+    cwd: Option<std::path::PathBuf>,
+}
+
+impl ProviderInvocation {
+    /// The command to spawn for this invocation. With `cwd` set, the child
+    /// starts there and `PWD` points there too: OpenCode 2 takes its working
+    /// directory from `PWD` before `process.cwd()`, so a `PWD` inherited from
+    /// Kubeli's own environment would otherwise win.
+    fn command(&self, cli_path: &str) -> tokio::process::Command {
+        let mut cmd = super::cli_detector::cli_command(cli_path);
+        cmd.args(&self.args);
+        if let Some(dir) = &self.cwd {
+            cmd.current_dir(dir).env("PWD", dir);
+        }
+        cmd
+    }
 }
 
 /// Build the CLI invocation for one message. No provider runs with permission
@@ -1430,7 +1445,11 @@ fn build_provider_args(
                 // File could not be written: fall back to prepending the prompt
                 None => concat_prompt(),
             };
-            ProviderInvocation { args, stdin }
+            ProviderInvocation {
+                args,
+                stdin,
+                cwd: None,
+            }
         }
         AiCliProvider::Codex => {
             // Read-only sandbox: model-generated commands get no writes and no
@@ -1448,26 +1467,26 @@ fn build_provider_args(
             ProviderInvocation {
                 args,
                 stdin: concat_prompt(),
+                cwd: None,
             }
         }
         AiCliProvider::OpenCode => {
             // Runs inside the Kubeli-managed workspace whose opencode.json
             // denies everything except read-only kubectl (see
             // ensure_opencode_workspace); the caller fails closed when the
-            // workspace is missing. Without a message argument, `run` reads
-            // stdin until EOF.
-            let mut args = vec![
+            // workspace is missing. The workspace is the process cwd rather
+            // than `--dir`: OpenCode 2 removed that flag and rejects unknown
+            // flags, and 1.x uses cwd as well when `--dir` is absent.
+            // Without a message argument, `run` reads stdin until EOF.
+            let args = vec![
                 "run".to_string(),
                 "--format".to_string(),
                 "json".to_string(),
             ];
-            if let Some(dir) = opencode_workdir {
-                args.push("--dir".to_string());
-                args.push(dir.to_string_lossy().to_string());
-            }
             ProviderInvocation {
                 args,
                 stdin: concat_prompt(),
+                cwd: opencode_workdir.map(std::path::Path::to_path_buf),
             }
         }
         AiCliProvider::Droid => {
@@ -1484,9 +1503,24 @@ fn build_provider_args(
             ProviderInvocation {
                 args,
                 stdin: concat_prompt(),
+                cwd: None,
             }
         }
     }
+}
+
+/// Message of an OpenCode `error` event. 1.x nests it in `error.data.message`,
+/// 2.x puts it in `error.message`.
+fn opencode_error_message(json: &Value) -> String {
+    let error = json.get("error");
+    error
+        .and_then(|e| e.get("data"))
+        .and_then(|d| d.get("message"))
+        .or_else(|| error.and_then(|e| e.get("message")))
+        .or_else(|| json.get("message"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("Unknown OpenCode error")
+        .to_string()
 }
 
 /// A file that lives as long as a session and is deleted on drop.
@@ -1913,18 +1947,65 @@ mod tests {
         assert_eq!(args[idx + 1], "low");
     }
 
+    // OpenCode 2 removed `--dir` from `run` and rejects unknown flags (#561).
+    // The managed workspace has to be the process cwd instead.
     #[test]
-    fn opencode_args_pin_managed_workdir() {
-        let args = build_provider_args(
-            AiCliProvider::OpenCode,
-            None,
-            None,
-            "hi",
-            Some(std::path::Path::new("/data/oc")),
-        )
-        .args;
-        let idx = args.iter().position(|a| a == "--dir").unwrap();
-        assert_eq!(args[idx + 1], "/data/oc");
+    fn opencode_runs_in_managed_workdir_without_dir_flag() {
+        let workdir = std::path::Path::new("/data/oc");
+        let inv = build_provider_args(AiCliProvider::OpenCode, None, None, "hi", Some(workdir));
+        assert_eq!(inv.args, ["run", "--format", "json"]);
+        assert_eq!(inv.cwd.as_deref(), Some(workdir));
+    }
+
+    #[test]
+    fn only_opencode_sets_a_working_directory() {
+        let workdir = std::path::Path::new("/data/oc");
+        for provider in ALL_PROVIDERS {
+            let inv = build_provider_args(provider, None, None, "hi", Some(workdir));
+            assert_eq!(
+                inv.cwd.is_some(),
+                provider == AiCliProvider::OpenCode,
+                "{provider:?}"
+            );
+        }
+    }
+
+    // OpenCode 2 reads its directory from PWD before process.cwd(), so the
+    // spawned command must set both, or Kubeli's own PWD would leak through.
+    #[test]
+    fn command_starts_in_cwd_with_matching_pwd() {
+        let workdir = std::path::Path::new("/data/oc");
+        let inv = build_provider_args(AiCliProvider::OpenCode, None, None, "hi", Some(workdir));
+        let cmd = inv.command("opencode");
+        let std_cmd = cmd.as_std();
+        assert_eq!(std_cmd.get_current_dir(), Some(workdir));
+        let pwd = std_cmd
+            .get_envs()
+            .find(|(key, _)| *key == "PWD")
+            .and_then(|(_, value)| value);
+        assert_eq!(pwd, Some(workdir.as_os_str()));
+        let args: Vec<_> = std_cmd.get_args().collect();
+        assert_eq!(args, ["run", "--format", "json"]);
+    }
+
+    #[test]
+    fn command_without_cwd_inherits_working_directory() {
+        let inv = build_provider_args(AiCliProvider::Codex, None, None, "hi", None);
+        let cmd = inv.command("codex");
+        let std_cmd = cmd.as_std();
+        assert_eq!(std_cmd.get_current_dir(), None);
+        assert!(!std_cmd.get_envs().any(|(key, _)| key == "PWD"));
+    }
+
+    #[test]
+    fn opencode_error_message_reads_v1_and_v2_shapes() {
+        let v1 = serde_json::json!({"type":"error","error":{"name":"APIError","data":{"message":"v1 failed"}}});
+        let v2 =
+            serde_json::json!({"type":"error","error":{"type":"unknown","message":"v2 failed"}});
+        let bare = serde_json::json!({"type":"error"});
+        assert_eq!(opencode_error_message(&v1), "v1 failed");
+        assert_eq!(opencode_error_message(&v2), "v2 failed");
+        assert_eq!(opencode_error_message(&bare), "Unknown OpenCode error");
     }
 
     /// End-to-end check against the CLIs installed on this machine (needs
@@ -1936,7 +2017,7 @@ mod tests {
     #[tokio::test]
     #[ignore]
     async fn smoke_installed_clis_read_prompt_from_stdin() {
-        use super::super::cli_detector::{cli_command, CliDetector};
+        use super::super::cli_detector::CliDetector;
         let system = "You are a test fixture.\nThe code word is PINEAPPLE.";
         let user = "What is the code word?\nReply with the code word only.";
         let installed = [
@@ -1965,8 +2046,8 @@ mod tests {
             let file = SessionFile::create("smoke-test", "system-prompt.md", system).unwrap();
             let inv = build_provider_args(provider, Some(system), Some(file.path()), user, None);
             println!("== {provider:?}: {path} {:?}", inv.args);
-            let mut child = cli_command(&path)
-                .args(&inv.args)
+            let mut child = inv
+                .command(&path)
                 .stdin(Stdio::piped())
                 .stdout(Stdio::piped())
                 .stderr(Stdio::piped())
@@ -2007,6 +2088,17 @@ mod tests {
             .filter(|v| *v == "allow")
             .count();
         assert_eq!(allows, READ_ONLY_KUBECTL.len());
+    }
+
+    // OpenCode evaluates permission rules last-match-wins (2.x documents it in
+    // packages/core/src/v1/config/permission.ts). The catch-all deny must come
+    // before the kubectl allows in the written file, or it would override them.
+    #[test]
+    fn opencode_permission_config_writes_catch_all_deny_first() {
+        let cfg = opencode_permission_config();
+        let deny = cfg.find(r#""*":"deny""#).unwrap();
+        let first_allow = cfg.find(r#"":"allow""#).unwrap();
+        assert!(deny < first_allow, "{cfg}");
     }
 
     #[test]
