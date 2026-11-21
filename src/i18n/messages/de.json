@@ -195,6 +195,7 @@
     "useKubeconfigAuthAndReconnect": "Kubeconfig-Authentifizierung verwenden & neu verbinden",
     "cancelConnect": "Verbinden abbrechen",
     "filterByTag": "Tags",
+    "allTags": "Alle",
     "untagged": "Ohne Tag",
     "noTagFilterResults": "Keine Cluster passen zu den gewählten Tags.",
     "editClusterTags": "Tags bearbeiten",

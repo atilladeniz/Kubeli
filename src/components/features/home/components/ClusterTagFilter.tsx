@@ -1,9 +1,16 @@
 import { useMemo } from "react";
 import { useTranslations } from "next-intl";
+import { Toggle } from "@/components/ui/toggle";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import type { Cluster } from "@/lib/types";
 import { useClusterTagsStore } from "@/lib/stores/cluster-tags-store";
 import { TagDot } from "./TagChip";
+
+// Pill look shared by "All" and the tag toggles; the on-state is filled so the
+// active selection is obvious at a glance.
+const PILL =
+  "h-7 gap-1.5 rounded-full px-2.5 text-xs font-normal data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background data-[state=on]:hover:bg-foreground/90";
+const PILL_COUNT = "tabular-nums opacity-60";
 
 /** Filter value for clusters without any tag. */
 export const UNTAGGED = "__untagged__";
@@ -75,6 +82,17 @@ export function ClusterTagFilter({ clusters, value, onChange }: ClusterTagFilter
   return (
     <div className="flex min-w-0 items-center gap-2">
       <span className="shrink-0 text-xs text-muted-foreground">{t("filterByTag")}</span>
+      <Toggle
+        variant="outline"
+        size="sm"
+        className={PILL}
+        pressed={value.length === 0}
+        // Pressing "All" clears the selection; it cannot be toggled off.
+        onPressedChange={() => onChange([])}
+      >
+        {t("allTags")}
+        <span className={PILL_COUNT}>{clusters.length}</span>
+      </Toggle>
       <ToggleGroup
         type="multiple"
         variant="outline"
@@ -89,21 +107,21 @@ export function ClusterTagFilter({ clusters, value, onChange }: ClusterTagFilter
           <ToggleGroupItem
             key={tag.id}
             value={tag.id}
-            className="h-7 max-w-48 gap-1.5 rounded-full px-2.5 text-xs font-normal"
+            className={`${PILL} max-w-48`}
             title={tag.name}
           >
             <TagDot tag={tag} className="size-2" />
             <span className="truncate">{tag.name}</span>
-            <span className="tabular-nums text-muted-foreground">{counts.get(tag.id)}</span>
+            <span className={PILL_COUNT}>{counts.get(tag.id)}</span>
           </ToggleGroupItem>
         ))}
         {untagged > 0 && (
           <ToggleGroupItem
             value={UNTAGGED}
-            className="h-7 gap-1.5 rounded-full px-2.5 text-xs font-normal"
+            className={PILL}
           >
             {t("untagged")}
-            <span className="tabular-nums text-muted-foreground">{untagged}</span>
+            <span className={PILL_COUNT}>{untagged}</span>
           </ToggleGroupItem>
         )}
       </ToggleGroup>

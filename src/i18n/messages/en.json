@@ -195,6 +195,7 @@
     "useKubeconfigAuthAndReconnect": "Use kubeconfig authentication & reconnect",
     "cancelConnect": "Cancel connecting",
     "filterByTag": "Tags",
+    "allTags": "All",
     "untagged": "Untagged",
     "noTagFilterResults": "No clusters match the selected tags.",
     "editClusterTags": "Edit tags",

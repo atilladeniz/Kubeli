@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ClusterTags } from "../ClusterTags";
-import { matchesClusterFilter, pruneTagFilter, UNTAGGED } from "../ClusterTagFilter";
+import { ClusterTagFilter, matchesClusterFilter, pruneTagFilter, UNTAGGED } from "../ClusterTagFilter";
 import { useClusterTagsStore } from "@/lib/stores/cluster-tags-store";
 import type { Cluster } from "@/lib/types";
 
@@ -194,5 +194,24 @@ describe("matchesClusterFilter", () => {
     expect(matchesClusterFilter(cluster, ["c"], ["c"], ["a", "b"], "")).toBe(false);
     expect(matchesClusterFilter(cluster, [], [], [UNTAGGED], "")).toBe(true);
     expect(matchesClusterFilter(cluster, ["a"], ["a"], [UNTAGGED], "")).toBe(false);
+  });
+});
+
+describe("ClusterTagFilter", () => {
+  const clusters = [{ context: "a" }, { context: "b" }] as Cluster[];
+
+  it("'All' is pressed without a selection and clears one when clicked", async () => {
+    const user = userEvent.setup();
+    const onChange = jest.fn();
+    useClusterTagsStore.setState({ assignments: { a: ["staging"] } });
+
+    const { rerender } = render(<ClusterTagFilter clusters={clusters} value={[]} onChange={onChange} />);
+    expect(screen.getByRole("button", { name: /allTags/ })).toHaveAttribute("aria-pressed", "true");
+
+    rerender(<ClusterTagFilter clusters={clusters} value={["staging"]} onChange={onChange} />);
+    const all = screen.getByRole("button", { name: /allTags/ });
+    expect(all).toHaveAttribute("aria-pressed", "false");
+    await user.click(all);
+    expect(onChange).toHaveBeenCalledWith([]);
   });
 });
