@@ -211,7 +211,6 @@
     "deleteClusterTagConfirm": "„{name}“ löschen? {count, plural, =0 {Kein Cluster nutzt es.} one {Es wird von # Cluster entfernt.} other {Es wird von # Clustern entfernt.}}",
     "editTagsTitle": "Tags bearbeiten",
     "newTagPlaceholder": "Neues Tag…",
-    "typeToCreateTag": "Namen eingeben, um ein neues Tag zu erstellen.",
     "tagUsage": "{count, plural, =0 {Nicht verwendet} one {Von # Cluster verwendet} other {Von # Clustern verwendet}}",
     "tagColors": {
       "blue": "Blau",

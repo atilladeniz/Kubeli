@@ -113,11 +113,6 @@ export function ClusterTagPicker({ clusterContext, hasTags }: ClusterTagPickerPr
                     </CommandItem>
                   );
                 })}
-                {!query && (
-                  <p className="px-2 py-1.5 text-xs text-muted-foreground">
-                    {t("typeToCreateTag")}
-                  </p>
-                )}
                 {canCreate && (
                   <CommandItem value="__create__" onSelect={handleCreate}>
                     <Plus className="size-4" />
