@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
 import type { ClusterCardProps } from "./cluster-card-types";
+import { ClusterTags } from "./ClusterTags";
 
 export function ClusterListCard({
   cluster,
@@ -45,15 +46,23 @@ export function ClusterListCard({
           {cluster.server}
         </p>
       </div>
-      <span className="hidden shrink-0 items-center gap-1 text-xs text-muted-foreground/70 md:flex">
-        {cluster.namespace || "default"}
+      {/* Natural width, pushed right: tags end where the metadata columns start. */}
+      <ClusterTags clusterContext={cluster.context} className="shrink justify-end" />
+      {/* Fixed widths keep namespace/auth (and so the tag column edge) aligned across rows. */}
+      <span className="hidden w-28 shrink-0 items-center justify-end gap-1 text-xs text-muted-foreground/70 md:flex">
+        <span className="truncate" title={cluster.namespace || "default"}>
+          {cluster.namespace || "default"}
+        </span>
         {hasConfiguredNamespaces && (
           <Badge variant="outline" className="px-1 py-0 text-xs font-normal">
             NS
           </Badge>
         )}
       </span>
-      <span className="hidden shrink-0 text-xs text-muted-foreground/70 sm:block">
+      <span
+        className="hidden w-20 shrink-0 truncate text-right text-xs text-muted-foreground/70 sm:block"
+        title={cluster.auth_type}
+      >
         {cluster.auth_type}
       </span>
       <div className="flex shrink-0 items-center gap-1.5">

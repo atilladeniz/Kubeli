@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/spinner";
 import { ClusterIcon } from "@/components/ui/cluster-icon";
+import { ClusterTags } from "./ClusterTags";
 import {
   Card,
   CardContent,
@@ -80,6 +81,7 @@ export function ClusterGridCard({
             )}
           </p>
         </div>
+        <ClusterTags clusterContext={cluster.context} />
         <div className="flex gap-2 mt-auto">
         <Button
           variant="outline"

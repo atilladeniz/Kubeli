@@ -1,4 +1,5 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import { useClusterTagsStore } from "@/lib/stores/cluster-tags-store";
 import { ClusterGridCard } from "../ClusterGridCard";
 import type { Cluster } from "@/lib/types";
 
@@ -70,5 +71,17 @@ describe("ClusterGridCard overflow", () => {
     expect(screen.getByText("kubeli-eks-demo")).toBeInTheDocument();
     expect(screen.getByText(cluster().server)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "connect" })).toBeInTheDocument();
+  });
+});
+
+describe("ClusterGridCard tags", () => {
+  it("renders the cluster's tags and the tag picker in their own row", () => {
+    useClusterTagsStore.setState({ assignments: { [cluster().context]: ["production"] } });
+    render(<ClusterGridCard cluster={cluster()} {...props} />);
+
+    const chip = screen.getByText("production");
+    const row = chip.closest("[data-slot=badge]")!.parentElement!;
+    expect(within(row).getByRole("button", { name: "editClusterTags" })).toBeInTheDocument();
+    expect(row).not.toContainElement(screen.getByText("kubeli-demo | exec"));
   });
 });

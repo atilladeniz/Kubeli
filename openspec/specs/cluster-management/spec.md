@@ -26,6 +26,46 @@ The system SHALL allow users to switch between cluster contexts with one click.
 - THEN the active context changes immediately
 - AND all resource views update to show the new cluster
 
+### Requirement: Cluster Tags
+The system SHALL let users organize clusters with built-in environment tags and reusable custom tags. Tag assignments SHALL be stored per cluster context and persist across application restarts. Built-in tags SHALL include `integration`, `staging`, and `production`, and SHALL be available without being automatically assigned.
+
+#### Scenario: Assign built-in tags to a cluster
+- GIVEN a cluster is displayed on the home page
+- WHEN the user assigns one or more built-in tags
+- THEN the selected tags are displayed on that cluster
+- AND assignments for other cluster contexts remain unchanged
+
+#### Scenario: Create and reuse a custom tag
+- GIVEN the tag picker of a cluster is open
+- WHEN the user types a name that matches no existing tag and confirms "Create"
+- THEN a custom tag with the next palette color is created and assigned to that cluster
+- AND the tag is available for assignment to any cluster
+- AND its definition and assignments persist across application restarts
+
+#### Scenario: Reject duplicate tag names
+- GIVEN a built-in or custom tag already has a name
+- WHEN the user creates or renames a tag to the same name, ignoring letter case and surrounding whitespace
+- THEN no "Create" option is offered, or the rename is marked invalid and reverted
+
+#### Scenario: Rename and recolor tags
+- GIVEN the picker is in edit mode
+- WHEN the user renames a custom tag or picks a new color for any tag
+- THEN every cluster carrying the tag shows the new name or color
+- AND built-in tags keep their names
+
+#### Scenario: Delete a custom tag
+- GIVEN a custom tag is assigned to one or more clusters
+- WHEN the user deletes that tag
+- THEN its definition and all of its cluster assignments are removed
+- AND built-in tags cannot be deleted
+- AND deletion requires an inline confirmation that states how many clusters lose the tag
+
+#### Scenario: Filter clusters by tag
+- GIVEN at least one tag is assigned
+- WHEN the user selects one or more tags in the filter bar, or "Untagged"
+- THEN only clusters carrying any selected tag (or no tag) are shown
+- AND the cluster search also matches tag names
+
 ### Requirement: Namespace Selection
 
 The system SHALL provide namespace filtering for all resource views, with automatic discovery as default and manual configuration as fallback for RBAC-restricted clusters.

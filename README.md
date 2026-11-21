@@ -40,6 +40,7 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 ## Features
 
 - **Multi-Cluster Support** - Connect to multiple clusters, auto-detect provider type (Minikube, EKS, GKE, AKS)
+- **Cluster Tags** - Organize clusters with built-in environment tags or reusable, color-coded custom tags
 - **Real-Time Updates** - WebSocket-based pod watching with efficient Kubernetes watch API
 - **Resource Browser** - View and manage Pods, Deployments, Services, ConfigMaps, Secrets, Nodes, and more
 - **Pod Logs** - Stream logs in real-time with filtering, search, and export
