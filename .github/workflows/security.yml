@@ -50,7 +50,7 @@ jobs:
           fi
 
       - name: Generate npm SBOM
-        run: npx @cyclonedx/cyclonedx-npm --spec-version 1.5 --omit dev --output-format JSON --output-file sbom-npm.json
+        run: npx -y @cyclonedx/cyclonedx-npm@6.0.1 --spec-version 1.5 --omit dev --output-format JSON --output-file sbom-npm.json
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@4be7066ada62dd38de10e7b70166bc74ed198c30 # stable
