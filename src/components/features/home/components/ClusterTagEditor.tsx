@@ -3,7 +3,6 @@ import { useTranslations } from "next-intl";
 import { ChevronLeft, Lock, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,6 +19,11 @@ import {
   useClusterTagsStore,
 } from "@/lib/stores/cluster-tags-store";
 import { TAG_DOT_CLASS, TagDot } from "./TagChip";
+
+// Bare input that reads as text until hovered/focused, so custom and built-in
+// names line up (both use px-2 inside the same column).
+const INLINE_INPUT =
+  "h-7 min-w-0 flex-1 rounded-md bg-transparent px-2 text-sm outline-none placeholder:text-muted-foreground hover:bg-accent/60 focus-visible:bg-background focus-visible:ring-1 focus-visible:ring-ring aria-invalid:text-destructive aria-invalid:ring-destructive";
 
 const isNameTaken = (tags: ClusterTag[], name: string, exceptId?: string) =>
   tags.some(
@@ -39,7 +43,7 @@ export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col">
-      <div className="flex h-10 items-center gap-1 border-b px-1">
+      <div className="flex h-10 items-center gap-1 border-b px-2">
         <Button
           type="button"
           variant="ghost"
@@ -53,7 +57,7 @@ export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
         </Button>
         <span className="text-sm font-medium">{t("editTagsTitle")}</span>
       </div>
-      <ul className="max-h-72 space-y-0.5 overflow-y-auto p-1">
+      <ul className="max-h-72 overflow-y-auto px-1 py-1">
         {tags.map((tag) => (
           <TagEditorRow
             key={tag.id}
@@ -81,26 +85,20 @@ function NewTagForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex items-center gap-1 border-t p-1">
-      <Input
+    <form onSubmit={handleSubmit} className="flex h-10 items-center gap-1 border-t px-2">
+      <span className="flex size-8 shrink-0 items-center justify-center text-muted-foreground">
+        <Plus className="size-4" aria-hidden />
+      </span>
+      <input
         value={name}
         placeholder={t("newTagPlaceholder")}
         aria-label={t("newTagPlaceholder")}
         aria-invalid={taken}
         title={taken ? t("clusterTagNameExists") : undefined}
-        className="h-8 flex-1 px-2 text-sm"
+        spellCheck={false}
+        className={INLINE_INPUT}
         onChange={(event) => setName(event.target.value)}
       />
-      <Button
-        type="submit"
-        variant="ghost"
-        size="icon-sm"
-        disabled={!name.trim() || taken}
-        aria-label={t("addClusterTag")}
-        title={t("addClusterTag")}
-      >
-        <Plus className="size-4" />
-      </Button>
     </form>
   );
 }
@@ -168,7 +166,7 @@ function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
   }
 
   return (
-    <li className="group flex h-9 items-center gap-1 rounded-md pr-1 hover:bg-accent/50">
+    <li className="flex h-9 items-center gap-1 px-1">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
@@ -201,7 +199,7 @@ function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
       </DropdownMenu>
 
       {builtIn ? (
-        <span className="flex min-w-0 flex-1 items-center gap-1.5 px-2 text-sm" title={tag.name}>
+        <span className="flex h-7 min-w-0 flex-1 items-center gap-1.5 px-2 text-sm" title={tag.name}>
           <span className="truncate">{tag.name}</span>
           <Lock
             className="size-3 shrink-0 text-muted-foreground/70"
@@ -209,12 +207,13 @@ function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
           />
         </span>
       ) : (
-        <Input
+        <input
           value={name}
           aria-label={t("clusterTagName")}
           aria-invalid={invalid}
           title={nameTaken ? t("clusterTagNameExists") : undefined}
-          className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-2 text-sm shadow-none hover:border-input focus-visible:border-input dark:bg-transparent"
+          spellCheck={false}
+          className={INLINE_INPUT}
           onChange={(event) => setName(event.target.value)}
           onBlur={commitName}
           onKeyDown={(event) => {
@@ -224,7 +223,7 @@ function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
       )}
 
       <span
-        className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground"
+        className="w-6 shrink-0 text-right text-xs tabular-nums text-muted-foreground"
         title={t("tagUsage", { count: usage })}
       >
         {usage}

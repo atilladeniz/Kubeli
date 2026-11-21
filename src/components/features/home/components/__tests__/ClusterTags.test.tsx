@@ -107,8 +107,9 @@ describe("ClusterTags", () => {
     await user.click(screen.getByRole("option", { name: /manageClusterTags/ }));
     const input = screen.getByPlaceholderText("newTagPlaceholder");
 
-    await user.type(input, "Staging");
-    expect(screen.getByRole("button", { name: "addClusterTag" })).toBeDisabled();
+    await user.type(input, "Staging{Enter}");
+    expect(input).toHaveAttribute("aria-invalid", "true");
+    expect(useClusterTagsStore.getState().tags.filter((tag) => tag.name.toLowerCase() === "staging")).toHaveLength(1);
 
     await user.clear(input);
     await user.type(input, "qa{Enter}");
