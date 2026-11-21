@@ -81,7 +81,9 @@ export const useClusterTagsStore = create<ClusterTagsState>()(
 
           const { tags } = get();
           // Ids never derive from the name, so renaming keeps assignments.
-          const id = `tag-${crypto.randomUUID()}`;
+          // ponytail: time + random suffix; crypto.randomUUID needs a secure
+          // context, which the bundled tauri:// webview does not guarantee.
+          const id = `tag-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
           set({ tags: [...tags, { id, name: trimmed, color: nextTagColor(tags) }] });
           return id;
         },

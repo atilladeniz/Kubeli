@@ -99,6 +99,24 @@ describe("ClusterTags", () => {
     expect(useClusterTagsStore.getState().assignments).toEqual({});
   });
 
+  it("creates a tag from the edit view and rejects duplicates there", async () => {
+    const user = userEvent.setup();
+    render(<ClusterTags clusterContext={CONTEXT} />);
+
+    await user.click(screen.getByRole("button", { name: "editClusterTags" }));
+    await user.click(screen.getByRole("option", { name: /manageClusterTags/ }));
+    const input = screen.getByPlaceholderText("newTagPlaceholder");
+
+    await user.type(input, "Staging");
+    expect(screen.getByRole("button", { name: "addClusterTag" })).toBeDisabled();
+
+    await user.clear(input);
+    await user.type(input, "qa{Enter}");
+    expect(useClusterTagsStore.getState().tags.some((tag) => tag.name === "qa")).toBe(true);
+    expect(screen.getByDisplayValue("qa")).toBeInTheDocument();
+    expect(input).toHaveValue("");
+  });
+
   it("restores the old name when a rename collides", async () => {
     const user = userEvent.setup();
     useClusterTagsStore.getState().createTag("qa");

@@ -1,6 +1,6 @@
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import { useTranslations } from "next-intl";
-import { ChevronLeft, Lock, Trash2 } from "lucide-react";
+import { ChevronLeft, Lock, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,7 +21,12 @@ import {
 } from "@/lib/stores/cluster-tags-store";
 import { TAG_DOT_CLASS, TagDot } from "./TagChip";
 
-/** Edit mode of the tag popover: rename, recolor and delete tags in place. */
+const isNameTaken = (tags: ClusterTag[], name: string, exceptId?: string) =>
+  tags.some(
+    (tag) => tag.id !== exceptId && tag.name.toLowerCase() === name.trim().toLowerCase(),
+  );
+
+/** Edit mode of the tag popover: create, rename, recolor and delete tags in place. */
 export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
   const t = useTranslations("cluster");
   const tCommon = useTranslations("common");
@@ -34,12 +39,11 @@ export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center gap-1 border-b px-1.5 py-1">
+      <div className="flex h-10 items-center gap-1 border-b px-1">
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="size-7"
           ref={backRef}
           autoFocus
           aria-label={tCommon("back")}
@@ -47,9 +51,9 @@ export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
         >
           <ChevronLeft className="size-4" />
         </Button>
-        <span className="text-sm font-medium">{t("manageClusterTags")}</span>
+        <span className="text-sm font-medium">{t("editTagsTitle")}</span>
       </div>
-      <ul className="max-h-72 overflow-y-auto p-1">
+      <ul className="max-h-72 space-y-0.5 overflow-y-auto p-1">
         {tags.map((tag) => (
           <TagEditorRow
             key={tag.id}
@@ -59,7 +63,45 @@ export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
           />
         ))}
       </ul>
+      <NewTagForm />
     </div>
+  );
+}
+
+function NewTagForm() {
+  const t = useTranslations("cluster");
+  const tags = useClusterTagsStore((state) => state.tags);
+  const createTag = useClusterTagsStore((state) => state.createTag);
+  const [name, setName] = useState("");
+  const taken = isNameTaken(tags, name);
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (createTag(name)) setName("");
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="flex items-center gap-1 border-t p-1">
+      <Input
+        value={name}
+        placeholder={t("newTagPlaceholder")}
+        aria-label={t("newTagPlaceholder")}
+        aria-invalid={taken}
+        title={taken ? t("clusterTagNameExists") : undefined}
+        className="h-8 flex-1 px-2 text-sm"
+        onChange={(event) => setName(event.target.value)}
+      />
+      <Button
+        type="submit"
+        variant="ghost"
+        size="icon-sm"
+        disabled={!name.trim() || taken}
+        aria-label={t("addClusterTag")}
+        title={t("addClusterTag")}
+      >
+        <Plus className="size-4" />
+      </Button>
+    </form>
   );
 }
 
@@ -82,20 +124,17 @@ function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
   const [refocusDelete, setRefocusDelete] = useState(false);
   const builtIn = isBuiltInTag(tag.id);
 
-  const trimmed = name.trim();
-  const nameTaken = tags.some(
-    (other) => other.id !== tag.id && other.name.toLowerCase() === trimmed.toLowerCase(),
-  );
-  const invalid = !trimmed || nameTaken;
+  const nameTaken = isNameTaken(tags, name, tag.id);
+  const invalid = !name.trim() || nameTaken;
 
   // Invalid names never reach the store; leaving the field restores the old one.
   const commitName = () => {
-    if (invalid || !renameTag(tag.id, trimmed)) setName(tag.name);
+    if (invalid || !renameTag(tag.id, name)) setName(tag.name);
   };
 
   if (confirmingDelete) {
     return (
-      <li className="m-0.5 space-y-2 rounded-md border border-destructive/40 bg-destructive/10 p-2">
+      <li className="space-y-2 rounded-md border border-destructive/40 bg-destructive/10 p-2">
         <p className="text-xs">{t("deleteClusterTagConfirm", { name: tag.name, count: usage })}</p>
         <div className="flex justify-end gap-1.5">
           <Button
@@ -129,15 +168,16 @@ function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
   }
 
   return (
-    <li className="flex items-center gap-1.5 rounded-md px-1 py-0.5">
+    <li className="group flex h-9 items-center gap-1 rounded-md pr-1 hover:bg-accent/50">
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
             variant="ghost"
             size="icon-sm"
-            className="size-7 shrink-0"
+            className="shrink-0"
             aria-label={t("clusterTagColorFor", { name: tag.name })}
+            title={t("clusterTagColorFor", { name: tag.name })}
           >
             <TagDot tag={tag} className="size-3" />
           </Button>
@@ -161,8 +201,12 @@ function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
       </DropdownMenu>
 
       {builtIn ? (
-        <span className="flex-1 truncate px-2 text-sm" title={tag.name}>
-          {tag.name}
+        <span className="flex min-w-0 flex-1 items-center gap-1.5 px-2 text-sm" title={tag.name}>
+          <span className="truncate">{tag.name}</span>
+          <Lock
+            className="size-3 shrink-0 text-muted-foreground/70"
+            aria-label={t("builtInTag")}
+          />
         </span>
       ) : (
         <Input
@@ -170,7 +214,7 @@ function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
           aria-label={t("clusterTagName")}
           aria-invalid={invalid}
           title={nameTaken ? t("clusterTagNameExists") : undefined}
-          className="h-7 flex-1 px-2 text-sm"
+          className="h-8 min-w-0 flex-1 border-transparent bg-transparent px-2 text-sm shadow-none hover:border-input focus-visible:border-input dark:bg-transparent"
           onChange={(event) => setName(event.target.value)}
           onBlur={commitName}
           onKeyDown={(event) => {
@@ -179,25 +223,25 @@ function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
         />
       )}
 
-      <span className="w-6 text-right text-xs tabular-nums text-muted-foreground">
+      <span
+        className="w-5 shrink-0 text-right text-xs tabular-nums text-muted-foreground"
+        title={t("tagUsage", { count: usage })}
+      >
         {usage}
       </span>
 
       {builtIn ? (
-        <span
-          className="flex size-7 shrink-0 items-center justify-center text-muted-foreground"
-          title={t("builtInTag")}
-        >
-          <Lock className="size-3.5" aria-label={t("builtInTag")} />
-        </span>
+        // Keeps the usage column aligned with deletable rows.
+        <span aria-hidden className="size-8 shrink-0" />
       ) : (
         <Button
           type="button"
           variant="ghost"
           size="icon-sm"
-          className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+          className="shrink-0 text-muted-foreground hover:text-destructive"
           autoFocus={refocusDelete}
           aria-label={t("deleteClusterTagNamed", { name: tag.name })}
+          title={t("deleteClusterTagNamed", { name: tag.name })}
           onClick={() => setConfirmingDelete(true)}
         >
           <Trash2 className="size-3.5" />
