@@ -110,7 +110,17 @@ function ResourceTableRowInner<T>({
       id={`row-${itemKey}`}
       data-focused={isFocused || undefined}
       aria-selected={isFocused}
-      onClick={() => {
+      onClick={(e) => {
+        // Dragging across a cell to copy text ends in a click; don't open the
+        // detail drawer for that. Only a selection inside this row counts.
+        const selection = window.getSelection();
+        if (
+          selection &&
+          !selection.isCollapsed &&
+          e.currentTarget.contains(selection.anchorNode)
+        ) {
+          return;
+        }
         onFocusRow?.(dataIndex);
         onRowClick?.(item);
       }}

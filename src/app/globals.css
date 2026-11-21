@@ -676,9 +676,30 @@ code,
   cursor: text !important;
 }
 
+/* Resource table cells: let users select and copy names and values. Row
+   actions and checkboxes stay non-selectable; the cursor stays default
+   because rows are clickable. */
+[role="grid"] td,
+[role="grid"] td * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
+}
+
+[role="grid"] td button,
+[role="grid"] td button *,
+[role="grid"] td [role="button"],
+[role="grid"] td [role="button"] *,
+[role="grid"] td [role="checkbox"],
+[role="grid"] td [role="checkbox"] * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
 /* Selection highlight for selectable content — visible blue like terminal emulators */
 [data-allow-context-menu] ::selection,
-[data-allow-context-menu]::selection {
+[data-allow-context-menu]::selection,
+[role="grid"] td::selection,
+[role="grid"] td ::selection {
   background-color: rgba(56, 139, 253, 0.45) !important;
   color: inherit !important;
 }

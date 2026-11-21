@@ -35,6 +35,7 @@ export const configMapColumns: Column<ConfigMapInfo>[] = [
     key: "data_keys",
     label: "DATA",
     sortable: true,
+    sortValue: (cm) => cm.data_keys.length,
     render: (cm) => (
       <span className="text-muted-foreground">{cm.data_keys.length} keys</span>
     ),
@@ -105,6 +106,7 @@ export const secretColumns: Column<SecretInfo>[] = [
     key: "data_keys",
     label: "DATA",
     sortable: true,
+    sortValue: (s) => s.data_keys.length,
     render: (s) => (
       <span className="text-muted-foreground">{s.data_keys.length} keys</span>
     ),
