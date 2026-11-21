@@ -16,7 +16,7 @@ tauri-plugin-shell = "2.3"
 tauri-plugin-fs = { version = "2.4", features = ["watch"] }
 tauri-plugin-dialog = "2.5"
 tauri-plugin-store = "2.4"
-tauri-plugin-updater = "2.10"
+tauri-plugin-updater = "2.14"
 tauri-plugin-window-state = "2.4"
 tauri-plugin-deep-link = "2.4"
 tauri-plugin-single-instance = { version = "2.4", features = ["deep-link"] }
@@ -57,7 +57,7 @@ serde_json = "1.0"
 serde_yaml = "0.9"
 
 # OIDC Authentication
-openidconnect = "4.0"
+openidconnect = "4.1"
 keyring = { version = "3", features = ["apple-native", "windows-native", "linux-native"] }
 sha2 = "0.11"
 
@@ -81,7 +81,7 @@ regex = "1.12"
 percent-encoding = "2.3"
 
 # SQLite for AI session persistence
-rusqlite = { version = "0.40", features = ["bundled"] }
+rusqlite = { version = "0.43", features = ["bundled"] }
 
 # MCP (Model Context Protocol) Server
 rmcp = { version = "3.1", features = ["server", "transport-io", "macros"] }
