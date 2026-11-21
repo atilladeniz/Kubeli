@@ -596,6 +596,26 @@ mod tests {
         .expect("OIDC client must support a configured HTTP proxy");
     }
 
+    // Regression for #560: without kube's `socks5` feature a `socks5://` proxy
+    // fails with "requires the disabled feature kube/socks5".
+    #[tokio::test]
+    async fn oidc_client_uses_the_same_socks5_proxy_handling_as_the_default_client() {
+        let _ = rustls::crypto::ring::default_provider().install_default();
+        let mut config = Config::new("https://cluster.test".parse().unwrap());
+        config.proxy_url = Some("socks5://proxy.test:1080".parse().unwrap());
+
+        Client::try_from(config.clone())
+            .expect("default client must support a configured SOCKS5 proxy");
+        build_client(
+            config,
+            Some((
+                Arc::new(crate::oidc::commands::OidcState::default()),
+                OidcExecConfig::default(),
+            )),
+        )
+        .expect("OIDC client must support a configured SOCKS5 proxy");
+    }
+
     #[tokio::test]
     async fn oidc_client_retries_transient_server_errors() {
         let _ = rustls::crypto::ring::default_provider().install_default();
