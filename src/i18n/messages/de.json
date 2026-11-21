@@ -1008,7 +1008,64 @@
     "switchToPodsView": "Wechsle zur Pods-Ansicht um die Logs zu sehen",
     "linkCopied": "Link kopiert!",
     "unknownError": "Unbekannter Fehler",
-    "failedToSendMessage": "Nachricht konnte nicht gesendet werden"
+    "failedToSendMessage": "Nachricht konnte nicht gesendet werden",
+    "composer": {
+      "assistant": "Assistent",
+      "model": "Modell",
+      "modelFor": "Modell ({provider})",
+      "assistantAndModel": "Assistent und Modell: {provider} · {model}",
+      "default": "Standard",
+      "cliSetting": "CLI-Einstellung",
+      "cliSettingValue": "CLI-Einstellung: {value}",
+      "loadingModels": "Modelle werden geladen…",
+      "noModelList": "{provider} liefert keine Modellliste. Es gilt die CLI-Einstellung.",
+      "switchNextSession": "Die laufende Sitzung bleibt bei {provider}. Der Wechsel gilt ab der nächsten.",
+      "effort": "Denkaufwand",
+      "effortHint": "Denkaufwand: {value}",
+      "modelDefault": "Modellvorgabe: {value}",
+      "cliDefault": "Vorgabe des CLI",
+      "readOnly": "Nur lesen",
+      "readOnlyHint": "Der Assistent darf nur lesen (kubectl get, describe, logs). Änderungen am Cluster sind bewusst ausgeschlossen.",
+      "context": "Kontext",
+      "contextHint": "Kontext: ≈ {used} von {total} Tokens",
+      "contextTokens": "Kontext: ≈ {used} Tokens",
+      "contextNote": "Wird der Kontext voll, komprimiert {provider} ihn selbst. Die Anzeige ist eine Schätzung aus dem Gesprächsverlauf.",
+      "sendHint": "Enter zum Senden, Shift+Enter für eine neue Zeile",
+      "efforts": {
+        "none": {
+          "label": "Aus",
+          "detail": "Ohne Nachdenken"
+        },
+        "minimal": {
+          "label": "Minimal",
+          "detail": "Kaum Nachdenken"
+        },
+        "low": {
+          "label": "Niedrig",
+          "detail": "Schnell, wenig Nachdenken"
+        },
+        "medium": {
+          "label": "Mittel",
+          "detail": "Ausgewogen für den Alltag"
+        },
+        "high": {
+          "label": "Hoch",
+          "detail": "Gründlicher bei kniffligen Fragen"
+        },
+        "xhigh": {
+          "label": "Sehr hoch",
+          "detail": "Sehr gründlich, langsamer"
+        },
+        "max": {
+          "label": "Maximal",
+          "detail": "Maximale Tiefe, am langsamsten"
+        },
+        "ultra": {
+          "label": "Ultra",
+          "detail": "Maximal, teilt Aufgaben auf"
+        }
+      }
+    }
   },
   "favorites": {
     "title": "Favoriten",

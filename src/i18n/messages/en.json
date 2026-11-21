@@ -1008,7 +1008,64 @@
       "Loading ConfigMaps...",
       "Shark is busy...",
       "Almost done..."
-    ]
+    ],
+    "composer": {
+      "assistant": "Assistant",
+      "model": "Model",
+      "modelFor": "Model ({provider})",
+      "assistantAndModel": "Assistant and model: {provider} · {model}",
+      "default": "Default",
+      "cliSetting": "CLI setting",
+      "cliSettingValue": "CLI setting: {value}",
+      "loadingModels": "Loading models…",
+      "noModelList": "{provider} doesn't provide a model list. Its CLI setting applies.",
+      "switchNextSession": "The running session stays on {provider}. The switch applies to the next one.",
+      "effort": "Reasoning effort",
+      "effortHint": "Reasoning effort: {value}",
+      "modelDefault": "Model default: {value}",
+      "cliDefault": "CLI default",
+      "readOnly": "Read only",
+      "readOnlyHint": "The assistant can only read (kubectl get, describe, logs). Changes to the cluster are deliberately excluded.",
+      "context": "Context",
+      "contextHint": "Context: ≈ {used} of {total} tokens",
+      "contextTokens": "Context: ≈ {used} tokens",
+      "contextNote": "When the context fills up, {provider} compacts it on its own. The figure is an estimate from the conversation.",
+      "sendHint": "Enter to send, Shift+Enter for a new line",
+      "efforts": {
+        "none": {
+          "label": "Off",
+          "detail": "No reasoning"
+        },
+        "minimal": {
+          "label": "Minimal",
+          "detail": "Barely any reasoning"
+        },
+        "low": {
+          "label": "Low",
+          "detail": "Fast, light reasoning"
+        },
+        "medium": {
+          "label": "Medium",
+          "detail": "Balanced for everyday questions"
+        },
+        "high": {
+          "label": "High",
+          "detail": "More thorough on tricky questions"
+        },
+        "xhigh": {
+          "label": "Extra high",
+          "detail": "Very thorough, slower"
+        },
+        "max": {
+          "label": "Max",
+          "detail": "Deepest reasoning, slowest"
+        },
+        "ultra": {
+          "label": "Ultra",
+          "detail": "Maximum, splits up the work"
+        }
+      }
+    }
   },
   "favorites": {
     "title": "Favorites",

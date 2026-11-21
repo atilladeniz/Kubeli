@@ -161,6 +161,7 @@ pub fn handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Syn
         crate::ai::commands::ai_get_droid_auth_status,
         crate::ai::commands::ai_start_session,
         crate::ai::commands::ai_send_message,
+        crate::ai::commands::ai_list_models,
         crate::ai::commands::ai_interrupt,
         crate::ai::commands::ai_stop_session,
         crate::ai::commands::ai_list_sessions,

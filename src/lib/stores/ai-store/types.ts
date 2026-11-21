@@ -1,5 +1,6 @@
 import type { StateCreator } from "zustand";
 import type { MessageRecord } from "../../tauri/commands";
+import type { AiCliProvider } from "../../tauri/commands/ai";
 
 export type MessageRole = "user" | "assistant" | "system";
 
@@ -34,6 +35,8 @@ export interface PendingAnalysis {
 
 export interface AIState {
   currentSessionId: string | null;
+  /** Provider the running session was started with */
+  sessionProvider: AiCliProvider | null;
   isSessionActive: boolean;
   conversations: Record<string, Conversation>;
   currentConversationId: string | null;
@@ -43,7 +46,10 @@ export interface AIState {
   error: string | null;
   pendingAnalysis: PendingAnalysis | null;
 
-  startSession: (clusterContext: string, currentNamespace?: string) => Promise<string>;
+  startSession: (
+    clusterContext: string,
+    currentNamespace?: string,
+  ) => Promise<string>;
   sendMessage: (message: string, displayMessage?: string) => Promise<void>;
   interrupt: () => Promise<void>;
   stopSession: () => Promise<void>;
@@ -60,7 +66,7 @@ export interface AIState {
   loadSavedSession: (
     sessionId: string,
     messages: MessageRecord[],
-    clusterContext: string
+    clusterContext: string,
   ) => void;
 
   setPendingAnalysis: (analysis: PendingAnalysis | null) => void;
@@ -73,6 +79,7 @@ export interface AIState {
 export type AIStateValues = Pick<
   AIState,
   | "currentSessionId"
+  | "sessionProvider"
   | "isSessionActive"
   | "conversations"
   | "currentConversationId"

@@ -1008,7 +1008,64 @@
       "正在加载 ConfigMap...",
       "鲨鱼正忙...",
       "快完成了..."
-    ]
+    ],
+    "composer": {
+      "assistant": "助手",
+      "model": "模型",
+      "modelFor": "模型（{provider}）",
+      "assistantAndModel": "助手和模型：{provider} · {model}",
+      "default": "默认",
+      "cliSetting": "CLI 设置",
+      "cliSettingValue": "CLI 设置：{value}",
+      "loadingModels": "正在加载模型…",
+      "noModelList": "{provider} 不提供模型列表，将使用其 CLI 设置。",
+      "switchNextSession": "当前会话仍使用 {provider}，切换将在下一次会话生效。",
+      "effort": "推理强度",
+      "effortHint": "推理强度：{value}",
+      "modelDefault": "模型默认：{value}",
+      "cliDefault": "CLI 默认",
+      "readOnly": "只读",
+      "readOnlyHint": "助手只能读取（kubectl get、describe、logs），不会对集群做任何更改。",
+      "context": "上下文",
+      "contextHint": "上下文：约 {used} / {total} 个 token",
+      "contextTokens": "上下文：约 {used} 个 token",
+      "contextNote": "上下文快满时，{provider} 会自动压缩。此数值根据对话内容估算。",
+      "sendHint": "按 Enter 发送，Shift+Enter 换行",
+      "efforts": {
+        "none": {
+          "label": "关闭",
+          "detail": "不进行推理"
+        },
+        "minimal": {
+          "label": "极低",
+          "detail": "几乎不推理"
+        },
+        "low": {
+          "label": "低",
+          "detail": "快速，轻度推理"
+        },
+        "medium": {
+          "label": "中",
+          "detail": "日常问题的平衡选择"
+        },
+        "high": {
+          "label": "高",
+          "detail": "复杂问题更深入"
+        },
+        "xhigh": {
+          "label": "很高",
+          "detail": "非常深入，较慢"
+        },
+        "max": {
+          "label": "最高",
+          "detail": "最深推理，最慢"
+        },
+        "ultra": {
+          "label": "超强",
+          "detail": "最高强度，并拆分任务"
+        }
+      }
+    }
   },
   "favorites": {
     "title": "收藏",
