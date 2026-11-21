@@ -1,7 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, within } from "@testing-library/react";
+import { useClusterTagsStore } from "@/lib/stores/cluster-tags-store";
 import { ClusterGridCard } from "../ClusterGridCard";
 import type { Cluster } from "@/lib/types";
-import { useClusterTagsStore } from "@/lib/stores/cluster-tags-store";
 
 jest.mock("next-intl", () => ({
   useTranslations: () => (key: string) => key,
@@ -72,21 +72,16 @@ describe("ClusterGridCard overflow", () => {
     expect(screen.getByText(cluster().server)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "connect" })).toBeInTheDocument();
   });
+});
 
-  it("places assigned tags in the namespace and auth metadata wrap", () => {
-    useClusterTagsStore.setState({
-      customTags: [],
-      assignments: {
-        [cluster().context]: ["integration", "staging", "production"],
-      },
-    });
-
+describe("ClusterGridCard tags", () => {
+  it("renders the cluster's tags and the tag picker in their own row", () => {
+    useClusterTagsStore.setState({ assignments: { [cluster().context]: ["production"] } });
     render(<ClusterGridCard cluster={cluster()} {...props} />);
 
-    const metadata = screen.getByText("kubeli-demo | exec");
-    const tag = screen.getByText("integration");
-    expect(tag.parentElement).toBe(metadata.parentElement);
-    expect(screen.getByText("staging").parentElement).toBe(metadata.parentElement);
-    expect(screen.getByText("production").parentElement).toBe(metadata.parentElement);
+    const chip = screen.getByText("production");
+    const row = chip.closest("[data-slot=badge]")!.parentElement!;
+    expect(within(row).getByRole("button", { name: "editClusterTags" })).toBeInTheDocument();
+    expect(row).not.toContainElement(screen.getByText("kubeli-demo | exec"));
   });
 });

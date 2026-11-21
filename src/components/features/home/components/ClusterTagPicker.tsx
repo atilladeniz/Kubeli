@@ -1,291 +1,135 @@
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ComponentProps,
-  type FormEvent,
-} from "react";
+import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { TagPlus, Trash2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Check, Pencil, Plus } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+  Command,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/components/ui/command";
 import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import {
-  BUILT_IN_CLUSTER_TAGS,
-  CLUSTER_TAG_PALETTE,
-  type ClusterTagColor,
+  countTagUsage,
+  useAssignedTagIds,
   useClusterTagsStore,
 } from "@/lib/stores/cluster-tags-store";
-
-const EMPTY_TAG_IDS: string[] = [];
+import { ClusterTagEditor } from "./ClusterTagEditor";
+import { TagDot } from "./TagChip";
 
 interface ClusterTagPickerProps {
   clusterContext: string;
-  variant: NonNullable<ComponentProps<typeof Button>["variant"]>;
-  size: NonNullable<ComponentProps<typeof Button>["size"]>;
-  className: string;
+  hasTags: boolean;
 }
 
-export function ClusterTagPicker({
-  clusterContext,
-  variant,
-  size,
-  className,
-}: ClusterTagPickerProps) {
+/** "+" chip that opens one popover to toggle, create and (via "Edit tags") manage tags. */
+export function ClusterTagPicker({ clusterContext, hasTags }: ClusterTagPickerProps) {
   const t = useTranslations("cluster");
-  const tCommon = useTranslations("common");
-  const customTags = useClusterTagsStore((state) => state.customTags);
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [search, setSearch] = useState("");
+
+  const tags = useClusterTagsStore((state) => state.tags);
   const assignments = useClusterTagsStore((state) => state.assignments);
-  const addCustomTag = useClusterTagsStore((state) => state.addCustomTag);
-  const toggleTagAssignment = useClusterTagsStore(
-    (state) => state.toggleTagAssignment,
-  );
-  const removeCustomTag = useClusterTagsStore((state) => state.removeCustomTag);
-  const assignedTagIds = assignments[clusterContext] ?? EMPTY_TAG_IDS;
-  const allTags = [...BUILT_IN_CLUSTER_TAGS, ...customTags];
+  const toggleTag = useClusterTagsStore((state) => state.toggleTag);
+  const createTag = useClusterTagsStore((state) => state.createTag);
+  const assignedIds = useAssignedTagIds(clusterContext);
+  const usage = useMemo(() => countTagUsage(assignments), [assignments]);
 
-  const [manageOpen, setManageOpen] = useState(false);
-  const [tagName, setTagName] = useState("");
-  const [tagColor, setTagColor] = useState<ClusterTagColor>(CLUSTER_TAG_PALETTE[1]);
-  const [nameExists, setNameExists] = useState(false);
-  const deleteButtonRefs = useRef(new Map<string, HTMLButtonElement>());
-  const pendingDeleteFocus = useRef<string | null>(null);
-  const [focusedDeleteTagId, setFocusedDeleteTagId] = useState<string | null>(null);
-  const rovingDeleteTagId = customTags.some(
-    (tag) => tag.id === focusedDeleteTagId,
-  )
-    ? focusedDeleteTagId
-    : customTags[0]?.id;
+  const query = search.trim();
+  const queryLower = query.toLowerCase();
+  // ponytail: substring match instead of cmdk's fuzzy score, so Enter on an
+  // unknown name always lands on "Create" instead of a fuzzy hit.
+  const matches = tags.filter((tag) => tag.name.toLowerCase().includes(queryLower));
+  const canCreate =
+    query.length > 0 && !tags.some((tag) => tag.name.toLowerCase() === queryLower);
 
-  useEffect(() => {
-    const focusTarget = pendingDeleteFocus.current;
-    if (!focusTarget) return;
-
-    pendingDeleteFocus.current = null;
-    if (focusTarget === "cluster-tag-name") {
-      document.getElementById(focusTarget)?.focus();
-    } else {
-      deleteButtonRefs.current.get(focusTarget)?.focus();
+  const handleOpenChange = (next: boolean) => {
+    setOpen(next);
+    if (!next) {
+      setSearch("");
+      setEditing(false);
     }
-  }, [customTags]);
-
-  const handleDeleteTag = (tagId: string) => {
-    const currentIndex = customTags.findIndex((tag) => tag.id === tagId);
-    const nextTag = customTags[currentIndex + 1] ?? customTags[currentIndex - 1];
-    pendingDeleteFocus.current = nextTag?.id ?? "cluster-tag-name";
-    setFocusedDeleteTagId(nextTag?.id ?? null);
-    removeCustomTag(tagId);
   };
 
-  const handleCreateTag = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!tagName.trim()) return;
-
-    const tagId = addCustomTag(tagName, tagColor);
-    if (!tagId) {
-      setNameExists(true);
-      return;
-    }
-
-    toggleTagAssignment(clusterContext, tagId);
-    setTagName("");
-    setNameExists(false);
+  const handleCreate = () => {
+    const id = createTag(query);
+    if (id) toggleTag(clusterContext, id);
+    setSearch("");
   };
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            type="button"
-            variant={variant}
-            size={size}
-            className={className}
-            aria-label={t("manageClusterTags")}
-            title={t("manageClusterTags")}
-          >
-            <TagPlus className="size-3.5" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="max-h-64">
-          <DropdownMenuLabel>{t("clusterTags")}</DropdownMenuLabel>
-          {allTags.map((tag) => (
-            <DropdownMenuCheckboxItem
-              key={tag.id}
-              checked={assignedTagIds.includes(tag.id)}
-              onSelect={(event) => event.preventDefault()}
-              onCheckedChange={() =>
-                toggleTagAssignment(clusterContext, tag.id)
-              }
-            >
-              <span
-                className="size-2 rounded-full"
-                style={{ backgroundColor: tag.color }}
-              />
-              <span className="min-w-0 max-w-48 truncate" title={tag.name}>
-                {tag.name}
-              </span>
-            </DropdownMenuCheckboxItem>
-          ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => setManageOpen(true)}>
-            {t("manageClusterTags")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-
-      <Dialog open={manageOpen} onOpenChange={setManageOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("manageClusterTags")}</DialogTitle>
-            <DialogDescription>
-              {t("manageClusterTagsDescription")}
-            </DialogDescription>
-          </DialogHeader>
-
-          {customTags.length > 0 && (
-            <div className="space-y-2">
-              <h3 className="text-sm font-medium">{t("customClusterTags")}</h3>
-              <ul className="max-h-64 space-y-1 overflow-y-auto p-2">
-                {customTags.map((tag) => (
-                  <li
-                    key={tag.id}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <Badge
-                      variant="outline"
-                      className="max-w-32 truncate border px-1 py-0 text-xs font-normal"
-                      title={tag.name}
-                      style={{
-                        color: `color-mix(in srgb, ${tag.color} 35%, var(--foreground))`,
-                        borderColor: `${tag.color}66`,
-                        backgroundColor: `${tag.color}1a`,
-                      }}
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          aria-label={t("editClusterTags")}
+          title={t("editClusterTags")}
+          className="h-5 shrink-0 gap-1 rounded-md border border-dashed border-surface-border px-1.5 text-xs font-normal text-muted-foreground hover:text-foreground"
+        >
+          <Plus className="size-3" />
+          {!hasTags && t("addClusterTag")}
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-64 p-0">
+        {editing ? (
+          <ClusterTagEditor onBack={() => setEditing(false)} />
+        ) : (
+          <Command shouldFilter={false}>
+            <CommandInput
+              placeholder={t("searchOrCreateTag")}
+              value={search}
+              onValueChange={setSearch}
+            />
+            <CommandList className="max-h-64">
+              <CommandGroup>
+                {matches.map((tag) => {
+                  const assigned = assignedIds.includes(tag.id);
+                  return (
+                    <CommandItem
+                      key={tag.id}
+                      value={tag.id}
+                      aria-checked={assigned}
+                      onSelect={() => toggleTag(clusterContext, tag.id)}
                     >
-                      {tag.name}
-                    </Badge>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      className="size-7"
-                      ref={(element) => {
-                        if (element) {
-                          deleteButtonRefs.current.set(tag.id, element);
-                        } else {
-                          deleteButtonRefs.current.delete(tag.id);
-                        }
-                      }}
-                      tabIndex={tag.id === rovingDeleteTagId ? 0 : -1}
-                      onFocus={() => setFocusedDeleteTagId(tag.id)}
-                      onKeyDown={(event) => {
-                        if (event.key !== "ArrowUp" && event.key !== "ArrowDown") {
-                          return;
-                        }
-
-                        event.preventDefault();
-                        const currentIndex = customTags.findIndex(
-                          (item) => item.id === tag.id,
-                        );
-                        const direction = event.key === "ArrowDown" ? 1 : -1;
-                        const nextIndex =
-                          (currentIndex + direction + customTags.length) %
-                          customTags.length;
-                        const nextTag = customTags[nextIndex];
-                        setFocusedDeleteTagId(nextTag.id);
-                        deleteButtonRefs.current.get(nextTag.id)?.focus();
-                      }}
-                      aria-label={`${t("deleteClusterTag")} ${tag.name}`}
-                      title={t("deleteClusterTag")}
-                      onClick={() => handleDeleteTag(tag.id)}
-                    >
-                      <Trash2 className="size-3.5" />
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <form className="space-y-4" onSubmit={handleCreateTag}>
-            <div className="space-y-2">
-              <label htmlFor="cluster-tag-name" className="text-sm font-medium">
-                {t("clusterTagName")}
-              </label>
-              <Input
-                id="cluster-tag-name"
-                value={tagName}
-                placeholder={t("clusterTagNamePlaceholder")}
-                onChange={(event) => {
-                  setTagName(event.target.value);
-                  setNameExists(false);
-                }}
-              />
-              {nameExists && (
-                <p role="alert" className="text-sm text-destructive">
-                  {t("clusterTagNameExists")}
-                </p>
-              )}
-            </div>
-
-            <fieldset className="space-y-2">
-              <legend className="text-sm font-medium">{t("clusterTagColor")}</legend>
-              <RadioGroup
-                value={tagColor}
-                onValueChange={(value) =>
-                  setTagColor(value as ClusterTagColor)
-                }
-                orientation="horizontal"
-                className="flex flex-wrap gap-2"
-                aria-label={t("clusterTagColor")}
-              >
-                {CLUSTER_TAG_PALETTE.map((color, index) => (
-                  <RadioGroupItem
-                    key={color}
-                    value={color}
-                    aria-label={t("selectClusterTagColorOption", {
-                      index: index + 1,
-                    })}
-                    className={`size-7 rounded-full [&_[data-slot=radio-group-indicator]]:hidden ${tagColor === color ? "ring-2 ring-ring ring-offset-2" : ""}`}
-                    style={{ backgroundColor: color }}
-                  />
-                ))}
-              </RadioGroup>
-            </fieldset>
-
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => setManageOpen(false)}
-              >
-                {tCommon("cancel")}
-              </Button>
-              <Button type="submit" disabled={!tagName.trim()}>
-                {t("createClusterTag")}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-    </>
+                      <Check className={cn("size-4", !assigned && "opacity-0")} />
+                      <TagDot tag={tag} className="size-2" />
+                      <span className="flex-1 truncate" title={tag.name}>
+                        {tag.name}
+                      </span>
+                      <span className="text-xs tabular-nums text-muted-foreground">
+                        {usage.get(tag.id) ?? 0}
+                      </span>
+                    </CommandItem>
+                  );
+                })}
+                {canCreate && (
+                  <CommandItem value="__create__" onSelect={handleCreate}>
+                    <Plus className="size-4" />
+                    <span className="truncate">{t("createClusterTag", { name: query })}</span>
+                  </CommandItem>
+                )}
+              </CommandGroup>
+              <CommandSeparator />
+              <CommandGroup>
+                <CommandItem value="__edit__" onSelect={() => setEditing(true)}>
+                  <Pencil className="size-4" />
+                  {t("manageClusterTags")}
+                </CommandItem>
+              </CommandGroup>
+            </CommandList>
+          </Command>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }

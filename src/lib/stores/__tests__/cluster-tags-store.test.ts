@@ -1,81 +1,92 @@
 import { act } from "@testing-library/react";
-import {
-  BUILT_IN_CLUSTER_TAGS,
-  useClusterTagsStore,
-} from "../cluster-tags-store";
+import { countTagUsage, useClusterTagsStore } from "../cluster-tags-store";
+
+const store = () => useClusterTagsStore.getState();
+const initial = useClusterTagsStore.getState();
 
 describe("ClusterTagsStore", () => {
   beforeEach(() => {
     localStorage.clear();
-    useClusterTagsStore.setState({ customTags: [], assignments: {} });
+    useClusterTagsStore.setState({ tags: initial.tags, assignments: {} });
   });
 
-  it("provides fixed colors for the built-in tags", () => {
-    expect(BUILT_IN_CLUSTER_TAGS.map(({ id, color }) => [id, color])).toEqual([
-      ["integration", "#3b82f6"],
-      ["staging", "#f59e0b"],
-      ["production", "#ef4444"],
+  it("ships production, staging and integration as built-ins", () => {
+    expect(store().tags.map(({ id, color }) => [id, color])).toEqual([
+      ["production", "red"],
+      ["staging", "amber"],
+      ["integration", "blue"],
     ]);
   });
 
-  it("trims custom names and rejects blank or duplicate names", () => {
-    let tagId: string | null = null;
+  it("trims names and rejects blank or case-insensitive duplicates", () => {
+    let id: string | null = null;
     act(() => {
-      tagId = useClusterTagsStore.getState().addCustomTag("  qa  ", "#06b6d4");
-      useClusterTagsStore.getState().addCustomTag("QA", "#ec4899");
-      useClusterTagsStore.getState().addCustomTag("  ", "#ec4899");
+      id = store().createTag("  qa  ");
     });
-
-    expect(tagId).toBe("custom:qa");
-    expect(useClusterTagsStore.getState().customTags).toEqual([
-      { id: "custom:qa", name: "qa", color: "#06b6d4", kind: "custom" },
-    ]);
+    expect(id).toMatch(/^tag-/);
+    expect(store().createTag("QA")).toBeNull();
+    expect(store().createTag("Production")).toBeNull();
+    expect(store().createTag("   ")).toBeNull();
+    expect(store().tags.map((tag) => tag.name)).toContain("qa");
   });
 
-  it("keeps assignments separate by cluster and ignores unknown tags", () => {
+  it("keeps assignments when a tag is renamed", () => {
     act(() => {
-      useClusterTagsStore.getState().toggleTagAssignment("cluster-a", "staging");
-      useClusterTagsStore.getState().toggleTagAssignment("cluster-b", "production");
-      useClusterTagsStore.getState().toggleTagAssignment("cluster-a", "missing");
+      const id = store().createTag("qa")!;
+      store().toggleTag("cluster-a", id);
+      expect(store().renameTag(id, "quality")).toBe(true);
     });
-
-    expect(useClusterTagsStore.getState().assignments).toEqual({
-      "cluster-a": ["staging"],
-      "cluster-b": ["production"],
-    });
+    const [tagId] = store().assignments["cluster-a"];
+    expect(store().tags.find((tag) => tag.id === tagId)?.name).toBe("quality");
   });
 
-  it("removes a custom tag from every cluster when deleted", () => {
-    let tagId: string | null = null;
+  it("refuses to rename built-ins or to a taken name", () => {
     act(() => {
-      tagId = useClusterTagsStore.getState().addCustomTag("qa", "#06b6d4");
-      useClusterTagsStore.getState().toggleTagAssignment("cluster-a", tagId!);
-      useClusterTagsStore.getState().toggleTagAssignment("cluster-b", tagId!);
-      useClusterTagsStore.getState().toggleTagAssignment("cluster-a", "staging");
-      useClusterTagsStore.getState().removeCustomTag(tagId!);
+      store().createTag("qa");
     });
-
-    expect(useClusterTagsStore.getState().customTags).toEqual([]);
-    expect(useClusterTagsStore.getState().assignments).toEqual({
-      "cluster-a": ["staging"],
-    });
+    const qa = store().tags.find((tag) => tag.name === "qa")!;
+    expect(store().renameTag("production", "prod")).toBe(false);
+    expect(store().renameTag(qa.id, "staging")).toBe(false);
+    expect(store().renameTag(qa.id, " ")).toBe(false);
   });
 
-  it("persists custom definitions and assignments", async () => {
+  it("toggles per cluster, ignores unknown tags and drops empty entries", () => {
     act(() => {
-      const tagId = useClusterTagsStore.getState().addCustomTag("qa", "#06b6d4");
-      useClusterTagsStore.getState().toggleTagAssignment("cluster-a", tagId!);
+      store().toggleTag("cluster-a", "staging");
+      store().toggleTag("cluster-b", "production");
+      store().toggleTag("cluster-a", "missing");
+      store().toggleTag("cluster-b", "production");
     });
+    expect(store().assignments).toEqual({ "cluster-a": ["staging"] });
+  });
 
-    await act(async () => {
-      await useClusterTagsStore.persist.rehydrate();
+  it("deletes custom tags everywhere but never built-ins", () => {
+    act(() => {
+      const id = store().createTag("qa")!;
+      store().toggleTag("cluster-a", id);
+      store().toggleTag("cluster-b", id);
+      store().toggleTag("cluster-b", "production");
+      store().deleteTag(id);
+      store().deleteTag("production");
     });
+    expect(store().tags.some((tag) => tag.name === "qa")).toBe(false);
+    expect(store().tags.some((tag) => tag.id === "production")).toBe(true);
+    expect(store().assignments).toEqual({ "cluster-b": ["production"] });
+  });
 
-    expect(useClusterTagsStore.getState().customTags).toEqual([
-      { id: "custom:qa", name: "qa", color: "#06b6d4", kind: "custom" },
-    ]);
-    expect(useClusterTagsStore.getState().assignments).toEqual({
-      "cluster-a": ["custom:qa"],
+  it("recolors any tag and persists tags with assignments", () => {
+    act(() => {
+      store().setTagColor("production", "pink");
+      store().toggleTag("cluster-a", "production");
     });
+    const persisted = JSON.parse(localStorage.getItem("kubeli-cluster-tags")!);
+    expect(persisted.state.tags[0]).toEqual({ id: "production", name: "production", color: "pink" });
+    expect(persisted.state.assignments).toEqual({ "cluster-a": ["production"] });
+  });
+
+  it("counts how many clusters use each tag", () => {
+    expect(countTagUsage({ a: ["x", "y"], b: ["x"] })).toEqual(
+      new Map([["x", 2], ["y", 1]]),
+    );
   });
 });

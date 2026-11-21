@@ -1,115 +1,155 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-export const CLUSTER_TAG_PALETTE = [
-  "#3b82f6",
-  "#06b6d4",
-  "#22c55e",
-  "#f59e0b",
-  "#ef4444",
-  "#ec4899",
-  "#8b5cf6",
-  "#64748b",
+/** Named colors map to fixed Tailwind classes, so themes stay in CSS. */
+export const CLUSTER_TAG_COLORS = [
+  "blue",
+  "cyan",
+  "green",
+  "amber",
+  "red",
+  "pink",
+  "violet",
+  "slate",
 ] as const;
 
-export type ClusterTagColor = (typeof CLUSTER_TAG_PALETTE)[number];
+export type ClusterTagColor = (typeof CLUSTER_TAG_COLORS)[number];
 
-export interface ClusterTagDefinition {
+export const CLUSTER_TAG_DOT_CLASS: Record<ClusterTagColor, string> = {
+  blue: "bg-blue-500",
+  cyan: "bg-cyan-500",
+  green: "bg-green-500",
+  amber: "bg-amber-500",
+  red: "bg-red-500",
+  pink: "bg-pink-500",
+  violet: "bg-violet-500",
+  slate: "bg-slate-400",
+};
+
+export interface ClusterTag {
   id: string;
   name: string;
   color: ClusterTagColor;
-  kind: "builtin" | "custom";
 }
 
-export const BUILT_IN_CLUSTER_TAGS: readonly ClusterTagDefinition[] = [
-  { id: "integration", name: "integration", color: CLUSTER_TAG_PALETTE[0], kind: "builtin" },
-  { id: "staging", name: "staging", color: CLUSTER_TAG_PALETTE[3], kind: "builtin" },
-  { id: "production", name: "production", color: CLUSTER_TAG_PALETTE[4], kind: "builtin" },
+/** Built-in tags have fixed ids and names: they can be recolored, not renamed or deleted. */
+export const BUILT_IN_TAG_IDS = ["production", "staging", "integration"] as const;
+
+export const isBuiltInTag = (id: string) =>
+  (BUILT_IN_TAG_IDS as readonly string[]).includes(id);
+
+/** Production gets a tinted chip so it stands out on every card. */
+export const isProductionTag = (id: string) => id === "production";
+
+const DEFAULT_TAGS: ClusterTag[] = [
+  { id: "production", name: "production", color: "red" },
+  { id: "staging", name: "staging", color: "amber" },
+  { id: "integration", name: "integration", color: "blue" },
 ];
 
+const normalize = (name: string) => name.trim().toLowerCase();
+
+const EMPTY_IDS: string[] = [];
+
 interface ClusterTagsState {
-  customTags: ClusterTagDefinition[];
+  tags: ClusterTag[];
+  /** cluster context -> assigned tag ids */
   assignments: Record<string, string[]>;
-  addCustomTag: (name: string, color: ClusterTagColor) => string | null;
-  toggleTagAssignment: (clusterContext: string, tagId: string) => void;
-  removeCustomTag: (tagId: string) => void;
+  /** Returns the new tag's id, or null when the name is blank or taken. */
+  createTag: (name: string) => string | null;
+  /** Returns false when the name is blank, taken, or the tag is built-in. */
+  renameTag: (id: string, name: string) => boolean;
+  setTagColor: (id: string, color: ClusterTagColor) => void;
+  deleteTag: (id: string) => void;
+  toggleTag: (context: string, id: string) => void;
 }
 
 export const useClusterTagsStore = create<ClusterTagsState>()(
   persist(
-    (set, get) => ({
-      customTags: [],
-      assignments: {},
-
-      addCustomTag: (name, color) => {
-        const trimmedName = name.trim();
-        const normalizedName = trimmedName.toLowerCase();
-        const state = get();
-        const nameExists = [
-          ...BUILT_IN_CLUSTER_TAGS,
-          ...state.customTags,
-        ].some((tag) => tag.name.toLowerCase() === normalizedName);
-
-        if (!normalizedName || nameExists) return null;
-
-        const id = `custom:${normalizedName}`;
-        set({
-          customTags: [
-            ...state.customTags,
-            { id, name: trimmedName, color, kind: "custom" },
-          ],
-        });
-        return id;
-      },
-
-      toggleTagAssignment: (clusterContext, tagId) => {
-        const state = get();
-        const tagExists =
-          BUILT_IN_CLUSTER_TAGS.some((tag) => tag.id === tagId) ||
-          state.customTags.some((tag) => tag.id === tagId);
-        if (!clusterContext || !tagExists) return;
-
-        const assigned = state.assignments[clusterContext] ?? [];
-        const nextAssigned = assigned.includes(tagId)
-          ? assigned.filter((id) => id !== tagId)
-          : [...assigned, tagId];
-        const assignments = { ...state.assignments };
-
-        if (nextAssigned.length > 0) {
-          assignments[clusterContext] = nextAssigned;
-        } else {
-          delete assignments[clusterContext];
-        }
-
-        set({ assignments });
-      },
-
-      removeCustomTag: (tagId) => {
-        const state = get();
-        if (!state.customTags.some((tag) => tag.id === tagId)) return;
-
-        const assignments = Object.fromEntries(
-          Object.entries(state.assignments)
-            .map(([context, tagIds]) => [
-              context,
-              tagIds.filter((id) => id !== tagId),
-            ])
-            .filter(([, tagIds]) => tagIds.length > 0),
+    (set, get) => {
+      const nameTaken = (name: string, exceptId?: string) =>
+        get().tags.some(
+          (tag) => tag.id !== exceptId && normalize(tag.name) === normalize(name),
         );
 
-        set({
-          customTags: state.customTags.filter((tag) => tag.id !== tagId),
-          assignments,
-        });
-      },
-    }),
+      return {
+        tags: DEFAULT_TAGS,
+        assignments: {},
+
+        createTag: (name) => {
+          const trimmed = name.trim();
+          if (!trimmed || nameTaken(trimmed)) return null;
+
+          const { tags } = get();
+          // Ids never derive from the name, so renaming keeps assignments.
+          const id = `tag-${crypto.randomUUID()}`;
+          const color = CLUSTER_TAG_COLORS[tags.length % CLUSTER_TAG_COLORS.length];
+          set({ tags: [...tags, { id, name: trimmed, color }] });
+          return id;
+        },
+
+        renameTag: (id, name) => {
+          const trimmed = name.trim();
+          if (!trimmed || isBuiltInTag(id) || nameTaken(trimmed, id)) return false;
+          set({
+            tags: get().tags.map((tag) =>
+              tag.id === id ? { ...tag, name: trimmed } : tag,
+            ),
+          });
+          return true;
+        },
+
+        setTagColor: (id, color) =>
+          set({
+            tags: get().tags.map((tag) => (tag.id === id ? { ...tag, color } : tag)),
+          }),
+
+        deleteTag: (id) => {
+          if (isBuiltInTag(id)) return;
+          const assignments: Record<string, string[]> = {};
+          for (const [context, ids] of Object.entries(get().assignments)) {
+            const rest = ids.filter((tagId) => tagId !== id);
+            if (rest.length > 0) assignments[context] = rest;
+          }
+          set({ tags: get().tags.filter((tag) => tag.id !== id), assignments });
+        },
+
+        toggleTag: (context, id) => {
+          const { tags, assignments } = get();
+          if (!context || !tags.some((tag) => tag.id === id)) return;
+
+          const current = assignments[context] ?? EMPTY_IDS;
+          const next = current.includes(id)
+            ? current.filter((tagId) => tagId !== id)
+            : [...current, id];
+          const rest = { ...assignments };
+          delete rest[context];
+          set({ assignments: next.length > 0 ? { ...rest, [context]: next } : rest });
+        },
+      };
+    },
     {
       name: "kubeli-cluster-tags",
+      version: 1,
       storage: createJSONStorage(() => localStorage),
-      partialize: (state) => ({
-        customTags: state.customTags,
-        assignments: state.assignments,
-      }),
+      partialize: ({ tags, assignments }) => ({ tags, assignments }),
     },
   ),
 );
+
+/** Tag ids assigned to one cluster; stable reference for selectors. */
+export const useAssignedTagIds = (context: string) =>
+  useClusterTagsStore((state) => state.assignments[context] ?? EMPTY_IDS);
+
+/** Assigned tags in tag-list order (built-ins first, so production leads). */
+export const tagsForIds = (tags: ClusterTag[], ids: string[]) =>
+  tags.filter((tag) => ids.includes(tag.id));
+
+/** How many clusters carry each tag. */
+export function countTagUsage(assignments: Record<string, string[]>) {
+  const counts = new Map<string, number>();
+  for (const ids of Object.values(assignments)) {
+    for (const id of ids) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  return counts;
+}

@@ -30,11 +30,14 @@ import { ConnectionErrorAlert } from "./ConnectionErrorAlert";
 import { ClusterGridCard } from "./ClusterGridCard";
 import { ClusterListCard } from "./ClusterListCard";
 import { ConfigureNamespacesDialog } from "./ConfigureNamespacesDialog";
+import { ClusterTagFilter, UNTAGGED, matchesClusterFilter } from "./ClusterTagFilter";
+import { useClusterTagsStore } from "@/lib/stores/cluster-tags-store";
 
 export function ClusterGrid() {
   const t = useTranslations("cluster");
   const tc = useTranslations("common");
   const [searchQuery, setSearchQuery] = useState("");
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [connectingContext, setConnectingContext] = useState<string | null>(
     null,
   );
@@ -54,6 +57,8 @@ export function ClusterGrid() {
   const saveAccessibleNamespaces = useClusterStore((s) => s.saveAccessibleNamespaces);
   const clearAccessibleNamespaces = useClusterStore((s) => s.clearAccessibleNamespaces);
   const { forwards } = usePortForward();
+  const tags = useClusterTagsStore((s) => s.tags);
+  const tagAssignments = useClusterTagsStore((s) => s.assignments);
 
   // Count live forwards per cluster context, using each forward's own immutable
   // cluster_context (survives cluster switches; no history join needed).
@@ -163,12 +168,21 @@ export function ClusterGrid() {
   // gates the empty state; deriving it from !isLoading flashed "no clusters
   // found" on cold start, before the initial fetch had even started.
 
-  const searchLower = searchQuery.toLowerCase();
-  const filteredClusters = clusters.filter(
-    (cluster) =>
-      cluster.name.toLowerCase().includes(searchLower) ||
-      cluster.context.toLowerCase().includes(searchLower),
-  );
+  // Drop filter entries whose pill vanished (tag deleted or unassigned), so a
+  // stale selection can never hide clusters without a way to clear it.
+  const activeTagFilter = useMemo(() => {
+    const used = new Set(clusters.flatMap((c) => tagAssignments[c.context] ?? []));
+    const hasUntagged = clusters.some((c) => !tagAssignments[c.context]);
+    return tagFilter.filter((id) => (id === UNTAGGED ? hasUntagged : used.has(id)));
+  }, [clusters, tagAssignments, tagFilter]);
+
+  const tagNameById = new Map(tags.map((tag) => [tag.id, tag.name]));
+  const filteredClusters = clusters.filter((cluster) => {
+    const tagIds = tagAssignments[cluster.context] ?? [];
+    const tagNames = tagIds.flatMap((id) => tagNameById.get(id) ?? []);
+    return matchesClusterFilter(cluster, tagIds, tagNames, activeTagFilter, searchQuery);
+  });
+  const isFiltering = searchQuery.trim().length > 0 || activeTagFilter.length > 0;
 
   // Monotonic id so a cancelled connect that resolves late can't clobber the UI.
   const connectSeq = useRef(0);
@@ -256,6 +270,14 @@ export function ClusterGrid() {
         </div>
       </div>
 
+      <div className="shrink-0 px-6 pb-3 empty:hidden">
+        <ClusterTagFilter
+          clusters={clusters}
+          value={activeTagFilter}
+          onChange={setTagFilter}
+        />
+      </div>
+
       <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-6 pb-6">
         {clusters.length === 0 && hasFetchedClusters ? (
           <Empty>
@@ -277,7 +299,7 @@ export function ClusterGrid() {
               </Button>
             </EmptyContent>
           </Empty>
-        ) : filteredClusters.length === 0 && searchQuery.trim().length > 0 ? (
+        ) : filteredClusters.length === 0 && isFiltering ? (
           <Empty>
             <EmptyHeader>
               <EmptyMedia variant="icon">
@@ -285,7 +307,9 @@ export function ClusterGrid() {
               </EmptyMedia>
               <EmptyTitle>{t("noSearchResults")}</EmptyTitle>
               <EmptyDescription>
-                {t("noSearchResultsHint", { query: searchQuery })}
+                {searchQuery.trim()
+                  ? t("noSearchResultsHint", { query: searchQuery })
+                  : t("noTagFilterResults")}
               </EmptyDescription>
             </EmptyHeader>
           </Empty>

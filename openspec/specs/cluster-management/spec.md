@@ -36,22 +36,35 @@ The system SHALL let users organize clusters with built-in environment tags and 
 - AND assignments for other cluster contexts remain unchanged
 
 #### Scenario: Create and reuse a custom tag
-- GIVEN the tag manager is open
-- WHEN the user creates a custom tag with a name and palette color
-- THEN the tag is available for assignment to any cluster
-- AND it is assigned to the current cluster
+- GIVEN the tag picker of a cluster is open
+- WHEN the user types a name that matches no existing tag and confirms "Create"
+- THEN a custom tag with the next palette color is created and assigned to that cluster
+- AND the tag is available for assignment to any cluster
 - AND its definition and assignments persist across application restarts
 
 #### Scenario: Reject duplicate tag names
 - GIVEN a built-in or custom tag already has a name
-- WHEN the user creates another tag with the same name, ignoring letter case and surrounding whitespace
-- THEN the duplicate is rejected with an inline message
+- WHEN the user creates or renames a tag to the same name, ignoring letter case and surrounding whitespace
+- THEN no "Create" option is offered, or the rename is marked invalid and reverted
+
+#### Scenario: Rename and recolor tags
+- GIVEN the picker is in edit mode
+- WHEN the user renames a custom tag or picks a new color for any tag
+- THEN every cluster carrying the tag shows the new name or color
+- AND built-in tags keep their names
 
 #### Scenario: Delete a custom tag
 - GIVEN a custom tag is assigned to one or more clusters
 - WHEN the user deletes that tag
 - THEN its definition and all of its cluster assignments are removed
 - AND built-in tags cannot be deleted
+- AND deletion requires an inline confirmation that states how many clusters lose the tag
+
+#### Scenario: Filter clusters by tag
+- GIVEN at least one tag is assigned
+- WHEN the user selects one or more tags in the filter bar, or "Untagged"
+- THEN only clusters carrying any selected tag (or no tag) are shown
+- AND the cluster search also matches tag names
 
 ### Requirement: Namespace Selection
 
