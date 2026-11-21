@@ -18,6 +18,7 @@ import {
 } from "./components";
 import {
   useAIEvents,
+  preloadModelCatalogs,
   useAISession,
   usePendingAnalysis,
   useThinkingMessage,
@@ -34,6 +35,11 @@ export function AIAssistant() {
 
   const currentSessionId = useAIStore((s) => s.currentSessionId);
   const isSessionActive = useAIStore((s) => s.isSessionActive);
+  const sessionProvider = useAIStore((s) => s.sessionProvider);
+
+  useEffect(() => {
+    preloadModelCatalogs();
+  }, []);
   const isThinking = useAIStore((s) => s.isThinking);
   const isStreaming = useAIStore((s) => s.isStreaming);
   const error = useAIStore((s) => s.error);
@@ -51,13 +57,13 @@ export function AIAssistant() {
   const viewContext = useViewContext();
   const contextualPrompts = useMemo(
     () => getContextualPrompts(viewContext),
-    [viewContext]
+    [viewContext],
   );
 
   // Session management hook
   const sessionOptions = useMemo(
     () => ({ fallbackErrorMessage: t("ai.failedToSendMessage"), viewContext }),
-    [t, viewContext]
+    [t, viewContext],
   );
   const { textareaRef, handleSend: sendMessage } = useAISession(sessionOptions);
   const setPendingPodLogs = useUIStore((s) => s.setPendingPodLogs);
@@ -72,7 +78,7 @@ export function AIAssistant() {
     : undefined;
   const messages = useMemo(
     () => conversation?.messages || [],
-    [conversation?.messages]
+    [conversation?.messages],
   );
 
   // Processing state for thinking message cycling
@@ -83,7 +89,7 @@ export function AIAssistant() {
   // Subscribe to AI events
   const eventI18n = useMemo(
     () => ({ unknownError: t("ai.unknownError") }),
-    [t]
+    [t],
   );
   useAIEvents(currentSessionId, eventI18n);
 
@@ -107,7 +113,7 @@ export function AIAssistant() {
     (namespace: string, podName: string) => {
       setPendingPodLogs({ namespace, podName });
     },
-    [setPendingPodLogs]
+    [setPendingPodLogs],
   );
 
   // Handle selecting a saved session from history
@@ -123,7 +129,13 @@ export function AIAssistant() {
         setShowHistory(false);
       }
     },
-    [currentCluster, isSessionActive, isStreaming, stopSession, loadSavedSession]
+    [
+      currentCluster,
+      isSessionActive,
+      isStreaming,
+      stopSession,
+      loadSavedSession,
+    ],
   );
 
   // Handle creating a new session
@@ -141,7 +153,7 @@ export function AIAssistant() {
       setInput(prompt);
       textareaRef.current?.focus();
     },
-    [textareaRef]
+    [textareaRef],
   );
 
   // Handle close button
@@ -164,7 +176,7 @@ export function AIAssistant() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-hidden" data-allow-context-menu>
+    <div className="flex flex-col h-full overflow-hidden">
       <AIHeader
         title={t("ai.title")}
         clusterContext={currentCluster.context}
@@ -184,7 +196,7 @@ export function AIAssistant() {
         <div
           className={cn(
             "border-r bg-muted/20 shrink-0 transition-all duration-200 ease-in-out overflow-hidden",
-            showHistory ? "w-56" : "w-0"
+            showHistory ? "w-56" : "w-0",
           )}
         >
           <div className="w-56 h-full">
@@ -197,10 +209,16 @@ export function AIAssistant() {
           </div>
         </div>
 
-        {/* Messages - scrollable area */}
-        <div className="flex-1 overflow-y-auto min-h-0">
+        {/* Messages - scrollable area. Only the transcript is selectable:
+            data-allow-context-menu forces a text cursor on every span, which
+            on the header and composer controls hid the pointer cursor. */}
+        <div className="flex-1 overflow-y-auto min-h-0" data-allow-context-menu>
           {messages.length === 0 ? (
-            <EmptyState t={t} onSelectPrompt={handleSelectPrompt} prompts={contextualPrompts} />
+            <EmptyState
+              t={t}
+              onSelectPrompt={handleSelectPrompt}
+              prompts={contextualPrompts}
+            />
           ) : (
             <div className="divide-y divide-border/50">
               {messages.map((message) => (
@@ -230,6 +248,8 @@ export function AIAssistant() {
         placeholder={t("ai.placeholder")}
         isStreaming={isStreaming}
         isThinking={isThinking}
+        contextChars={messages.reduce((n, m) => n + m.content.length, 0)}
+        sessionProvider={isSessionActive ? sessionProvider : null}
       />
     </div>
   );

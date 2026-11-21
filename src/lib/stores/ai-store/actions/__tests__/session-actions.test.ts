@@ -18,7 +18,9 @@ jest.mock("../../helpers", () => {
   const actual = jest.requireActual("../../helpers");
   return {
     ...actual,
-    buildFallbackSystemPrompt: jest.fn((clusterContext: string) => `fallback:${clusterContext}`),
+    buildFallbackSystemPrompt: jest.fn(
+      (clusterContext: string) => `fallback:${clusterContext}`,
+    ),
     generateId: jest.fn(),
   };
 });
@@ -112,13 +114,15 @@ describe("createSessionActions", () => {
     (generateId as jest.Mock).mockReturnValueOnce("conversation-1");
     const { state, actions } = createHarness();
 
-    await expect(actions.startSession("kind-dev", "default")).resolves.toBe("session-1");
+    await expect(actions.startSession("kind-dev", "default")).resolves.toBe(
+      "session-1",
+    );
 
     expect(aiGetSystemPrompt).toHaveBeenCalledWith("kind-dev", "default");
     expect(aiStartSession).toHaveBeenCalledWith(
       "kind-dev",
       "system prompt",
-      "codex"
+      "codex",
     );
     expect(state.conversations).toEqual({
       "kind-dev": {
@@ -133,12 +137,18 @@ describe("createSessionActions", () => {
     expect(state.currentConversationId).toBe("conversation-1");
     expect(state.isSessionActive).toBe(true);
     expect(state.isThinking).toBe(false);
-    expect(aiSaveSession).toHaveBeenCalledWith("session-1", "kind-dev", "default");
+    expect(aiSaveSession).toHaveBeenCalledWith(
+      "session-1",
+      "kind-dev",
+      "default",
+    );
   });
 
   it("reuses an existing conversation and falls back to the generated prompt when prompt building fails", async () => {
     jest.spyOn(console, "warn").mockImplementation(() => undefined);
-    (aiGetSystemPrompt as jest.Mock).mockRejectedValueOnce(new Error("prompt failed"));
+    (aiGetSystemPrompt as jest.Mock).mockRejectedValueOnce(
+      new Error("prompt failed"),
+    );
     (aiSaveSession as jest.Mock).mockRejectedValueOnce(new Error("db failed"));
     const { state, actions } = createHarness({
       currentConversationId: "existing-conversation",
@@ -153,10 +163,16 @@ describe("createSessionActions", () => {
       },
     });
 
-    await expect(actions.startSession("prod", "infra")).resolves.toBe("session-1");
+    await expect(actions.startSession("prod", "infra")).resolves.toBe(
+      "session-1",
+    );
 
     expect(buildFallbackSystemPrompt).toHaveBeenCalledWith("prod");
-    expect(aiStartSession).toHaveBeenCalledWith("prod", "fallback:prod", "claude");
+    expect(aiStartSession).toHaveBeenCalledWith(
+      "prod",
+      "fallback:prod",
+      "claude",
+    );
     expect(state.currentConversationId).toBe("existing-conversation");
     expect(Object.keys(state.conversations)).toEqual(["prod"]);
     expect(console.warn).toHaveBeenCalledTimes(2);
@@ -170,8 +186,18 @@ describe("createSessionActions", () => {
           id: "existing-conversation",
           clusterContext: "kind-dev",
           messages: [
-            { id: "m1", role: "user", content: "why is my pod crashing?", timestamp: 1 },
-            { id: "m2", role: "assistant", content: "It is OOMKilled.", timestamp: 2 },
+            {
+              id: "m1",
+              role: "user",
+              content: "why is my pod crashing?",
+              timestamp: 1,
+            },
+            {
+              id: "m2",
+              role: "assistant",
+              content: "It is OOMKilled.",
+              timestamp: 2,
+            },
           ],
           createdAt: 1,
           updatedAt: 2,
@@ -181,7 +207,8 @@ describe("createSessionActions", () => {
 
     await actions.startSession("kind-dev", "default");
 
-    const initialContext = (aiStartSession as jest.Mock).mock.calls[0][1] as string;
+    const initialContext = (aiStartSession as jest.Mock).mock
+      .calls[0][1] as string;
     expect(initialContext).toContain("system prompt");
     expect(initialContext).toContain("## Previous conversation");
     expect(initialContext).toContain("User: why is my pod crashing?");
@@ -193,14 +220,22 @@ describe("createSessionActions", () => {
 
     await actions.startSession("kind-dev", "default");
 
-    expect(aiStartSession).toHaveBeenCalledWith("kind-dev", "system prompt", "claude");
+    expect(aiStartSession).toHaveBeenCalledWith(
+      "kind-dev",
+      "system prompt",
+      "claude",
+    );
   });
 
   it("stores a normalized error when starting a session fails", async () => {
-    (aiStartSession as jest.Mock).mockRejectedValueOnce(new Error("start failed"));
+    (aiStartSession as jest.Mock).mockRejectedValueOnce(
+      new Error("start failed"),
+    );
     const { state, actions } = createHarness();
 
-    await expect(actions.startSession("broken")).rejects.toThrow("start failed");
+    await expect(actions.startSession("broken")).rejects.toThrow(
+      "start failed",
+    );
     expect(state.error).toBe("start failed");
     expect(state.isThinking).toBe(false);
   });
@@ -246,19 +281,56 @@ describe("createSessionActions", () => {
       "user-1",
       "session-1",
       "user",
-      "visible prompt"
+      "visible prompt",
     );
     expect(aiSaveMessage).toHaveBeenNthCalledWith(
       2,
       "assistant-1",
       "session-1",
       "assistant",
-      ""
+      "",
     );
-    expect(aiSendMessage).toHaveBeenCalledWith("session-1", "raw prompt");
+    expect(aiSendMessage).toHaveBeenCalledWith(
+      "session-1",
+      "raw prompt",
+      undefined,
+    );
     expect(state.isStreaming).toBe(true);
     expect(state.isThinking).toBe(true);
     expect(state.isInterrupted).toBe(false);
+  });
+
+  it("sends the model choice of the session's provider, not the current setting", async () => {
+    (useUIStore.getState as jest.Mock).mockReturnValue({
+      settings: {
+        aiCliProvider: "claude",
+        aiModelChoice: {
+          claude: { model: "opus" },
+          codex: { model: "gpt-a", effort: "high" },
+        },
+      },
+    });
+    const { actions } = createHarness({
+      currentSessionId: "session-1",
+      sessionProvider: "codex",
+      currentConversationId: "conversation-1",
+      conversations: {
+        kind: {
+          id: "conversation-1",
+          clusterContext: "kind",
+          messages: [],
+          createdAt: 1,
+          updatedAt: 1,
+        },
+      },
+    });
+
+    await actions.sendMessage("hi");
+
+    expect(aiSendMessage).toHaveBeenCalledWith("session-1", "hi", {
+      model: "gpt-a",
+      effort: "high",
+    });
   });
 
   it("warns on save failures and stores an error when sending the message fails", async () => {
@@ -269,7 +341,9 @@ describe("createSessionActions", () => {
     (aiSaveMessage as jest.Mock)
       .mockRejectedValueOnce(new Error("save user failed"))
       .mockRejectedValueOnce(new Error("save assistant failed"));
-    (aiSendMessage as jest.Mock).mockRejectedValueOnce(new Error("send failed"));
+    (aiSendMessage as jest.Mock).mockRejectedValueOnce(
+      new Error("send failed"),
+    );
     const { state, actions } = createHarness({
       currentSessionId: "session-1",
       currentConversationId: "conversation-1",
@@ -295,7 +369,7 @@ describe("createSessionActions", () => {
   it("rejects sending when there is no active session or conversation", async () => {
     const noSession = createHarness();
     await expect(noSession.actions.sendMessage("hello")).rejects.toThrow(
-      "No active session"
+      "No active session",
     );
 
     const noConversation = createHarness({
@@ -303,7 +377,7 @@ describe("createSessionActions", () => {
       currentConversationId: "missing",
     });
     await expect(noConversation.actions.sendMessage("hello")).rejects.toThrow(
-      "No active conversation"
+      "No active conversation",
     );
   });
 
@@ -319,7 +393,9 @@ describe("createSessionActions", () => {
     expect(state.isStreaming).toBe(false);
     expect(state.isThinking).toBe(false);
 
-    (aiInterrupt as jest.Mock).mockRejectedValueOnce(new Error("interrupt failed"));
+    (aiInterrupt as jest.Mock).mockRejectedValueOnce(
+      new Error("interrupt failed"),
+    );
     await actions.interrupt();
     expect(state.error).toBe("interrupt failed");
   });
@@ -422,7 +498,9 @@ describe("createSessionActions", () => {
   });
 
   it("stops a session, keeps the conversation history, and ignores stop errors", async () => {
-    (aiStopSession as jest.Mock).mockRejectedValueOnce(new Error("stop failed"));
+    (aiStopSession as jest.Mock).mockRejectedValueOnce(
+      new Error("stop failed"),
+    );
     const { state, actions } = createHarness({
       currentSessionId: "session-1",
       currentConversationId: "conversation-1",
@@ -503,17 +581,17 @@ describe("createSessionActions", () => {
           timestamp: "2026-03-07T10:01:00.000Z",
         },
       ],
-      "kind-dev"
+      "kind-dev",
     );
 
     expect(state.currentSessionId).toBe("session-2");
     expect(state.currentConversationId).toBe("conversation-2");
     expect(state.conversations["kind-dev"].messages).toHaveLength(2);
     expect(state.conversations["kind-dev"].createdAt).toBe(
-      new Date("2026-03-07T10:00:00.000Z").getTime()
+      new Date("2026-03-07T10:00:00.000Z").getTime(),
     );
     expect(state.conversations["kind-dev"].updatedAt).toBe(
-      new Date("2026-03-07T10:01:00.000Z").getTime()
+      new Date("2026-03-07T10:01:00.000Z").getTime(),
     );
   });
 });

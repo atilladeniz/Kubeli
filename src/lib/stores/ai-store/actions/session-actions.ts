@@ -64,6 +64,7 @@ export function createSessionActions(
           initialContext,
           provider as AiCliProvider
         );
+        set({ sessionProvider: provider as AiCliProvider });
 
         let conversationId = get().currentConversationId;
         const existingConversation = get().conversations[clusterContext];
@@ -177,7 +178,14 @@ export function createSessionActions(
       }
 
       try {
-        await aiSendMessage(currentSessionId, message);
+        // The choice of the provider this session runs on, not the current
+        // setting: switching providers only applies to the next session.
+        const provider = get().sessionProvider ?? useUIStore.getState().settings.aiCliProvider;
+        await aiSendMessage(
+          currentSessionId,
+          message,
+          useUIStore.getState().settings.aiModelChoice?.[provider]
+        );
       } catch (error) {
         set({
           error: getErrorMessage(error, "Failed to send message"),

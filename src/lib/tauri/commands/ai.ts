@@ -58,11 +58,46 @@ export async function aiStartSession(
   });
 }
 
+export interface AiModelChoice {
+  model?: string;
+  effort?: string;
+}
+
+export interface AiEffortLevel {
+  id: string;
+  description: string | null;
+}
+
+export interface AiModelInfo {
+  id: string;
+  label: string;
+  efforts: AiEffortLevel[];
+  defaultEffort: string | null;
+  contextWindow: number | null;
+}
+
+export interface AiModelCatalog {
+  models: AiModelInfo[];
+  /** The CLI's own configured default, if readable */
+  defaultModel: string | null;
+  defaultEffort: string | null;
+}
+
 export async function aiSendMessage(
   sessionId: string,
-  message: string
+  message: string,
+  choice: AiModelChoice = {}
 ): Promise<void> {
-  return invoke("ai_send_message", { sessionId, message });
+  return invoke("ai_send_message", {
+    sessionId,
+    message,
+    model: choice.model ?? null,
+    effort: choice.effort ?? null,
+  });
+}
+
+export async function aiListModels(provider: AiCliProvider): Promise<AiModelCatalog> {
+  return invoke<AiModelCatalog>("ai_list_models", { provider });
 }
 
 export async function aiInterrupt(sessionId: string): Promise<void> {

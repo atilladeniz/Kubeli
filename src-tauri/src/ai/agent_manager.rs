@@ -117,8 +117,8 @@ pub struct ErrorInfo {
 /// Input to send to the agent
 #[derive(Debug, Clone)]
 pub enum AgentInput {
-    /// User message
-    Message(String),
+    /// User message with the model/effort chosen for it
+    Message(String, super::models::ModelOptions),
     /// Interrupt current generation
     Interrupt,
 }
@@ -162,7 +162,7 @@ where
                 Some(AgentInput::Interrupt) => break ChildOutcome::Interrupted,
                 // send_message rejects new messages while is_processing is
                 // set; a stray one that lost that race is dropped, not queued.
-                Some(AgentInput::Message(_)) => {
+                Some(AgentInput::Message(..)) => {
                     tracing::warn!(
                         "Dropping message received while session {} is processing",
                         session_id
@@ -461,7 +461,7 @@ impl AgentManager {
             }
 
             match input {
-                AgentInput::Message(user_message) => {
+                AgentInput::Message(user_message, model_options) => {
                     if provider == AiCliProvider::OpenCode && opencode_workdir.is_none() {
                         let _ = app.emit(
                             &event_name,
@@ -477,12 +477,17 @@ impl AgentManager {
                     let _ = app.emit(&event_name, AIEvent::Thinking { active: true });
 
                     // Build command arguments based on provider
-                    let invocation = build_provider_args(
+                    let mut invocation = build_provider_args(
                         provider,
                         system_prompt.as_deref(),
                         system_prompt_file.as_ref().map(|f| f.path()),
                         &user_message,
                         opencode_workdir.as_deref(),
+                    );
+                    super::models::apply_model_options(
+                        provider,
+                        &mut invocation.args,
+                        &model_options,
                     );
 
                     let provider_name = provider.display_name();
@@ -1251,7 +1256,12 @@ impl AgentManager {
     }
 
     /// Send a message to an active session
-    pub async fn send_message(&self, session_id: &str, message: String) -> Result<(), String> {
+    pub async fn send_message(
+        &self,
+        session_id: &str,
+        message: String,
+        options: super::models::ModelOptions,
+    ) -> Result<(), String> {
         let sessions = self.sessions.read().await;
         let session = sessions
             .get(session_id)
@@ -1264,7 +1274,7 @@ impl AgentManager {
 
         session
             .input_tx
-            .send(AgentInput::Message(message))
+            .send(AgentInput::Message(message, options.sanitized()))
             .await
             .map_err(|e| format!("Failed to send message: {}", e))?;
 
@@ -1809,7 +1819,9 @@ mod tests {
             let mut child = spawn_sleep(0);
             let (tx, mut rx) = mpsc::channel::<AgentInput>(4);
             // A stray Message must not abort the child; it is logged and dropped.
-            tx.send(AgentInput::Message("stray".into())).await.unwrap();
+            tx.send(AgentInput::Message("stray".into(), Default::default()))
+                .await
+                .unwrap();
 
             let outcome = await_child_outcome(
                 child.wait(),

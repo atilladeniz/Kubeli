@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { Locale } from "@/i18n/config";
 import { defaultLocale, isValidLocale } from "@/i18n/config";
-import type { AiCliProvider } from "../tauri/commands/ai";
+import type { AiCliProvider, AiModelChoice } from "../tauri/commands/ai";
 
 export type Theme = "light" | "dark" | "classic-dark" | "system";
 
@@ -59,6 +59,8 @@ export interface AppSettings {
 
   // AI Assistant
   aiCliProvider: AiCliProvider;
+  /** Model/effort per provider; unset = the CLI's own default */
+  aiModelChoice: Partial<Record<AiCliProvider, AiModelChoice>>;
 
   // Home screen
   clusterViewLayout: "grid" | "list";
@@ -92,6 +94,7 @@ export const defaultSettings: AppSettings = {
   proxyUsername: "",
   proxyPassword: "",
   aiCliProvider: "claude",
+  aiModelChoice: {},
   clusterViewLayout: "grid",
   startupBehavior: "reconnect",
   overviewMetadataCollapsed: false,

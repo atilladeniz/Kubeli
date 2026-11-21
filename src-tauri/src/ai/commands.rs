@@ -378,8 +378,24 @@ pub async fn ai_send_message(
     agent_manager: State<'_, Arc<AgentManager>>,
     session_id: String,
     message: String,
+    model: Option<String>,
+    effort: Option<String>,
 ) -> Result<(), String> {
-    agent_manager.send_message(&session_id, message).await
+    agent_manager
+        .send_message(
+            &session_id,
+            message,
+            super::models::ModelOptions { model, effort },
+        )
+        .await
+}
+
+/// Models (and their effort levels) the given AI CLI offers
+#[tauri::command]
+pub async fn ai_list_models(
+    provider: AiCliProvider,
+) -> Result<super::models::ModelCatalog, String> {
+    Ok(super::models::list_models(provider).await)
 }
 
 /// Interrupt the current AI generation
