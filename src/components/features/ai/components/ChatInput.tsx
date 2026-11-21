@@ -55,7 +55,7 @@ export const ChatInput = forwardRef<HTMLTextAreaElement, ChatInputProps>(
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder={placeholder}
-            className="max-h-[200px] flex-1 resize-none border-0 bg-transparent px-2 py-1.5 text-sm leading-6 shadow-none field-sizing-content placeholder:truncate focus-visible:ring-0 dark:bg-transparent"
+            className="max-h-[200px] flex-1 resize-none border-0 bg-transparent px-2 py-1.5 text-sm leading-6 shadow-none dark:shadow-none field-sizing-content placeholder:truncate focus-visible:ring-0 dark:bg-transparent"
             rows={1}
             disabled={isStreaming}
           />
