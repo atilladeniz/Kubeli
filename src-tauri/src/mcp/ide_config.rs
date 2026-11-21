@@ -5,7 +5,19 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
 
-use crate::ai::cli_detector::get_extended_path;
+use crate::ai::cli_detector::{find_claude_windows, get_extended_path};
+
+/// Command for the claude CLI. On Windows the child gets no console window.
+fn claude_command(claude: &str) -> std::process::Command {
+    #[allow(unused_mut)]
+    let mut cmd = std::process::Command::new(claude);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        cmd.creation_flags(crate::ai::cli_detector::CREATE_NO_WINDOW);
+    }
+    cmd
+}
 
 /// Supported IDE types
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -118,14 +130,11 @@ fn get_kubeli_path() -> String {
 /// Find the claude binary path, checking common install locations.
 /// Tauri GUI apps don't inherit the full shell PATH, so we check known paths directly.
 fn find_claude_binary() -> Option<String> {
-    // On Windows, check %USERPROFILE%\.local\bin\claude.exe
-    #[cfg(target_os = "windows")]
-    let paths = {
-        let home = std::env::var("USERPROFILE").unwrap_or_default();
-        vec![format!("{}\\.local\\bin\\claude.exe", home)]
-    };
+    // Windows: native installer, WinGet, npm (.exe preferred over claude.cmd), PATH
+    if cfg!(windows) {
+        return find_claude_windows();
+    }
 
-    #[cfg(not(target_os = "windows"))]
     let paths = {
         let home = std::env::var("HOME").unwrap_or_default();
         // Check known installation paths in order of preference
@@ -302,12 +311,12 @@ fn install_claude_code_config(_path: &PathBuf, kubeli_path: &str) -> Result<(), 
         .ok_or_else(|| "Claude Code CLI not found. Is it installed?".to_string())?;
 
     // First try to remove any existing kubeli config
-    let _ = std::process::Command::new(&claude)
+    let _ = claude_command(&claude)
         .args(["mcp", "remove", "kubeli"])
         .output();
 
     // Add kubeli as a user-scope MCP server using the CLI
-    let output = std::process::Command::new(&claude)
+    let output = claude_command(&claude)
         .args([
             "mcp",
             "add",
@@ -336,7 +345,7 @@ fn uninstall_claude_code_config(_path: &PathBuf) -> Result<(), String> {
         .ok_or_else(|| "Claude Code CLI not found. Is it installed?".to_string())?;
 
     // Remove kubeli MCP server using the CLI
-    let output = std::process::Command::new(&claude)
+    let output = claude_command(&claude)
         .args(["mcp", "remove", "kubeli"])
         .output()
         .map_err(|e| format!("Failed to run claude CLI: {}", e))?;

@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::env;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use tokio::process::Command;
 
@@ -7,6 +8,13 @@ use tokio::process::Command;
 /// This is needed because Tauri apps don't inherit the full shell PATH
 pub fn get_extended_path() -> String {
     let current_path = env::var("PATH").unwrap_or_default();
+    if cfg!(windows) {
+        // The Unix list below is meaningless on Windows, and joining with ':'
+        // would corrupt the inherited PATH (its separator is ';').
+        return env::join_paths(windows_search_dirs(&[]))
+            .map(|p| p.to_string_lossy().into_owned())
+            .unwrap_or(current_path);
+    }
     let home = env::var("HOME").unwrap_or_default();
 
     // Build paths including home-relative ones
@@ -111,6 +119,153 @@ fn find_latest_version_bin(base_dir: &str) -> Option<String> {
     None
 }
 
+// ============================================================================
+// Windows lookup
+// ============================================================================
+
+/// Extensions tried on Windows, in order of preference. A real `.exe` wins over
+/// a batch shim from any directory: `.cmd`/`.bat` run through cmd.exe, and Rust
+/// refuses to pass arguments containing newlines to them, which breaks the
+/// multi-line prompts an AI session sends. Extensionless files are skipped on
+/// purpose, since npm puts a `claude` shell script for Git Bash next to
+/// `claude.cmd` and Windows cannot spawn it.
+const WINDOWS_EXTENSIONS: &[&str] = &[".exe", ".cmd", ".bat"];
+
+/// Prevents a console window from flashing up when the GUI app spawns a CLI.
+#[cfg(windows)]
+pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+
+/// Build a command for an AI CLI with the extended PATH set. On Windows the
+/// child gets no console window.
+pub fn cli_command(program: impl AsRef<std::ffi::OsStr>) -> Command {
+    let mut cmd = Command::new(program);
+    cmd.env("PATH", get_extended_path());
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    cmd
+}
+
+/// Split a PATH-style list on `separator`, dropping empty entries and the
+/// quotes Windows allows around entries.
+fn split_path_list(path_list: &str, separator: char) -> Vec<PathBuf> {
+    path_list
+        .split(separator)
+        .map(|entry| entry.trim().trim_matches('"'))
+        .filter(|entry| !entry.is_empty())
+        .map(PathBuf::from)
+        .collect()
+}
+
+/// Find `name` + extension in `dirs`. Each extension is tried across all dirs
+/// before the next one, so the first extension is preferred everywhere.
+fn find_in_dirs(name: &str, dirs: &[PathBuf], extensions: &[&str]) -> Option<PathBuf> {
+    extensions.iter().find_map(|ext| {
+        let file_name = format!("{}{}", name, ext.to_ascii_lowercase());
+        dirs.iter()
+            .map(|dir| dir.join(&file_name))
+            .find(|candidate| candidate.is_file())
+    })
+}
+
+/// Directories where Windows installs of the supported CLIs land, then
+/// `extra_dirs`, then the entries of `path_var` (a `;`-separated Windows PATH).
+/// The native Claude Code dir comes first, matching the Unix order.
+///
+/// - Claude Code native installer: `%USERPROFILE%\.local\bin\claude.exe`
+/// - WinGet portable packages: `%LOCALAPPDATA%\Microsoft\WinGet\Links` (unverified)
+/// - Codex standalone installer: `%LOCALAPPDATA%\Programs\OpenAI\Codex\bin`
+/// - Droid installer: `%USERPROFILE%\bin\droid.exe`
+/// - OpenCode install dir: `%USERPROFILE%\.opencode\bin` (unverified on Windows)
+/// - Scoop shims: `%USERPROFILE%\scoop\shims` (unverified)
+/// - npm global shims: `%APPDATA%\npm\<name>.cmd`
+fn windows_known_dirs(
+    home: &Path,
+    roaming: &Path,
+    local: &Path,
+    extra_dirs: &[PathBuf],
+    path_var: &str,
+) -> Vec<PathBuf> {
+    let mut dirs = Vec::from([
+        home.join(".local").join("bin"),
+        local.join("Microsoft").join("WinGet").join("Links"),
+        local
+            .join("Programs")
+            .join("OpenAI")
+            .join("Codex")
+            .join("bin"),
+        home.join("bin"),
+        home.join(".opencode").join("bin"),
+        home.join("scoop").join("shims"),
+        roaming.join("npm"),
+    ]);
+    dirs.extend_from_slice(extra_dirs);
+    dirs.extend(split_path_list(path_var, ';'));
+    dirs
+}
+
+/// `%APPDATA%`, falling back to its default location under the profile.
+fn windows_roaming_dir(home: &Path) -> PathBuf {
+    dirs::data_dir().unwrap_or_else(|| home.join("AppData").join("Roaming"))
+}
+
+/// `windows_known_dirs` filled from the current environment.
+fn windows_search_dirs(extra_dirs: &[PathBuf]) -> Vec<PathBuf> {
+    let home = dirs::home_dir().unwrap_or_default();
+    let roaming = windows_roaming_dir(&home);
+    let local = dirs::data_local_dir().unwrap_or_else(|| home.join("AppData").join("Local"));
+    let path_var = env::var("PATH").unwrap_or_default();
+    windows_known_dirs(&home, &roaming, &local, extra_dirs, &path_var)
+}
+
+/// npm global package directories that hold a CLI's real `.exe`, relative to
+/// `%APPDATA%\npm\node_modules`. Spawning the exe directly avoids the
+/// `.cmd` shim npm puts on PATH.
+fn npm_exe_dirs(roaming: &Path, package_bin_dirs: &[&str]) -> Vec<PathBuf> {
+    let node_modules = roaming.join("npm").join("node_modules");
+    package_bin_dirs
+        .iter()
+        .map(|rel| rel.split('/').fold(node_modules.clone(), |p, c| p.join(c)))
+        .collect()
+}
+
+/// Resolve a CLI on Windows. Returns the full path to an `.exe` when one is
+/// installed anywhere we look, otherwise a `.cmd`/`.bat` shim.
+/// `override_dirs` (e.g. an install-dir env var) are searched first, the npm
+/// package dirs after the known install dirs.
+fn find_windows_cli(
+    name: &str,
+    override_dirs: &[PathBuf],
+    npm_package_bin_dirs: &[&str],
+) -> Option<String> {
+    let roaming = windows_roaming_dir(&dirs::home_dir().unwrap_or_default());
+    let npm_dirs = npm_exe_dirs(&roaming, npm_package_bin_dirs);
+    let mut search = override_dirs.to_vec();
+    search.extend(windows_search_dirs(&npm_dirs));
+    find_in_dirs(name, &search, WINDOWS_EXTENSIONS).map(|p| p.to_string_lossy().into_owned())
+}
+
+/// Resolve Claude Code on Windows (native installer, WinGet, npm, PATH).
+pub fn find_claude_windows() -> Option<String> {
+    // npm package `@anthropic-ai/claude-code` ships `bin/claude.exe`
+    find_windows_cli("claude", &[], &["@anthropic-ai/claude-code/bin"])
+}
+
+/// npm-installed Codex keeps its native binary in a per-platform package.
+fn codex_windows_npm_dirs() -> [String; 2] {
+    let (arch, triple) = if cfg!(target_arch = "aarch64") {
+        ("arm64", "aarch64-pc-windows-msvc")
+    } else {
+        ("x64", "x86_64-pc-windows-msvc")
+    };
+    let platform_bin = format!("@openai/codex-win32-{}/vendor/{}/bin", arch, triple);
+    [
+        // nested inside the codex package
+        format!("@openai/codex/node_modules/{}", platform_bin),
+        // hoisted
+        platform_bin,
+    ]
+}
+
 /// Status of CLI installation and authentication
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -197,6 +352,9 @@ impl CliDetector {
 
     /// Find claude CLI path
     async fn find_claude_cli_path() -> Option<String> {
+        if cfg!(windows) {
+            return find_claude_windows();
+        }
         let home = env::var("HOME").unwrap_or_default();
 
         // Native installation path (recommended)
@@ -270,11 +428,8 @@ impl CliDetector {
 
     /// Get Claude CLI version
     async fn get_claude_cli_version(cli_path: &str) -> Result<String, String> {
-        let extended_path = get_extended_path();
-
-        let output = Command::new(cli_path)
+        let output = cli_command(cli_path)
             .arg("--version")
-            .env("PATH", &extended_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -297,12 +452,9 @@ impl CliDetector {
 
     /// Verify Claude authentication status by trying to run help
     pub async fn verify_claude_authentication(cli_path: &str) -> Result<bool, String> {
-        let extended_path = get_extended_path();
-
         // Run a simple check - claude should return quickly if authenticated
-        let output = Command::new(cli_path)
+        let output = cli_command(cli_path)
             .arg("--help")
-            .env("PATH", &extended_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -354,6 +506,11 @@ impl CliDetector {
     /// causing the wrapper script to fail. We prioritize finding the native binary
     /// directly, falling back to the wrapper script only if needed.
     async fn find_codex_cli_path() -> Option<String> {
+        if cfg!(windows) {
+            let npm_dirs = codex_windows_npm_dirs();
+            let npm_dirs: Vec<&str> = npm_dirs.iter().map(String::as_str).collect();
+            return find_windows_cli("codex", &[], &npm_dirs);
+        }
         let home = env::var("HOME").unwrap_or_default();
 
         // First: try to find the native Codex binary directly.
@@ -511,11 +668,8 @@ impl CliDetector {
 
     /// Get Codex CLI version
     async fn get_codex_cli_version(cli_path: &str) -> Result<String, String> {
-        let extended_path = get_extended_path();
-
-        let output = Command::new(cli_path)
+        let output = cli_command(cli_path)
             .arg("--version")
-            .env("PATH", &extended_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -533,12 +687,9 @@ impl CliDetector {
 
     /// Verify Codex authentication status by trying to run help
     pub async fn verify_codex_authentication(cli_path: &str) -> Result<bool, String> {
-        let extended_path = get_extended_path();
-
         // Run a simple check - codex should return quickly if authenticated
-        let output = Command::new(cli_path)
+        let output = cli_command(cli_path)
             .arg("--help")
-            .env("PATH", &extended_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -583,6 +734,20 @@ impl CliDetector {
 
     /// Find OpenCode CLI path
     async fn find_opencode_cli_path() -> Option<String> {
+        if cfg!(windows) {
+            // npm packages `opencode-ai` (v1) and `@opencode/cli` (v2) ship
+            // `bin/opencode.exe`
+            let overrides: Vec<PathBuf> = ["OPENCODE_INSTALL_DIR", "XDG_BIN_DIR"]
+                .iter()
+                .filter_map(env::var_os)
+                .map(PathBuf::from)
+                .collect();
+            return find_windows_cli(
+                "opencode",
+                &overrides,
+                &["opencode-ai/bin", "@opencode/cli/bin"],
+            );
+        }
         let home = env::var("HOME").unwrap_or_default();
 
         // Default install dirs published by sst/opencode
@@ -692,6 +857,9 @@ impl CliDetector {
 
     /// Find Droid CLI path
     async fn find_droid_cli_path() -> Option<String> {
+        if cfg!(windows) {
+            return find_windows_cli("droid", &[], &[]);
+        }
         let home = env::var("HOME").unwrap_or_default();
 
         let mut possible_paths = vec![
@@ -755,11 +923,8 @@ impl CliDetector {
     // ========================================================================
 
     async fn get_simple_cli_version(cli_path: &str) -> Result<String, String> {
-        let extended_path = get_extended_path();
-
-        let output = Command::new(cli_path)
+        let output = cli_command(cli_path)
             .arg("--version")
-            .env("PATH", &extended_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -775,11 +940,8 @@ impl CliDetector {
     }
 
     async fn verify_simple_authentication(cli_path: &str, name: &str) -> Result<bool, String> {
-        let extended_path = get_extended_path();
-
-        let output = Command::new(cli_path)
+        let output = cli_command(cli_path)
             .arg("--help")
-            .env("PATH", &extended_path)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()
@@ -793,6 +955,144 @@ impl CliDetector {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Fake Windows profile: home, %APPDATA% and %LOCALAPPDATA% under a temp dir.
+    struct FakeProfile {
+        _tmp: tempfile::TempDir,
+        home: PathBuf,
+        roaming: PathBuf,
+        local: PathBuf,
+    }
+
+    impl FakeProfile {
+        fn new() -> Self {
+            let tmp = tempfile::tempdir().unwrap();
+            let home = tmp.path().join("Users").join("me");
+            let roaming = home.join("AppData").join("Roaming");
+            let local = home.join("AppData").join("Local");
+            Self {
+                _tmp: tmp,
+                home,
+                roaming,
+                local,
+            }
+        }
+
+        fn touch(&self, path: &Path) -> PathBuf {
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            std::fs::write(path, b"").unwrap();
+            path.to_path_buf()
+        }
+
+        fn find(&self, name: &str, extra: &[PathBuf], path_var: &str) -> Option<PathBuf> {
+            let dirs = windows_known_dirs(&self.home, &self.roaming, &self.local, extra, path_var);
+            find_in_dirs(name, &dirs, WINDOWS_EXTENSIONS)
+        }
+    }
+
+    // Regression for #555: the native installer only creates
+    // %USERPROFILE%\.local\bin\claude.exe (no extensionless `claude`).
+    #[test]
+    fn windows_finds_native_claude_exe() {
+        let p = FakeProfile::new();
+        let exe = p.touch(&p.home.join(".local").join("bin").join("claude.exe"));
+        assert_eq!(p.find("claude", &[], ""), Some(exe));
+    }
+
+    #[test]
+    fn windows_finds_cli_on_path_without_which() {
+        let p = FakeProfile::new();
+        let tools = p.home.join("tools");
+        let exe = p.touch(&tools.join("codex.exe"));
+        let path_var = format!(r#"C:\does\not\exist;;"{}";"#, tools.display());
+        assert_eq!(p.find("codex", &[], &path_var), Some(exe));
+    }
+
+    #[test]
+    fn windows_finds_npm_cmd_shim_but_not_bash_script() {
+        let p = FakeProfile::new();
+        let npm = p.roaming.join("npm");
+        // npm writes a shell script for Git Bash next to the .cmd shim
+        p.touch(&npm.join("droid"));
+        let cmd = p.touch(&npm.join("droid.cmd"));
+        assert_eq!(p.find("droid", &[], ""), Some(cmd));
+    }
+
+    #[test]
+    fn windows_prefers_exe_over_cmd_shim() {
+        let p = FakeProfile::new();
+        p.touch(&p.roaming.join("npm").join("claude.cmd"));
+        let npm_dirs = npm_exe_dirs(&p.roaming, &["@anthropic-ai/claude-code/bin"]);
+        let exe = p.touch(&npm_dirs[0].join("claude.exe"));
+        assert!(exe.ends_with("npm/node_modules/@anthropic-ai/claude-code/bin/claude.exe"));
+        assert_eq!(p.find("claude", &npm_dirs, ""), Some(exe));
+    }
+
+    #[test]
+    fn windows_known_install_locations() {
+        let p = FakeProfile::new();
+        let codex = p.touch(
+            &p.local
+                .join("Programs")
+                .join("OpenAI")
+                .join("Codex")
+                .join("bin")
+                .join("codex.exe"),
+        );
+        let droid = p.touch(&p.home.join("bin").join("droid.exe"));
+        let opencode = p.touch(&p.home.join(".opencode").join("bin").join("opencode.exe"));
+        let winget = p.touch(
+            &p.local
+                .join("Microsoft")
+                .join("WinGet")
+                .join("Links")
+                .join("claude.exe"),
+        );
+        assert_eq!(p.find("codex", &[], ""), Some(codex));
+        assert_eq!(p.find("droid", &[], ""), Some(droid));
+        assert_eq!(p.find("opencode", &[], ""), Some(opencode));
+        assert_eq!(p.find("claude", &[], ""), Some(winget));
+    }
+
+    #[test]
+    fn windows_prefers_native_install_over_npm_exe() {
+        let p = FakeProfile::new();
+        let npm_dirs = npm_exe_dirs(&p.roaming, &["@anthropic-ai/claude-code/bin"]);
+        p.touch(&npm_dirs[0].join("claude.exe"));
+        let native = p.touch(&p.home.join(".local").join("bin").join("claude.exe"));
+        assert_eq!(p.find("claude", &npm_dirs, ""), Some(native));
+    }
+
+    #[test]
+    fn windows_returns_none_when_missing() {
+        let p = FakeProfile::new();
+        assert_eq!(p.find("claude", &[], r"C:\Windows\System32"), None);
+    }
+
+    #[test]
+    fn extensions_are_matched_lowercase() {
+        let p = FakeProfile::new();
+        let exe = p.touch(&p.home.join("claude.exe"));
+        assert_eq!(
+            find_in_dirs("claude", std::slice::from_ref(&p.home), &[".EXE"]),
+            Some(exe)
+        );
+    }
+
+    #[test]
+    fn split_path_list_handles_quotes_and_empty_entries() {
+        assert_eq!(
+            split_path_list(r#"C:\a;;"C:\Program Files\b"; "#, ';'),
+            vec![PathBuf::from(r"C:\a"), PathBuf::from(r"C:\Program Files\b")]
+        );
+    }
+
+    #[test]
+    fn codex_windows_npm_dirs_point_at_vendor_bin() {
+        for dir in codex_windows_npm_dirs() {
+            assert!(dir.ends_with("-pc-windows-msvc/bin"), "{}", dir);
+        }
+    }
 
     #[tokio::test]
     async fn test_cli_detection() {

@@ -7,7 +7,6 @@ use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
 use tokio::io::{AsyncBufReadExt, BufReader};
-use tokio::process::Command;
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
@@ -475,16 +474,14 @@ impl AgentManager {
                     tracing::debug!("Spawning {} with args: {:?}", provider_name, args);
 
                     // Spawn CLI process with retry for transient errors
-                    let extended_path = super::cli_detector::get_extended_path();
                     let max_attempts = 2u32;
                     let mut was_interrupted = false;
 
                     for attempt in 1..=max_attempts {
                         let stderr_capture = Arc::new(tokio::sync::Mutex::new(String::new()));
 
-                        match Command::new(&cli_path)
+                        match super::cli_detector::cli_command(&cli_path)
                             .args(&args)
-                            .env("PATH", &extended_path)
                             .stdout(Stdio::piped())
                             .stderr(Stdio::piped())
                             .kill_on_drop(true)
