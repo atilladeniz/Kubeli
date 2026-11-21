@@ -6,7 +6,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 use tauri::{AppHandle, Emitter};
-use tokio::io::{AsyncBufReadExt, BufReader};
+use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::sync::{mpsc, RwLock};
 use uuid::Uuid;
 
@@ -440,6 +440,21 @@ impl AgentManager {
             None
         };
 
+        // Claude takes the system prompt from a file so it stays out of argv.
+        // Removed when this loop (the session) ends.
+        let system_prompt_file = match (provider, system_prompt.as_deref()) {
+            (AiCliProvider::Claude, Some(prompt)) => {
+                match SessionFile::create(&session_id, "system-prompt.md", prompt) {
+                    Ok(file) => Some(file),
+                    Err(e) => {
+                        tracing::warn!("Failed to write system prompt file: {e}");
+                        None
+                    }
+                }
+            }
+            _ => None,
+        };
+
         while let Some(input) = input_rx.recv().await {
             if stop_flag.load(Ordering::SeqCst) {
                 break;
@@ -462,9 +477,10 @@ impl AgentManager {
                     let _ = app.emit(&event_name, AIEvent::Thinking { active: true });
 
                     // Build command arguments based on provider
-                    let args = build_provider_args(
+                    let ProviderInvocation { args, stdin } = build_provider_args(
                         provider,
                         system_prompt.as_deref(),
+                        system_prompt_file.as_ref().map(|f| f.path()),
                         &user_message,
                         opencode_workdir.as_deref(),
                     );
@@ -482,6 +498,7 @@ impl AgentManager {
 
                         match super::cli_detector::cli_command(&cli_path)
                             .args(&args)
+                            .stdin(Stdio::piped())
                             .stdout(Stdio::piped())
                             .stderr(Stdio::piped())
                             .kill_on_drop(true)
@@ -490,6 +507,21 @@ impl AgentManager {
                             Ok(mut child) => {
                                 let stdout = child.stdout.take();
                                 let stderr = child.stderr.take();
+
+                                // Feed the prompt on stdin from its own task so a
+                                // large prompt can't deadlock against a full stdout
+                                // pipe. Dropping the handle closes stdin; the CLIs
+                                // read until EOF.
+                                if let Some(mut child_stdin) = child.stdin.take() {
+                                    let input = stdin.clone().into_bytes();
+                                    tokio::spawn(async move {
+                                        if let Err(e) = child_stdin.write_all(&input).await {
+                                            tracing::debug!(
+                                                "Failed to write prompt to CLI stdin: {e}"
+                                            );
+                                        }
+                                    });
+                                }
 
                                 // Capture stderr into shared buffer for retry detection
                                 if let Some(stderr) = stderr {
@@ -1341,17 +1373,30 @@ const READ_ONLY_KUBECTL: &[&str] = &[
     "kubectl auth can-i",
 ];
 
-/// Build CLI arguments for one message. No provider runs with permission
+/// How to run one message: CLI arguments plus the prompt written to stdin.
+#[derive(Debug)]
+struct ProviderInvocation {
+    args: Vec<String>,
+    stdin: String,
+}
+
+/// Build the CLI invocation for one message. No provider runs with permission
 /// checks disabled: Claude and OpenCode get a read-only kubectl whitelist,
 /// Codex a read-only sandbox, Droid low autonomy.
+///
+/// Prompts never go into argv. They are sent on stdin, and Claude reads its
+/// system prompt from `system_prompt_file`. On Windows a CLI may be an npm
+/// `.cmd` shim, and Rust refuses to pass arguments containing newlines to
+/// batch files; command lines are also length-limited (32K chars on Windows).
 fn build_provider_args(
     provider: AiCliProvider,
     system_prompt: Option<&str>,
+    system_prompt_file: Option<&std::path::Path>,
     user_message: &str,
     opencode_workdir: Option<&std::path::Path>,
-) -> Vec<String> {
+) -> ProviderInvocation {
     // Codex/OpenCode/Droid have no dedicated system prompt flag
-    let concat_prompt = |user_message: &str| match system_prompt {
+    let concat_prompt = || match system_prompt {
         Some(prompt) => format!("{}\n\nUser request: {}", prompt, user_message),
         None => user_message.to_string(),
     };
@@ -1361,8 +1406,8 @@ fn build_provider_args(
             // --verbose is required when using -p with --output-format stream-json.
             // --allowedTools whitelists read-only kubectl; in -p mode every other
             // tool request is denied without prompting (no bypass flag).
-            // Comma-joined single value: the variadic form would swallow the
-            // trailing prompt positional.
+            // Comma-joined single value: the variadic form would swallow any
+            // following positional.
             let allowed = READ_ONLY_KUBECTL
                 .iter()
                 .map(|c| format!("Bash({c}:*)"))
@@ -1376,32 +1421,41 @@ fn build_provider_args(
                 "--allowedTools".to_string(),
                 allowed,
             ];
-            if let Some(prompt) = system_prompt {
-                args.push("--system-prompt".to_string());
-                args.push(prompt.to_string());
-            }
-            args.push(user_message.to_string());
-            args
+            let stdin = match system_prompt_file {
+                Some(file) => {
+                    args.push("--system-prompt-file".to_string());
+                    args.push(file.to_string_lossy().to_string());
+                    user_message.to_string()
+                }
+                // File could not be written: fall back to prepending the prompt
+                None => concat_prompt(),
+            };
+            ProviderInvocation { args, stdin }
         }
         AiCliProvider::Codex => {
             // Read-only sandbox: model-generated commands get no writes and no
             // network. Codex analyzes the injected cluster context only.
-            let mut args = vec![
+            // `-` reads the prompt from stdin.
+            let args = vec![
                 "exec".to_string(),
                 "--json".to_string(),
                 "--sandbox".to_string(),
                 "read-only".to_string(),
                 "--skip-git-repo-check".to_string(),
                 "--ephemeral".to_string(),
+                "-".to_string(),
             ];
-            args.push(concat_prompt(user_message));
-            args
+            ProviderInvocation {
+                args,
+                stdin: concat_prompt(),
+            }
         }
         AiCliProvider::OpenCode => {
             // Runs inside the Kubeli-managed workspace whose opencode.json
             // denies everything except read-only kubectl (see
             // ensure_opencode_workspace); the caller fails closed when the
-            // workspace is missing.
+            // workspace is missing. Without a message argument, `run` reads
+            // stdin until EOF.
             let mut args = vec![
                 "run".to_string(),
                 "--format".to_string(),
@@ -1411,22 +1465,59 @@ fn build_provider_args(
                 args.push("--dir".to_string());
                 args.push(dir.to_string_lossy().to_string());
             }
-            args.push(concat_prompt(user_message));
-            args
+            ProviderInvocation {
+                args,
+                stdin: concat_prompt(),
+            }
         }
         AiCliProvider::Droid => {
             // --auto low: only low-risk (read-only) commands run automatically;
             // in non-interactive exec mode everything above is denied.
-            let mut args = vec![
+            // `exec` reads the prompt from piped stdin.
+            let args = vec![
                 "exec".to_string(),
                 "--output-format".to_string(),
                 "stream-json".to_string(),
                 "--auto".to_string(),
                 "low".to_string(),
             ];
-            args.push(concat_prompt(user_message));
-            args
+            ProviderInvocation {
+                args,
+                stdin: concat_prompt(),
+            }
         }
+    }
+}
+
+/// A file that lives as long as a session and is deleted on drop.
+struct SessionFile(std::path::PathBuf);
+
+impl SessionFile {
+    /// Write `contents` to `kubeli-<session_id>-<name>` in the temp dir,
+    /// readable only by the current user on Unix.
+    fn create(session_id: &str, name: &str, contents: &str) -> std::io::Result<Self> {
+        use std::io::Write;
+        let path = std::env::temp_dir().join(format!("kubeli-{session_id}-{name}"));
+        let mut options = std::fs::OpenOptions::new();
+        options.write(true).create(true).truncate(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let file = SessionFile(path);
+        options.open(file.path())?.write_all(contents.as_bytes())?;
+        Ok(file)
+    }
+
+    fn path(&self) -> &std::path::Path {
+        &self.0
+    }
+}
+
+impl Drop for SessionFile {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
     }
 }
 
@@ -1700,17 +1791,26 @@ mod tests {
         }
     }
 
+    const ALL_PROVIDERS: [AiCliProvider; 4] = [
+        AiCliProvider::Claude,
+        AiCliProvider::Codex,
+        AiCliProvider::OpenCode,
+        AiCliProvider::Droid,
+    ];
+
     #[test]
     fn no_provider_runs_with_permission_bypass_flags() {
         let workdir = std::path::Path::new("/data/opencode-workspace");
-        for provider in [
-            AiCliProvider::Claude,
-            AiCliProvider::Codex,
-            AiCliProvider::OpenCode,
-            AiCliProvider::Droid,
-        ] {
-            let args = build_provider_args(provider, Some("sys"), "hello", Some(workdir));
-            for arg in &args {
+        let prompt_file = std::path::Path::new("/tmp/kubeli-x-system-prompt.md");
+        for provider in ALL_PROVIDERS {
+            let inv = build_provider_args(
+                provider,
+                Some("sys"),
+                Some(prompt_file),
+                "hello",
+                Some(workdir),
+            );
+            for arg in &inv.args {
                 assert!(
                     !arg.contains("--dangerously-skip-permissions")
                         && !arg.contains("--dangerously-bypass-approvals-and-sandbox")
@@ -1722,9 +1822,73 @@ mod tests {
         }
     }
 
+    // Windows npm `.cmd` shims reject arguments containing newlines, so no
+    // prompt text may end up in argv. Prompts travel on stdin instead.
+    #[test]
+    fn prompts_go_to_stdin_never_into_args() {
+        let system = "You are a Kubernetes assistant.\r\nCluster: demo\nBe brief.";
+        let user = "Why is my pod crashing?\nIt restarts every minute.";
+        let workdir = std::path::Path::new("/data/opencode-workspace");
+        let prompt_file = std::path::Path::new("/tmp/kubeli-x-system-prompt.md");
+        for provider in ALL_PROVIDERS {
+            for file in [Some(prompt_file), None] {
+                let inv = build_provider_args(provider, Some(system), file, user, Some(workdir));
+                for arg in &inv.args {
+                    assert!(
+                        !arg.contains('\n') && !arg.contains('\r'),
+                        "{provider:?} arg contains a line break: {arg:?}"
+                    );
+                    assert!(!arg.contains("pod crashing"), "{provider:?}: {arg:?}");
+                }
+                assert!(inv.stdin.contains(user), "{provider:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn claude_reads_system_prompt_from_file() {
+        let file = std::path::Path::new("/tmp/kubeli-x-system-prompt.md");
+        let inv = build_provider_args(AiCliProvider::Claude, Some("sys"), Some(file), "hi", None);
+        let idx = inv
+            .args
+            .iter()
+            .position(|a| a == "--system-prompt-file")
+            .unwrap();
+        assert_eq!(inv.args[idx + 1], file.to_string_lossy());
+        assert!(!inv.args.iter().any(|a| a == "--system-prompt"));
+        assert_eq!(inv.stdin, "hi");
+    }
+
+    #[test]
+    fn claude_without_prompt_file_prepends_system_prompt_to_stdin() {
+        let inv = build_provider_args(AiCliProvider::Claude, Some("sys"), None, "hi", None);
+        assert!(!inv.args.iter().any(|a| a.starts_with("--system-prompt")));
+        assert_eq!(inv.stdin, "sys\n\nUser request: hi");
+    }
+
+    #[test]
+    fn session_file_is_private_and_removed_on_drop() {
+        let file =
+            SessionFile::create("test-session", "system-prompt.md", "line 1\nline 2").unwrap();
+        let path = file.path().to_path_buf();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "line 1\nline 2");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+            assert_eq!(
+                mode & 0o077,
+                0,
+                "system prompt file must not be group/world readable"
+            );
+        }
+        drop(file);
+        assert!(!path.exists());
+    }
+
     #[test]
     fn claude_args_whitelist_read_only_kubectl_only() {
-        let args = build_provider_args(AiCliProvider::Claude, None, "hi", None);
+        let args = build_provider_args(AiCliProvider::Claude, None, None, "hi", None).args;
         let idx = args.iter().position(|a| a == "--allowedTools").unwrap();
         let allowed = &args[idx + 1];
         assert!(allowed.contains("Bash(kubectl get:*)"));
@@ -1732,21 +1896,19 @@ mod tests {
         assert!(!allowed.contains("delete"));
         assert!(!allowed.contains("apply"));
         assert!(!allowed.contains("edit"));
-        // Prompt stays the trailing positional (comma-joined value must not
-        // swallow it via the variadic form)
-        assert_eq!(args.last().unwrap(), "hi");
     }
 
     #[test]
-    fn codex_args_use_read_only_sandbox() {
-        let args = build_provider_args(AiCliProvider::Codex, None, "hi", None);
+    fn codex_args_use_read_only_sandbox_and_stdin_prompt() {
+        let args = build_provider_args(AiCliProvider::Codex, None, None, "hi", None).args;
         let idx = args.iter().position(|a| a == "--sandbox").unwrap();
         assert_eq!(args[idx + 1], "read-only");
+        assert_eq!(args.last().unwrap(), "-");
     }
 
     #[test]
     fn droid_args_use_low_autonomy() {
-        let args = build_provider_args(AiCliProvider::Droid, None, "hi", None);
+        let args = build_provider_args(AiCliProvider::Droid, None, None, "hi", None).args;
         let idx = args.iter().position(|a| a == "--auto").unwrap();
         assert_eq!(args[idx + 1], "low");
     }
@@ -1756,11 +1918,79 @@ mod tests {
         let args = build_provider_args(
             AiCliProvider::OpenCode,
             None,
+            None,
             "hi",
             Some(std::path::Path::new("/data/oc")),
-        );
+        )
+        .args;
         let idx = args.iter().position(|a| a == "--dir").unwrap();
         assert_eq!(args[idx + 1], "/data/oc");
+    }
+
+    /// End-to-end check against the CLIs installed on this machine (needs
+    /// network and a logged-in CLI, so it is ignored by default). Spawns each
+    /// CLI exactly like a session does, with multi-line prompts. The code word
+    /// only appears in the system prompt, so the answer proves both the stdin
+    /// prompt and the system prompt (file for Claude) reached the model.
+    /// Run with: `cargo test smoke_ -- --ignored --nocapture`
+    #[tokio::test]
+    #[ignore]
+    async fn smoke_installed_clis_read_prompt_from_stdin() {
+        use super::super::cli_detector::{cli_command, CliDetector};
+        let system = "You are a test fixture.\nThe code word is PINEAPPLE.";
+        let user = "What is the code word?\nReply with the code word only.";
+        let installed = [
+            (
+                AiCliProvider::Claude,
+                CliDetector::check_claude_cli_available().await,
+            ),
+            (
+                AiCliProvider::Codex,
+                CliDetector::check_codex_cli_available().await,
+            ),
+            (
+                AiCliProvider::OpenCode,
+                CliDetector::check_opencode_cli_available().await,
+            ),
+            (
+                AiCliProvider::Droid,
+                CliDetector::check_droid_cli_available().await,
+            ),
+        ];
+        for (provider, info) in installed {
+            let Some(path) = info.cli_path else {
+                println!("== {provider:?}: not installed, skipped");
+                continue;
+            };
+            let file = SessionFile::create("smoke-test", "system-prompt.md", system).unwrap();
+            let inv = build_provider_args(provider, Some(system), Some(file.path()), user, None);
+            println!("== {provider:?}: {path} {:?}", inv.args);
+            let mut child = cli_command(&path)
+                .args(&inv.args)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .stderr(Stdio::piped())
+                .kill_on_drop(true)
+                .spawn()
+                .unwrap();
+            let mut stdin = child.stdin.take().unwrap();
+            let input = inv.stdin.into_bytes();
+            tokio::spawn(async move {
+                stdin.write_all(&input).await.unwrap();
+            });
+            let out = tokio::time::timeout(Duration::from_secs(120), child.wait_with_output())
+                .await
+                .expect("CLI did not exit")
+                .unwrap();
+            let stdout = String::from_utf8_lossy(&out.stdout);
+            println!("exit: {:?}\nstdout:\n{stdout}", out.status);
+            println!("stderr:\n{}", String::from_utf8_lossy(&out.stderr));
+            assert!(out.status.success(), "{provider:?} failed");
+            assert!(
+                stdout.contains("PINEAPPLE"),
+                "{provider:?} missed the code word"
+            );
+        }
     }
 
     #[test]
