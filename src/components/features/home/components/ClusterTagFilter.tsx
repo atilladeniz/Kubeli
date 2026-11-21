@@ -6,11 +6,12 @@ import type { Cluster } from "@/lib/types";
 import { useClusterTagsStore } from "@/lib/stores/cluster-tags-store";
 import { TagDot } from "./TagChip";
 
-// Pill look shared by "All" and the tag toggles; the on-state is filled so the
-// active selection is obvious at a glance.
+// Pill look shared by "All" and the tag toggles. Active pills get the blue
+// accent (as the Connect button) with full-contrast text; hover never greys
+// the label out.
 const PILL =
-  "h-7 gap-1.5 rounded-full px-2.5 text-xs font-normal data-[state=on]:border-foreground data-[state=on]:bg-foreground data-[state=on]:text-background data-[state=on]:hover:bg-foreground/90";
-const PILL_COUNT = "tabular-nums opacity-60";
+  "h-7 gap-1.5 rounded-full px-2.5 text-xs font-normal text-foreground hover:text-foreground data-[state=on]:border-blue-500 data-[state=on]:bg-blue-500/20 data-[state=on]:text-foreground data-[state=on]:hover:bg-blue-500/25 data-[state=on]:font-medium";
+const PILL_COUNT = "tabular-nums text-muted-foreground";
 
 /** Filter value for clusters without any tag. */
 export const UNTAGGED = "__untagged__";

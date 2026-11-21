@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { ChevronLeft, Lock, Plus, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -85,18 +86,17 @@ function NewTagForm() {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="flex h-10 items-center gap-1 border-t px-2">
+    <form onSubmit={handleSubmit} className="flex h-12 items-center gap-1 border-t px-2 pr-3">
       <span className="flex size-8 shrink-0 items-center justify-center text-muted-foreground">
         <Plus className="size-4" aria-hidden />
       </span>
-      <input
+      <Input
         value={name}
         placeholder={t("newTagPlaceholder")}
         aria-label={t("newTagPlaceholder")}
         aria-invalid={taken}
         title={taken ? t("clusterTagNameExists") : undefined}
-        spellCheck={false}
-        className={INLINE_INPUT}
+        className="h-8 flex-1 rounded-md px-2 text-sm"
         onChange={(event) => setName(event.target.value)}
       />
     </form>
