@@ -42,6 +42,16 @@ ignore = [
     # build/runtime (trusted input), so the DoS surface is not attacker-reachable.
     "RUSTSEC-2026-0194", # quick-xml quadratic duplicate-attribute check
     "RUSTSEC-2026-0195", # quick-xml unbounded namespace-declaration allocation
+
+    # chrono: flagged unmaintained, no known vulnerability. Pulled in by kube,
+    # rmcp, openidconnect and schemars as well as directly; no drop-in
+    # replacement across the ecosystem. Revisit when kube moves off chrono.
+    "RUSTSEC-2026-0543",
+
+    # unsafe-libyaml: unmaintained (no vulnerability), via serde_yaml 0.9
+    # (deprecated). Fix = migrate serde_yaml -> a maintained fork; tracked as
+    # its own change because it touches kubeconfig/manifest YAML handling.
+    "RUSTSEC-2024-0449",
 ]
 
 # -- Licenses: ensure all crate licenses are acceptable --

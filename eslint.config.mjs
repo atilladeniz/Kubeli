@@ -45,4 +45,10 @@ export default defineConfig(
       ],
     },
   },
+  {
+    // web/ is a separate Astro project whose tsconfig extends `astro/...`;
+    // the lint job does not install web deps, so skip type info there.
+    files: ["web/**/*.{ts,tsx}"],
+    languageOptions: { parserOptions: { projectService: false } },
+  },
 );
