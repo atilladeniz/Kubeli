@@ -51,8 +51,22 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 - **MCP Server** - Model Context Protocol server for IDE integration (VS Code, Cursor, Claude Code)
 - **Helm Releases** - View and manage Helm deployments
 - **Proxy Support** - HTTP/HTTPS/SOCKS5 proxy configuration for corporate environments
-- **Internationalization** - English and German language support
+- **Internationalization** - English, German and Simplified Chinese UI ([see languages](#languages))
 - **Dark/Light Mode** - Theme support with vibrancy effects
+
+## Languages
+
+| Language | Native name | Code | Translated |
+|----------|-------------|------|------------|
+| English | English | `en` | ![source](https://img.shields.io/badge/source%20language-blue) |
+| German | Deutsch | `de` | ![100%](https://img.shields.io/badge/translated-100%25-brightgreen) |
+| Simplified Chinese | 简体中文 | `zh` | ![100%](https://img.shields.io/badge/translated-100%25-brightgreen) |
+
+Coverage counts translated keys against `src/i18n/messages/en.json`. A test fails if a catalog is missing a key. Kubernetes kinds (Pod, Deployment, ConfigMap, ...), acronyms and product names stay in English on purpose.
+
+The app follows your system language by default. You can switch it in **Settings → Appearance → Language**.
+
+Want to add a language? Copy `en.json` to `<code>.json`, translate the values, and register the code in `src/i18n/config.ts` and `src/i18n/getMessages.ts`.
 
 ## Tech Stack
 
