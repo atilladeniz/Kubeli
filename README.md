@@ -357,6 +357,22 @@ We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) 
 
 See [CHANGELOG.md](CHANGELOG.md) for a detailed list of changes.
 
+## Contributors
+
+Thanks to everyone who has contributed to Kubeli. If you want to help, start with the [Contributing Guide](CONTRIBUTING.md).
+
+<a href="https://github.com/atilladeniz/Kubeli/graphs/contributors"><img src="https://contrib.rocks/image?repo=atilladeniz/Kubeli" alt="Contributors" /></a>
+
+## Star History
+
+<a href="https://www.star-history.com/#atilladeniz/Kubeli&Date">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/svg?repos=atilladeniz/Kubeli&type=Date&theme=dark" />
+    <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/svg?repos=atilladeniz/Kubeli&type=Date" />
+    <img alt="Star History Chart" src="https://api.star-history.com/svg?repos=atilladeniz/Kubeli&type=Date" />
+  </picture>
+</a>
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
