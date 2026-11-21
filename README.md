@@ -58,9 +58,9 @@ A modern, beautiful Kubernetes management desktop application with real-time mon
 
 | Language | Native name | Code | Translated |
 |----------|-------------|------|------------|
-| English | English | `en` | ![100%](https://img.shields.io/badge/100%25-1210%2F1210-brightgreen) source |
-| German | Deutsch | `de` | ![100%](https://img.shields.io/badge/100%25-1210%2F1210-brightgreen) |
-| Simplified Chinese | 简体中文 | `zh` | ![100%](https://img.shields.io/badge/100%25-1210%2F1210-brightgreen) |
+| English | English | `en` | ![source](https://img.shields.io/badge/source%20language-blue) |
+| German | Deutsch | `de` | ![100%](https://img.shields.io/badge/translated-100%25-brightgreen) |
+| Simplified Chinese | 简体中文 | `zh` | ![100%](https://img.shields.io/badge/translated-100%25-brightgreen) |
 
 Coverage counts translated keys against `src/i18n/messages/en.json`. A test fails if a catalog is missing a key. Kubernetes kinds (Pod, Deployment, ConfigMap, ...), acronyms and product names stay in English on purpose.
 
