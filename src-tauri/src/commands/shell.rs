@@ -820,12 +820,13 @@ pub async fn node_shell_cleanup(
 
 #[cfg(test)]
 mod tests {
-    use super::{resolve_shell_command, take_valid_utf8, ShellEvent, SHELL_PROBE};
+    use super::{resolve_shell_command, take_valid_utf8, ShellEvent};
 
     /// Runs SHELL_PROBE with a PATH that contains only a real `sh` plus the
     /// given fake shells (name, exit code), each printing `fake-<name>`.
     #[cfg(unix)]
     fn run_probe_with(fakes: &[(&str, i32)]) -> std::process::Output {
+        use super::SHELL_PROBE;
         use std::os::unix::fs::PermissionsExt;
         use std::process::{Command, Stdio};
 
