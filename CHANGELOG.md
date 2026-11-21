@@ -2,6 +2,20 @@
 
 All notable changes to Kubeli will be documented in this file.
 
+## [0.3.91] - 2026-11-21
+
+- Added model, effort and context controls to the AI chat composer
+- Added cluster tag management on the home screen
+- Added Simplified Chinese (zh) locale
+- Fixed AI CLI detection on Windows and switched prompts to be sent on stdin
+- Fixed Codex native binary detection with the current npm package layout
+- Fixed OpenCode to start in the session workspace instead of using --dir
+- Fixed inset shadow on the AI chat input in dark mode
+- Fixed SOCKS5 and HTTP proxy settings not applying to cluster connections
+- Fixed node list column widths shifting and added sorting by utilization
+- Fixed missing settings not being filled with defaults on first load
+- Updated dependencies, resolved security advisories and aligned Tauri npm plugins with their Rust crates
+
 ## [0.3.90] - 2026-10-05
 
 - Updated Tauri to 2.12, including the store, log and updater plugins

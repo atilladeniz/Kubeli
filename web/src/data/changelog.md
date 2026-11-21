@@ -4,6 +4,20 @@ title: Changelog
 # `make release` prepends new entries here automatically.
 ---
 
+## v0.3.91 <span class="text-sm font-normal text-neutral-400 ml-2">2026-11-21</span>
+
+- Added model, effort and context controls to the AI chat composer
+- Added cluster tag management on the home screen
+- Added Simplified Chinese (zh) locale
+- Fixed AI CLI detection on Windows and switched prompts to be sent on stdin
+- Fixed Codex native binary detection with the current npm package layout
+- Fixed OpenCode to start in the session workspace instead of using --dir
+- Fixed inset shadow on the AI chat input in dark mode
+- Fixed SOCKS5 and HTTP proxy settings not applying to cluster connections
+- Fixed node list column widths shifting and added sorting by utilization
+- Fixed missing settings not being filled with defaults on first load
+- Updated dependencies, resolved security advisories and aligned Tauri npm plugins with their Rust crates
+
 ## v0.3.90 <span class="text-sm font-normal text-neutral-400 ml-2">2026-10-05</span>
 
 - Updated Tauri to 2.12, including the store, log and updater plugins
