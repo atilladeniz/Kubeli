@@ -258,37 +258,33 @@ export const useUIStore = create<UIState>()(
       name: "kubeli-ui-settings",
       storage: createJSONStorage(() => localStorage),
       partialize: (state) => ({ settings: state.settings }),
-      onRehydrateStorage: () => (state) => {
-        // Merge persisted settings with defaults to handle new fields
-        const persistedSettings = (state?.settings || {}) as Partial<AppSettings>;
-        const mergedSettings: AppSettings = {
+      // Fill fields missing from older stores with defaults. This must run in
+      // `merge`: persist hydrates synchronously while the store is still being
+      // created, so a setState from onRehydrateStorage hit the not-yet-defined
+      // useUIStore and was silently dropped, leaving new fields undefined.
+      merge: (persisted, current) => {
+        const persistedSettings = ((persisted as { settings?: Partial<AppSettings> } | undefined)
+          ?.settings ?? {}) as Partial<AppSettings>;
+        const settings: AppSettings = {
           ...defaultSettings,
           ...persistedSettings,
-          // Always validate vibrancyLevel
           vibrancyLevel: getValidVibrancyLevel(persistedSettings.vibrancyLevel),
-          // Validate locale
           locale: isValidLocale(persistedSettings.locale as string)
             ? persistedSettings.locale!
             : defaultSettings.locale,
-          // Validate clusterViewLayout (new field, may not exist in old stores)
           clusterViewLayout: persistedSettings.clusterViewLayout === "list" ? "list" : "grid",
         };
 
-        // Initialize resolved theme after rehydration
-        const theme = mergedSettings.theme;
         let resolvedTheme: "light" | "dark" | "classic-dark";
-        if (theme === "system") {
+        if (settings.theme === "system") {
           const isDark =
             typeof window !== "undefined" &&
             window.matchMedia("(prefers-color-scheme: dark)").matches;
           resolvedTheme = isDark ? "dark" : "light";
-        } else if (theme === "classic-dark") {
-          resolvedTheme = "classic-dark";
         } else {
-          resolvedTheme = theme as "light" | "dark";
+          resolvedTheme = settings.theme;
         }
-        // Use setState to properly update the store with merged settings
-        useUIStore.setState({ settings: mergedSettings, resolvedTheme });
+        return { ...current, settings, resolvedTheme };
       },
     }
   )
