@@ -494,7 +494,8 @@ jobs:
         run: |
           # npm SBOM
           npm ci
-          npx @cyclonedx/cyclonedx-npm --spec-version 1.5 --omit dev --output-format JSON --output-file sbom-npm.json --validate
+          # Pinned: 7.x fails --validate with "cannot validate BOM" (v0.3.91).
+          npx -y @cyclonedx/cyclonedx-npm@6.0.1 --spec-version 1.5 --omit dev --output-format JSON --output-file sbom-npm.json --validate
           echo "Generated npm SBOM"
 
           # Rust SBOM
