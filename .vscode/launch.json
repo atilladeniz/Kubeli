@@ -31,19 +31,6 @@
           "--manifest-path=./src-tauri/Cargo.toml"
         ]
       }
-    },
-    {
-      "name": "Launch native via Bun",
-      "request": "launch",
-      "runtimeArgs": [
-        "run",
-        "tauri:dev"
-      ],
-      "runtimeExecutable": "bun",
-      "skipFiles": [
-        "<node_internals>/**"
-      ],
-      "type": "node"
     }
   ]
 }
