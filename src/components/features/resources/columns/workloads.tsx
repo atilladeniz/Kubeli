@@ -150,18 +150,16 @@ export function getPodColumns(t: TranslateFunc): Column<PodInfo>[] {
       key: "name",
       label: t("columns.name"),
       sortable: true,
-      width: "w-[22rem]",
       render: (pod) => <span className="font-medium">{pod.name}</span>,
     },
     {
       key: "namespace",
       label: t("columns.namespace"),
       sortable: true,
-      width: "w-40",
       render: (pod) => (
         <div className="flex items-center gap-2">
           <NamespaceColorDot namespace={pod.namespace} />
-          <span className="truncate">{pod.namespace}</span>
+          <span>{pod.namespace}</span>
         </div>
       ),
     },
@@ -169,8 +167,6 @@ export function getPodColumns(t: TranslateFunc): Column<PodInfo>[] {
       key: "ready_containers",
       label: t("columns.ready"),
       sortable: true,
-      width: "w-20",
-      sortValue: (pod) => parseReadyContainersPercent(pod.ready_containers),
       render: (pod) => (
         <span className={cn(pod.ready_containers.startsWith("0/") && "text-yellow-500")}>
           {pod.ready_containers}
@@ -181,8 +177,6 @@ export function getPodColumns(t: TranslateFunc): Column<PodInfo>[] {
       key: "phase",
       label: t("columns.status"),
       sortable: true,
-      width: "w-44",
-      noTruncate: true,
       render: (pod) => (
         <PodPhaseBadge
           phase={pod.deletion_timestamp ? "Terminating" : pod.phase}
@@ -193,17 +187,15 @@ export function getPodColumns(t: TranslateFunc): Column<PodInfo>[] {
       key: "restart_count",
       label: t("columns.restarts"),
       sortable: true,
-      width: "w-24",
       render: (pod) => (
         <span className={cn(pod.restart_count > 0 && "text-yellow-500")}>{pod.restart_count}</span>
       ),
     },
-    { key: "node_name", label: t("columns.node"), sortable: true, width: "w-28" },
+    { key: "node_name", label: t("columns.node"), sortable: true },
     {
       key: "created_at",
       label: t("columns.age"),
       sortable: true,
-      width: "w-20",
       render: (pod) => (pod.created_at ? formatAge(pod.created_at) : "-"),
     },
   ];
@@ -270,18 +262,16 @@ export function getDeploymentColumns(t: TranslateFunc): Column<DeploymentInfo>[]
       key: "name",
       label: t("columns.name"),
       sortable: true,
-      width: "w-[22rem]",
       render: (dep) => <span className="font-medium">{dep.name}</span>,
     },
     {
       key: "namespace",
       label: t("columns.namespace"),
       sortable: true,
-      width: "w-44",
       render: (dep) => (
         <div className="flex items-center gap-2">
           <NamespaceColorDot namespace={dep.namespace} />
-          <span className="truncate">{dep.namespace}</span>
+          <span>{dep.namespace}</span>
         </div>
       ),
     },
@@ -289,8 +279,6 @@ export function getDeploymentColumns(t: TranslateFunc): Column<DeploymentInfo>[]
       key: "ready_replicas",
       label: t("columns.ready"),
       sortable: true,
-      width: "w-24",
-      sortValue: (dep) => replicaReadyPercent(dep.ready_replicas, dep.replicas),
       render: (dep) => (
         <span className={cn(dep.ready_replicas < dep.replicas ? "text-yellow-500" : "text-green-500")}>
           {dep.ready_replicas}/{dep.replicas}
@@ -301,14 +289,12 @@ export function getDeploymentColumns(t: TranslateFunc): Column<DeploymentInfo>[]
       key: "available_replicas",
       label: t("columns.available"),
       sortable: true,
-      width: "w-28",
       render: (dep) => dep.available_replicas,
     },
     {
       key: "created_at",
       label: t("columns.age"),
       sortable: true,
-      width: "w-24",
       render: (dep) => (dep.created_at ? formatAge(dep.created_at) : "-"),
     },
   ];

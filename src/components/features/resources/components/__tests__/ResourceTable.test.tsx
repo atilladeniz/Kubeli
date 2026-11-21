@@ -125,28 +125,57 @@ describe("ResourceTable virtualization", () => {
     );
   });
 
-  it("enforces table-fixed layout and skips onRowClick when text is selected", () => {
-    const onRowClick = jest.fn();
-    const { container } = render(
+  it("uses table-fixed only when columns declare widths", () => {
+    const auto = render(<ResourceTable {...baseProps} data={makeItems(3)} />);
+    expect(auto.container.querySelector("table")?.className).not.toContain("table-fixed");
+    auto.unmount();
+
+    const fixed = render(
       <ResourceTable
         {...baseProps}
+        columns={[{ key: "name", label: "Name", width: "w-64" }, columns[1]]}
         data={makeItems(3)}
-        onRowClick={onRowClick}
       />
     );
+    expect(fixed.container.querySelector("table")?.className).toContain("table-fixed");
+  });
+});
 
-    const table = container.querySelector("table");
-    expect(table?.className).toContain("table-fixed");
+describe("ResourceTable text selection", () => {
+  afterEach(() => window.getSelection()?.removeAllRanges());
 
-    const getSelectionSpy = jest
-      .spyOn(window, "getSelection")
-      .mockReturnValue({ toString: () => "pod-0" } as unknown as Selection);
+  const selectText = (el: Element) => {
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const selection = window.getSelection()!;
+    selection.removeAllRanges();
+    selection.addRange(range);
+  };
 
-    const rows = dataRows(container);
+  const renderTable = () => {
+    const onRowClick = jest.fn();
+    const { container } = render(
+      <ResourceTable {...baseProps} data={makeItems(3)} onRowClick={onRowClick} />
+    );
+    return { onRowClick, rows: dataRows(container) };
+  };
+
+  it("does not open the row when text inside it is selected", () => {
+    const { onRowClick, rows } = renderTable();
+    selectText(rows[0].querySelector("td")!);
     fireEvent.click(rows[0]);
     expect(onRowClick).not.toHaveBeenCalled();
+  });
 
-    getSelectionSpy.mockReturnValue({ toString: () => "" } as unknown as Selection);
+  it("still opens a row when the selection is elsewhere", () => {
+    const { onRowClick, rows } = renderTable();
+    selectText(rows[0].querySelector("td")!);
+    fireEvent.click(rows[1]);
+    expect(onRowClick).toHaveBeenCalledWith({ name: "pod-1", status: "Running" });
+  });
+
+  it("opens the row on a plain click", () => {
+    const { onRowClick, rows } = renderTable();
     fireEvent.click(rows[0]);
     expect(onRowClick).toHaveBeenCalledWith({ name: "pod-0", status: "Running" });
   });

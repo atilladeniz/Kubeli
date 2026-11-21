@@ -649,55 +649,12 @@ html.tray-popup #root {
 *,
 *::before,
 *::after {
+  user-select: none !important;
+  -webkit-user-select: none !important;
   cursor: default !important;
 }
 
-/* Keep UI chrome and interactive controls non-selectable */
-button,
-button *,
-[role="button"],
-[role="button"] *,
-[role="tab"],
-[role="tab"] *,
-[role="menuitem"],
-[role="menuitem"] *,
-[role="menuitemcheckbox"],
-[role="menuitemradio"],
-[role="option"],
-[role="option"] *,
-[role="checkbox"],
-[role="radio"],
-[role="switch"],
-[data-sidebar],
-[data-sidebar] *,
-nav,
-nav *,
-th,
-th *,
-.select-none,
-.select-none * {
-  user-select: none !important;
-  -webkit-user-select: none !important;
-}
-
-/* Allow text selection in resource tables, detail drawers, badges, and text content */
-td,
-td *:not(button):not([role="button"]):not([role="checkbox"]),
-p,
-h1,
-h2,
-h3,
-h4,
-h5,
-h6,
-dd,
-dt,
-li {
-  user-select: text !important;
-  -webkit-user-select: text !important;
-}
-
-/* Allow text selection and text cursor in inputs and code blocks */
+/* Allow text selection and text cursor in inputs */
 input,
 textarea,
 [contenteditable="true"],
@@ -719,14 +676,30 @@ code,
   cursor: text !important;
 }
 
-/* Selection highlight for selectable content — visible blue like terminal emulators */
-::selection {
-  background-color: rgba(56, 139, 253, 0.35) !important;
-  color: inherit !important;
+/* Resource table cells: let users select and copy names and values. Row
+   actions and checkboxes stay non-selectable; the cursor stays default
+   because rows are clickable. */
+[role="grid"] td,
+[role="grid"] td * {
+  user-select: text !important;
+  -webkit-user-select: text !important;
 }
 
+[role="grid"] td button,
+[role="grid"] td button *,
+[role="grid"] td [role="button"],
+[role="grid"] td [role="button"] *,
+[role="grid"] td [role="checkbox"],
+[role="grid"] td [role="checkbox"] * {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+/* Selection highlight for selectable content — visible blue like terminal emulators */
 [data-allow-context-menu] ::selection,
-[data-allow-context-menu]::selection {
+[data-allow-context-menu]::selection,
+[role="grid"] td::selection,
+[role="grid"] td ::selection {
   background-color: rgba(56, 139, 253, 0.45) !important;
   color: inherit !important;
 }
