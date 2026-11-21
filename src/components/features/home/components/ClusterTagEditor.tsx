@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronLeft, Lock, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -13,14 +13,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   CLUSTER_TAG_COLORS,
-  CLUSTER_TAG_DOT_CLASS,
   type ClusterTag,
   type ClusterTagColor,
   countTagUsage,
   isBuiltInTag,
   useClusterTagsStore,
 } from "@/lib/stores/cluster-tags-store";
-import { TagDot } from "./TagChip";
+import { TAG_DOT_CLASS, TagDot } from "./TagChip";
 
 /** Edit mode of the tag popover: rename, recolor and delete tags in place. */
 export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
@@ -29,6 +28,9 @@ export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
   const tags = useClusterTagsStore((state) => state.tags);
   const assignments = useClusterTagsStore((state) => state.assignments);
   const usage = useMemo(() => countTagUsage(assignments), [assignments]);
+  // The pick view (and its focused input) unmounts when this view opens, so
+  // focus lands on Back; it returns there after a delete removes its row.
+  const backRef = useRef<HTMLButtonElement>(null);
 
   return (
     <div className="flex flex-col">
@@ -38,6 +40,8 @@ export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
           variant="ghost"
           size="icon-sm"
           className="size-7"
+          ref={backRef}
+          autoFocus
           aria-label={tCommon("back")}
           onClick={onBack}
         >
@@ -47,14 +51,25 @@ export function ClusterTagEditor({ onBack }: { onBack: () => void }) {
       </div>
       <ul className="max-h-72 overflow-y-auto p-1">
         {tags.map((tag) => (
-          <TagEditorRow key={tag.id} tag={tag} usage={usage.get(tag.id) ?? 0} />
+          <TagEditorRow
+            key={tag.id}
+            tag={tag}
+            usage={usage.get(tag.id) ?? 0}
+            onDeleted={() => backRef.current?.focus()}
+          />
         ))}
       </ul>
     </div>
   );
 }
 
-function TagEditorRow({ tag, usage }: { tag: ClusterTag; usage: number }) {
+interface TagEditorRowProps {
+  tag: ClusterTag;
+  usage: number;
+  onDeleted: () => void;
+}
+
+function TagEditorRow({ tag, usage, onDeleted }: TagEditorRowProps) {
   const t = useTranslations("cluster");
   const tCommon = useTranslations("common");
   const tags = useClusterTagsStore((state) => state.tags);
@@ -63,6 +78,8 @@ function TagEditorRow({ tag, usage }: { tag: ClusterTag; usage: number }) {
   const deleteTag = useClusterTagsStore((state) => state.deleteTag);
   const [name, setName] = useState(tag.name);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // Set when the confirm is cancelled so the remounted trash button takes focus.
+  const [refocusDelete, setRefocusDelete] = useState(false);
   const builtIn = isBuiltInTag(tag.id);
 
   const trimmed = name.trim();
@@ -87,7 +104,10 @@ function TagEditorRow({ tag, usage }: { tag: ClusterTag; usage: number }) {
             size="sm"
             className="h-7 text-xs"
             autoFocus
-            onClick={() => setConfirmingDelete(false)}
+            onClick={() => {
+              setConfirmingDelete(false);
+              setRefocusDelete(true);
+            }}
           >
             {tCommon("cancel")}
           </Button>
@@ -96,7 +116,10 @@ function TagEditorRow({ tag, usage }: { tag: ClusterTag; usage: number }) {
             variant="destructive"
             size="sm"
             className="h-7 text-xs"
-            onClick={() => deleteTag(tag.id)}
+            onClick={() => {
+              deleteTag(tag.id);
+              onDeleted();
+            }}
           >
             {t("deleteClusterTag")}
           </Button>
@@ -128,7 +151,7 @@ function TagEditorRow({ tag, usage }: { tag: ClusterTag; usage: number }) {
               <DropdownMenuRadioItem key={color} value={color}>
                 <span
                   aria-hidden
-                  className={cn("size-2.5 rounded-full", CLUSTER_TAG_DOT_CLASS[color])}
+                  className={cn("size-2.5 rounded-full", TAG_DOT_CLASS[color])}
                 />
                 {t(`tagColors.${color}`)}
               </DropdownMenuRadioItem>
@@ -173,6 +196,7 @@ function TagEditorRow({ tag, usage }: { tag: ClusterTag; usage: number }) {
           variant="ghost"
           size="icon-sm"
           className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+          autoFocus={refocusDelete}
           aria-label={t("deleteClusterTagNamed", { name: tag.name })}
           onClick={() => setConfirmingDelete(true)}
         >

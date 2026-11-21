@@ -32,6 +32,20 @@ export function matchesClusterFilter(
   return matchesSearch && matchesTags;
 }
 
+/**
+ * Drops selected filter entries whose pill is gone (tag deleted or no longer
+ * assigned), so a stale selection can never hide clusters without a way out.
+ */
+export function pruneTagFilter(
+  filter: string[],
+  clusters: Cluster[],
+  assignments: Record<string, string[]>,
+) {
+  const used = new Set(clusters.flatMap((c) => assignments[c.context] ?? []));
+  const hasUntagged = clusters.some((c) => !assignments[c.context]);
+  return filter.filter((id) => (id === UNTAGGED ? hasUntagged : used.has(id)));
+}
+
 interface ClusterTagFilterProps {
   clusters: Cluster[];
   value: string[];

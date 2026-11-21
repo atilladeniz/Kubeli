@@ -30,7 +30,7 @@ import { ConnectionErrorAlert } from "./ConnectionErrorAlert";
 import { ClusterGridCard } from "./ClusterGridCard";
 import { ClusterListCard } from "./ClusterListCard";
 import { ConfigureNamespacesDialog } from "./ConfigureNamespacesDialog";
-import { ClusterTagFilter, UNTAGGED, matchesClusterFilter } from "./ClusterTagFilter";
+import { ClusterTagFilter, matchesClusterFilter, pruneTagFilter } from "./ClusterTagFilter";
 import { useClusterTagsStore } from "@/lib/stores/cluster-tags-store";
 
 export function ClusterGrid() {
@@ -168,13 +168,10 @@ export function ClusterGrid() {
   // gates the empty state; deriving it from !isLoading flashed "no clusters
   // found" on cold start, before the initial fetch had even started.
 
-  // Drop filter entries whose pill vanished (tag deleted or unassigned), so a
-  // stale selection can never hide clusters without a way to clear it.
-  const activeTagFilter = useMemo(() => {
-    const used = new Set(clusters.flatMap((c) => tagAssignments[c.context] ?? []));
-    const hasUntagged = clusters.some((c) => !tagAssignments[c.context]);
-    return tagFilter.filter((id) => (id === UNTAGGED ? hasUntagged : used.has(id)));
-  }, [clusters, tagAssignments, tagFilter]);
+  const activeTagFilter = useMemo(
+    () => pruneTagFilter(tagFilter, clusters, tagAssignments),
+    [tagFilter, clusters, tagAssignments],
+  );
 
   const tagNameById = new Map(tags.map((tag) => [tag.id, tag.name]));
   const filteredClusters = clusters.filter((cluster) => {

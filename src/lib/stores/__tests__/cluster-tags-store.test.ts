@@ -1,5 +1,5 @@
 import { act } from "@testing-library/react";
-import { countTagUsage, useClusterTagsStore } from "../cluster-tags-store";
+import { countTagUsage, nextTagColor, useClusterTagsStore } from "../cluster-tags-store";
 
 const store = () => useClusterTagsStore.getState();
 const initial = useClusterTagsStore.getState();
@@ -89,4 +89,18 @@ describe("ClusterTagsStore", () => {
       new Map([["x", 2], ["y", 1]]),
     );
   });
+
+  it("gives new tags unused colors and never red or the built-in amber/blue first", () => {
+    act(() => {
+      store().createTag("one");
+      store().createTag("two");
+    });
+    const colors = store().tags.slice(3).map((tag) => tag.color);
+    expect(colors).toEqual(["cyan", "green"]);
+    expect(nextTagColor(CLUSTER_TAGS_ALL_USED)).not.toBe("red");
+  });
 });
+
+const CLUSTER_TAGS_ALL_USED = (["blue", "cyan", "green", "amber", "red", "pink", "violet", "slate"] as const).map(
+  (color, index) => ({ id: `t${index}`, name: `t${index}`, color }),
+);

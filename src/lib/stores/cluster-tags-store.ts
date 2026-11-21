@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-/** Named colors map to fixed Tailwind classes, so themes stay in CSS. */
+/** Named colors; the UI maps them to Tailwind classes (see TagChip). */
 export const CLUSTER_TAG_COLORS = [
   "blue",
   "cyan",
@@ -14,17 +14,6 @@ export const CLUSTER_TAG_COLORS = [
 ] as const;
 
 export type ClusterTagColor = (typeof CLUSTER_TAG_COLORS)[number];
-
-export const CLUSTER_TAG_DOT_CLASS: Record<ClusterTagColor, string> = {
-  blue: "bg-blue-500",
-  cyan: "bg-cyan-500",
-  green: "bg-green-500",
-  amber: "bg-amber-500",
-  red: "bg-red-500",
-  pink: "bg-pink-500",
-  violet: "bg-violet-500",
-  slate: "bg-slate-400",
-};
 
 export interface ClusterTag {
   id: string;
@@ -48,6 +37,16 @@ const DEFAULT_TAGS: ClusterTag[] = [
 ];
 
 const normalize = (name: string) => name.trim().toLowerCase();
+
+/** First color no tag uses yet; red stays reserved for production. */
+export function nextTagColor(tags: ClusterTag[]): ClusterTagColor {
+  const candidates = CLUSTER_TAG_COLORS.filter((color) => color !== "red");
+  const used = new Set(tags.map((tag) => tag.color));
+  return (
+    candidates.find((color) => !used.has(color)) ??
+    candidates[tags.length % candidates.length]
+  );
+}
 
 const EMPTY_IDS: string[] = [];
 
@@ -83,8 +82,7 @@ export const useClusterTagsStore = create<ClusterTagsState>()(
           const { tags } = get();
           // Ids never derive from the name, so renaming keeps assignments.
           const id = `tag-${crypto.randomUUID()}`;
-          const color = CLUSTER_TAG_COLORS[tags.length % CLUSTER_TAG_COLORS.length];
-          set({ tags: [...tags, { id, name: trimmed, color }] });
+          set({ tags: [...tags, { id, name: trimmed, color: nextTagColor(tags) }] });
           return id;
         },
 

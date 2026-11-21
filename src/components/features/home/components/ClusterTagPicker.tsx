@@ -87,6 +87,7 @@ export function ClusterTagPicker({ clusterContext, hasTags }: ClusterTagPickerPr
           <Command shouldFilter={false}>
             <CommandInput
               placeholder={t("searchOrCreateTag")}
+              autoFocus
               value={search}
               onValueChange={setSearch}
             />

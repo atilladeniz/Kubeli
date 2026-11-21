@@ -1,10 +1,21 @@
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
-  CLUSTER_TAG_DOT_CLASS,
   type ClusterTag,
+  type ClusterTagColor,
   isProductionTag,
 } from "@/lib/stores/cluster-tags-store";
+
+export const TAG_DOT_CLASS: Record<ClusterTagColor, string> = {
+  blue: "bg-blue-500",
+  cyan: "bg-cyan-500",
+  green: "bg-green-500",
+  amber: "bg-amber-500",
+  red: "bg-red-500",
+  pink: "bg-pink-500",
+  violet: "bg-violet-500",
+  slate: "bg-slate-400",
+};
 
 export function TagDot({ tag, className }: { tag: ClusterTag; className?: string }) {
   return (
@@ -12,7 +23,7 @@ export function TagDot({ tag, className }: { tag: ClusterTag; className?: string
       aria-hidden
       className={cn(
         "size-1.5 shrink-0 rounded-full",
-        CLUSTER_TAG_DOT_CLASS[tag.color],
+        TAG_DOT_CLASS[tag.color],
         className,
       )}
     />

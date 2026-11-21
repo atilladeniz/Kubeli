@@ -1,7 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ClusterTags } from "../ClusterTags";
-import { matchesClusterFilter, UNTAGGED } from "../ClusterTagFilter";
+import { matchesClusterFilter, pruneTagFilter, UNTAGGED } from "../ClusterTagFilter";
 import { useClusterTagsStore } from "@/lib/stores/cluster-tags-store";
 import type { Cluster } from "@/lib/types";
 
@@ -114,6 +114,50 @@ describe("ClusterTags", () => {
 
     expect(input).toHaveValue("qa");
     expect(useClusterTagsStore.getState().tags.some((tag) => tag.name === "qa")).toBe(true);
+  });
+});
+
+describe("keyboard focus", () => {
+  it("stays inside the popover across edit mode, delete confirm and back", async () => {
+    const user = userEvent.setup();
+    useClusterTagsStore.getState().createTag("qa");
+    render(<ClusterTags clusterContext={CONTEXT} />);
+    const inPopover = () =>
+      expect(document.activeElement?.closest("[data-slot=popover-content]")).not.toBeNull();
+
+    await user.tab();
+    await user.keyboard("{Enter}");
+    expect(screen.getByPlaceholderText("searchOrCreateTag")).toHaveFocus();
+
+    // Last item is "Edit tags…"
+    await user.keyboard("{End}{Enter}");
+    expect(screen.getByRole("button", { name: "back" })).toHaveFocus();
+
+    screen.getByRole("button", { name: "deleteClusterTagNamed:qa" }).focus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "cancel" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "deleteClusterTagNamed:qa" })).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    await user.tab();
+    expect(screen.getByRole("button", { name: "deleteClusterTag" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(screen.getByRole("button", { name: "back" })).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    expect(screen.getByPlaceholderText("searchOrCreateTag")).toHaveFocus();
+    inPopover();
+  });
+});
+
+describe("pruneTagFilter", () => {
+  const clusters = [{ context: "a" }, { context: "b" }] as Cluster[];
+
+  it("drops tags no cluster carries and untagged when every cluster has tags", () => {
+    expect(pruneTagFilter(["x", "gone", UNTAGGED], clusters, { a: ["x"] })).toEqual(["x", UNTAGGED]);
+    expect(pruneTagFilter(["x", UNTAGGED], clusters, { a: ["x"], b: ["y"] })).toEqual(["x"]);
+    expect(pruneTagFilter([], clusters, {})).toEqual([]);
   });
 });
 
