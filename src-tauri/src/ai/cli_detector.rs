@@ -278,6 +278,55 @@ const CODEX_NPM_EXE_DIRS: &[&str] = &[
     "@openai/codex-win32-arm64/vendor/aarch64-pc-windows-msvc/bin",
 ];
 
+/// npm platform package and Rust target triple of the native Codex binary
+/// for this OS/arch, matching the `@openai/codex` optionalDependencies.
+fn codex_native_target() -> Option<(&'static str, &'static str)> {
+    match (env::consts::OS, env::consts::ARCH) {
+        ("macos", "aarch64") => Some(("@openai/codex-darwin-arm64", "aarch64-apple-darwin")),
+        ("macos", "x86_64") => Some(("@openai/codex-darwin-x64", "x86_64-apple-darwin")),
+        ("linux", "aarch64") => Some(("@openai/codex-linux-arm64", "aarch64-unknown-linux-musl")),
+        ("linux", "x86_64") => Some(("@openai/codex-linux-x64", "x86_64-unknown-linux-musl")),
+        _ => None,
+    }
+}
+
+/// Candidate paths of the native Codex binary under one global `node_modules`
+/// dir. Codex >= 0.133 ships `vendor/<triple>/bin/codex`; older releases used
+/// `vendor/<triple>/codex/codex`, which is kept as a fallback.
+fn codex_native_candidates(
+    node_modules: &Path,
+    platform_package: &str,
+    target_triple: &str,
+) -> Vec<PathBuf> {
+    let codex_pkg = node_modules.join("@openai/codex");
+    let package_dirs = [
+        // platform package nested inside codex's own node_modules
+        codex_pkg.join("node_modules").join(platform_package),
+        // platform package hoisted next to codex
+        node_modules.join(platform_package),
+        // vendor dir inside the codex package itself (older releases)
+        codex_pkg,
+    ];
+    let mut candidates = Vec::new();
+    for dir in &package_dirs {
+        let vendor = dir.join("vendor").join(target_triple);
+        candidates.push(vendor.join("bin").join("codex"));
+        candidates.push(vendor.join("codex").join("codex"));
+    }
+    candidates
+}
+
+fn find_codex_native_in(
+    node_modules_dirs: &[PathBuf],
+    platform_package: &str,
+    target_triple: &str,
+) -> Option<PathBuf> {
+    node_modules_dirs
+        .iter()
+        .flat_map(|dir| codex_native_candidates(dir, platform_package, target_triple))
+        .find(|path| path.is_file())
+}
+
 /// npm package dirs holding `opencode.exe`: v1 (`opencode-ai`) and v2
 /// (`@opencode/cli`), wrapper bins and per-platform packages.
 const OPENCODE_NPM_EXE_DIRS: &[&str] = &[
@@ -665,89 +714,42 @@ impl CliDetector {
     /// Find the native Codex binary directly, bypassing the Node.js wrapper.
     ///
     /// Codex packages contain a native Mach-O/ELF binary at a known vendor path
-    /// inside the npm package. We check common installation roots for this binary.
+    /// inside the npm package. We check common global `node_modules` roots.
     fn find_codex_native_binary(home: &str) -> Option<String> {
-        let target_triple = if cfg!(target_arch = "aarch64") {
-            "aarch64-apple-darwin"
-        } else {
-            "x86_64-apple-darwin"
-        };
+        let (platform_package, target_triple) = codex_native_target()?;
 
-        let platform_package = if cfg!(target_arch = "aarch64") {
-            "@openai/codex-darwin-arm64"
-        } else {
-            "@openai/codex-darwin-x64"
-        };
-
-        // Known installation roots where @openai/codex may be installed
-        let codex_package_roots = [
-            // npm global: native dep is nested inside codex's own node_modules
-            format!(
-                "{}/.npm-global/lib/node_modules/@openai/codex/node_modules/{}/vendor/{}/codex/codex",
-                home, platform_package, target_triple
-            ),
-            // npm global: hoisted (flat node_modules)
-            format!(
-                "{}/.npm-global/lib/node_modules/{}/vendor/{}/codex/codex",
-                home, platform_package, target_triple
-            ),
-            // Homebrew (Apple Silicon): vendor dir inside the codex package itself
-            format!(
-                "/opt/homebrew/lib/node_modules/@openai/codex/vendor/{}/codex/codex",
-                target_triple
-            ),
-            // Homebrew (Apple Silicon): nested node_modules
-            format!(
-                "/opt/homebrew/lib/node_modules/@openai/codex/node_modules/{}/vendor/{}/codex/codex",
-                platform_package, target_triple
-            ),
-            // Homebrew (Intel)
-            format!(
-                "/usr/local/lib/node_modules/@openai/codex/vendor/{}/codex/codex",
-                target_triple
-            ),
-            format!(
-                "/usr/local/lib/node_modules/@openai/codex/node_modules/{}/vendor/{}/codex/codex",
-                platform_package, target_triple
-            ),
+        let mut roots = vec![
+            PathBuf::from(format!("{}/.npm-global/lib/node_modules", home)),
+            PathBuf::from("/opt/homebrew/lib/node_modules"),
+            PathBuf::from("/usr/local/lib/node_modules"),
+            PathBuf::from("/usr/lib/node_modules"),
         ];
 
-        // Also check version manager paths
-        let version_manager_finders: Vec<Option<String>> = vec![
+        // Version manager bin dirs are like ~/.nvm/versions/node/v22.x/bin;
+        // the lib dir is a sibling: ~/.nvm/versions/node/v22.x/lib
+        let version_manager_bins = [
             find_nvm_node(home),
             find_mise_node(home),
             find_asdf_node(home),
             find_fnm_node(home),
             find_volta_node(home),
         ];
-
-        let mut all_paths: Vec<String> = codex_package_roots.to_vec();
-
-        for vm_bin in version_manager_finders.into_iter().flatten() {
-            // Version manager bin dirs are like ~/.nvm/versions/node/v22.x/bin
-            // The lib dir is a sibling: ~/.nvm/versions/node/v22.x/lib
+        for vm_bin in version_manager_bins.into_iter().flatten() {
             if let Some(base) = vm_bin.strip_suffix("/bin") {
-                all_paths.push(format!(
-                    "{}/lib/node_modules/@openai/codex/node_modules/{}/vendor/{}/codex/codex",
-                    base, platform_package, target_triple
-                ));
-                all_paths.push(format!(
-                    "{}/lib/node_modules/@openai/codex/vendor/{}/codex/codex",
-                    base, target_triple
-                ));
+                roots.push(PathBuf::from(format!("{}/lib/node_modules", base)));
             }
         }
 
-        for path in &all_paths {
-            let p = std::path::Path::new(path);
-            if p.exists() && p.is_file() {
-                tracing::info!("Found native Codex binary at: {}", path);
-                return Some(path.clone());
+        match find_codex_native_in(&roots, platform_package, target_triple) {
+            Some(path) => {
+                tracing::info!("Found native Codex binary at: {}", path.display());
+                Some(path.to_string_lossy().into_owned())
+            }
+            None => {
+                tracing::debug!("Native Codex binary not found in any known location");
+                None
             }
         }
-
-        tracing::debug!("Native Codex binary not found in any known location");
-        None
     }
 
     /// Get Codex CLI version
@@ -1250,6 +1252,82 @@ mod tests {
         let result = CliDetector::find_codex_native_binary(&home);
         // Just verify it doesn't panic; result depends on local installation
         println!("Native Codex binary: {:?}", result);
+    }
+
+    const CODEX_TEST_PKG: &str = "@openai/codex-linux-x64";
+    const CODEX_TEST_TRIPLE: &str = "x86_64-unknown-linux-musl";
+
+    fn write_file(path: &Path) {
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, b"").unwrap();
+    }
+
+    fn codex_vendor_dir(node_modules: &Path) -> PathBuf {
+        node_modules
+            .join("@openai/codex/node_modules")
+            .join(CODEX_TEST_PKG)
+            .join("vendor")
+            .join(CODEX_TEST_TRIPLE)
+    }
+
+    #[test]
+    fn codex_native_finds_current_npm_layout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let binary = codex_vendor_dir(tmp.path()).join("bin").join("codex");
+        write_file(&binary);
+        // the wrapper script must not be mistaken for the native binary
+        write_file(&tmp.path().join("@openai/codex/bin/codex.js"));
+
+        let found = find_codex_native_in(
+            &[tmp.path().to_path_buf()],
+            CODEX_TEST_PKG,
+            CODEX_TEST_TRIPLE,
+        );
+        assert_eq!(found, Some(binary));
+    }
+
+    #[test]
+    fn codex_native_falls_back_to_legacy_npm_layout() {
+        let tmp = tempfile::tempdir().unwrap();
+        let binary = codex_vendor_dir(tmp.path()).join("codex").join("codex");
+        write_file(&binary);
+
+        let found = find_codex_native_in(
+            &[tmp.path().to_path_buf()],
+            CODEX_TEST_PKG,
+            CODEX_TEST_TRIPLE,
+        );
+        assert_eq!(found, Some(binary));
+    }
+
+    #[test]
+    fn codex_native_prefers_current_layout_over_legacy() {
+        let tmp = tempfile::tempdir().unwrap();
+        let vendor = codex_vendor_dir(tmp.path());
+        write_file(&vendor.join("codex").join("codex"));
+        write_file(&vendor.join("bin").join("codex"));
+
+        let found = find_codex_native_in(
+            &[tmp.path().to_path_buf()],
+            CODEX_TEST_PKG,
+            CODEX_TEST_TRIPLE,
+        );
+        assert_eq!(found, Some(vendor.join("bin").join("codex")));
+    }
+
+    #[test]
+    fn codex_native_returns_none_without_vendor_binary() {
+        let tmp = tempfile::tempdir().unwrap();
+        write_file(&tmp.path().join("@openai/codex/bin/codex.js"));
+        // a directory named like the binary is not a binary
+        std::fs::create_dir_all(codex_vendor_dir(tmp.path()).join("bin").join("codex")).unwrap();
+
+        let found = find_codex_native_in(
+            &[tmp.path().to_path_buf()],
+            CODEX_TEST_PKG,
+            CODEX_TEST_TRIPLE,
+        );
+        assert_eq!(found, None);
     }
 
     #[tokio::test]
